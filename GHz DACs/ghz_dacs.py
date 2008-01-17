@@ -896,6 +896,27 @@ def listify(data):
 def words2str(list):
     return py_array('B', list).tostring()
 
+def sequenceTime(sequence):
+    """Conservative estimate of the length of a sequence in seconds."""
+    cycles = sum(cmdTime(c) for c in sequence)
+    return cycles * 40e-9
+    
+def cmdTime(cmd):
+    """A conservative estimate of the number of cycles a given command takes."""
+    opcode = (cmd & 0xF00000) >> 20
+    abcde  = (cmd & 0x0FFFFF)
+    xy     = (cmd & 0x00FF00) >> 8
+    ab     = (cmd & 0x0000FF)
+
+    if opcode in [0x0, 0x1, 0x2, 0x4, 0x8, 0xA]:
+        return 1
+    if opcode == 0xF:
+        return 2
+    if opcode == 0x3:
+        return abcde + 1 # delay
+    if opcode == 0xC:
+        return 250*8 # maximum SRAM length is 8us
+
 __server__ = FPGAServer()
 
 if __name__ == '__main__':
