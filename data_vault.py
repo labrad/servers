@@ -18,6 +18,7 @@
 from __future__ import with_statement
 
 from labrad import types as T, util
+from labrad.config import ConfigFile
 from labrad.server import LabradServer, setting
 
 from twisted.internet import defer, reactor
@@ -27,9 +28,10 @@ from ConfigParser import SafeConfigParser
 import os
 from datetime import datetime
 
-# TODO: make sure this is cross-platform
-# TODO: data store configuration should be flexible
-DATADIR = 'R:\\_LabRAD Data Server Files_\\'
+# look for a configuration file in this directory
+cf = ConfigFile('data_vault', os.path.split(__file__)[0])
+DATADIR = cf.get('config', 'repository')
+
 PRECISION = 6
 FILE_TIMEOUT = 60 # how long to keep datafiles open if not accessed
 TIME_FORMAT = '%Y-%m-%d, %H:%M:%S'
@@ -310,7 +312,7 @@ class Dataset:
             sec = 'Parameter %d' % (i+1)
             S.add_section(sec)
             S.set(sec, 'Label', par['label'])
-            # TODO: smarter saving here, since eval'ing is a big security hole
+            # TODO: smarter saving here, since eval'ing is insecure
             S.set(sec, 'Data', repr(par['data']))
 
         with open(self.infofile, 'w') as f:
@@ -506,7 +508,7 @@ class DataVault(LabradServer):
         """Open a Dataset for reading."""
         session = self.getSession(c)
         dataset = session.openDataset(name)
-        c['dataset'] = name
+        c['dataset'] = dataset.name
         c['filepos'] = 0
         c['writing'] = False
         return dataset.datafile

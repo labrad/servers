@@ -16,11 +16,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from labrad import types as T
+from labrad.config import ConfigFile
 from labrad.server import LabradServer, setting
 
 import os
 
-DATADIR = 'R:\\_LabRAD Registry Files_'
+# look for a configuration file in this directory
+cf = ConfigFile('registry_server', os.path.split(__file__)[0])
+DATADIR = cf.get('config', 'repository')
 
 encodings = [
     ('%', '%p'),
@@ -89,11 +92,12 @@ class RegistryServer(LabradServer):
         return [dsDecode(f) for f in os.listdir(path)
                             if os.path.isdir(path+f)]
 
-    @setting(10, 'change directory', newdir=[' : print current working directory',
-                                             's: change into this directory',
-                                             '*s: change into these directories starting from root',
-                                             'w: go up by this many directories'],
-                                     returns=['s'])
+    @setting(10, 'change directory',
+             newdir=[' : print current working directory',
+                     's: change into this directory',
+                     '*s: change into these directories starting from root',
+                     'w: go up by this many directories'],
+             returns=['s'])
     def chdir(self, c, newdir):
         """Changes the current working directory"""
         if newdir is None:
@@ -136,9 +140,10 @@ class RegistryServer(LabradServer):
         os.makedirs(path)
         return path
 
-    @setting(16, 'force directory', newdir=['s: change into this directory',
-                                            '*s: change into these directories starting from root'],
-                                     returns=['s'])
+    @setting(16, 'force directory',
+             newdir=['s: change into this directory',
+                     '*s: change into these directories starting from root'],
+             returns=['s'])
     def forcedir(self, c, newdir):
         """Changes the current working directory, creating new directories as needed"""
         if isinstance(newdir, list):
