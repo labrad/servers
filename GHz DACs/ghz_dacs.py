@@ -265,7 +265,10 @@ class FPGAServer(DeviceServer):
             de = cxn.servers[server]
             ctx = cxn.context()
             adapters = yield de.adapters(context=ctx)
-            ports, names = zip(*adapters)
+            if len(adapters):
+                ports, names = zip(*adapters)
+            else:
+                ports, names = [], []
             if port not in ports:
                 continue
             MAC = names[list(ports).index(port)][-17:]
