@@ -244,7 +244,7 @@ class FPGAServer(DeviceServer):
 
     # possible links: name, server, port
     possibleLinks = [('DR Lab', 'direct_ethernet', 1),
-                     ('DR Lab', 'mrfreeze_direct_ethernet', 1),
+                     ('DR Lab', 'dr_direct_ethernet', 1),
                      ('ADR Lab', 'adr_direct_ethernet', 1)]
 
     @inlineCallbacks
