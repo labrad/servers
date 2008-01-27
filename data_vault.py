@@ -19,13 +19,13 @@ from __future__ import with_statement
 
 from labrad import types as T, util
 from labrad.config import ConfigFile
-from labrad.server import LabradServer, setting
+from labrad.server import LabradServer, Signal, setting
 
 from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 from ConfigParser import SafeConfigParser
-import os
+import os, re
 from datetime import datetime
 
 # look for a configuration file in this directory
@@ -34,11 +34,11 @@ DATADIR = cf.get('config', 'repository')
 
 PRECISION = 6
 FILE_TIMEOUT = 60 # how long to keep datafiles open if not accessed
+DATA_TIMEOUT = 60 # how long to keep data in memory if not accessed
 TIME_FORMAT = '%Y-%m-%d, %H:%M:%S'
 
-class NoSessionError(T.Error):
-    """Please open a session first."""
-    code = 1
+
+## error messages
 
 class NoDatasetError(T.Error):
     """Please open a dataset first."""
@@ -49,18 +49,9 @@ class DatasetNotFoundError(T.Error):
     def __init__(self, name):
         self.msg="Dataset '%s' not found!" % name
 
-class DatasetLockedError(T.Error):
-    """Cannot change format of datasets once data has been added."""
-    code = 3
-
 class ReadOnlyError(T.Error):
-    """Points can only be added to datasets created with 'New Dataset'."""
+    """Points can only be added to datasets created with 'new'."""
     code = 4
-
-class NotReadyError(T.Error):
-    code = 5
-    def __init__(self, name):
-        self.msg = "Dataset '%s' is still being initialized." % name
 
 class BadDataError(T.Error):
     code = 6
@@ -77,6 +68,9 @@ class ParameterInUseError(T.Error):
     def __init__(self, name):
         self.msg = "Already a parameter called '%s'." % name
 
+
+## filename translation
+        
 encodings = [
     ('%','%p'),
     ('/','%f'),
@@ -100,29 +94,102 @@ def dsDecode(name):
         name = name.replace(code, char)
     return name
 
+def filedir(path):
+    return os.path.join(DATADIR, *[dsEncode(s) for s in path])
+    
+    
+## Time formatting
+    
 def timeToStr(t):
     return t.strftime(TIME_FORMAT)
 
 def timeFromStr(s):
     return datetime.strptime(s, TIME_FORMAT)
 
-class Session:
-    def __init__(self, name):
-        self.dir = DATADIR + dsEncode(name)
-        self.infofile = self.dir + '\\session.ini'
+
+## variable parsing
+    
+re_label = re.compile(r'^([^\[(]*)') # matches up to the first [ or (
+re_legend = re.compile(r'\((.*)\)') # matches anything inside ( )
+re_units = re.compile(r'\[(.*)\]') # matches anything inside [ ]
+
+def getMatch(pat, s, default=None):
+    matches = re.findall(pat, s)
+    if len(matches) == 0:
+        if default is None:
+            raise Exception("Cannot parse '%s'." % s)
+        return default
+    return matches[0].strip()
+
+def parseIndependent(s):
+    label = getMatch(re_label, s)
+    units = getMatch(re_units, s, '')
+    return label, units
+    
+def parseDependent(s):
+    label = getMatch(re_label, s)
+    legend = getMatch(re_legend, s, '')
+    units = getMatch(re_units, s, '')
+    return label, legend, units
+    
+    
+    
+class Session(object):
+    """Stores information about a directory on disk.
+    
+    One session object is created for each data directory accessed.
+    The session object manages reading from and writing to the config
+    file, and manages the datasets in this directory.
+    """
+    
+    # feep a dictionary of all created session objects
+    _sessions = {}
+    
+    @classmethod
+    def exists(cls, path):
+        """Check whether a session exists on disk for a given path.
+        
+        This does not tell us whether a session object has been
+        created for that path.
+        """
+        return os.path.exists(filedir(path))
+    
+    def __new__(cls, path, parent):
+        """Get a Session object.
+        
+        If a session already exists for the given path, return it.
+        Otherwise, create a new session instance.
+        """
+        path = tuple(path)
+        if path in cls._sessions:
+            return cls._sessions[path]
+        inst = super(Session, cls).__new__(cls)
+        inst._init(path, parent)
+        cls._sessions[path] = inst
+        return inst
+
+    def _init(self, path, parent):
+        """Initialization that happens once when session object is created."""
+        self.path = path
+        self.parent = parent
+        self.dir = filedir(path)
+        self.infofile = os.path.join(self.dir, 'session.ini')
         self.listeners = []
         self.datasets = {}
 
-        if os.access(self.dir, os.R_OK or os.W_OK):
+        if not os.path.exists(self.dir):
+            os.mkdir(self.dir)
+           
+        if os.path.exists(self.infofile):
             self.load()
         else:
-            os.mkdir(self.dir)
             self.counter = 1
             self.created = self.modified = datetime.now()
 
         self.access() # update current access time and save
-
+            
     def load(self):
+        """Load info from the session.ini file."""
         S = SafeConfigParser()
         S.read(self.infofile)
 
@@ -135,6 +202,7 @@ class Session:
         self.modified = timeFromStr(S.get(sec, 'Modified'))
 
     def save(self):
+        """Save info to the session.ini file."""
         S = SafeConfigParser()
 
         sec = 'File System'
@@ -151,49 +219,40 @@ class Session:
             S.write(f)
 
     def access(self):
+        """Update last access time and save."""
         self.accessed = datetime.now()
         self.save()
 
-    def getDSList(self):
-        files = os.listdir(self.dir)
-        return [(int(f[:5]), dsDecode(f[:-4]))
-                for f in files if f.endswith('.csv')]
-
-    def listDatasets(self, startAt=0):
-        """Get a list of datasets in this session."""
-        if self.counter > startAt:
-            datasets = self.getDSList()
-            names = [name for num, name in datasets if num >= startAt]
-            if len(datasets):
-                nextset = max(num for num, name in datasets) + 1
-            else:
-                nextset = 1
-            return sorted(names), nextset
-        else:
-            return [], startAt or 1
-
-    def waitForDatasets(self, timeout):
-        timeout = min(timeout, 300)
-        d = defer.Deferred()
-        self.listeners.append(d)
-        return util.maybeTimeout(d, timeout, None)
-
-    def newDataset(self, title):
+    def listDirectories(self):
+        """Get a list of directory names in this directory."""
+        return [dsDecode(d) for d in os.listdir(self.dir)
+                if os.path.isdir(os.path.join(self.dir, d))]
+            
+    def listDatasets(self):
+        """Get a list of dataset names in this directory."""
+        return [dsDecode(f[:-4]) for f in os.listdir(self.dir)
+                if f.endswith('.csv')]
+    
+    def newDataset(self, title, independents, dependents):
         num = self.counter
         self.counter += 1
         self.modified = datetime.now()
 
         name = '%05d - %s' % (num, title)
         dataset = Dataset(self, name, title, create=True)
+        for i in independents:
+            dataset.addIndependent(i)
+        for d in dependents:
+            dataset.addDependent(d)
         self.datasets[name] = dataset
-        self.notifyListeners()
         self.access()
         return dataset
 
     def openDataset(self, name):
         # first lookup by number if necessary
         if isinstance(name, (int, long)):
-            for num, oldName in self.getDSList():
+            for oldName in self.listDatasets():
+                num = int(oldName[:5])
                 if name == num:
                     name = oldName
                     break
@@ -202,12 +261,10 @@ class Session:
             raise DatasetNotFoundError(name)
 
         filename = dsEncode(name)
-        if not os.access('%s\\%s.csv' % (self.dir, filename), os.R_OK):
+        if not os.path.exists(os.path.join(self.dir, filename + '.csv')):
             raise DatasetNotFoundError(name)
 
         if name in self.datasets:
-            if not self.datasets[name].locked:
-                raise NotReadyError(name)
             dataset = self.datasets[name]
             dataset.access()
         else:
@@ -217,32 +274,24 @@ class Session:
         self.access()
         return dataset
 
-    def notifyListeners(self):
-        for d in self.listeners:
-            reactor.callLater(0, d.callback, None)
-        self.listeners = []
-
 class Dataset:
     def __init__(self, session, name, title=None, num=None, create=False):
+        self.parent = session.parent
         self.name = name
-        file_base = '%s\\%s' % (session.dir, dsEncode(name))
+        file_base = os.path.join(session.dir, dsEncode(name))
         self.datafile = file_base + '.csv'
         self.infofile = file_base + '.ini'
         self.file # create the datafile, but don't do anything with it
-        self.listeners = []
-
+        self.listeners = set() # contexts that want to hear about added data
+        
         if create:
-            self.locked = False
             self.title = title
-            
             self.created = self.accessed = self.modified = datetime.now()
-
-            self.independent = []
-            self.dependent = []
+            self.independents = []
+            self.dependents = []
             self.parameters = []
             self.save()
         else:
-            self.locked = True
             self.load()
             self.access()
 
@@ -262,7 +311,7 @@ class Dataset:
             units = S.get(sec, 'Units', raw=True)
             return dict(label=label, units=units)
         count = S.getint(gen, 'Independent')
-        self.independent = [getInd(i) for i in range(count)]
+        self.independents = [getInd(i) for i in range(count)]
 
         def getDep(i):
             sec = 'Dependent %d' % (i+1)
@@ -271,12 +320,12 @@ class Dataset:
             categ = S.get(sec, 'Category', raw=True)
             return dict(label=label, units=units, category=categ)
         count = S.getint(gen, 'Dependent')
-        self.dependent = [getDep(i) for i in range(count)]
+        self.dependents = [getDep(i) for i in range(count)]
 
         def getPar(i):
             sec = 'Parameter %d' % (i+1)
             label = S.get(sec, 'Label', raw=True)
-            # TODO: big security hole! evaluate in restricted namespace
+            # TODO: big security hole! eval can execute arbitrary code
             data = T.evalLRData(S.get(sec, 'Data', raw=True))
             return dict(label=label, data=data)
         count = S.getint(gen, 'Parameters')
@@ -291,17 +340,17 @@ class Dataset:
         S.set(sec, 'Accessed', timeToStr(self.accessed))
         S.set(sec, 'Modified', timeToStr(self.modified))
         S.set(sec, 'Title',       self.title)
-        S.set(sec, 'Independent', repr(len(self.independent)))
-        S.set(sec, 'Dependent',   repr(len(self.dependent)))
+        S.set(sec, 'Independent', repr(len(self.independents)))
+        S.set(sec, 'Dependent',   repr(len(self.dependents)))
         S.set(sec, 'Parameters',  repr(len(self.parameters)))
 
-        for i, ind in enumerate(self.independent):
+        for i, ind in enumerate(self.independents):
             sec = 'Independent %d' % (i+1)
             S.add_section(sec)
             S.set(sec, 'Label', ind['label'])
             S.set(sec, 'Units', ind['units'])
 
-        for i, dep in enumerate(self.dependent):
+        for i, dep in enumerate(self.dependents):
             sec = 'Dependent %d' % (i+1)
             S.add_section(sec)
             S.set(sec, 'Label',    dep['label'])
@@ -319,6 +368,7 @@ class Dataset:
             S.write(f)
 
     def access(self):
+        """Update time of last access for this dataset."""
         self.accessed = datetime.now()
         self.save()
 
@@ -330,46 +380,61 @@ class Dataset:
         if it has not accessed for a while.
         """
         if not hasattr(self, '_file'):
-            #print 'opening:', self.datafile
             self._file = open(self.datafile, 'a+') # append data
             self._fileTimeoutCall = reactor.callLater(
                                       FILE_TIMEOUT, self._fileTimeout)
         else:
-            #print 'extending timeout:', self.datafile
             self._fileTimeoutCall.reset(FILE_TIMEOUT)
         return self._file
-
+        
     def _fileTimeout(self):
-        #print 'closing:', self.datafile
         self._file.close()
         del self._file
         del self._fileTimeoutCall
-
-    def addIndependent(self, label, units):
-        if self.locked:
-            raise DatasetLockedError()
-
+    
+    @property
+    def data(self):
+        """Read data from file on demand.
+        
+        The data is scheduled to be cleared from memory unless accessed."""
+        if not hasattr(self, '_data'):
+            self._data = []
+            self._datapos = 0
+            self._dataTimeoutCall = reactor.callLater(
+                                     DATA_TIMEOUT, self._dataTimeout)
+        else:
+            self._dataTimeoutCall.reset(DATA_TIMEOUT)
+        f = self.file
+        f.seek(self._datapos)
+        lines = f.readlines()
+        self._data.extend([float(n) for n in line.split(',')] for line in lines)
+        self._datapos = f.tell()
+        return self._data
+    
+    def _dataTimeout(self):
+        del self._data
+        del self._datapos
+        del self._dataTimeoutCall
+    
+    def addIndependent(self, label):
+        """Add an independent variable to this dataset."""
+        if isinstance(label, tuple):
+            label, units = label
+        else:
+            label, units = parseIndependent(label)
         d = dict(label=label, units=units)
-        self.independent.append(d)
+        self.independents.append(d)
         self.save()
 
-        if units:
-            label += ' [%s]' % units
-        return label
-
-    def addDependent(self, label, legend, units):
-        if self.locked:
-            raise DatasetLockedError()
-
+    def addDependent(self, label):
+        """Add a dependent variable to this dataset."""
+        if isinstance(label, tuple):
+            label, legend, units = label
+        else:
+            label, legend, units = parseDependent(label)
         d = dict(category=label, label=legend, units=units)
-        self.dependent.append(d)
+        self.dependents.append(d)
         self.save()
-
-        if legend:
-            label += ' (%s)' % legend
-        if units:
-            label += ' [%s]' % units
-        return label
 
     def addParameter(self, name, data):
         for p in self.parameters:
@@ -380,242 +445,229 @@ class Dataset:
         self.save()
         return name
 
-    def waitForData(self, timeout):
-        timeout = min(timeout, 300)
-        d = defer.Deferred()
-        self.listeners.append(d)
-        return util.maybeTimeout(d, timeout, None)
-
-    def notifyListeners(self):
-        for defs in self.listeners:
-            reactor.callLater(0, defs.callback, None)
-        self.listeners = []
-
     def getParameter(self, name):
         for p in self.parameters:
             if p['label'] == name:
                 return p['data']
         raise BadParameterError(name)
+        
+    def addData(self, data):
+        varcount = len(self.independents) + len(self.dependents)
+        if not len(data) or not isinstance(data[0], list):
+            data = [data]
+        if len(data[0]) != varcount:
+            raise BadDataError(varcount)
+            
+        # append the data to the file
+        f = self.file
+        for row in data:
+            f.write(', '.join('%.*G' % (PRECISION, v) for v in row) + '\n')
+        f.flush()
+        
+        # notify all listening contexts
+        reactor.callLater(0, self.parent.onNewData, None, list(self.listeners))
+        self.listeners = set()
+        return f.tell()
+        
+    def getData(self, limit, start):
+        if limit is None:
+            data = self.data[start:]
+        else:
+            data = self.data[start:start+limit]
+        return data, start + len(data)
 
 
 class DataVault(LabradServer):
     name = 'Data Vault'
-
-    sessions = {}
-
-    @setting(10, 'List Sessions', returns=['*s: Available sessions'])
-    def list_sessions(self, c):
-        """Get a list of all registered sessions."""
-        return sorted(dsDecode(s) for s in os.listdir(DATADIR))
-
-    @setting(11, 'New Session', name=['s'], returns=['s'])
-    def new_session(self, c, name='_unnamed_'):
-        """Create a new session.
-
-        If the specified session exists, an error is raised.
-        The returned string is the path to the session folder.
-        """
-        if name in self.list_sessions(c):
-            raise T.Error("Session '%s' already exists." % name)
-        else:
-            session = self.sessions[name] = Session(name)
-        self.updateSessionContext(c, name)
-        return session.dir
-
-    @setting(12, 'Open Session', name=['s'], create=['b'], returns=['s'])
-    def open_session(self, c, name='_unnamed_', create=False):
-        """Open a session.
-
-        If the optional create flag is True (default: False), a
-        new session will be created if it does not yet exist.
-        The returned string is the path to the session folder.
-        """
-        if name in self.list_sessions(c):
-            if name not in self.sessions: # hasn't been loaded yet
-                self.sessions[name] = Session(name)
-            session = self.sessions[name]
-            session.access() # update time of last access
-        else:
-            if not create:
-                raise T.Error("Cannot create new session. Use 'New Session'.")
-            session = self.sessions[name] = Session(name)
-        self.updateSessionContext(c, name)
-        return session.dir
-
-    def updateSessionContext(self, c, name):
-        if 'dataset' in c:
-            del c['dataset']
-        c['session'] = name
-        c['nextset'] = 1 # start from the beginning of the datasets
+    
+    def initServer(self):
+        root = Session(('',), self) # create root session
+        self.defaultCtxtData['path'] = ('',)
 
     def getSession(self, c):
-        try:
-            name = c['session']
-            return self.sessions[name]
-        except KeyError:
-            raise NoSessionError()
+        """Get a session object for the current path."""
+        return Session(c['path'], self)
 
     def getDataset(self, c):
-        try:
-            session = self.getSession(c)
-            name = c['dataset']
-            return session.datasets[name]
-        except KeyError:
+        """Get a dataset object for the current dataset."""
+        if 'dataset' not in c:
             raise NoDatasetError()
-
-    @setting(20, 'List Datasets', returns=['*s'])
-    def list_datasets(self, c):
-        """Get a list of all datasets in the current session.
-
-        You must first call "Open Session" to specify the session
-        for which to retrieve datasets.
-        """
         session = self.getSession(c)
-        datasets, c['nextset'] = session.listDatasets()
-        return datasets
-
-    @setting(21, 'List New Datasets', timeout=['v[s]'], returns=['*s'])
-    def list_new_datasets(self, c, timeout=None):
-        """Get a list of new datasets in the current session.
-
-        You must first call "Open Session" to specify the session
-        for which to retrieve datasets.
-        """
+        return session.datasets[c['dataset']]
+        
+    onNewDir = Signal(543617, 'signal: new dir', '*s')
+    onNewDataset = Signal(543618, 'signal: new dataset', '(*s, s)')
+    onNewData = Signal(543619, 'signal: new data', '')
+        
+    @setting(6, returns=['(*s{subdirectories}, *s{datasets})'])
+    def ls(self, c):
+        """Get subdirectories and datasets in the current directory."""
         session = self.getSession(c)
-        ns = c['nextset']
-        datasets, ns = session.listDatasets(startAt=ns)
-        if timeout and not len(datasets):
-            yield session.waitForDatasets(timeout)
-            datasets, ns = session.listDatasets(startAt=ns)
-        c['nextset'] = ns
-        returnValue(datasets)
-
-    @setting(22, 'New Dataset', name=['s'], returns=['s'])
-    def new_dataset(self, c, name='untitled'):
+        return session.listDirectories(), session.listDatasets()
+    
+    @setting(7, path=[': get current directory',
+                      's: change into this directory',
+                      '*s: change into each directory in sequence',
+                      'w: go up by this many directories'],
+                returns=['*s'])
+    def cd(self, c, path=0):
+        """Change the current directory.
+        
+        The empty string '' refers to the root directory.
+        Returns the path to the new current directory.
+        """
+        if isinstance(path, (int, long)):
+            if path > 0:
+                c['path'] = c['path'][:-path]
+                if not len(c['path']):
+                    c['path'] = ('',)
+            return list(c['path'])
+            
+        session = self.getSession(c)
+        if isinstance(path, str):
+            path = [path]
+        for dir in path:
+            if dir == '':
+                newPath = ('',)
+            else:
+                newPath = session.path + (dir,)
+            if not Session.exists(newPath):
+                raise Exception("Session %s does not exist." % list(newPath))
+            session = Session(newPath, self)
+        c['path'] = session.path
+        return list(c['path'])
+        
+    @setting(8, name=['s'], returns=['*s'])
+    def mkdir(self, c, name):
+        """Make a new sub-directory in the current directory.
+        
+        The current directory remains selected.  You must use the
+        'cd' command to select the newly-created directory.
+        Directory name cannot be empty.  Returns the path to the
+        created directory.
+        """
+        path = c['path'] + (name,)
+        if name == '':
+            raise Exception("Directory name cannot be empty.")
+        if not Session.exists(path):
+            sess = Session(path, self) # make the new directory
+            reactor.callLater(0, self.onNewDir, list(path))
+        return list(path)
+    
+    @setting(9, name=['s'],
+                independents=['*s', '*(ss)'],
+                dependents=['*s', '*(sss)'],
+                returns=['s'])
+    def new(self, c, name, independents, dependents):
         """Create a new Dataset.
 
-        Returns a string with the path to the .csv data file.
+        Independent and dependent variables can be specified either
+        as clusters of strings, or as single strings.  Independent
+        variables have the form (label, units) or 'label [units]'.
+        Dependent variables have the form (label, legend, units)
+        or 'label (legend) [units]'.  Label is meant to be an
+        axis label that can be shared among traces, while legend is
+        a legend entry that should be unique for each trace.
+        Returns a string with the location of the .csv data file
+        for this dataset.
         """
         session = self.getSession(c)
-        dataset = session.newDataset(name)
-        c['dataset'] = dataset.name # not the same as name: has number prefixed
+        dataset = session.newDataset(name or 'untitled', independents, dependents)
+        c['dataset'] = dataset.name # not the same as name; has number prefixed
         c['filepos'] = 0 # start at the beginning
         c['writing'] = True
+        reactor.callLater(0, self.onNewDataset, (list(c['path']), dataset.name))
         return dataset.datafile
-
-    @setting(23, 'Open Dataset', name=['s', 'w'], returns=['s'])
-    def open_dataset(self, c, name):
-        """Open a Dataset for reading."""
+    
+    @setting(10, name=['s', 'w'], returns=['s'])
+    def open(self, c, name):
+        """Open a Dataset for reading.
+        
+        You can specify the dataset by name or number.
+        Returns a string with the location of the .csv data file.
+        """
         session = self.getSession(c)
         dataset = session.openDataset(name)
-        c['dataset'] = dataset.name
+        c['dataset'] = dataset.name # not the same as name; has number prefixed
         c['filepos'] = 0
         c['writing'] = False
         return dataset.datafile
-
-    @setting(100, 'List Independents', returns=['*2s'])
-    def list_independents(self, c):
-        """Get a list of independent variables."""
-        return self.getVariables(c, 'independent', ['label', 'units'])
-
-    @setting(101, 'Add Independent',
-             label=['s'], units=['s'], returns=['s'])
-    def add_independent(self, c, label='untitled', units=''):
-        """Add an independent variable."""
+    
+    @setting(20, data=['*v: add one row of data',
+                       '*2v: add multiple rows of data'],
+                 returns=[''])
+    def add(self, c, data):
+        """Add data to the current dataset.
+        
+        The number of elements in each row of data must be equal
+        to the total number of variables in the data set
+        (independents + dependents).
+        """
         dataset = self.getDataset(c)
-        return dataset.addIndependent(label, units)
+        dataset.addData(data)
 
-    @setting(110, 'List Dependents', returns=['*2s'])
-    def list_dependents(self, c):
-        """Get a list of dependent variables."""
-        return self.getVariables(c, 'dependent', ['category', 'label', 'units'])
-
-    @setting(111, 'Add Dependent',
-             label=['s'], legend=['s'], units=['s'], returns=['s'])
-    def add_dependent(self, c, label='untitled', legend='', units=''):
-        """Add a dependent variable."""
+    @setting(21, limit=['w'], startOver=['b'],
+                 returns=['*2v'])
+    def get(self, c, limit=None, startOver=False):
+        """Get data from the current dataset.
+        
+        Limit is the maximum number of rows of data to return, with
+        the default being to return the whole dataset.  Setting the
+        startOver flag to true will return data starting at the beginning
+        of the dataset.  By default, only new data that has not been seen
+        in this context is returned.
+        """
         dataset = self.getDataset(c)
-        return dataset.addDependent(label, legend, units)
+        c['filepos'] = 0 if startOver else c['filepos']
+        data, c['filepos'] = dataset.getData(limit, c['filepos'])
+        dataset.listeners.add(c.ID) # send a message when more data is available
+        return data
+    
+    @setting(100, returns=['(*(ss){independents}, *(sss){dependents})'])
+    def variables(self, c):
+        """Get the independent and dependent variables for the current dataset.
+        
+        Each independent variable is a cluster of (label, units).
+        Each dependent variable is a cluster of (label, legend, units).
+        Label is meant to be an axis label, which may be shared among several
+        traces, while legend is unique to each trace.
+        """
+        ds = self.getDataset(c)
+        ind = [(i['label'], i['units']) for i in ds.independents]
+        dep = [(d['category'], d['label'], d['units']) for d in ds.dependents]
+        return ind, dep
 
-    def getVariables(self, c, varType, items):
-        dataset = self.getDataset(c)
-        if not dataset.locked:
-            raise NotReadyError(dataset.name)
-        vars = getattr(dataset, varType)
-        return [[var[item] for item in items] for var in vars]
-
-    @setting(120, 'List Parameters', returns=['*s'])
+    @setting(120, 'list parameters', returns=['*s'])
     def list_parameters(self, c):
-        """Get a list of parameters."""
+        """Get a list of parameter names."""
         dataset = self.getDataset(c)
         return [par['label'] for par in dataset.parameters]
 
-    @setting(121, 'Add Parameter', name=['s'], returns=[''])
+    @setting(121, 'add parameter', name=['s'], returns=[''])
     def add_parameter(self, c, name, data):
         """Add a new parameter to the current dataset."""
         dataset = self.getDataset(c)
         dataset.addParameter(name, data)
 
-    @setting(122, 'Get Parameter', name=['s'])
-    def get_parameter(self, c, name):
-        """Get a parameter value."""
+    @setting(122, name=['s'])
+    def parameter(self, c, name):
+        """Get the value of a parameter."""
         dataset = self.getDataset(c)
         return dataset.getParameter(name)
 
-    @setting(200, 'Add Data',
-                  data=['*v: add one row of data',
-                        '*2v: add multiple rows of data'])
-    def add_data(self, c, data):
-        """Add data to the current dataset."""
-        dataset = self.getDataset(c)
-
-        if not c['writing']:
-            raise ReadOnlyError()
-
-        varcount = len(dataset.independent) + len(dataset.dependent)
-        if not len(data) or not isinstance(data[0], list):
-            data = [data]
-        if len(data[0]) != varcount:
-            raise BadDataError(varcount)
-
-        f = dataset.file
-        f.seek(c['filepos'])
-        for row in data:
-            f.write(', '.join('%.*G' % (PRECISION, v) for v in row) + '\n')
-        f.flush()
-        c['filepos'] = f.tell()
+    @setting(123)
+    def parameters(self, c):
+        """Get all parameters.
         
-        dataset.locked = True
-        dataset.notifyListeners()
-
-    @setting(250, 'Get Data', returns=['*2v'])
-    def get_data(self, c):
-        """Get all data in the current dataset."""
-        dataset = self.getDataset(c)
-        return self.readRest(dataset, c, startOver=True)
-
-    @setting(251, 'Get New Data', timeout=['v[s]'], returns=['*2v'])
-    def get_new_data(self, c, timeout=None):
-        """Get new data from dataset in this context."""
-        dataset = self.getDataset(c)
-        V = self.readRest(dataset, c)
-        if timeout and not len(V):
-            yield dataset.waitForData(timeout)
-            V = self.readRest(dataset, c)
-        returnValue(V)
-
-    def readRest(self, dataset, c, startOver=False):
-        """Read the rest of the values from a datafile."""
-        if not dataset.locked:
-            raise NotReadyError(dataset.name)
-        f = dataset.file
-        pos = 0 if startOver else c['filepos']
-        f.seek(pos)
-        lines = f.readlines()
-        c['filepos'] = f.tell()
-        return [[float(n) for n in line.split(',')] for line in lines]
-
-
+        Returns a cluster of (name, value) clusters, one for each parameter.
+        If the set has no parameters, nothing is returned (since empty clusters
+        are not allowed).
+        """
+        params = tuple((name, self.parameter(c, name)) 
+                       for name in self.list_parameters(c))
+        if len(params):
+            return params
+        
 __server__ = DataVault()
 
 if __name__ == '__main__':
