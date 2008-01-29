@@ -22,8 +22,6 @@ from twisted.python import log
 from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 
-import fpgatools as ft
-
 import struct
 
 from array import array as py_array
@@ -160,7 +158,7 @@ class FPGADevice(DeviceWrapper):
         """
         # try to estimate the time in seconds
         # to execute this memory sequence
-        self.seqTime = ft.sequenceTime(data)
+        self.seqTime = sequenceTime(data)
         
         data = data[0:256] # only one page supported
         totallen = len(data)
