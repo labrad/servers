@@ -688,8 +688,9 @@ class DataVault(LabradServer):
         If the set has no parameters, nothing is returned (since empty clusters
         are not allowed).
         """
-        params = tuple((name, self.parameter(c, name)) 
-                       for name in self.list_parameters(c))
+        dataset = self.getDataset(c)
+        names = [par['label'] for par in dataset.parameters]
+        params = tuple((name, dataset.getParameter(name)) for name in names)
         if len(params):
             return params
         
