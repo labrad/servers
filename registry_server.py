@@ -15,6 +15,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+from __future__ import with_statement
+
 from labrad import types as T
 from labrad.config import ConfigFile
 from labrad.server import LabradServer, setting
@@ -24,6 +26,9 @@ import os
 # look for a configuration file in this directory
 cf = ConfigFile('registry_server', os.path.split(__file__)[0])
 DATADIR = cf.get('config', 'repository')
+
+
+## filename translation
 
 encodings = [
     ('%', '%p'),
@@ -45,23 +50,28 @@ def dsEncode(name):
     return name
 
 def dsDecode(name):
-    for char, code in encodings[1:] + encodings[0:1]:
+    for char, code in encodings[1:] + encodings[:1]:
         name = name.replace(code, char)
     return name
 
-def makePath(dir):
-    return '\\'.join([DATADIR] + [dsEncode(d) for d in dir])+'\\'
+def filedir(path):
+    return os.path.join(DATADIR, *[dsEncode(d) for d in path])
 
+def keyfile(path, key):
+    return os.path.join(filedir(path), dsEncode(key) + '.key')
+    
+
+## error messages
 
 class DirectoryNotFoundError(T.Error):
     code = 1
     def __init__(self, name):
-        self.msg="Directory '%s' not found!" % name
+        self.msg = "Directory '%s' not found!" % name
 
 class DirectoryExistsError(T.Error):
     code = 2
     def __init__(self, name):
-        self.msg="Directory '%s' already exists!" % name
+        self.msg = "Directory '%s' already exists!" % name
 
 class EmptyNameError(T.Error):
     """Names of directories or keys cannot be empty"""
@@ -70,147 +80,107 @@ class EmptyNameError(T.Error):
 class KeyNotFoundError(T.Error):
     code = 4
     def __init__(self, name):
-        self.msg="Key '%s' not found!" % name
+        self.msg = "Key '%s' not found!" % name
 
 
 class RegistryServer(LabradServer):
     name = 'Registry'
 
     def initServer(self):
-        self.defaultCtxtData['dir'] = []
+        self.defaultCtxtData['path'] = ['']
 
-    @setting(1, 'list keys', returns=['*s'])
-    def list_keys(self, c):
-        path = makePath(c['dir'])
-        return [dsDecode(f[:-4]) for f in os.listdir(path)
+    @setting(1, returns=['(*s{subdirectories}, *s{keys})'])
+    def dir(self, c):
+        """Get subdirectories and keys in the current directory."""
+        path = filedir(c['path'])
+        files = os.listdir(path)
+        dirs = [dsDecode(f) for f in files
+                            if os.path.isdir(os.path.join(path, f))]
+        keys = [dsDecode(f[:-4]) for f in files
                                  if f.endswith('.key') and
-                                    os.path.isfile(path+f)]
-
-    @setting(2, 'list directories', returns=['*s'])
-    def list_dirs(self, c):
-        path = makePath(c['dir'])
-        return [dsDecode(f) for f in os.listdir(path)
-                            if os.path.isdir(path+f)]
-
-    @setting(10, 'change directory',
-             newdir=[' : print current working directory',
-                     's: change into this directory',
-                     '*s: change into these directories starting from root',
-                     'w: go up by this many directories'],
-             returns=['s'])
-    def chdir(self, c, newdir):
-        """Changes the current working directory"""
-        if newdir is None:
-            return makePath(c['dir'])
+                                    os.path.isfile(os.path.join(path, f))]
+        return dirs, keys
         
-        if isinstance(newdir, list):
-            if '' in newdir:
-                raise EmptyNameError()
-            path = makePath(newdir)
-            if not os.path.exists(path):
-                raise DirectoryNotFoundError(path)
-            c['dir'] = newdir
-            return path
+    @setting(10, path=['{get current directory}',
+                       's{change into this directory}',
+                       '*s{change into these directories starting from root}',
+                       'w{go up by this many directories}'],
+                 create=['b'],
+                 returns=['*s'])
+    def cd(self, c, path=None, create=False):
+        """Change the current directory.
+        
+        The empty string '' refers to the root directory. If the 'create' flag
+        is set to true, new directories will be created as needed.
+        Returns the path to the new current directory.
+        """
+        if path is None:
+            return c['path']
+        
+        if isinstance(path, (int, long)):
+            if path > 0:
+                c['path'] = c['path'][:-path]
+                if not len(c['path']):
+                    c['path'] = ['']
+            return c['path']
+        
+        temp = c['path'][:] # copy the current path
+        if isinstance(path, str):
+            path = [path]
+        for dir in path:
+            if dir == '':
+                temp = ['']
+            else:
+                temp.append(dir)
+            fpath = filedir(temp)
+            if not os.path.exists(fpath):
+                if create:
+                    os.makedirs(fpath)
+                else:
+                    raise DirectoryNotFoundError(temp)
+        c['path'] = temp
+        return c['path']
 
-        if isinstance(newdir, long):
-            if newdir > 0:
-                c['dir'] = c['dir'][:-newdir]
-            return makePath(c['dir'])
-
-        if newdir=='':
+    @setting(15, name=['s'], returns=['*s'])
+    def mkdir(self, c, name):
+        """Make a new sub-directory in the current directory."""
+        if name == '':
             raise EmptyNameError()
-        
-        path = makePath(c['dir'] + [newdir])
-        if not os.path.exists(path):
-            raise DirectoryNotFoundError(path)
-        
-        c['dir'] = c['dir'] + [newdir]
-        return path
-
-    @setting(15, 'make directory', newdir=['s'], returns=['s'])
-    def mkdir(self, c, newdir):
-        """Creates a new directory"""
-        if newdir=='':
-            raise EmptyNameError()
-
-        path = makePath(c['dir']) + dsEncode(newdir)
-        if os.path.exists(path):
+        path = c['path'] + [name]
+        if os.path.exists(filedir(path)):
             raise DirectoryExistsError(path)
-
-        os.makedirs(path)
+        os.makedirs(filedir(path))
         return path
 
-    @setting(16, 'force directory',
-             newdir=['s: change into this directory',
-                     '*s: change into these directories starting from root'],
-             returns=['s'])
-    def forcedir(self, c, newdir):
-        """Changes the current working directory, creating new directories as needed"""
-        if isinstance(newdir, list):
-            if '' in newdir:
-                raise EmptyNameError()
-            c['dir'] = newdir
-            path = makePath(c['dir'])
-            if not os.path.exists(path):
-                os.makedirs(path)
-            return path
-
-        if newdir=='':
+    @setting(20, key=['s'])
+    def get(self, c, key):
+        """Get the contents of the specified key."""
+        if key == '':
             raise EmptyNameError()
-
-        c['dir'] = c['dir'] + [newdir]
-        
-        path = makePath(c['dir'])
-        if not os.path.exists(path):
-            os.makedirs(path)
-
-        return path
-
-    @setting(20, 'get key', key=['s'])
-    def getkey(self, c, key):
-        """Gets the contents of the key"""
-        if key=='':
-            raise EmptyNameError()
-        
-        fname = makePath(c['dir']) + dsEncode(key) + '.key'
-
+        fname = keyfile(c['path'], key)
         if not os.path.exists(fname):
             raise KeyNotFoundError(key)
+        with open(fname, 'r') as f:
+            return T.evalLRData(f.read())
 
-        f = open(fname, 'r')
-        data = f.read()
-        f.close()
-
-        return T.evalLRData(data)
-
-    @setting(21, 'set key', key=['s'], returns=['s'])
-    def setkey(self, c, key, data):
-        """Sets the contents of the key"""
-        if key=='':
+    @setting(21, key=['s'], returns=['s'])
+    def set(self, c, key, data):
+        """Set the contents of the specified key."""
+        if key == '':
             raise EmptyNameError()
-        
-        fname = makePath(c['dir']) + dsEncode(key) + '.key'
+        fname = keyfile(c['path'], key)        
+        with open(fname, 'w') as f:
+            f.write(repr(data))
 
-        f = open(fname, 'w')
-        f.write(repr(data))
-        f.close()
-
-        return fname
-
-    @setting(25, 'delete key', key=['s'], returns = [''])
-    def delkey(self, c, key):
+    @setting(25, 'delete', key=['s'], returns = [''])
+    def delete(self, c, key):
         """Deletes a key"""
-        if key=='':
+        if key == '':
             raise EmptyNameError()
-        
-        fname = makePath(c['dir']) + dsEncode(key) + '.key'
-
+        fname = keyfile(c['path'], key)
         if not os.path.exists(fname):
             raise KeyNotFoundError(key)
-
         os.remove(fname)
-        
-        return
 
 
 __server__ = RegistryServer()
