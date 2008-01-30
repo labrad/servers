@@ -124,48 +124,54 @@ class QubitServer(LabradServer):
     name = 'Qubits'
 
     def curQubit(self, ctxt):
-        if not ctxt.has_key('Qubit'):
+        if 'Qubit' not in ctxt:
             raise NoQubitSelectedError()
-        if not self.Qubits.has_key(ctxt['Qubit']):
+        if ctxt['Qubit'] not in self.Qubits:
             raise NoQubitSelectedError()
         return self.Qubits[ctxt['Qubit']]
 
     def getQubit(self, name):
-        if not self.Qubits.has_key(name):
+        if name not in self.Qubits:
             raise QubitNotFoundError(name)
         return self.Qubits[name]
 
     @inlineCallbacks
     def saveVariable(self, folder, name, variable):
         cxn = self.client
-        yield cxn.registry.force_directory(['Qubit Server', folder])
-        fname = yield cxn.registry.set_key(name, repr(variable))
-        returnValue(fname)
+        p = cxn.registry.packet()
+        p.cd(['', 'Qubit Server', folder], True)
+        p.set(name, repr(variable))
+        ans = yield p.send()
+        returnValue(ans.set)
 
     @inlineCallbacks
     def loadVariable(self, folder, name):
         cxn = self.client
-        yield cxn.registry.force_directory(['Qubit Server', folder])
-        data = yield cxn.registry.get_key(name)
-        data = T.evalLRData(data)
+        p = cxn.registry.packet()
+        p.cd(['', 'Qubit Server', folder], True)
+        p.get(name)
+        ans = yield p.send()
+        data = T.evalLRData(ans.get)
         returnValue(data)
 
     @inlineCallbacks
     def listVariables(self, folder):
         cxn = self.client
-        yield cxn.registry.force_directory(['Qubit Server', folder])
-        data = yield cxn.registry.list_keys()
-        returnValue(data)
+        p = cxn.registry.packet()
+        p.cd(['', 'Qubit Server', folder], True)
+        p.dir()
+        ans = yield p.send()
+        returnValue(ans.dir[1])
 
     @inlineCallbacks
     def initServer(self):
-        self.Qubits={}
-        self.Setups={}
+        self.Qubits = {}
+        self.Setups = {}
         cxn = self.client
         self.devices = yield cxn.ghz_dacs.list_devices()
         self.devices = [d for i, d in self.devices]
         self.DACchannels  = ['DAC A', 'DAC B']
-        self.FOchannels   = [ 'FO 0',   'FO 1' ]
+        self.FOchannels   = [ 'FO 0',  'FO 1']
         self.FOcommands   = [0x100000, 0x200000]
         self.Trigchannels = ['S 0', 'S 1', 'S 2', 'S 3']
         
@@ -219,7 +225,7 @@ class QubitServer(LabradServer):
 
     @setting(20, 'Qubit New', qubit=['s'], timingboard=['w','s'], returns=['s'])
     def add_qubit(self, c, qubit, timingboard):
-        if self.Qubits.has_key(qubit):
+        if qubit in self.Qubits:
             raise QubitExistsError(qubit)
         timingboard = GrabFromList(timingboard, self.devices, DeviceNotFoundError)
         self.Qubits[qubit]={'Timing':  timingboard,
@@ -234,7 +240,7 @@ class QubitServer(LabradServer):
 
     @setting(21, 'Qubit Select', qubit=['s'], returns=['s'])
     def select_qubit(self, c, qubit):
-        if not self.Qubits.has_key(qubit):
+        if qubit not in self.Qubits:
             raise QubitNotFoundError(qubit)
         c['Qubit']=qubit
         return qubit
@@ -249,7 +255,7 @@ class QubitServer(LabradServer):
 
     @setting(25, 'Qubit Save', qubit=['s'], returns=['s'])
     def save_qubit(self, c, qubit):
-        if not self.Qubits.has_key(qubit):
+        if qubit not in self.Qubits:
             raise QubitNotFoundError(qubit)
         yield self.saveVariable('Qubits', qubit, self.Qubits[qubit])
         returnValue(qubit)
@@ -327,7 +333,7 @@ class QubitServer(LabradServer):
                                            returns=['*(s, *s): List of involved FPGAs and their used channels'])
     def add_setup(self, c, name, qubits, masterFPGAboard):
         """Selects the qubits involved in an experimental setup."""
-        if self.Setups.has_key(name):
+        if name in self.Setups:
             raise SetupExistsError(name)
         
         masterFPGAboard = GrabFromList(masterFPGAboard, self.devices, DeviceNotFoundError)
@@ -335,7 +341,7 @@ class QubitServer(LabradServer):
         for qname in qubits:
             q = self.getQubit(qname)
             for i in q['IQs'].values():
-                if not Resources.has_key(i['Board'][1]):
+                if i['Board'][1] not in Resources:
                     Resources[i['Board'][1]] = []
                 for d in self.DACchannels:
                     if d in Resources[i['Board'][1]]:
@@ -343,21 +349,21 @@ class QubitServer(LabradServer):
                 Resources[i['Board'][1]].extend(self.DACchannels)
                 
             for i in q['Analogs'].values():
-                if not Resources.has_key(i['Board'][1]):
+                if i['Board'][1] not in Resources:
                     Resources[i['Board'][1]] = []
                 if (i['DAC'][1]) in Resources[i['Board'][1]]:
                     raise ResourceConflictError(i['Board'][1], i['DAC'][1])
                 Resources[i['Board'][1]].append(i['DAC'][1])
                 
             for i in q['Triggers'].values():
-                if not Resources.has_key(i['Board'][1]):
+                if i['Board'][1] not in Resources:
                     Resources[i['Board'][1]] = []
                 if (i['Trigger'][1]) in Resources[i['Board'][1]]:
                     raise ResourceConflictError(i['Board'][1], i['Trigger'][1])
                 Resources[i['Board'][1]].append(i['Trigger'][1])
                 
             for i in q['FOs'].values():
-                if not Resources.has_key(i['Board'][1]):
+                if i['Board'][1] not in Resources:
                     Resources[i['Board'][1]] = []
                 if (i['FO'][1]) in Resources[i['Board'][1]]:
                     raise ResourceConflictError(i['Board'][1], i['FO'][1])
@@ -378,7 +384,7 @@ class QubitServer(LabradServer):
 
     @setting(65, 'Experimental Setup Save', name=['s'], returns=['s'])
     def save_setup(self, c, name):
-        if not self.Setups.has_key(name):
+        if name not in self.Setups:
             raise SetupNotFoundError(name)
         yield self.saveVariable('Setups', name, self.Setups[name])
         returnValue(name)
@@ -402,7 +408,7 @@ class QubitServer(LabradServer):
     @setting(100, 'Experiment New', setup=['s'], returns=['(*s*(s, w, s))'])
     def new_expt(self, c, setup):
         """Begins a new experiment with the given setup and returns the needed data channels."""
-        if not self.Setups.has_key(setup):
+        if setup not in self.Setups:
             raise SetupNotFoundError(setup)
         Result = []
         Setup = self.Setups[setup]
@@ -455,13 +461,13 @@ class QubitServer(LabradServer):
 
     @setting(105, 'Experiment Current Memory', returns=['*(s*w)'])
     def get_mem(self, c):
-        if not c.has_key('Experiment'):
+        if 'Experiment' not in c:
             raise NoExperimentError()
         return c['Experiment']['Memory'].items()
 
     @setting(106, 'Experiment Current Memory Text', returns=['(*s*2s)'])
     def get_mem_text(self, c):
-        if not c.has_key('Experiment'):
+        if 'Experiment' not in c:
             raise NoExperimentError()
         dat = []
         fpgas = c['Experiment']['Memory'].keys()
@@ -474,7 +480,7 @@ class QubitServer(LabradServer):
                                                    delay=['v[us]'],
                                                    returns=['v[us]'])
     def send_bias_commands(self, c, commands, delay=T.Value(10, 'us')):
-        if not c.has_key('Experiment'):
+        if 'Experiment' not in c:
             raise NoExperimentError()
 
         FOs = c['Experiment']['FOs']
@@ -483,7 +489,7 @@ class QubitServer(LabradServer):
 
         # insert commands into memories at location given by FO index
         for ch, cmd in commands:
-            if not FOs.has_key(ch):
+            if ch not in FOs:
                 raise QubitChannelNotFoundError(ch[1], ch[0]);
             command = self.FOcommands[FOs[ch]['FO']] + (cmd & 0x0FFFFF)
             mems[FOs[ch]['FPGA']][FOs[ch]['FO']] = command
@@ -522,7 +528,7 @@ class QubitServer(LabradServer):
 
     @setting(111, 'Experiment Add Bias Delay', delay=['v[us]'], returns=['v[us]'])
     def add_bias_delay(self, c, delay):
-        if not c.has_key('Experiment'):
+        if 'Experiment' not in c:
             raise NoExperimentError()
 
         # figure out how much delay is needed
@@ -543,7 +549,7 @@ class QubitServer(LabradServer):
 
     @setting(112, 'Experiment Start Timer', qubits=['*w'], returns=['v[us]'])
     def start_timer(self, c, qubits):
-        if not c.has_key('Experiment'):
+        if 'Experiment' not in c:
             raise NoExperimentError()
 
         Setup = self.Setups[c['Experiment']['Setup']]
@@ -575,7 +581,7 @@ class QubitServer(LabradServer):
 
     @setting(113, 'Experiment Stop Timer', qubits=['*w'], returns=['v[us]'])
     def stop_timer(self, c, qubits):
-        if not c.has_key('Experiment'):
+        if 'Experiment' not in c:
             raise NoExperimentError()
 
         Setup = self.Setups[c['Experiment']['Setup']]
@@ -654,9 +660,9 @@ class QubitServer(LabradServer):
     @setting(200, 'Add IQ Data', channel=['(sw)'], data = ['*(vv)','*c'],
                                  carrierfrq=['v[GHz]'], correct=['b'])
     def add_iq_data(self, c, channel, data, carrierfrq, correct=True):
-        if not c.has_key('Experiment'):
+        if 'Experiment' not in c:
             raise NoExperimentError()
-        if not c['Experiment']['IQs']. has_key(channel):
+        if channel not in c['Experiment']['IQs']:
             raise QubitChannelNotFoundError(channel[1], channel[0])
         #goto_sram(c)
 
@@ -676,9 +682,9 @@ class QubitServer(LabradServer):
     @setting(201, 'Add IQ Delay', channel=['(sw)'], delay=['v[ns]'],
                                   carrierfrq=['v[GHz]'], correct=['b'])
     def add_iq_delay(self, c, channel, delay, carrierfrq, correct=True):
-        if not c.has_key('Experiment'):
+        if 'Experiment' not in c:
             raise NoExperimentError()
-        if not c['Experiment']['IQs']. has_key(channel):
+        if channel not in c['Experiment']['IQs']:
             raise QubitChannelNotFoundError(channel[1], channel[0])
         #goto_sram(c)
         chinfo = c['Experiment']['IQs'][channel]
@@ -700,9 +706,9 @@ class QubitServer(LabradServer):
                                              carrierfrq=['v[GHz]'], mixfreq=['v[MHz]'],
                                              phaseshift=['v[rad]'], correct=['b'])
     def add_iq_envelope(self, c, channel, data, carrierfrq, mixfreq, phaseshift, correct=True):
-        if not c.has_key('Experiment'):
+        if 'Experiment' not in c:
             raise NoExperimentError()
-        if not c['Experiment']['IQs']. has_key(channel):
+        if channel not in c['Experiment']['IQs']:
             raise QubitChannelNotFoundError(channel[1], channel[0])
         #goto_sram(c)
         chinfo = c['Experiment']['IQs'][channel]
@@ -720,9 +726,9 @@ class QubitServer(LabradServer):
 
     @setting(210, 'Add Analog Data', channel=['(sw)'], data=['*v'], correct=['b'])
     def add_analog_data(self, c, channel, data, correct=True):
-        if not c.has_key('Experiment'):
+        if 'Experiment' not in c:
             raise NoExperimentError()
-        if not c['Experiment']['Analogs']. has_key(channel):
+        if channel not in c['Experiment']['Analogs']:
             raise QubitChannelNotFoundError(channel[1], channel[0])
         #goto_sram(c)
         chinfo = c['Experiment']['Analogs'][channel]
@@ -762,9 +768,9 @@ class QubitServer(LabradServer):
 
     @setting(211, 'Add Analog Delay', channel=['(sw)'], delay=['v[ns]'], correct=['b'])
     def add_analog_delay(self, c, channel, delay, correct=True):
-        if not c.has_key('Experiment'):
+        if 'Experiment' not in c:
             raise NoExperimentError()
-        if not c['Experiment']['Analogs']. has_key(channel):
+        if channel not in c['Experiment']['Analogs']:
             raise QubitChannelNotFoundError(channel[1], channel[0])
         #goto_sram(c)
         chinfo = c['Experiment']['Analogs'][channel]
@@ -788,9 +794,9 @@ class QubitServer(LabradServer):
     @setting(220, 'Add Trigger Pulse', channel=['(sw)'], length=['v[ns]'],
                                        returns=['w'])
     def add_trigger_pulse(self, c, channel, length):
-        if not c.has_key('Experiment'):
+        if 'Experiment' not in c:
             raise NoExperimentError()
-        if not c['Experiment']['Triggers']. has_key(channel):
+        if channel not in c['Experiment']['Triggers']:
             raise QubitChannelNotFoundError(channel[1], channel[0])
         #goto_sram(c)
         chinfo = c['Experiment']['Triggers'][channel]
@@ -804,9 +810,9 @@ class QubitServer(LabradServer):
     @setting(221, 'Add Trigger Delay', channel=['(sw)'], length=['v[ns]'],
                                        returns=['w'])
     def add_trigger_delay(self, c, channel, length):
-        if not c.has_key('Experiment'):
+        if 'Experiment' not in c:
             raise NoExperimentError()
-        if not c['Experiment']['Triggers']. has_key(channel):
+        if channel not in c['Experiment']['Triggers']:
             raise QubitChannelNotFoundError(channel[1], channel[0])
         #goto_sram(c)
         chinfo = c['Experiment']['Triggers'][channel]
@@ -819,7 +825,7 @@ class QubitServer(LabradServer):
         
     @setting(299, 'Finish SRAM Block', returns=['*s'])
     def finish_sram(self, c):
-        if not c.has_key('Experiment'):
+        if 'Experiment' not in c:
             raise NoExperimentError()
         # figure out longest SRAM block
         longest = 24
@@ -902,7 +908,7 @@ class QubitServer(LabradServer):
                                      setuppkts=['*((ww){context}, s{server}, *(s{setting}, ?{data}))'],
                                      returns=['*2w'])
     def run_experiment(self, c, stats, setuppkts=None):
-        if not c.has_key('Experiment'):
+        if 'Experiment' not in c:
             raise NoExperimentError()
 
         fpgas = [fpga for fpga in c['Experiment']['FPGAs']]
