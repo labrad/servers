@@ -21,8 +21,7 @@ from labrad import types as T, util
 from labrad.config import ConfigFile
 from labrad.server import LabradServer, Signal, setting
 
-from twisted.internet import defer, reactor
-from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.reactor import callLater
 
 from ConfigParser import SafeConfigParser
 import os, re
@@ -45,26 +44,35 @@ class NoDatasetError(T.Error):
     code = 2
 
 class DatasetNotFoundError(T.Error):
-    code = 8
+    code = 3
     def __init__(self, name):
         self.msg="Dataset '%s' not found!" % name
 
+class DirectoryExistsError(T.Error):
+    code = 4
+    def __init__(self, name):
+        self.msg = "Directory '%s' already exists!" % name
+
+class EmptyNameError(T.Error):
+    """Names of directories or keys cannot be empty"""
+    code = 5
+        
 class ReadOnlyError(T.Error):
     """Points can only be added to datasets created with 'new'."""
-    code = 4
+    code = 6
 
 class BadDataError(T.Error):
-    code = 6
+    code = 7
     def __init__(self, varcount):
         self.msg = 'Dataset requires %d values per datapoint.' % varcount
 
 class BadParameterError(T.Error):
-    code = 7
+    code = 8
     def __init__(self, name):
         self.msg = "Parameter '%s' not found." % name
 
 class ParameterInUseError(T.Error):
-    code = 8
+    code = 9
     def __init__(self, name):
         self.msg = "Already a parameter called '%s'." % name
 
@@ -95,10 +103,10 @@ def dsDecode(name):
     return name
 
 def filedir(path):
-    return os.path.join(DATADIR, *[dsEncode(s) for s in path])
+    return os.path.join(DATADIR, *[dsEncode(d) for d in path])
     
     
-## Time formatting
+## time formatting
     
 def timeToStr(t):
     return t.strftime(TIME_FORMAT)
@@ -145,8 +153,8 @@ class Session(object):
     # feep a dictionary of all created session objects
     _sessions = {}
     
-    @classmethod
-    def exists(cls, path):
+    @staticmethod
+    def exists(path):
         """Check whether a session exists on disk for a given path.
         
         This does not tell us whether a session object has been
@@ -178,7 +186,11 @@ class Session(object):
         self.datasets = {}
 
         if not os.path.exists(self.dir):
-            os.mkdir(self.dir)
+            os.makedirs(self.dir)
+            
+            # notify listeners about this new directory
+            parent_session = Session(path[:-1], parent)
+            parent.onNewDir(path[-1], list(parent_session.listeners))
            
         if os.path.exists(self.infofile):
             self.load()
@@ -187,6 +199,7 @@ class Session(object):
             self.created = self.modified = datetime.now()
 
         self.access() # update current access time and save
+        self.listeners = set()
             
     def load(self):
         """Load info from the session.ini file."""
@@ -246,8 +259,11 @@ class Session(object):
             dataset.addDependent(d)
         self.datasets[name] = dataset
         self.access()
+        
+        # notify listeners about the new dataset
+        self.parent.onNewDataset(name, list(self.listeners))
         return dataset
-
+        
     def openDataset(self, name):
         # first lookup by number if necessary
         if isinstance(name, (int, long)):
@@ -381,8 +397,7 @@ class Dataset:
         """
         if not hasattr(self, '_file'):
             self._file = open(self.datafile, 'a+') # append data
-            self._fileTimeoutCall = reactor.callLater(
-                                      FILE_TIMEOUT, self._fileTimeout)
+            self._fileTimeoutCall = callLater(FILE_TIMEOUT, self._fileTimeout)
         else:
             self._fileTimeoutCall.reset(FILE_TIMEOUT)
         return self._file
@@ -400,8 +415,7 @@ class Dataset:
         if not hasattr(self, '_data'):
             self._data = []
             self._datapos = 0
-            self._dataTimeoutCall = reactor.callLater(
-                                     DATA_TIMEOUT, self._dataTimeout)
+            self._dataTimeoutCall = callLater(DATA_TIMEOUT, self._dataTimeout)
         else:
             self._dataTimeoutCall.reset(DATA_TIMEOUT)
         f = self.file
@@ -465,7 +479,7 @@ class Dataset:
         f.flush()
         
         # notify all listening contexts
-        reactor.callLater(0, self.parent.onNewData, None, list(self.listeners))
+        self.parent.onNewData(None, list(self.listeners))
         self.listeners = set()
         return f.tell()
         
@@ -481,9 +495,12 @@ class DataVault(LabradServer):
     name = 'Data Vault'
     
     def initServer(self):
-        root = Session(('',), self) # create root session
-        self.defaultCtxtData['path'] = ('',)
+        root = Session([''], self) # create root session
 
+    def initContext(self, c):
+        c['path'] = ['']
+        Session([''], self).listeners.add(c.ID) # start listening to the root session
+        
     def getSession(self, c):
         """Get a session object for the current path."""
         return Session(c['path'], self)
@@ -495,47 +512,56 @@ class DataVault(LabradServer):
         session = self.getSession(c)
         return session.datasets[c['dataset']]
         
-    onNewDir = Signal(543617, 'signal: new dir', '*s')
-    onNewDataset = Signal(543618, 'signal: new dataset', '(*s, s)')
+    onNewDir = Signal(543617, 'signal: new dir', 's')
+    onNewDataset = Signal(543618, 'signal: new dataset', 's')
     onNewData = Signal(543619, 'signal: new data', '')
-        
+    
     @setting(6, returns=['(*s{subdirectories}, *s{datasets})'])
-    def ls(self, c):
+    def dir(self, c):
         """Get subdirectories and datasets in the current directory."""
         session = self.getSession(c)
         return session.listDirectories(), session.listDatasets()
     
-    @setting(7, path=[': get current directory',
-                      's: change into this directory',
-                      '*s: change into each directory in sequence',
-                      'w: go up by this many directories'],
+    @setting(7, path=['{get current directory}',
+                      's{change into this directory}',
+                      '*s{change into each directory in sequence}',
+                      'w{go up by this many directories}'],
+                create=['b'],
                 returns=['*s'])
-    def cd(self, c, path=0):
+    def cd(self, c, path=None, create=False):
         """Change the current directory.
         
-        The empty string '' refers to the root directory.
+        The empty string '' refers to the root directory. If the 'create' flag
+        is set to true, new directories will be created as needed.
         Returns the path to the new current directory.
         """
+        if path is None:
+            return c['path']
+        
         if isinstance(path, (int, long)):
             if path > 0:
-                c['path'] = c['path'][:-path]
-                if not len(c['path']):
-                    c['path'] = ('',)
-            return list(c['path'])
-            
-        session = self.getSession(c)
-        if isinstance(path, str):
-            path = [path]
-        for dir in path:
-            if dir == '':
-                newPath = ('',)
-            else:
-                newPath = session.path + (dir,)
-            if not Session.exists(newPath):
-                raise Exception("Session %s does not exist." % list(newPath))
-            session = Session(newPath, self)
-        c['path'] = session.path
-        return list(c['path'])
+                temp = c['path'][:-path]
+                if not len(temp):
+                    temp = ['']
+        else:
+            temp = c['path'][:] # copy the current path
+            if isinstance(path, str):
+                path = [path]
+            for dir in path:
+                if dir == '':
+                    temp = ['']
+                else:
+                    temp.append(dir)
+                if not Session.exists(temp) and not create:
+                    raise Exception("Session %s does not exist." % temp)
+                session = Session(temp, self) # touch the session
+        
+        # stop listening to old session and start listening to new session
+        Session(c['path'], self).listeners.remove(c.ID)
+        Session(temp, self).listeners.add(c.ID)
+        
+        c['path'] = temp
+        return c['path']
         
     @setting(8, name=['s'], returns=['*s'])
     def mkdir(self, c, name):
@@ -546,13 +572,13 @@ class DataVault(LabradServer):
         Directory name cannot be empty.  Returns the path to the
         created directory.
         """
-        path = c['path'] + (name,)
         if name == '':
-            raise Exception("Directory name cannot be empty.")
-        if not Session.exists(path):
-            sess = Session(path, self) # make the new directory
-            reactor.callLater(0, self.onNewDir, list(path))
-        return list(path)
+            raise EmptyNameError()
+        path = c['path'] + [name]
+        if Session.exists(path):
+            raise DirectoryExistsError(path)
+        sess = Session(path, self) # make the new directory
+        return path
     
     @setting(9, name=['s'],
                 independents=['*s', '*(ss)'],
@@ -576,7 +602,6 @@ class DataVault(LabradServer):
         c['dataset'] = dataset.name # not the same as name; has number prefixed
         c['filepos'] = 0 # start at the beginning
         c['writing'] = True
-        reactor.callLater(0, self.onNewDataset, (list(c['path']), dataset.name))
         return dataset.datafile
     
     @setting(10, name=['s', 'w'], returns=['s'])
@@ -637,8 +662,8 @@ class DataVault(LabradServer):
         dep = [(d['category'], d['label'], d['units']) for d in ds.dependents]
         return ind, dep
 
-    @setting(120, 'list parameters', returns=['*s'])
-    def list_parameters(self, c):
+    @setting(120, returns=['*s'])
+    def parameters(self, c):
         """Get a list of parameter names."""
         dataset = self.getDataset(c)
         return [par['label'] for par in dataset.parameters]
@@ -649,14 +674,14 @@ class DataVault(LabradServer):
         dataset = self.getDataset(c)
         dataset.addParameter(name, data)
 
-    @setting(122, name=['s'])
-    def parameter(self, c, name):
+    @setting(122, 'get parameter', name=['s'])
+    def get_parameter(self, c, name):
         """Get the value of a parameter."""
         dataset = self.getDataset(c)
         return dataset.getParameter(name)
 
-    @setting(123)
-    def parameters(self, c):
+    @setting(123, 'get parameters')
+    def get_parameters(self, c):
         """Get all parameters.
         
         Returns a cluster of (name, value) clusters, one for each parameter.
