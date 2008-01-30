@@ -53,9 +53,9 @@ def add_qubit_resets(p, Qubits):
         reset1.append((('Flux',  qid+1), getCMD(1, qubit['Reset Bias 1'].value)))
         # Set Flux to Reset 2
         reset2.append((('Flux',  qid+1), getCMD(1, qubit['Reset Bias 2'].value)))
-        if qubit['Reset Settling Time'].value>maxsettling:
+        if qubit['Reset Settling Time'].value > maxsettling:
             maxsettling = qubit['Reset Settling Time'].value
-        if qubit['Reset Cycles'].value>maxcount:
+        if qubit['Reset Cycles'].value > maxcount:
             maxcount = qubit['Reset Cycles'].value
     p.experiment_send_bias_commands(initreset, T.Value(7.0, 'us'))
     p.experiment_send_bias_commands(dac1s, T.Value(maxsettling, 'us'))
@@ -72,7 +72,7 @@ def add_qubit_inits(p, Qubits):
     maxsettling = 7
     for qid, qubit in enumerate(Qubits):
         setop.append((('Flux', qid+1), getCMD(1, qubit['Operating Bias'].value)))
-        if qubit['Bias Settling Time'].value>maxsettling:
+        if qubit['Bias Settling Time'].value > maxsettling:
             maxsettling = qubit['Bias Settling Time'].value
     p.experiment_send_bias_commands(setop, T.Value(maxsettling, 'us'))
 
@@ -111,7 +111,7 @@ def add_goto_measure_biases(p, Qubits):
     maxsettling = 7
     for qid, qubit in enumerate(Qubits):
         setop.append((('Flux', qid+1), getCMD(1, qubit['Measure Bias'].value)))
-        if qubit['Measure Settling Time'].value>maxsettling:
+        if qubit['Measure Settling Time'].value > maxsettling:
             maxsettling = qubit['Measure Settling Time'].value
     p.experiment_send_bias_commands(setop, T.Value(maxsettling, 'us'))
 
@@ -125,12 +125,12 @@ def getRange(selection, defmin, defmax, defstep):
         regmin  =     selection[0].value
         regmax  =     selection[1].value
         regstep = abs(selection[2].value)
-    if regmax<regmin:
+    if regmax < regmin:
         dummy  = regmin
         regmin = regmax
         regmax = dummy
     return regmin, regmax, regstep
-
+   
 def getStates(numqubits):
     states=[]
     for statenum in range(1, 2**numqubits):
@@ -172,14 +172,14 @@ class ExperimentServer(LabradServer):
     name = 'Experiments'
 
     def getContext(self, base, index):
-        if not self.ContextStack.has_key(base):
+        if base not in self.ContextStack:
             self.ContextStack[base] = {}
         if not index in self.ContextStack[base]:
             self.ContextStack[base][index] = self.client.context()
         return self.ContextStack[base][index]
 
     def getMyContext(self, base, index):
-        if not self.ContextStack.has_key(base):
+        if base not in self.ContextStack:
             self.ContextStack[base] = {}
         if not index in self.ContextStack[base]:
             ctxt = self.client.context()
@@ -188,38 +188,44 @@ class ExperimentServer(LabradServer):
         return self.ContextStack[base][index]
 
     def curQubit(self, ctxt):
-        if not ctxt.has_key('Qubit'):
+        if 'Qubit' not in ctxt:
             raise NoQubitSelectedError()
-        if not self.Qubits.has_key(ctxt['Qubit']):
+        if ctxt['Qubit'] not in self.Qubits:
             raise NoQubitSelectedError()
         return self.Qubits[ctxt['Qubit']]
 
     def getQubit(self, name):
-        if not self.Qubits.has_key(name):
+        if name not in self.Qubits:
             raise QubitNotFoundError(name)
         return self.Qubits[name]
 
     @inlineCallbacks
     def saveVariable(self, folder, name, variable):
         cxn = self.client
-        yield cxn.registry.force_directory(['Experiment Server', folder])
-        fname = yield cxn.registry.set_key(name, repr(variable))
-        returnValue(fname)
+        p = cxn.registry.packet()
+        p.cd(['', 'Experiment Server', folder], True)
+        p.set(name, repr(variable))
+        ans = yield p.send()
+        returnValue(ans.set)
 
     @inlineCallbacks
     def loadVariable(self, folder, name):
         cxn = self.client
-        yield cxn.registry.force_directory(['Experiment Server', folder])
-        data = yield cxn.registry.get_key(name)
-        data = T.evalLRData(data)
+        p = cxn.registry.packet()
+        p.cd(['', 'Experiment Server', folder], True)
+        p.get(name)
+        ans = yield p.send()
+        data = T.evalLRData(ans.get)
         returnValue(data)
 
     @inlineCallbacks
     def listVariables(self, folder):
         cxn = self.client
-        yield cxn.registry.force_directory(['Experiment Server', folder])
-        data = yield cxn.registry.list_keys()
-        returnValue(data)
+        p = cxn.registry.packet()
+        p.cd(['', 'Experiment Server', folder], True)
+        p.dir()
+        ans = yield p.send()
+        returnValue(ans.dir[1])
 
     def setupThreading(self, c):
         c['threads'] = [None] * 10
@@ -255,15 +261,15 @@ class ExperimentServer(LabradServer):
             c['threadID'] = (c['threadID'] + 1) % len(c['threads'])
 
     def checkSetup(self, c, name, qubitcnt=None):
-        if not c.has_key('Setup'):
+        if 'Setup' not in c:
             raise NoSetupSelectedError()
-        if not c.has_key('Session'):
+        if 'Session' not in c:
             raise NoSessionSelectedError()
         if not ((qubitcnt is None) or (len(c['Qubits'])==qubitcnt)):
             raise WrongQubitCountError(name, qubitcnt)
 
     def add_qubit_parameters(self, p, qubit):
-        if self.Qubits.has_key(qubit):
+        if qubit in self.Qubits:
             for name, value in self.Qubits[qubit].items():
                 p.add_parameter(qubit+' - '+name)
                 p.set_parameter(value)
@@ -323,7 +329,7 @@ class ExperimentServer(LabradServer):
         c['Setup'] = name
         c['Qubits'] = qubits
         for qubit in qubits:
-            if not(self.Qubits.has_key(qubit)):
+            if qubit not in self.Qubits:
                 self.Qubits[qubit]=deepcopy(self.parameters)
         returnValue(qubits)
 
@@ -338,9 +344,9 @@ class ExperimentServer(LabradServer):
 
     @setting(11, 'Set Qubit Parameter', qubit=['s'], parameter=['s'], value=['v'])
     def set_parameter(self, c, qubit, parameter, value):
-        if not self.parameters.has_key(parameter):
+        if parameter not in self.parameters:
             raise ParameterNotFoundError(parameter)
-        if not self.Qubits.has_key(qubit):
+        if qubit not in self.Qubits:
             self.Qubits[qubit]=deepcopy(self.parameters)
         if not (value.units==self.parameters[parameter].units):
             value = yield self.client.manager.convert_units(value, self.parameters[parameter].units)
@@ -348,7 +354,7 @@ class ExperimentServer(LabradServer):
 
     @setting(12, 'Show Qubit Parameters', qubit=['s'], returns=['*s'])
     def show_parameters(self, c, qubit):
-        if not self.Qubits.has_key(qubit):
+        if qubit not in self.Qubits:
             return []
         else:
             maxlen = 0
@@ -360,7 +366,7 @@ class ExperimentServer(LabradServer):
 
     @setting(13, 'Get Qubit Parameters', qubit=['s'], returns=['*(svs)'])
     def get_parameters(self, c, qubit):
-        if not self.Qubits.has_key(qubit):
+        if qubit not in self.Qubits:
             return []
         else:
             maxlen = 0
@@ -380,7 +386,7 @@ class ExperimentServer(LabradServer):
 
     @setting(25, 'Qubit Save', qubit=['s'], returns=['s'])
     def save_qubit(self, c, qubit):
-        if not self.Qubits.has_key(qubit):
+        if qubit not in self.Qubits:
             raise QubitNotFoundError(qubit)
         yield self.saveVariable('Qubits', qubit, self.Qubits[qubit])
         returnValue(qubit)
@@ -433,7 +439,7 @@ class ExperimentServer(LabradServer):
         # Data handling function
         switchings = {}
         def handleData(results, flux, reset):
-            if switchings.has_key(flux):
+            if flux in switchings:
                 d = [[flux, a/25.0, b/25.0][i]
                       for a, b in zip(switchings[flux], results.run_experiment[0])
                       for i in [0,1,2]]
