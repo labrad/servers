@@ -103,7 +103,7 @@ def dsDecode(name):
     return name
 
 def filedir(path):
-    return os.path.join(DATADIR, *[dsEncode(d) for d in path])
+    return os.path.join(DATADIR, *[dsEncode(d) + '.dir' for d in path[1:]])
     
     
 ## time formatting
@@ -236,15 +236,17 @@ class Session(object):
         self.accessed = datetime.now()
         self.save()
 
-    def listDirectories(self):
+    def listContent(self):
         """Get a list of directory names in this directory."""
-        return [dsDecode(d) for d in os.listdir(self.dir)
-                if os.path.isdir(os.path.join(self.dir, d))]
+        files = os.listdir(self.dir)
+        dirs = [dsDecode(s[:-4]) for s in files if s.endswith('.dir')]
+        datasets = [dsDecode(s[:-4]) for s in files if s.endswith('.csv')]
+        return dirs, datasets
             
     def listDatasets(self):
         """Get a list of dataset names in this directory."""
-        return [dsDecode(f[:-4]) for f in os.listdir(self.dir)
-                if f.endswith('.csv')]
+        files = os.listdir(self.dir)
+        return [dsDecode(s[:-4]) for s in files if s.endswith('.csv')]
     
     def newDataset(self, title, independents, dependents):
         num = self.counter
@@ -520,7 +522,7 @@ class DataVault(LabradServer):
     def dir(self, c):
         """Get subdirectories and datasets in the current directory."""
         session = self.getSession(c)
-        return session.listDirectories(), session.listDatasets()
+        return session.listContent()
     
     @setting(7, path=['{get current directory}',
                       's{change into this directory}',
@@ -538,13 +540,13 @@ class DataVault(LabradServer):
         if path is None:
             return c['path']
         
+        temp = c['path'][:] # copy the current path
         if isinstance(path, (int, long)):
             if path > 0:
-                temp = c['path'][:-path]
+                temp = temp[:-path]
                 if not len(temp):
                     temp = ['']
         else:
-            temp = c['path'][:] # copy the current path
             if isinstance(path, str):
                 path = [path]
             for dir in path:
@@ -555,12 +557,11 @@ class DataVault(LabradServer):
                 if not Session.exists(temp) and not create:
                     raise Exception("Session %s does not exist." % temp)
                 session = Session(temp, self) # touch the session
-        
-        # stop listening to old session and start listening to new session
-        Session(c['path'], self).listeners.remove(c.ID)
-        Session(temp, self).listeners.add(c.ID)
-        
-        c['path'] = temp
+        if c['path'] != temp:
+            # stop listening to old session and start listening to new session
+            Session(c['path'], self).listeners.remove(c.ID)
+            Session(temp, self).listeners.add(c.ID)
+            c['path'] = temp
         return c['path']
         
     @setting(8, name=['s'], returns=['*s'])
