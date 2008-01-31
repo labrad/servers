@@ -236,7 +236,7 @@ class Session(object):
         self.accessed = datetime.now()
         self.save()
 
-    def listContent(self):
+    def listContents(self):
         """Get a list of directory names in this directory."""
         files = os.listdir(self.dir)
         dirs = [dsDecode(s[:-4]) for s in files if s.endswith('.dir')]
@@ -521,8 +521,7 @@ class DataVault(LabradServer):
     @setting(6, returns=['(*s{subdirectories}, *s{datasets})'])
     def dir(self, c):
         """Get subdirectories and datasets in the current directory."""
-        session = self.getSession(c)
-        return session.listContent()
+        return self.getSession(c).listContents()
     
     @setting(7, path=['{get current directory}',
                       's{change into this directory}',
@@ -555,7 +554,7 @@ class DataVault(LabradServer):
                 else:
                     temp.append(dir)
                 if not Session.exists(temp) and not create:
-                    raise Exception("Session %s does not exist." % temp)
+                    raise DirectoryNotFoundError(temp)
                 session = Session(temp, self) # touch the session
         if c['path'] != temp:
             # stop listening to old session and start listening to new session
