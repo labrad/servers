@@ -55,10 +55,10 @@ def dsDecode(name):
     return name
 
 def filedir(path):
-    return os.path.join(DATADIR, *[dsEncode(d) for d in path])
+    return os.path.join(DATADIR, *[dsEncode(d) + '.dir' for d in path[1:]])
 
 def keyfile(path, key):
-    return os.path.join(filedir(path), dsEncode(key) + '.key')
+    return os.path.join(filedir(path), dsEncode(key) + '.ini')
     
 
 ## error messages
@@ -82,7 +82,7 @@ class KeyNotFoundError(T.Error):
     def __init__(self, name):
         self.msg = "Key '%s' not found!" % name
 
-
+        
 class RegistryServer(LabradServer):
     name = 'Registry'
 
@@ -94,11 +94,8 @@ class RegistryServer(LabradServer):
         """Get subdirectories and keys in the current directory."""
         path = filedir(c['path'])
         files = os.listdir(path)
-        dirs = [dsDecode(f) for f in files
-                            if os.path.isdir(os.path.join(path, f))]
-        keys = [dsDecode(f[:-4]) for f in files
-                                 if f.endswith('.key') and
-                                    os.path.isfile(os.path.join(path, f))]
+        dirs = [dsDecode(s[:-4]) for s in files if s.endswith('.dir')]
+        keys = [dsDecode(s[:-4]) for s in files if s.endswith('.ini')]
         return dirs, keys
         
     @setting(10, path=['{get current directory}',
@@ -117,28 +114,28 @@ class RegistryServer(LabradServer):
         if path is None:
             return c['path']
         
+        temp = c['path'][:] # copy the current path
         if isinstance(path, (int, long)):
             if path > 0:
-                c['path'] = c['path'][:-path]
-                if not len(c['path']):
-                    c['path'] = ['']
-            return c['path']
-        
-        temp = c['path'][:] # copy the current path
-        if isinstance(path, str):
-            path = [path]
-        for dir in path:
-            if dir == '':
-                temp = ['']
-            else:
-                temp.append(dir)
-            fpath = filedir(temp)
-            if not os.path.exists(fpath):
-                if create:
-                    os.makedirs(fpath)
+                temp = temp[:-path]
+                if not len(temp):
+                    temp = ['']
+        else:
+            if isinstance(path, str):
+                path = [path]
+            for dir in path:
+                if dir == '':
+                    temp = ['']
                 else:
-                    raise DirectoryNotFoundError(temp)
-        c['path'] = temp
+                    temp.append(dir)
+                fpath = filedir(temp)
+                if not os.path.exists(fpath):
+                    if create:
+                        os.makedirs(fpath)
+                    else:
+                        raise DirectoryNotFoundError(temp)
+        if c['path'] != temp:
+            c['path'] = temp
         return c['path']
 
     @setting(15, name=['s'], returns=['*s'])
@@ -163,14 +160,14 @@ class RegistryServer(LabradServer):
         with open(fname, 'r') as f:
             return T.evalLRData(f.read())
 
-    @setting(21, key=['s'], returns=['s'])
+    @setting(21, key=['s'], returns=[''])
     def set(self, c, key, data):
         """Set the contents of the specified key."""
         if key == '':
             raise EmptyNameError()
         fname = keyfile(c['path'], key)        
         with open(fname, 'w') as f:
-            f.write(repr(data))
+            f.write(T.reprLRData(data))
 
     @setting(25, 'delete', key=['s'], returns = [''])
     def delete(self, c, key):
