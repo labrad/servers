@@ -285,7 +285,6 @@ class ExperimentServer(LabradServer):
 
     @inlineCallbacks
     def initServer(self):
-        self.defaultCtxtData['Stats'] = 300L
         self.ContextStack = {}
         self.qubitServer   = self.client.qubits
         self.dataServer    = self.client.data_server
@@ -317,6 +316,8 @@ class ExperimentServer(LabradServer):
                          'Pi-Pulse Length':        T.Value(    9, 'ns' ),
                          'Pi-Pulse Amplitude':     T.Value(    1, ''   )}
 
+    def initContext(self, c):
+        c['Stats'] = 300L
                          
     @setting(1, 'list experimental setups', returns=['*s'])
     def list_setups(self, c):
@@ -348,7 +349,7 @@ class ExperimentServer(LabradServer):
             raise ParameterNotFoundError(parameter)
         if qubit not in self.Qubits:
             self.Qubits[qubit]=deepcopy(self.parameters)
-        if not (value.units==self.parameters[parameter].units):
+        if value.units != self.parameters[parameter].units:
             value = yield self.client.manager.convert_units(value, self.parameters[parameter].units)
         self.Qubits[qubit][parameter] = value
 

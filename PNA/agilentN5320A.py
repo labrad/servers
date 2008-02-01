@@ -65,11 +65,9 @@ class AgilentPNAServer(GPIBDeviceServer):
     deviceName = 'Agilent Technologies N5230A'
     deviceWrapper = PNAWrapper
 
-    @inlineCallbacks
-    def initServer(self):
-        yield GPIBDeviceServer.initServer(self)
-        self.defaultCtxtData['meas'] = ['S21']
-
+    def initContext(self, c):
+        c['meas'] = ['S21']
+        
     @setting(10, bw=['v[Hz]'], returns=['v[Hz]'])
     def bandwidth(self, c, bw=None):
         """Get or set the current bandwidth."""

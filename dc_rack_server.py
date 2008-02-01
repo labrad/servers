@@ -222,7 +222,7 @@ class PreampServer(LabradServer):
         p.read(key = 'ID')
         try:
             res = yield p.send()
-            yield ''.join(res['ID'])
+            returnValue(''.join(res['ID']))
         except:
             raise Exception('Ident error')
 

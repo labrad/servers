@@ -248,9 +248,12 @@ class FPGAServer(DeviceServer):
     @inlineCallbacks
     def initServer(self):
         yield DeviceServer.initServer(self)
-        self.defaultCtxtData.update(daisy_chain=[], start_delay=[])
-        self.busy = None
+        self.lock = defer.DeferredLock()
 
+    def initContext(self, c):
+        c['daisy_chain'] = []
+        c['start_delay'] = []
+        
     @inlineCallbacks
     def findDevices(self):
         cxn = self.client
@@ -385,7 +388,7 @@ class FPGAServer(DeviceServer):
         #start = datetime.now()
         @inlineCallbacks
         def updateDev(dev):
-            if (dev in c):
+            if dev in c:
                 if 'mem' in c[dev]:
                     yield dev.sendMemory(c[dev]['mem'])
                 if 'sram' in c[dev]:
@@ -393,7 +396,7 @@ class FPGAServer(DeviceServer):
                     yield dev.sendSRAM(c[dev]['sram'])
 
         setupReqs = []
-        if not (setuppkts is None):
+        if setuppkts is not None:
             for spCtxt, spServer, spSettings in setuppkts:
                 if spCtxt[0]==0:
                     print "Using a context with high ID = 0 for packet requests might not do what you want!!!"
@@ -402,15 +405,10 @@ class FPGAServer(DeviceServer):
                     p[spSetting](spData)
                 setupReqs.append(p)
 
-        mybusy = defer.Deferred()
-        if self.busy:
-            theirbusy = self.busy
-            self.busy = mybusy
-            yield theirbusy
-        else:
-            self.busy = mybusy
-
+                    
         ## begin critical section
+        yield self.lock.acquire()
+        
         # send setup packets
         if len(setupReqs)>0:
             waiters = []
@@ -420,18 +418,18 @@ class FPGAServer(DeviceServer):
         
         updates = [updateDev(dev) for dev in reversed(devs)]
         r = yield defer.DeferredList(updates)
-        for i, (success, result) in enumerate(r):
-            if not success:
-                self.busy.callback(True)
-                raise Exception('Failed to update MEM and/or SRAM!')
+        
+        if not all(success for success, result in r):
+            self.lock.release()
+            raise Exception('Failed to update MEM and/or SRAM!')
         
         attempts = [dev.runSequence(slave, delay, reps,
                                     getTimingData=getTimingData)
                     for dev, delay, slave in reversed(devices)]
         results = yield defer.DeferredList(attempts)
-        ## end critical section
         
-        mybusy.callback(True)
+        self.lock.release()
+        ## end critical section
 
         okay = True
         switches = []

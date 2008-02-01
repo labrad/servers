@@ -82,10 +82,6 @@ class HEPressurizer(LabradServer):
         now = datetime.now()
         newStop = now + delay
         return seconds, newStop
-    
-    settingMap = {
-        'echo': ('echo', 11111111)
-    }
 
     @setting(0, 'Pressurize',
                 data=[': Pressurize for 3 seconds',

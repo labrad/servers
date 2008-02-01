@@ -48,11 +48,10 @@ class DG535Server(GPIBDeviceServer):
     name = 'DG535'
     deviceName = 'SRS DG535'
 
-    @inlineCallbacks
-    def initServer(self):
-        yield GPIBDeviceServer.initServer(self)
-        self.defaultCtxtData.update(channel=2, anchor=1)
-
+    def initContext(self, c):
+        c['channel'] = 2
+        c['anchor'] = 1
+        
     @setting(11, 'Select Channel', chan=['s', 'w'], returns=['w'])
     def select_channel(self, c, chan=2):
         ch = c['channel'] = findString(chan, CHANNELS)
