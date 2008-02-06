@@ -22,6 +22,8 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 
 from struct import unpack
 
+import numpy
+
 # the names of the measured parameters
 MEAS_PARAM = ['S11', 'S12', 'S21', 'S22']
 
@@ -162,7 +164,7 @@ class AgilentPNAServer(GPIBDeviceServer):
 
         sweeptime, npoints = yield self.startSweep(dev, 'LIN')
         if sweeptime > 1:
-            yield util.wakeUpCall(sweeptime)
+            yield util.wakeupCall(sweeptime)
 
         sparams = yield self.getSweepData(dev, c['meas'])
 
@@ -172,7 +174,6 @@ class AgilentPNAServer(GPIBDeviceServer):
             for i, c in enumerate(s):
                 s[i] = T.Complex(c)
         returnValue((freq, sparams))
-
 
     @setting(101, returns=['*v[Hz]*2c'])
     def power_sweep(self, c):
@@ -184,7 +185,7 @@ class AgilentPNAServer(GPIBDeviceServer):
 
         sweeptime, npoints = yield self.startSweep(dev, 'POW')
         if sweeptime > 1:
-            yield util.waitForWakeUpCall(sweeptime)
+            yield util.wakeupCall(sweeptime)
 
         sparams = yield self.getSweepData(dev, c['meas'])
 
@@ -194,6 +195,53 @@ class AgilentPNAServer(GPIBDeviceServer):
             for i, c in enumerate(s):
                 s[i] = T.Complex(c)
         returnValue((power, sparams))
+
+    @setting(110, name=['s'], returns=['*2v'])
+    def freq_sweep_save(self, c, name='untitled'):
+        """Initiate a frequency sweep.
+
+        The data will be saved to the data vault in the current
+        directory for this context.  Note that the default directory
+        in the data vault is the root directory, so you should cd
+        before trying to save.
+        """
+        dev = self.selectedDevice(c)
+
+        resp = yield dev.query('SENS:FREQ:STAR?; STOP?')
+        fstar, fstop = [float(f) for f in resp.split(';')]
+
+        sweeptime, npoints = yield self.startSweep(dev, 'LIN')
+        if sweeptime > 1:
+            yield util.wakeupCall(sweeptime)
+
+        sparams = yield self.getSweepData(dev, c['meas'])
+
+        freq = util.linspace(fstar, fstop, npoints)
+        freq = [T.Value(f, 'Hz') for f in freq]
+        for s in sparams:
+            for i, cplx in enumerate(s):
+                s[i] = T.Complex(cplx)
+
+        f = numpy.array(freq)
+        s = 20*numpy.log10(abs(numpy.array(sparams)))
+        data = numpy.vstack((f, s)).T
+        data = data.astype('float64')
+
+        dv = self.client.data_vault
+        power = yield self.power(c)
+        bw = yield self.bandwidth(c)
+        
+        independents = ['frequency [Hz]']
+        dependents = [('log mag', Sij, 'dB') for Sij in c['meas']]
+        p = dv.packet()
+        p.new(name, independents, dependents)
+        p.add(data)
+        p.add_comment('Autosaved by PNA server.')
+        p.add_parameter('power', power)
+        p.add_parameter('bandwidth', bw)
+        yield p.send(context=c.ID)
+        
+        returnValue(data)
 
     @setting(200, params=['*s'], returns=['*s'])
     def s_parameters(self, c, params=None):
@@ -220,7 +268,7 @@ class AgilentPNAServer(GPIBDeviceServer):
     def startSweep(self, dev, sweeptype):
         yield dev.write('SENS:SWE:TIME:AUTO ON; :INIT:CONT OFF; :OUTP ON')
 
-        resp = (yield dev.query('SENS:SWE:TIME?; POIN?'))
+        resp = yield dev.query('SENS:SWE:TIME?; POIN?')
         sweeptime, npoints = resp.split(';')
         sweeptime = float(sweeptime)
         npoints = int(npoints)
@@ -233,7 +281,7 @@ class AgilentPNAServer(GPIBDeviceServer):
     @inlineCallbacks
     def getSweepData(self, dev, meas):
         yield dev.query('*OPC?') # wait for sweep to finish
-        sdata = (yield self.getSParams(dev, meas))
+        sdata = yield self.getSParams(dev, meas)
         yield dev.write('OUTP OFF')
         returnValue(sdata)
 
