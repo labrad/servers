@@ -142,7 +142,7 @@ class Directory(object):
             
             # notify listeners about this new directory
             parent_dir = Directory(path[:-1], parent)
-            parent.onNewDir(path[-1], list(parent_dir.listeners))
+            parent.onNewDir(path[-1], parent_dir.listeners)
            
         if os.path.exists(self.infofile):
             self.load()
@@ -222,7 +222,7 @@ class Directory(object):
         self.access()
         
         # notify listeners about the new key
-        self.parent.onNewKey(key, list(self.listeners))
+        self.parent.onNewKey(key, self.listeners)
 
 
 class Key:
@@ -330,7 +330,7 @@ class Key:
         f.flush()
         
         # notify all listening contexts
-        self.parent.onNewData(None, list(self.listeners))
+        self.parent.onNewData(None, self.listeners)
         self.listeners = set()
         return f.tell()
         

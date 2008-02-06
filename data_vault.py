@@ -190,7 +190,7 @@ class Session(object):
             
             # notify listeners about this new directory
             parent_session = Session(path[:-1], parent)
-            parent.onNewDir(path[-1], list(parent_session.listeners))
+            parent.onNewDir(path[-1], parent_session.listeners)
            
         if os.path.exists(self.infofile):
             self.load()
@@ -263,7 +263,7 @@ class Session(object):
         self.access()
         
         # notify listeners about the new dataset
-        self.parent.onNewDataset(name, list(self.listeners))
+        self.parent.onNewDataset(name, self.listeners)
         return dataset
         
     def openDataset(self, name):
@@ -290,6 +290,7 @@ class Session(object):
             dataset = Dataset(self, name)
             self.datasets[name] = dataset
         self.access()
+        
         return dataset
 
 class Dataset:
@@ -301,6 +302,8 @@ class Dataset:
         self.infofile = file_base + '.ini'
         self.file # create the datafile, but don't do anything with it
         self.listeners = set() # contexts that want to hear about added data
+        self.param_listeners = set()
+        self.comment_listeners = set()
         
         if create:
             self.title = title
@@ -308,6 +311,7 @@ class Dataset:
             self.independents = []
             self.dependents = []
             self.parameters = []
+            self.comments = []
             self.save()
         else:
             self.load()
@@ -349,6 +353,18 @@ class Dataset:
         count = S.getint(gen, 'Parameters')
         self.parameters = [getPar(i) for i in range(count)]
 
+        # get comments if they're there
+        if S.has_section('Comments'):
+            def getComment(i):
+                sec = 'Comments'
+                time, user, comment = eval(S.get(sec, 'c%d' % i, raw=True))
+                return timeFromStr(time), user, comment
+            count = S.getint(gen, 'Comments')
+            self.comments = [getComment(i) for i in range(count)]
+        else:
+            self.comments = []
+        
+        
     def save(self):
         S = SafeConfigParser()
         
@@ -361,6 +377,7 @@ class Dataset:
         S.set(sec, 'Independent', repr(len(self.independents)))
         S.set(sec, 'Dependent',   repr(len(self.dependents)))
         S.set(sec, 'Parameters',  repr(len(self.parameters)))
+        S.set(sec, 'Comments',    repr(len(self.comments)))
 
         for i, ind in enumerate(self.independents):
             sec = 'Independent %d' % (i+1)
@@ -382,6 +399,12 @@ class Dataset:
             # TODO: smarter saving here, since eval'ing is insecure
             S.set(sec, 'Data', repr(par['data']))
 
+        sec = 'Comments'
+        S.add_section(sec)
+        for i, (time, user, comment) in enumerate(self.comments):
+            time = timeToStr(time)
+            S.set(sec, 'c%d' % i, repr((time, user, comment)))
+            
         with open(self.infofile, 'w') as f:
             S.write(f)
 
@@ -459,6 +482,10 @@ class Dataset:
         d = dict(label=name, data=data)
         self.parameters.append(d)
         self.save()
+        
+        # notify all listening contexts
+        self.parent.onNewParameter(None, self.param_listeners)
+        self.param_listeners = set()
         return name
 
     def getParameter(self, name):
@@ -481,16 +508,32 @@ class Dataset:
         f.flush()
         
         # notify all listening contexts
-        self.parent.onNewData(None, list(self.listeners))
+        self.parent.onDataAvailable(None, self.listeners)
         self.listeners = set()
         return f.tell()
-        
+    
     def getData(self, limit, start):
         if limit is None:
             data = self.data[start:]
         else:
             data = self.data[start:start+limit]
         return data, start + len(data)
+        
+    def keepStreaming(self, context, pos):
+        if pos < len(self.data):
+            if context in self.listeners:
+                self.listeners.remove(context)
+            self.parent.onDataAvailable(None, context)
+        else:
+            self.listeners.add(context)
+            
+    def addComment(self, user, comment):
+        self.comments.append((datetime.now(), user, comment))
+        self.save()
+        
+        # notify all listening contexts
+        self.parent.onNewComment(None, self.comment_listeners)
+        self.comment_listeners = set()
 
 
 class DataVault(LabradServer):
@@ -516,7 +559,9 @@ class DataVault(LabradServer):
         
     onNewDir = Signal(543617, 'signal: new dir', 's')
     onNewDataset = Signal(543618, 'signal: new dataset', 's')
-    onNewData = Signal(543619, 'signal: new data', '')
+    onDataAvailable = Signal(543619, 'signal: data available', '')
+    onNewParameter = Signal(543620, 'signal: new parameter', '')
+    onNewComment = Signal(543621, 'signal: new comment', '')
     
     @setting(6, returns=['(*s{subdirectories}, *s{datasets})'])
     def dir(self, c):
@@ -583,7 +628,7 @@ class DataVault(LabradServer):
     @setting(9, name=['s'],
                 independents=['*s', '*(ss)'],
                 dependents=['*s', '*(sss)'],
-                returns=['s'])
+                returns=['(*s{path}, s{name})'])
     def new(self, c, name, independents, dependents):
         """Create a new Dataset.
 
@@ -594,29 +639,29 @@ class DataVault(LabradServer):
         or 'label (legend) [units]'.  Label is meant to be an
         axis label that can be shared among traces, while legend is
         a legend entry that should be unique for each trace.
-        Returns a string with the location of the .csv data file
-        for this dataset.
+        Returns the path and name for this dataset.
         """
         session = self.getSession(c)
         dataset = session.newDataset(name or 'untitled', independents, dependents)
         c['dataset'] = dataset.name # not the same as name; has number prefixed
         c['filepos'] = 0 # start at the beginning
         c['writing'] = True
-        return dataset.datafile
+        return c['path'], c['dataset']
     
-    @setting(10, name=['s', 'w'], returns=['s'])
+    @setting(10, name=['s', 'w'], returns=['(*s{path}, s{name})'])
     def open(self, c, name):
         """Open a Dataset for reading.
         
         You can specify the dataset by name or number.
-        Returns a string with the location of the .csv data file.
+        Returns the path and name for this dataset.
         """
         session = self.getSession(c)
         dataset = session.openDataset(name)
         c['dataset'] = dataset.name # not the same as name; has number prefixed
         c['filepos'] = 0
         c['writing'] = False
-        return dataset.datafile
+        dataset.keepStreaming(c.ID, 0)
+        return c['path'], c['dataset']
     
     @setting(20, data=['*v: add one row of data',
                        '*2v: add multiple rows of data'],
@@ -628,7 +673,10 @@ class DataVault(LabradServer):
         to the total number of variables in the data set
         (independents + dependents).
         """
+        print util.dump(data._data)
         dataset = self.getDataset(c)
+        if not c['writing']:
+            raise ReadOnlyError()
         dataset.addData(data)
 
     @setting(21, limit=['w'], startOver=['b'],
@@ -645,7 +693,8 @@ class DataVault(LabradServer):
         dataset = self.getDataset(c)
         c['filepos'] = 0 if startOver else c['filepos']
         data, c['filepos'] = dataset.getData(limit, c['filepos'])
-        dataset.listeners.add(c.ID) # send a message when more data is available
+        dataset.keepStreaming(c.ID, c['filepos'])
+        #dataset.listeners.add(c.ID) # send a message when more data is available
         return data
     
     @setting(100, returns=['(*(ss){independents}, *(sss){dependents})'])
@@ -666,6 +715,7 @@ class DataVault(LabradServer):
     def parameters(self, c):
         """Get a list of parameter names."""
         dataset = self.getDataset(c)
+        dataset.param_listeners.add(c.ID) # send a message when new parameters are added
         return [par['label'] for par in dataset.parameters]
 
     @setting(121, 'add parameter', name=['s'], returns=[''])
@@ -691,8 +741,28 @@ class DataVault(LabradServer):
         dataset = self.getDataset(c)
         names = [par['label'] for par in dataset.parameters]
         params = tuple((name, dataset.getParameter(name)) for name in names)
+        dataset.param_listeners.add(c.ID) # send a message when new parameters are added
         if len(params):
             return params
+            
+    @setting(200, 'add comment', comment=['s'], user=['s'], returns=[''])
+    def add_comment(self, c, comment, user='anonymous'):
+        """Add a comment to the current dataset."""
+        dataset = self.getDataset(c)
+        return dataset.addComment(user, comment)
+        
+    @setting(201, 'get comments', since=['t'], returns=['*(t, s{user}, s{comment})'])
+    def get_comments(self, c, since=None):
+        """Get comments for the current dataset.
+        
+        If you pass a time, only new comments made since that time will be returned.
+        """
+        dataset = self.getDataset(c)
+        comments = dataset.comments
+        if since is not None:
+            comments = [c for c in comments if c[0] > since]
+        dataset.comment_listeners.add(c.ID) # send a message when new comments are added
+        return comments
         
 __server__ = DataVault()
 
