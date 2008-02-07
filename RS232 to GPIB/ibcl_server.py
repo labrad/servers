@@ -82,25 +82,25 @@ class IBCLServer(LabradServer):
         log.msg('  Starting IBCL...')
         p = ser.packet(context=ctx)\
                .timeout(T.Value(1, 's'))\
-               .write('IBCL\r')\
+               .write('ibcl\r')\
                .read(6L)
         res = yield p.send()
         if 'read' not in res.settings:
-            log.msg('    ERROR: Can''t send data')
+            log.msg('    ERROR 1: Can''t send data')
             return
         if res['read']=='\r\nok\r\n':
             log.msg('    Ready')
             self.controllers += [G]
             return
-        if res['read']!='IBCL \r':
+        if res['read']!='ibcl \r':
             if res['read']=='':
-                log.msg('    ERROR: No response')
+                log.msg('    ERROR 2: No response')
             else:
-                log.msg('    ERROR: Invalid response')
+                log.msg('    ERROR 3: Invalid response: %s' % repr(res['read']))
             return
-        res = yield ser.read(17L, context=ctx)
-        if res!='\nIBCL? MSG # 0 \r\n':
-            log.msg('    ERROR: Invalid response')
+        res = yield ser.read(5L, context=ctx)
+        if res!='\nok\r\n':
+            log.msg('    ERROR 4: Invalid response: %s' % repr(res))
             return
         log.msg('    Already running')
         log.msg('  Resetting IBCL...')
@@ -109,13 +109,13 @@ class IBCLServer(LabradServer):
                .read(11L)
         res = yield p.send()
         if 'read' not in res.settings:
-            log.msg('    ERROR: "cold" command failed')
+            log.msg('    ERROR 5: "cold" command failed')
             return
         if res['read']=='cold \r\nok\r\n':
             log.msg('    Ready')
             self.controllers += [G]
         else:
-            log.msg('    ERROR: "cold" command failed')
+            log.msg('    ERROR 6: "cold" command failed')
         
 
     @setting(1, 'Controllers', returns=['*s: Controllers'])
