@@ -27,6 +27,12 @@ from ConfigParser import SafeConfigParser
 import os, re
 from datetime import datetime
 
+try:
+    import numpy
+    useNumpy = True
+except ImportError:
+    useNumpy = False
+
 # look for a configuration file in this directory
 cf = ConfigFile('data_vault', os.path.split(__file__)[0])
 DATADIR = cf.get('config', 'repository')
@@ -35,6 +41,7 @@ PRECISION = 6
 FILE_TIMEOUT = 60 # how long to keep datafiles open if not accessed
 DATA_TIMEOUT = 60 # how long to keep data in memory if not accessed
 TIME_FORMAT = '%Y-%m-%d, %H:%M:%S'
+DATA_FORMAT = '%%.%dG' % PRECISION
 
 
 ## error messages
@@ -504,7 +511,7 @@ class Dataset:
         # append the data to the file
         f = self.file
         for row in data:
-            f.write(', '.join('%.*G' % (PRECISION, v) for v in row) + '\n')
+            f.write(', '.join(DATA_FORMAT % v for v in row) + '\n')
         f.flush()
         
         # notify all listening contexts
@@ -534,6 +541,82 @@ class Dataset:
         # notify all listening contexts
         self.parent.onNewComment(None, self.comment_listeners)
         self.comment_listeners = set()
+
+
+class NumpyDataset(Dataset):
+
+    def _get_data(self):
+        """Read data from file on demand.
+        
+        The data is scheduled to be cleared from memory unless accessed."""
+        if not hasattr(self, '_data'):
+            try:
+                self._data = numpy.loadtxt(self.file, delimiter=',')
+            except ValueError:
+                # no data saved yet
+                self._data = numpy.array([[]])
+            self._dataTimeoutCall = callLater(DATA_TIMEOUT, self._dataTimeout)
+        else:
+            self._dataTimeoutCall.reset(DATA_TIMEOUT)
+        return self._data
+
+    def _set_data(self, data):
+        self._data = data
+        
+    data = property(_get_data, _set_data)
+        
+    def _dataTimeout(self):
+        del self._data
+        del self._dataTimeoutCall
+        
+    def addData(self, data):
+        varcount = len(self.independents) + len(self.dependents)
+        data = data.asarray
+        
+        # reshape single row
+        if len(data.shape) == 1:
+            data.shape = (1, data.size)
+        
+        # check row length
+        if data.shape[-1] != varcount:
+            raise BadDataError(varcount)
+        
+        # append data to in-memory data
+        if self.data.size > 0:
+            self.data = numpy.vstack((self.data, data))
+        else:
+            self.data = data
+            
+        # append data to file
+        f = self.file
+        numpy.savetxt(f, data, fmt=DATA_FORMAT, delimiter=',')
+        f.flush()
+        
+        # notify all listening contexts
+        self.parent.onDataAvailable(None, self.listeners)
+        self.listeners = set()
+        return f.tell()
+    
+    def getData(self, limit, start):
+        if limit is None:
+            data = self.data[start:]
+        else:
+            data = self.data[start:start+limit]
+        # nrows should be zero for an empty row
+        nrows = len(data) if data.size > 0 else 0
+        return data, start + nrows
+        
+    def keepStreaming(self, context, pos):
+        nrows = len(self.data) if self.data.size > 0 else 0
+        if pos < nrows:
+            if context in self.listeners:
+                self.listeners.remove(context)
+            self.parent.onDataAvailable(None, context)
+        else:
+            self.listeners.add(context)
+        
+if useNumpy:
+    Dataset = NumpyDataset
 
 
 class DataVault(LabradServer):
@@ -673,7 +756,6 @@ class DataVault(LabradServer):
         to the total number of variables in the data set
         (independents + dependents).
         """
-        print util.dump(data._data)
         dataset = self.getDataset(c)
         if not c['writing']:
             raise ReadOnlyError()
