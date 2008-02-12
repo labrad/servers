@@ -30,7 +30,7 @@ class MKSServer(LabradServer):
     name = 'MKS Gauge Server'
 
     gaugeServers = [{
-        'server': 'mrfreeze_serial_server',
+        'server': 'dr_serial_server',
         'gauges': [dict(port='COM6', ch1='Pot Low', ch2='Pot High'),
                    dict(port='COM3', ch1='Still',   ch2=''),
                    dict(port='COM5', ch1='Keg 1',   ch2='He Flow'),
