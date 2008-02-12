@@ -78,7 +78,7 @@ class SamplingScope(GPIBDeviceServer):
         while True:
             if int((yield dev.query('COND? REMA'))[18:]) == 0:
                 break
-            yield util.wakeUpCall(2)
+            yield util.wakeupCall(2)
 
         resp = yield dev.query(__QUERY__ % trace, bytes=20000L)
         vals = _parseBinaryData(resp)
