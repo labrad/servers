@@ -30,7 +30,7 @@ CHANNELS = ['ch1', 'ch2']
 class HEPressurizer(LabradServer):
     name = 'He Pressurizing Server'
 
-    config = dict(server='mrfreeze_serial_server', port='COM7')
+    config = dict(server='dr_serial_server', port='COM7')
 
     @inlineCallbacks
     def initServer(self):

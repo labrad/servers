@@ -50,7 +50,7 @@ class MKSServer(LabradServer):
             if S['server'] in cxn.servers:
                 log.msg('Connecting to %s...' % S['server'])
                 ser = cxn[S['server']]
-                ports = (yield ser.list_serial_ports())[0]
+                ports = yield ser.list_serial_ports()
                 for G in S['gauges']:
                     if G['port'] in ports:
                         yield self.connectToGauge(ser, G)    
@@ -63,7 +63,7 @@ class MKSServer(LabradServer):
         ctx = G['context'] = ser.context()
         log.msg('  Connecting to %s...' % port)
         try:
-            res = (yield ser.open(port, context=ctx))[0]
+            res = yield ser.open(port, context=ctx)
             ready = G['ready'] = res==port
         except:
             ready = False
@@ -73,9 +73,9 @@ class MKSServer(LabradServer):
                    .baudrate(9600L)\
                    .timeout()
             yield p.send()
-            res = (yield ser.read(context=ctx))[0]
+            res = yield ser.read(context=ctx)
             while res:
-                res = (yield ser.read(context=ctx))[0]
+                res = yield ser.read(context=ctx)
             yield ser.timeout(2, 's', context=ctx)
 
             # check units
@@ -84,7 +84,7 @@ class MKSServer(LabradServer):
                    .read_line(key='units')
             res = (yield p.send(context=ctx))
             if 'units' in res.settings:
-                G['units'] = res['units'][0]
+                G['units'] = res['units']
             else:
                 G['ready'] = False
 
@@ -120,9 +120,9 @@ class MKSServer(LabradServer):
         readings = []
         strs = []
         for rslt, G in zip(res, self.gauges):
-            s = rslt[1].pressure[0]
+            s = rslt[1].pressure
             strs.append(s)
-            r = rslt[1].pressure[0].split()
+            r = rslt[1].pressure.split()
             for ch, rdg in zip(CHANNELS, r):
                 if G[ch]:
                     try:
