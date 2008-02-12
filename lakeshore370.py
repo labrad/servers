@@ -49,7 +49,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
         while self.alive:
             chan = READ_ORDER[idx]
             yield self.write('SCAN %d,0' % chan)
-            yield util.wakeUpCall(SETTLE_TIME)
+            yield util.wakeupCall(SETTLE_TIME)
             r = yield self.query('RDGR? %d' % chan)
             self.readings[chan-1] = float(r), datetime.now()
             idx = (idx + 1) % len(READ_ORDER)
