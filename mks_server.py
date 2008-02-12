@@ -76,7 +76,7 @@ class MKSServer(LabradServer):
             res = yield ser.read(context=ctx)
             while res:
                 res = yield ser.read(context=ctx)
-            yield ser.timeout(2, 's', context=ctx)
+            yield ser.timeout(T.Value(2, 's'), context=ctx)
 
             # check units
             p = ser.packet()\
