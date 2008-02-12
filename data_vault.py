@@ -39,7 +39,7 @@ DATADIR = cf.get('config', 'repository')
 
 PRECISION = 6
 FILE_TIMEOUT = 60 # how long to keep datafiles open if not accessed
-DATA_TIMEOUT = 60 # how long to keep data in memory if not accessed
+DATA_TIMEOUT = 300 # how long to keep data in memory if not accessed
 TIME_FORMAT = '%Y-%m-%d, %H:%M:%S'
 DATA_FORMAT = '%%.%dG' % PRECISION
 
@@ -462,6 +462,12 @@ class Dataset:
         del self._datapos
         del self._dataTimeoutCall
     
+    def _saveData(self, data):
+        f = self.file
+        for row in data:
+            f.write(', '.join(DATA_FORMAT % v for v in row) + '\n')
+        f.flush()
+    
     def addIndependent(self, label):
         """Add an independent variable to this dataset."""
         if isinstance(label, tuple):
@@ -509,15 +515,11 @@ class Dataset:
             raise BadDataError(varcount)
             
         # append the data to the file
-        f = self.file
-        for row in data:
-            f.write(', '.join(DATA_FORMAT % v for v in row) + '\n')
-        f.flush()
+        self._saveData(data)
         
         # notify all listening contexts
         self.parent.onDataAvailable(None, self.listeners)
         self.listeners = set()
-        return f.tell()
     
     def getData(self, limit, start):
         if limit is None:
@@ -564,7 +566,12 @@ class NumpyDataset(Dataset):
         self._data = data
         
     data = property(_get_data, _set_data)
-        
+    
+    def _saveData(self, data):
+        f = self.file
+        numpy.savetxt(f, data, fmt=DATA_FORMAT, delimiter=',')
+        f.flush()
+    
     def _dataTimeout(self):
         del self._data
         del self._dataTimeoutCall
@@ -588,14 +595,11 @@ class NumpyDataset(Dataset):
             self.data = data
             
         # append data to file
-        f = self.file
-        numpy.savetxt(f, data, fmt=DATA_FORMAT, delimiter=',')
-        f.flush()
+        self._saveData(data)
         
         # notify all listening contexts
         self.parent.onDataAvailable(None, self.listeners)
         self.listeners = set()
-        return f.tell()
     
     def getData(self, limit, start):
         if limit is None:
@@ -607,8 +611,14 @@ class NumpyDataset(Dataset):
         return data, start + nrows
         
     def keepStreaming(self, context, pos):
-        nrows = len(self.data) if self.data.size > 0 else 0
-        if pos < nrows:
+        # cheesy hack: if pos == 0, we only need to check whether
+        # the filesize is nonzero
+        if pos == 0:
+            more = os.path.getsize(self.datafile) > 0
+        else:
+            nrows = len(self.data) if self.data.size > 0 else 0
+            more = pos < nrows
+        if more:
             if context in self.listeners:
                 self.listeners.remove(context)
             self.parent.onDataAvailable(None, context)
