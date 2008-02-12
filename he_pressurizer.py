@@ -45,7 +45,7 @@ class HEPressurizer(LabradServer):
         port = self.config['port']
         ser = cxn[server]
         log.msg('Connecting to %s...' % server)
-        ports = (yield ser.list_serial_ports())[0]
+        ports = yield ser.list_serial_ports()
         if not port in ports:
             raise Exception('Port %s not found on %s.' % (port, server))
         yield self.connectToValve(ser, port)
@@ -56,7 +56,7 @@ class HEPressurizer(LabradServer):
     def connectToValve(self, ser, port):
         self.ser = ser
         log.msg('  Connecting to %s...' % port)
-        res = (yield ser.open(port))[0]
+        res = yield ser.open(port)
         if res == port:
             self.ser.rts(False)
             log.msg('    OK')
