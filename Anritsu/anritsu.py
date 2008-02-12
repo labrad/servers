@@ -59,7 +59,7 @@ class AnritsuServer(GPIBDeviceServer):
         dev = self.selectedDevice(c)
         if f is not None:
             yield dev.setFrequency(f)
-        returnValue(T.Value(dev.frequency, 'MHz'))
+        returnValue(dev.frequency)
 
     @setting(11, 'Amplitude', a=['v[dBm]'], returns=['v[dBm]'])
     def amplitude(self, c, a=None):
@@ -67,7 +67,7 @@ class AnritsuServer(GPIBDeviceServer):
         dev = self.selectedDevice(c)
         if a is not None:
             yield dev.setAmplitude(a)
-        returnValue(T.Value(dev.amplitude, 'dBm'))
+        returnValue(dev.amplitude)
 
     @setting(12, 'Output', os=['b'], returns=['b'])
     def output_state(self, c, os=None):
