@@ -541,9 +541,24 @@ class Dataset:
         self.save()
         
         # notify all listening contexts
-        self.parent.onNewComment(None, self.comment_listeners)
+        self.parent.onCommentsAvailable(None, self.comment_listeners)
         self.comment_listeners = set()
 
+    def getComments(self, limit, start):
+        if limit is None:
+            comments = self.comments[start:]
+        else:
+            comments = self.comments[start:start+limit]
+        return comments, start + len(comments)
+        
+    def keepStreamingComments(self, context, pos):
+        if pos < len(self.comments):
+            if context in self.comment_listeners:
+                self.comment_listeners.remove(context)
+            self.parent.onCommentsAvailable(None, context)
+        else:
+            self.comment_listeners.add(context)
+        
 
 class NumpyDataset(Dataset):
 
@@ -654,7 +669,7 @@ class DataVault(LabradServer):
     onNewDataset = Signal(543618, 'signal: new dataset', 's')
     onDataAvailable = Signal(543619, 'signal: data available', '')
     onNewParameter = Signal(543620, 'signal: new parameter', '')
-    onNewComment = Signal(543621, 'signal: new comment', '')
+    onCommentsAvailable = Signal(543621, 'signal: comments available', '')
     
     @setting(6, returns=['(*s{subdirectories}, *s{datasets})'])
     def dir(self, c):
@@ -738,6 +753,7 @@ class DataVault(LabradServer):
         dataset = session.newDataset(name or 'untitled', independents, dependents)
         c['dataset'] = dataset.name # not the same as name; has number prefixed
         c['filepos'] = 0 # start at the beginning
+        c['commentpos'] = 0
         c['writing'] = True
         return c['path'], c['dataset']
     
@@ -752,8 +768,10 @@ class DataVault(LabradServer):
         dataset = session.openDataset(name)
         c['dataset'] = dataset.name # not the same as name; has number prefixed
         c['filepos'] = 0
+        c['commentpos'] = 0
         c['writing'] = False
         dataset.keepStreaming(c.ID, 0)
+        dataset.keepStreamingComments(c.ID, 0)
         return c['path'], c['dataset']
     
     @setting(20, data=['*v: add one row of data',
@@ -786,7 +804,6 @@ class DataVault(LabradServer):
         c['filepos'] = 0 if startOver else c['filepos']
         data, c['filepos'] = dataset.getData(limit, c['filepos'])
         dataset.keepStreaming(c.ID, c['filepos'])
-        #dataset.listeners.add(c.ID) # send a message when more data is available
         return data
     
     @setting(100, returns=['(*(ss){independents}, *(sss){dependents})'])
@@ -843,18 +860,16 @@ class DataVault(LabradServer):
         dataset = self.getDataset(c)
         return dataset.addComment(user, comment)
         
-    @setting(201, 'get comments', since=['t'], returns=['*(t, s{user}, s{comment})'])
-    def get_comments(self, c, since=None):
-        """Get comments for the current dataset.
-        
-        If you pass a time, only new comments made since that time will be returned.
-        """
+    @setting(201, 'get comments', limit=['w'], startOver=['b'],
+                                  returns=['*(t, s{user}, s{comment})'])
+    def get_comments(self, c, limit=None, startOver=False):
+        """Get comments for the current dataset."""
         dataset = self.getDataset(c)
-        comments = dataset.comments
-        if since is not None:
-            comments = [c for c in comments if c[0] > since]
-        dataset.comment_listeners.add(c.ID) # send a message when new comments are added
+        c['commentpos'] = 0 if startOver else c['commentpos']
+        comments, c['commentpos'] = dataset.getComments(limit, c['commentpos'])
+        dataset.keepStreamingComments(c.ID, c['commentpos'])
         return comments
+    
         
 __server__ = DataVault()
 
