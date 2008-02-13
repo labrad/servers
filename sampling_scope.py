@@ -214,7 +214,7 @@ class SamplingScope(GPIBDeviceServer):
     @setting(14, 'trace',
                  trace=[': Attach selected channel to trace 1',
                         'w: Attach selected channel to a trace'],
-                 returns=[': Trace'])
+                 returns=['w: Trace'])
     def trace(self, c, trace=1):
         """Define a trace."""
         dev = self.selectedDevice(c)
