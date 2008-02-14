@@ -77,7 +77,8 @@ class GPIBBusServer(LabradServer):
         instr = self.devices[c['addr']]['instr']
         instr.timeout = c['timeout']
         instr.write(data)
-        return []
+        status = vpp43.read_stb(instr.vi)
+        return byteToBoolList(status)
 
     @setting(4, bytes=['w'], returns=['(s{data}, *b{status})'])
     def read(self, c, bytes=None):
@@ -88,7 +89,8 @@ class GPIBBusServer(LabradServer):
             ans = instr.read()
         else:
             ans = vpp43.read(instr.vi, bytes)
-        return ans, []
+        status = vpp43.read_stb(instr.vi)
+        return ans, byteToBoolList(status)
 
     @setting(20, bytes=['w'], returns=['*(w{GPIB ID}, s{device name})'])
     def list_devices(self, c, bytes=None):
@@ -96,6 +98,9 @@ class GPIBBusServer(LabradServer):
         return [(addr, '%(mfr)s %(model)s' % dev)
                 for addr, dev in sorted(self.devices.items())]
 
+
+def byteToBoolList(byte):
+    return [bool((byte >> n) & 1) for n in range(15, -1, -1)]
 
 __server__ = GPIBBusServer()
 
