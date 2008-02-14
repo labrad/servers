@@ -82,7 +82,7 @@ class SamplingScope(GPIBDeviceServer):
 
         resp = yield dev.query(__QUERY__ % trace, bytes=20000L)
         vals = _parseBinaryData(resp)
-        returnValue([T.Value(v, 'V') for f in vals])
+        returnValue([T.Value(v, 'V') for v in vals])
     
     @setting(241, 'Send Trace To Dataserver',
                   server=['s'], session=['s'], dataset=['s'], trace=['w'],
