@@ -27,9 +27,8 @@ from datetime import datetime
 
 class CalibrationNotFoundError(T.Error):
     code = 1
-    def __init__(self, board, caltype):
-        self.msg = "No " + caltype + \
-                   " calibration available for board '%s'" % board
+    def __init__(self, caltype):
+        self.msg = "No " + caltype + " calibration available for this board."
 
 class NoSuchDACError(T.Error):
     """No such DAC"""
@@ -122,8 +121,6 @@ class CalibrationServer(LabradServer):
             returnValue(corrected)
         else:
             # Single Channel Calibration
-            if not isinstance(data[0], T.Value):
-                raise DACrequiresRealError()
             if c['Board'] not in self.DACcalsets:
                 self.DACcalsets[c['Board']] = {}
             if c['DAC'] not in self.DACcalsets[c['Board']]:
@@ -131,7 +128,7 @@ class CalibrationServer(LabradServer):
                     yield DACcorrectorAsync(c['Board'], c['DAC'], self.client,
                             errorClass = CalibrationNotFoundError)
 
-            corrected = self.DACcalsets[c['Board']][c['DAC']].DACify(data,loop=c['Loop'], clip=False)
+            corrected = self.DACcalsets[c['Board']][c['DAC']].DACify(data,loop=c['Loop'], fitRange=False)
             returnValue(corrected)
 
 
