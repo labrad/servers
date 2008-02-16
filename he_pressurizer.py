@@ -28,25 +28,42 @@ MIN_TIME = .25 # shortest allowed pressurizing time
 CHANNELS = ['ch1', 'ch2']
 
 class HEPressurizer(LabradServer):
+    """Control the valve to pressurize the LHe dewar during transfers."""
     name = 'He Pressurizing Server'
 
-    config = dict(server='dr_serial_server', port='COM7')
+    config = dict(server='DR Serial Server', port='COM7', ID=None)
 
     @inlineCallbacks
     def initServer(self):
-        yield self.findValve()
+        self.connected = False
         self.pressurizing = False
+        yield self.findValve()
         
+    def serverConnected(self, data):
+        ID, name = data
+        if name == self.config['server']:
+            self.findValve()
+        
+    def serverDisconnected(self, ID):
+        if ID == self.config['ID']:
+            self.connected = False
 
     @inlineCallbacks
     def findValve(self):
+        if self.connected:
+            return
         cxn = self.client
+        yield cxn.refresh()
         server = self.config['server']
         port = self.config['port']
+        if server not in cxn.servers:
+            log.msg("'%s' not found." % server)
+            return
         ser = cxn[server]
+        self.config['ID'] = ser.ID
         log.msg('Connecting to %s...' % server)
         ports = yield ser.list_serial_ports()
-        if not port in ports:
+        if port not in ports:
             raise Exception('Port %s not found on %s.' % (port, server))
         yield self.connectToValve(ser, port)
         log.msg('Server ready')
@@ -60,6 +77,7 @@ class HEPressurizer(LabradServer):
         if res == port:
             self.ser.rts(False)
             log.msg('    OK')
+            self.connected = True
         else:
             log.msg('    ERROR')
             raise Exception('Could not set up connection.')
@@ -83,12 +101,18 @@ class HEPressurizer(LabradServer):
         newStop = now + delay
         return seconds, newStop
 
+    def checkConnection(self):
+        if not self.connected:
+            raise Exception('Not connected to valve. '\
+                            'Make sure %s is running.' % self.config['server'])
+        
     @setting(0, 'Pressurize',
                 data=[': Pressurize for 3 seconds',
-                         'v[s]: Pressurize for specified time'],
+                      'v[s]: Pressurize for specified time'],
                 returns=['b: Indicates whether valve was already open'])
     def pressurize(self, c, data=T.Value(3.0,'s')):
         """Open the pressurization valve."""
+        self.checkConnection()
         seconds, newStop = self.times(data)
         if self.pressurizing:
             if newStop > self.stopTime and self.stopCall.active():
@@ -101,11 +125,12 @@ class HEPressurizer(LabradServer):
             returnValue(False)
 
     @setting(1, 'Stop',
-                data=[': Closes the valve immediately',
-                      'v[s]: Closes the valve after the specified delay'],
+                data=[': Close the valve immediately',
+                      'v[s]: Close the valve after the specified delay'],
                 returns=['b: Indicates whether the valve was still open'])
     def close_valve(self, c, data=T.Value(0.0,'s')):
         """Close the pressurization valve."""
+        self.checkConnection()
         seconds, newStop = self.times(data)
         if self.pressurizing:
             if newStop < self.stopTime and self.stopCall.active():
@@ -120,6 +145,7 @@ class HEPressurizer(LabradServer):
                 returns=['v[s]: Time that the valve will remain open'])
     def time_left(self, c, data):
         """Get the time until the pressurization valve will close."""
+        self.checkConnection()
         if self.pressurizing:
             timeLeft = self.stopTime - datetime.now()
             secondsLeft = timeLeft.seconds + timeLeft.microseconds/1e6

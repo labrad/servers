@@ -19,7 +19,7 @@ from labrad import types as T, util
 from labrad.server import LabradServer, setting
 
 from twisted.python import log
-from twisted.internet import defer, reactor
+from twisted.internet import defer
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 from datetime import datetime
@@ -30,7 +30,8 @@ class MKSServer(LabradServer):
     name = 'MKS Gauge Server'
 
     gaugeServers = [{
-        'server': 'dr_serial_server',
+        'server': 'DR Serial Server',
+        'ID': None,
         'gauges': [dict(port='COM6', ch1='Pot Low', ch2='Pot High'),
                    dict(port='COM3', ch1='Still',   ch2=''),
                    dict(port='COM5', ch1='Keg 1',   ch2='He Flow'),
@@ -42,23 +43,42 @@ class MKSServer(LabradServer):
         self.gauges = []
         yield self.findGauges()
 
-
+    def serverConnected(self, data):
+        """Try to connect to gauges when a server connects."""
+        self.findGauges()
+        
+    def serverDisconnected(self, ID):
+        """Drop gauges from the list when a server disconnects."""
+        for S in self.gaugeServers:
+            if S['ID'] == ID:
+                print "'%s' disconnected." % S['server']
+                S['ID'] = None
+                removals = [G for G in self.gauges if G['server'].ID == ID]
+                for G in removals:
+                    self.gauges.remove(G)
+        
     @inlineCallbacks
     def findGauges(self):
+        """Look for gauges and servers."""
         cxn = self.client
+        yield cxn.refresh()
         for S in self.gaugeServers:
+            if S['ID'] is not None:
+                continue
             if S['server'] in cxn.servers:
                 log.msg('Connecting to %s...' % S['server'])
                 ser = cxn[S['server']]
                 ports = yield ser.list_serial_ports()
                 for G in S['gauges']:
                     if G['port'] in ports:
-                        yield self.connectToGauge(ser, G)    
+                        yield self.connectToGauge(ser, G)
+                S['ID'] = ser.ID
         log.msg('Server ready')
 
 
     @inlineCallbacks
     def connectToGauge(self, ser, G):
+        """Connect to a single gauge."""
         port = G['port']
         ctx = G['context'] = ser.context()
         log.msg('  Connecting to %s...' % port)
@@ -82,7 +102,7 @@ class MKSServer(LabradServer):
             p = ser.packet()\
                    .write_line('u')\
                    .read_line(key='units')
-            res = (yield p.send(context=ctx))
+            res = yield p.send(context=ctx)
             if 'units' in res.settings:
                 G['units'] = res['units']
             else:
@@ -97,7 +117,7 @@ class MKSServer(LabradServer):
             G['server'] = ser
 
         if ready:
-            self.gauges += [G]
+            self.gauges.append(G)
             log.msg('    OK')
         else:
             log.msg('    ERROR')
