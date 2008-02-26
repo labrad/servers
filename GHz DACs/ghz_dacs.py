@@ -407,28 +407,29 @@ class FPGAServer(DeviceServer):
 
                     
         ## begin critical section
-        yield self.lock.acquire()
+        try:
+            yield self.lock.acquire()
         
-        # send setup packets
-        if len(setupReqs)>0:
-            waiters = []
-            for spPacket in setupReqs:
-                waiters.append(spPacket.send())
-            yield defer.DeferredList(waiters)
+            # send setup packets
+            if len(setupReqs)>0:
+                waiters = []
+                for spPacket in setupReqs:
+                    waiters.append(spPacket.send())
+                yield defer.DeferredList(waiters)
         
-        updates = [updateDev(dev) for dev in reversed(devs)]
-        r = yield defer.DeferredList(updates)
+            updates = [updateDev(dev) for dev in reversed(devs)]
+            r = yield defer.DeferredList(updates)
         
-        if not all(success for success, result in r):
+            if not all(success for success, result in r):
+                self.lock.release()
+                raise Exception('Failed to update MEM and/or SRAM!')
+        
+            attempts = [dev.runSequence(slave, delay, reps,
+                                        getTimingData=getTimingData)
+                        for dev, delay, slave in reversed(devices)]
+            results = yield defer.DeferredList(attempts)
+        finally:        
             self.lock.release()
-            raise Exception('Failed to update MEM and/or SRAM!')
-        
-        attempts = [dev.runSequence(slave, delay, reps,
-                                    getTimingData=getTimingData)
-                    for dev, delay, slave in reversed(devices)]
-        results = yield defer.DeferredList(attempts)
-        
-        self.lock.release()
         ## end critical section
 
         okay = True
