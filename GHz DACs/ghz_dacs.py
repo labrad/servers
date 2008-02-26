@@ -398,9 +398,9 @@ class FPGAServer(DeviceServer):
         setupReqs = []
         if setuppkts is not None:
             for spCtxt, spServer, spSettings in setuppkts:
-                if spCtxt[0]==0:
+                if spCtxt[0] == 0:
                     print "Using a context with high ID = 0 for packet requests might not do what you want!!!"
-                p = self.client[spServer].packet(context = spCtxt)
+                p = self.client[spServer].packet(context=spCtxt)
                 for spSetting, spData in spSettings:
                     p[spSetting](spData)
                 setupReqs.append(p)
@@ -411,24 +411,25 @@ class FPGAServer(DeviceServer):
             yield self.lock.acquire()
         
             # send setup packets
-            if len(setupReqs)>0:
-                waiters = []
-                for spPacket in setupReqs:
-                    waiters.append(spPacket.send())
-                yield defer.DeferredList(waiters)
+            if len(setupReqs) > 0:
+                setups = [p.send() for p in setupReqs]
+                r = yield defer.DeferredList(setups)
+                if not all(success for success, result in r):
+                    raise Exception('Error while sending setup packets!')
         
+            # send memory and SRAM content
             updates = [updateDev(dev) for dev in reversed(devs)]
             r = yield defer.DeferredList(updates)
-        
             if not all(success for success, result in r):
-                self.lock.release()
                 raise Exception('Failed to update MEM and/or SRAM!')
         
+            # run all boards
             attempts = [dev.runSequence(slave, delay, reps,
                                         getTimingData=getTimingData)
                         for dev, delay, slave in reversed(devices)]
             results = yield defer.DeferredList(attempts)
-        finally:        
+        finally:
+            # release lock at end, even (especially!) if an error happened
             self.lock.release()
         ## end critical section
 
@@ -856,25 +857,13 @@ class FPGAServer(DeviceServer):
                    for i in [0, 5, 10, 15]]
         lvds, fifo = tuple(reading[0:2]), tuple(reading[2:4])
 
+        # lvds and fifo may be reversed.  This is okay
         if tuple(reversed(lvds)) == theory:
             lvds = tuple(reversed(lvds))
         if tuple(reversed(fifo)) == theory:
             fifo = tuple(reversed(fifo))
         returnValue((lvds == theory and fifo == theory, theory, lvds, fifo))
-##        if (reading[0]==theory[1]) and (reading[1]==theory[0]):
-##            t = reading[1]
-##            reading[1] = reading[0]
-##            reading[0] = t
-##
-##        if (reading[2]==theory[1]) and (reading[3]==theory[0]):
-##            t = reading[3]
-##            reading[3] = reading[2]
-##            reading[2] = t
-##
-##        returnValue(((reading[0:2]==theory) and (reading[2:4]==theory),
-##                    tuple(theory),
-##                    tuple(reading[0:2]),
-##                    tuple(reading[2:4])))
+
 
 # some helper methods
 
