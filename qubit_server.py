@@ -139,7 +139,7 @@ class QubitServer(LabradServer):
     def saveVariable(self, folder, name, variable):
         cxn = self.client
         p = cxn.registry.packet()
-        p.cd(['', 'Qubit Server', folder], True)
+        p.cd(['', 'Servers', 'Qubit Server', folder], True)
         p.set(name, repr(variable))
         ans = yield p.send()
         returnValue(ans.set)
@@ -148,7 +148,7 @@ class QubitServer(LabradServer):
     def loadVariable(self, folder, name):
         cxn = self.client
         p = cxn.registry.packet()
-        p.cd(['', 'Qubit Server', folder], True)
+        p.cd(['', 'Servers', 'Qubit Server', folder], True)
         p.get(name)
         ans = yield p.send()
         data = T.evalLRData(ans.get)
@@ -158,7 +158,7 @@ class QubitServer(LabradServer):
     def listVariables(self, folder):
         cxn = self.client
         p = cxn.registry.packet()
-        p.cd(['', 'Qubit Server', folder], True)
+        p.cd(['', 'Servers', 'Qubit Server', folder], True)
         p.dir()
         ans = yield p.send()
         returnValue(ans.dir[1])

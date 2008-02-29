@@ -203,7 +203,7 @@ class ExperimentServer(LabradServer):
     def saveVariable(self, folder, name, variable):
         cxn = self.client
         p = cxn.registry.packet()
-        p.cd(['', 'Experiment Server', folder], True)
+        p.cd(['', 'Servers', 'Experiment Server', folder], True)
         p.set(name, repr(variable))
         ans = yield p.send()
         returnValue(ans.set)
@@ -212,7 +212,7 @@ class ExperimentServer(LabradServer):
     def loadVariable(self, folder, name):
         cxn = self.client
         p = cxn.registry.packet()
-        p.cd(['', 'Experiment Server', folder], True)
+        p.cd(['', 'Servers', 'Experiment Server', folder], True)
         p.get(name)
         ans = yield p.send()
         data = T.evalLRData(ans.get)
@@ -222,7 +222,7 @@ class ExperimentServer(LabradServer):
     def listVariables(self, folder):
         cxn = self.client
         p = cxn.registry.packet()
-        p.cd(['', 'Experiment Server', folder], True)
+        p.cd(['', 'Servers', 'Experiment Server', folder], True)
         p.dir()
         ans = yield p.send()
         returnValue(ans.dir[1])
@@ -271,23 +271,18 @@ class ExperimentServer(LabradServer):
     def add_qubit_parameters(self, p, qubit):
         if qubit in self.Qubits:
             for name, value in self.Qubits[qubit].items():
-                p.add_parameter(qubit+' - '+name)
-                p.set_parameter(value)
+                p.add_parameter(qubit+' - '+name, value)
 
     def add_dataset_setup(self, p, session, name, indeps, deps):
-        p.open_session(session)
-        p.new_dataset(name)
-        for indep in indeps:
-            p.add_independent_variable(indep)
-        for dep in deps:
-            p.add_dependent_variable(dep)
+        p.cd(['', 'Markus', 'Experiments' , session], True)
+        p.new(name, indeps, deps)
 
 
     @inlineCallbacks
     def initServer(self):
         self.ContextStack = {}
         self.qubitServer   = self.client.qubits
-        self.dataServer    = self.client.data_server
+        self.dataServer    = self.client.data_vault
         self.anritsuServer = self.client.anritsu_server
         self.setups = yield self.qubitServer.list_experimental_setups()
         self.Qubits={}
@@ -423,7 +418,7 @@ class ExperimentServer(LabradServer):
         
 
     @setting(100, 'Squid Steps', region=['(v[mV]{start}, v[mV]{end}, v[mV]{steps})', ''],
-                                 returns=['s'])
+                                 returns=['*ss'])
     def squid_steps(self, c, region):
         self.checkSetup(c, 'Squidsteps', 1)
 
@@ -434,17 +429,16 @@ class ExperimentServer(LabradServer):
         self.add_dataset_setup(p, c['Session'], 'Squid Steps on %s' % qubit, ['Flux [mV]'],
                                ['Switching Time (negative) [us]', 'Switching Time (positive) [us]'])
         self.add_qubit_parameters(p, qubit)
-        p.add_parameter('Stats').set_parameter(float(c["Stats"]))
-        name = (yield p.send()).new_dataset
+        p.add_parameter('Stats', float(c["Stats"]))
+        name = (yield p.send()).new
 
         # Data handling function
         switchings = {}
         def handleData(results, flux, reset):
             if flux in switchings:
-                d = [[flux, a/25.0, b/25.0][i]
-                      for a, b in zip(switchings[flux], results.run_experiment[0])
-                      for i in [0,1,2]]
-                self.dataServer.add_datapoint(d, context = c.ID)
+                d = [[flux, a/25.0, b/25.0]
+                      for a, b in zip(switchings[flux], results.run_experiment[0])]
+                self.dataServer.add(d, context = c.ID)
                 del switchings[flux]
             else:
                 switchings[flux] = results.run_experiment[0]
@@ -503,12 +497,12 @@ class ExperimentServer(LabradServer):
             if state>0:
                 counts[state-1]+=1
         d = list(scanpos) + [100.0*c/total for c in counts]
-        self.dataServer.add_datapoint(d, context = cID)
+        self.dataServer.add(d, context = cID)
 
 
 
     @setting(110, 'Step Edge', region=['(v[mV]{start}, v[mV]{end}, v[mV]{steps})', ''],
-                               returns=['s'])
+                               returns=['*ss'])
     def step_edge(self, c, region):
         self.checkSetup(c, 'Step Edge', 1)
 
@@ -519,8 +513,8 @@ class ExperimentServer(LabradServer):
         self.add_dataset_setup(p, c['Session'], 'Step Edge on %s' % qubit, ['Flux [mV]'],
                                ['Probability (|1>) [%]'])
         self.add_qubit_parameters(p, qubit)
-        p.add_parameter('Stats').set_parameter(float(c["Stats"]))
-        name = (yield p.send()).new_dataset
+        p.add_parameter('Stats', float(c["Stats"]))
+        name = (yield p.send()).new
 
         # Take data
         self.setupThreading(c)
@@ -554,7 +548,7 @@ class ExperimentServer(LabradServer):
 
 
     @setting(120, 'S-Curve', region=['(v[mV]{start}, v[mV]{end}, v[mV]{steps})', ''],
-                             returns=['s'])
+                             returns=['*ss'])
     def s_curve(self, c, region):
         self.checkSetup(c, 'S-Curve', 1)
 
@@ -565,8 +559,8 @@ class ExperimentServer(LabradServer):
         self.add_dataset_setup(p, c['Session'], 'S-Curve on %s' % qubit, ['Measure Pulse Amplitude [mV]'],
                                ['Probability (|1>) [%]'])
         self.add_qubit_parameters(p, qubit)
-        p.add_parameter('Stats').set_parameter(float(c["Stats"]))
-        name = (yield p.send()).new_dataset
+        p.add_parameter('Stats', float(c["Stats"]))
+        name = (yield p.send()).new
 
         # Take data
         self.setupThreading(c)
@@ -600,7 +594,7 @@ class ExperimentServer(LabradServer):
 
 
     @setting(130, 'Spectroscopy', power=['v[dBm]'], region=['(v[GHz]{start}, v[GHz]{end}, v[MHz]{steps})'],
-                                  returns=['s'])
+                                  returns=['*ss'])
     def spectroscopy(self, c, power, region = None):
         self.checkSetup(c, 'Spectroscopy', None)
 
@@ -622,8 +616,8 @@ class ExperimentServer(LabradServer):
         p = self.dataServer.packet(context = c.ID)
         self.add_dataset_setup(p, c['Session'], 'Spectroscopy on %s' % c['Setup'], ['Frequency [GHz]'], axes)
         self.add_qubit_parameters(p, qubit)
-        p.add_parameter('Stats').set_parameter(float(c["Stats"]))
-        name = (yield p.send()).new_dataset
+        p.add_parameter('Stats', float(c["Stats"]))
+        name = (yield p.send()).new
 
         # Take data
         self.setupThreading(c)
@@ -673,7 +667,7 @@ class ExperimentServer(LabradServer):
 
 
     @setting(140, 'Rabi', amplitude=['v[]'], region=['(v[ns]{start}, v[ns]{end}, v[ns]{steps})'],
-                          returns=['s'])
+                          returns=['*ss'])
     def rabi(self, c, amplitude, region = None):
         self.checkSetup(c, 'Rabi', 1)
 
@@ -694,8 +688,8 @@ class ExperimentServer(LabradServer):
         self.add_dataset_setup(p, c['Session'], 'Rabi on %s' % qubit, ['Rabi Length [ns]'],
                                ['Probability (|1>) [%]'])
         self.add_qubit_parameters(p, qubit)
-        p.add_parameter('Stats').set_parameter(float(c["Stats"]))
-        name = (yield p.send()).new_dataset
+        p.add_parameter('Stats', float(c["Stats"]))
+        name = (yield p.send()).new
 
         # Take data
         self.setupThreading(c)
@@ -737,7 +731,7 @@ class ExperimentServer(LabradServer):
 
 
     @setting(150, 'T1', region=['(v[ns]{start}, v[ns]{end}, v[ns]{steps})'],
-                          returns=['s'])
+                          returns=['*ss'])
     def t1(self, c, region = None):
         self.checkSetup(c, 'Spectroscopy', None)
 
@@ -763,8 +757,8 @@ class ExperimentServer(LabradServer):
         p = self.dataServer.packet(context = c.ID)
         self.add_dataset_setup(p, c['Session'], 'T1-Sweep on %s' % c['Setup'], ['Frequency [GHz]'], axes)
         self.add_qubit_parameters(p, qubit)
-        p.add_parameter('Stats').set_parameter(float(c["Stats"]))
-        name = (yield p.send()).new_dataset
+        p.add_parameter('Stats', float(c["Stats"]))
+        name = (yield p.send()).new
 
         # Take data
         self.setupThreading(c)
