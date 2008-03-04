@@ -74,7 +74,7 @@ def add_qubit_inits(p, Qubits):
         setop.append((('Flux', qid+1), getCMD(1, qubit['Operating Bias'])))
         if qubit['Bias Settling Time'] > maxsettling:
             maxsettling = qubit['Bias Settling Time']
-    p.experiment_send_bias_commands(setop, T.Value(maxsettling, 'us'))
+    p.experiment_send_bias_commands(setop, T.Value(float(maxsettling), 'us'))
 
 def add_squid_ramp(p, Qubit, qIndex=1):
     # Set Squid Bias to Ramp Start
