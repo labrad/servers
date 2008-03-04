@@ -20,7 +20,7 @@ from twisted.python import log
 from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 import labrad
-
+from numpy import shape
 SETUPTYPESTRINGS = ['no IQ mixer', \
                     'DAC A -> mixer I, DAC B -> mixer Q',\
                     'DAC A -> mixer Q, DAC B -> mixer I']
@@ -28,23 +28,23 @@ SESSIONNAME = 'GHzDAC Calibration'
 ZERONAME = 'zero'
 PULSENAME = 'pulse'
 IQNAME = 'IQ'
+CHANNELNAMES = ['DAC A','DAC B']
 
 
-def getDataSet(dslist, fpganame, caltype, errorClass=None):
+def getDataSet(dslist, caltype, errorClass=None):
     index=len(dslist) - 1
-    while (index >=0) and (not dslist[index][8:] == fpganame + ' - ' + caltype):
+    while (index >=0) and (not dslist[index][8:] == caltype):
         index-=1
     if index < 0:
         if errorClass:
-            raise errorClass(fpganame, caltype)
+            raise errorClass(caltype)
         else: 
-            print 'Warning: No %s calibration found for %s.' % \
-                  (caltype, fpganame)
-            print '         No %s correction will be performed.' % (caltype)
+            print 'Warning: No %s calibration found.' % caltype
+            print '         No %s correction will be performed.' % caltype
             return None
     else:
-        print 'Loading %s calibration from %s...' % (caltype, dslist[index])
-        return dslist[index]
+        print 'Loading %s calibration from %s.' % (caltype, dslist[index])
+        return index+1
 
 
 
@@ -58,47 +58,42 @@ def IQcorrector(fpganame, connection = None,
     dms.python_fpga_server.cionnect argument
     """
     cxn=connection or labrad.connect()
-    ds=cxn.data_server
+    ds=cxn.data_vault
     ctx = ds.context()
-    ds.open_session(SESSIONNAME,context=ctx)
-    dslist=ds.list_datasets(context=ctx)
+    ds.cd(['',SESSIONNAME,fpganame],context=ctx)
+    dslist=ds.dir(context=ctx)[1]
 
     corrector = IQcorrection(lowpass, bandwidth)
 
     # Load Zero Calibration
     if zerocor:
-        dataset = getDataSet(dslist, fpganame, ZERONAME)
+        dataset = getDataSet(dslist, ZERONAME)
         if dataset:
-            ds.open_dataset(dataset, context=ctx)
-            corrector.loadZeroCal(ds.get_all_datapoints(context=ctx))
+            ds.open(dataset, context=ctx)
+            corrector.loadZeroCal(ds.get(0xFFFFFFFF,True,context=ctx).asarray)
     
 
     #Load pulse response
     if pulsecor:
-        dataset = getDataSet(dslist, fpganame, PULSENAME)
+        dataset = getDataSet(dslist, PULSENAME)
         if dataset:
-            ds.open_dataset(dataset, context=ctx)
-            setupType = int(round(\
-                ds.get_parameter('Setup type',context=ctx)))
-            print '  %s' % SETUPTYPESTRINGS[setupType]
-            IisB = (setupType == 2)
-            carrierfreq=ds.get_parameter('Anritsu frequency [GHz]',
-                                         context=ctx)
-            corrector.loadPulseCal(ds.get_all_datapoints(context=ctx),
-                                   carrierfreq, IisB)
+            ds.open(dataset, context=ctx)
+            setupType = ds.get_parameter('Setup type',context=ctx)
+            print '  %s' % setupType
+            IisB = (setupType == SETUPTYPESTRINGS[2])
+            carrierfreq = ds.get_parameter('Anritsu frequency',
+                                           context=ctx)['GHz']
+            corrector.loadPulseCal(ds.get(context=ctx), carrierfreq, IisB)
             
     # Load Sideband Calibration
     if iqcor:
-        dataset = getDataSet(dslist, fpganame, IQNAME)
+        dataset = getDataSet(dslist, IQNAME)
         if dataset:
-            ds.open_dataset(dataset, context=ctx)
-            sidebandStep = ds.get_parameter('Sideband frequency step [GHz]',
-                                        context=ctx)
-            sidebandCount = \
-                int(round(ds.get_parameter('Number of sideband frequencies',
-                                           context=ctx)))
-            datapoints = ds.get_all_datapoints(context=ctx)
-            corrector.loadSidebandCal(datapoints, sidebandCount, sidebandStep)
+            ds.open(dataset, context=ctx)
+            sidebandStep = ds.get_parameter('Sideband frequency step',
+                                        context=ctx)['GHz']
+            datapoints = ds.get(context=ctx).asarray
+            corrector.loadSidebandCal(datapoints, sidebandStep)
  
     if not connection:
         cxn.disconnect()
@@ -121,51 +116,50 @@ def IQcorrectorAsync(fpganame, connection,
     else:
         cxn = yield labrad.connect()
         
-    ds=cxn.data_server
+    ds=cxn.data_vault
     ctx = ds.context()
 
-    yield ds.open_session(SESSIONNAME,context=ctx)
-    dslist = yield ds.list_datasets(context=ctx)
+    yield ds.cd(['',SESSIONNAME,fpganame],context=ctx)
+    dslist = (yield ds.dir(context=ctx))[1]
 
     corrector = IQcorrection(lowpass, bandwidth)
 
     # Load Zero Calibration
     if zerocor:
-        dataset = getDataSet(dslist, fpganame, ZERONAME, errorClass)
+        dataset = getDataSet(dslist, ZERONAME, errorClass)
         if dataset:
-            yield ds.open_dataset(dataset,context=ctx)
-            datapoints = yield ds.get_all_datapoints(context=ctx)
+            yield ds.open(dataset,context=ctx)
+            datapoints = (yield ds.get(context=ctx)).asarray
             corrector.loadZeroCal(datapoints)
     
 
     #Load pulse response
     if pulsecor:
-        dataset = getDataSet(dslist, fpganame, PULSENAME, errorClass)
+        dataset = getDataSet(dslist, PULSENAME, errorClass)
         if dataset:
-            yield ds.open_dataset(dataset,context=ctx)
-            setupType = int(round(\
-                        (yield ds.get_parameter('Setup type',context=ctx))))
-            print '  %s' % SETUPTYPESTRINGS[setupType]
-            IisB = (setupType == 2)
-            datapoints = yield ds.get_all_datapoints(context=ctx)
-            carrierfreq = yield ds.get_parameter('Anritsu frequency [GHz]',
-                                                 context=ctx)
+            yield ds.open(dataset,context=ctx)
+            setupType = yield ds.get_parameter('Setup type',context=ctx)
+            print '  %s' % setupType
+            IisB = (setupType == SETUPTYPESTRINGS[2])
+            datapoints = (yield ds.get(context=ctx)).asarray
+            carrierfreq = (yield ds.get_parameter('Anritsu frequency',
+                                                  context=ctx))['GHz']
             corrector.loadPulseCal(datapoints, carrierfreq, IisB)
  
 
     # Load Sideband Calibration
     if iqcor:
-        dataset = getDataSet(dslist, fpganame, IQNAME, errorClass)
+        dataset = getDataSet(dslist, IQNAME, errorClass)
         if dataset:
-            yield ds.open_dataset(dataset,context=ctx)
+            yield ds.open(dataset,context=ctx)
             sidebandStep = \
-                yield ds.get_parameter('Sideband frequency step [GHz]',
-                                              context=ctx)
-            sidebandCount = int(round(\
-                (yield ds.get_parameter('Number of sideband frequencies',
-                                        context=ctx))))
-            datapoints = yield ds.get_all_datapoints(context=ctx)
-            corrector.loadSidebandCal(datapoints,sidebandCount,sidebandStep)
+                (yield ds.get_parameter('Sideband frequency step',
+                                        context=ctx))['GHz']
+            sidebandCount = \
+                yield ds.get_parameter('Number of sideband frequencies',
+                                        context=ctx)
+            datapoints = (yield ds.get(context=ctx)).asarray
+            corrector.loadSidebandCal(datapoints, sidebandStep)
 
     if not connection:
         yield cxn.disconnect()
@@ -182,28 +176,26 @@ def DACcorrector(fpganame, channel, connection = None, \
     dms.python_fpga_server.connect argument
     """
     cxn=connection or labrad.connect()
-    ds=cxn.data_server()
+    ds=cxn.data_vault
     ctx = ds.context()
-
-    ds.open_session(SESSIONNAME,context=ctx)
-    dslist=ds.list_datasets(context=ctx)
+    ds.cd(['',SESSIONNAME,fpganame],context=ctx)
+    dslist=ds.dir(context=ctx)[1]
 
     corrector = DACcorrection(lowpass, bandwidth)
 
-    dataset= getDataSet(dslist, fpganame, PULSENAME)
+    if not isinstance(channel, str):
+        channel = CHANNELNAMES[channel]
+
+    dataset= getDataSet(dslist, channel)
+
     if dataset:
-        ds.open_dataset(dataset, context=ctx)
-        setupType = int(round(\
-            ds.get_parameter('Setup type',context=ctx)))
-        if setupType != 0:
-            print '    Calset is for board with IQ mixer. Not loading'
-        else:
-            datapoints=ds.get_all_datapoints(context=ctx)
-            corrector.loadCal(datapoints, channel)
+        ds.open(dataset, context=ctx)
+        datapoints=ds.get(context=ctx).asarray
+        corrector.loadCal(datapoints)
 
     if not connection:
         cxn.disconnect()
-
+        
     return corrector    
 
 @inlineCallbacks
@@ -220,27 +212,22 @@ def DACcorrectorAsync(fpganame, channel, connection = None, \
     else:
         cxn = yield labrad.connect()
 
-    ds=cxn.data_server
+    ds=cxn.data_vault
     ctx = ds.context()
 
-    yield ds.open_session(SESSIONNAME,context=ctx)
-    dslist = yield ds.list_datasets(context=ctx)
+    yield ds.cd(['',SESSIONNAME,fpganame],context=ctx)
+    dslist = (yield ds.dir(context=ctx))[1]
 
     corrector = DACcorrection(lowpass, bandwidth)
 
-    dataset = getDataSet(dslist, fpganame, PULSENAME, errorClass)
+    if not isinstance(channel, str):
+        channel = CHANNELNAMES[channel]
+
+    dataset = getDataSet(dslist, channel, errorClass)
     if dataset:
-        yield ds.open_dataset(dataset, context=ctx)
-        setupType = int(round((yield ds.get_parameter('Setup type',context=ctx))))
-        if setupType != 0:
-            if errorClass:
-                raise errorClass(fpganame, PULSENAME)
-            else:
-                print '    Calset is for board with IQ mixer. Not loading'
-        else:
-            datapoints = yield ds.get_all_datapoints(context=ctx)
-            corrector.loadCal(datapoints, channel)
-        print '  Done.'
+        yield ds.open(dataset, context=ctx)
+        datapoints = (yield ds.get(context=ctx)).asarray
+        corrector.loadCal(datapoints)
     if not connection:
         yield cxn.disconnect()
         

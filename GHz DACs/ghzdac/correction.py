@@ -11,7 +11,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# auint32 with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 
@@ -139,26 +139,24 @@ class IQcorrection:
 
 
     def loadZeroCal(self, zeroData):
-        l = size(zeroData) / 3
-        zeroData = reshape(zeroData, (l,3))
         self.zeroTableI = zeroData[:, (1 + self.flipChannels)]
         self.zeroTableQ = zeroData[:, (1 + (not self.flipChannels))]
         self.zeroTableStart=zeroData[0,0]
-        self.zeroTableStep=(zeroData[-1,0]-zeroData[0,0])/(l-1)
-        print 'Zero calibration: %g GHz to %g GHz in steps of %g MHz' % \
+        self.zeroTableStep=zeroData[1,0]-zeroData[0,0]
+        print '  carrier frequencies: %g GHz to %g GHz in steps of %g MHz' % \
               (zeroData[0,0], zeroData[-1,0], self.zeroTableStep*1000.0)
 
 
 
 
-    def loadSidebandCal(self, sidebandData, sidebandCount=10, sidebandStep = 0.05):
+    def loadSidebandCal(self, sidebandData, sidebandStep = 0.05):
         """
         Load IQ sideband mixing calibration
         """
         self.sidebandStep = sidebandStep
-        l = alen(sidebandData) / (sidebandCount * 2 + 1)
-        sidebandData = reshape(sidebandData, (l, sidebandCount * 2 + 1))
-        
+        l,sidebandCount = shape(sidebandData)
+        sidebandCount = (sidebandCount-1)/2
+       
         self.sidebandCarrierStart = sidebandData[0,0]
         self.sidebandCarrierStep = \
             (sidebandData[-1,0] - sidebandData[0,0]) / (l - 1)
@@ -189,10 +187,10 @@ class IQcorrection:
         #read pulse calibration from data server
         self.flipChannels = flipChannels
         dataPoints = asarray(dataPoints)
-        i=dataPoints[1 + self.flipChannels::3]
-        q=dataPoints[1 + (not self.flipChannels)::3]
+        i=dataPoints[:,1 + self.flipChannels]
+        q=dataPoints[:,1 + (not self.flipChannels)]
         length=len(i)
-        samplingfreq=int(1/((dataPoints[-3]-dataPoints[0])/(len(i)-1))+0.5)
+        samplingfreq=int(round(1.0/(dataPoints[1,0]-dataPoints[0,0])))
         dataPoints=None
 
         #length for fft, long because we want good frequency resolution
@@ -517,7 +515,7 @@ class DACcorrection:
         self.clicsPerVolt = None
 
 
-    def loadCal(self, dataPoints, channel, zero = 0.0 , clicsPerVolt = None):
+    def loadCal(self, dataPoints, zero = 0.0 , clicsPerVolt = None):
         """
         Reads a pulse calibration file from the data server.
         The result is inverted and multiplied with a lowpass filter, that rolls
@@ -527,9 +525,9 @@ class DACcorrection:
 
         #read pulse calibration from data server
         
-        length=size(dataPoints)/3
-        samplingfreq=int(1/((dataPoints[-3]-dataPoints[0])/(length-1))+0.5)
-        dataPoints=dataPoints[channel+1::3]
+
+        samplingfreq=int(round(1.0/(dataPoints[1,0]-dataPoints[0,0])))
+        dataPoints=dataPoints[:,1]
 
         #length for fft, long because we want good frequency resolution
         finalLength=10240
