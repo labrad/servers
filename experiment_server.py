@@ -369,7 +369,7 @@ class ExperimentServer(LabradServer):
             for name in self.Qubits[qubit].keys():
                 if len(name)>maxlen:
                     maxlen = len(name)
-            return [(name, value, value.units)
+            return [(name, float(value), str(value.units))
                     for name, value in self.Qubits[qubit].items()]
 
 
