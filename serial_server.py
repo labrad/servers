@@ -46,7 +46,7 @@ class SerialServer(LabradServer):
         for a in range(1,20):
             COMexists = True
             try:
-                ser = Serial('COM%d' % a)
+                ser = Serial('\\\\.\\COM%d' % a)
                 ser.close()
             except SerialException, e:
                 if e.message.find('cannot find') >= 0:
@@ -89,7 +89,7 @@ class SerialServer(LabradServer):
         if port == 0:
             for i in range(len(self.SerialPorts)):
                 try:
-                    c['PortObject'] = Serial(self.SerialPorts[i], timeout=0)
+                    c['PortObject'] = Serial('\\\\.\\'+self.SerialPorts[i], timeout=0)
                     break
                 except SerialException:
                     pass
@@ -97,13 +97,13 @@ class SerialServer(LabradServer):
                 raise NoPortsAvailableError()
         else:
             try:
-                c['PortObject'] = Serial(port, timeout=0)
+                c['PortObject'] = Serial('\\\\.\\'+port, timeout=0)
             except SerialException, e:
                 if e.message.find('cannot find') >= 0:
                     raise Error(code=1, msg=e.message)
                 else:
                     raise Error(code=2, msg=e.message)
-        return c['PortObject'].portstr
+        return c['PortObject'].portstr.replace('\\\\.\\','')
 
 
     @setting(11, 'Close', returns=[''])
