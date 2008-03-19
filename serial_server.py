@@ -1,6 +1,6 @@
 #!c:\python25\python.exe
 
-# Copyright (C) 2007  Matthew Neeley
+# Copyright (C) 2007  Markus Ansmann
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -70,18 +70,22 @@ class SerialServer(LabradServer):
 
 
     @setting(1, 'List Serial Ports',
-                returns=['*s: List of available serial ports'])
+                returns=['*s: List of serial ports'])
     def list_serial_ports(self, c):
-        """Retrieves a list of all serial ports."""
+        """Retrieves a list of all serial ports.
+
+        NOTES:
+        This list contains all ports installed on the computer,
+        including ones that are already in use by other programs."""
         return self.SerialPorts
 
 
     @setting(10, 'Open',
                  port=[': Open the first available port',
-                       's: Serial port, e.g. COM4'],
+                       's: Port to open, e.g. COM4'],
                  returns=['s: Opened port'])
     def open(self, c, port=0):
-        """Opens a serial port."""
+        """Opens a serial port in the current context."""
         c['Timeout'] = 0
         if 'PortObject' in c:
             c['PortObject'].close()
@@ -108,7 +112,7 @@ class SerialServer(LabradServer):
 
     @setting(11, 'Close', returns=[''])
     def close(self, c):
-        """Closes a serial port."""
+        """Closes the current serial port."""
         if 'PortObject' in c:
             c['PortObject'].close()
             del c['PortObject']
@@ -171,7 +175,7 @@ class SerialServer(LabradServer):
                  returns=['*w: Available stopbits',
                           'w: Selected stopbits'])
     def stopbits(self, c, data=None):
-        """Sets the stopbits."""
+        """Sets the number of stop bits."""
         ser = self.getPort(c)
         bsizes = [long(x[1]) for x in ser.getSupportedStopbits()]
         if data is None:
@@ -284,11 +288,11 @@ class SerialServer(LabradServer):
         return self.readSome(c, count)
 
 
-    @setting(51, 'Read as Wordlist',
+    @setting(51, 'Read as Words',
                  data=[': Read all bytes in buffer',
                        'w: Read this many bytes'],
                  returns=['*w: Received data'])
-    def read_as_wordlist(self, c, data=0):
+    def read_as_words(self, c, data=0):
         """Read data from the port."""
         ans = yield self.readSome(c, data)
         returnValue([long(ord(x)) for x in ans])
