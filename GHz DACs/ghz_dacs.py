@@ -260,6 +260,12 @@ class FPGAServer(DeviceServer):
         found = []
         for name, server, port in self.possibleLinks:
             if server not in cxn.servers:
+                # server not found, remove all devices on this server
+                names=self.devices.keys()
+                for dname in names:
+                    dev = self.devices[dname]
+                    if dev.serverName == server:
+                        del self.devices[dname]
                 continue
 
             print 'Checking %s...' % name
