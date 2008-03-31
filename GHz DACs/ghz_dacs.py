@@ -257,6 +257,7 @@ class FPGAServer(DeviceServer):
     @inlineCallbacks
     def findDevices(self):
         cxn = self.client
+        yield cxn.refresh()
         found = []
         for name, server, port in self.possibleLinks:
             if server not in cxn.servers:
