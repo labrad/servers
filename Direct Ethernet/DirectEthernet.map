@@ -1,6 +1,6 @@
 
  Start         Length     Name                   Class
- 0001:00000000 00081E14H .text                   CODE
+ 0001:00000000 00082178H .text                   CODE
  0002:00000000 00002944H .data                   DATA
  0002:00002944 00004211H .bss                    BSS
 
@@ -92,17 +92,17 @@ Detailed map of segments
  0001:000777D8 000005A0 C=CODE     S=.text    G=(none)   M=LabRADManagerDialog ACBP=A9
  0001:00077D78 000002F8 C=CODE     S=.text    G=(none)   M=LabRADPasswordDialog ACBP=A9
  0001:00078070 00000228 C=CODE     S=.text    G=(none)   M=LabRADEnvironmentVariables ACBP=A9
- 0001:00078298 000001A0 C=CODE     S=.text    G=(none)   M=LabRADPacketHandler ACBP=A9
- 0001:00078438 000019C4 C=CODE     S=.text    G=(none)   M=LabRADConnection ACBP=A9
- 0001:00079DFC 000003F8 C=CODE     S=.text    G=(none)   M=LabRADEnvironmentDialog ACBP=A9
- 0001:0007A1F4 00001370 C=CODE     S=.text    G=(none)   M=LabRADServer ACBP=A9
- 0001:0007B564 000010F8 C=CODE     S=.text    G=(none)   M=Contexts ACBP=A9
- 0001:0007C65C 00000038 C=CODE     S=.text    G=(none)   M=LabRADClient ACBP=A9
- 0001:0007C694 00000BD4 C=CODE     S=.text    G=(none)   M=GetMAC   ACBP=A9
- 0001:0007D268 00002B20 C=CODE     S=.text    G=(none)   M=Main     ACBP=A9
- 0001:0007FD88 000003B8 C=CODE     S=.text    G=(none)   M=ListenThread ACBP=A9
- 0001:00080140 0000195C C=CODE     S=.text    G=(none)   M=Adapter  ACBP=A9
- 0001:00081A9C 00000375 C=CODE     S=.text    G=(none)   M=DirectEthernet ACBP=A9
+ 0001:00078298 00000504 C=CODE     S=.text    G=(none)   M=LabRADPacketHandler ACBP=A9
+ 0001:0007879C 000019C4 C=CODE     S=.text    G=(none)   M=LabRADConnection ACBP=A9
+ 0001:0007A160 000003F8 C=CODE     S=.text    G=(none)   M=LabRADEnvironmentDialog ACBP=A9
+ 0001:0007A558 00001370 C=CODE     S=.text    G=(none)   M=LabRADServer ACBP=A9
+ 0001:0007B8C8 000010F8 C=CODE     S=.text    G=(none)   M=Contexts ACBP=A9
+ 0001:0007C9C0 00000038 C=CODE     S=.text    G=(none)   M=LabRADClient ACBP=A9
+ 0001:0007C9F8 00000BD4 C=CODE     S=.text    G=(none)   M=GetMAC   ACBP=A9
+ 0001:0007D5CC 00002B20 C=CODE     S=.text    G=(none)   M=Main     ACBP=A9
+ 0001:000800EC 000003B8 C=CODE     S=.text    G=(none)   M=ListenThread ACBP=A9
+ 0001:000804A4 0000195C C=CODE     S=.text    G=(none)   M=Adapter  ACBP=A9
+ 0001:00081E00 00000375 C=CODE     S=.text    G=(none)   M=DirectEthernet ACBP=A9
  0002:00000000 000000A0 C=DATA     S=.data    G=DGROUP   M=System   ACBP=A9
  0002:000000A0 00000020 C=DATA     S=.data    G=DGROUP   M=SysInit  ACBP=A9
  0002:000000C0 00000254 C=DATA     S=.data    G=DGROUP   M=SysUtils ACBP=A9
@@ -513,7 +513,7 @@ Detailed map of segments
  0002:00003B60       ActiveDrag
  0001:00014BB0       ActiveX
  0001:00058DBC       ActnList
- 0001:00081A94       Adapter
+ 0001:00081DF8       Adapter
  0001:00000428       AddBlockAfter
  0002:00000460       AddDataModule
  0001:00007368       AddExitProc
@@ -725,7 +725,7 @@ Detailed map of segments
  0001:0001B9EC       ComponentCreated
  0001:0002F264       ComStrs
  0001:00021B44       Consts
- 0001:0007C654       Contexts
+ 0001:0007C9B8       Contexts
  0001:00029444       Contnrs
  0002:00003B32       ControlAtom
  0002:00003B38       ControlAtomString
@@ -863,7 +863,7 @@ Detailed map of segments
  0001:0002CAC0       Dialogs
  0002:0000079C       DIBPalSizes
  0002:00000090       dig
- 0001:00081DCC       DirectEthernet
+ 0001:00082130       DirectEthernet
  0002:00000B40       Directions
  0001:00062E58       DisableTaskWindows
  0001:00005CEC       DispatchMessage
@@ -1052,7 +1052,7 @@ Detailed map of segments
  0001:00075A98       Finalization
  0001:00076224       Finalization
  0001:000764CC       Finalization
- 0001:0007CF34       Finalization
+ 0001:0007D298       Finalization
  0001:0007696C       Finalization
  0001:0002C30C       Finalization
  0001:0002C2D4       Finalization
@@ -1069,13 +1069,13 @@ Detailed map of segments
  0001:00078038       Finalization
  0001:00078260       Finalization
  0001:0000CBC0       Finalization
- 0001:00078400       Finalization
- 0001:00079DC4       Finalization
- 0001:0007A1BC       Finalization
- 0001:0007B52C       Finalization
- 0001:0007C624       Finalization
+ 0001:00078764       Finalization
+ 0001:0007A128       Finalization
+ 0001:0007A520       Finalization
+ 0001:0007B890       Finalization
+ 0001:0007C988       Finalization
  0001:0002B528       Finalization
- 0001:0007C65C       Finalization
+ 0001:0007C9C0       Finalization
  0001:0002B870       Finalization
  0001:00029414       Finalization
  0001:000066F0       Finalization
@@ -1087,7 +1087,7 @@ Detailed map of segments
  0001:0002C344       Finalization
  0001:0002C37C       Finalization
  0001:0002C3E8       Finalization
- 0001:00081A64       Finalization
+ 0001:00081DC8       Finalization
  0001:0002C420       Finalization
  0001:0002C458       Finalization
  0001:0002B204       Finalization
@@ -1095,7 +1095,7 @@ Detailed map of segments
  0001:0002B1CC       Finalization
  0001:0002CA64       Finalization
  0001:0002B184       Finalization
- 0001:00081A9C       Finalization
+ 0001:00081E00       Finalization
  0001:0002F1AC       Finalization
  0001:0002F234       Finalization
  0001:0002F26C       Finalization
@@ -1114,7 +1114,7 @@ Detailed map of segments
  0001:00005404       Finalization
  0001:00032CD0       Finalization
  0001:00013B54       Finalization
- 0001:0007FD50       Finalization
+ 0001:000800B4       Finalization
  0001:00013D78       Finalization
  0001:00034934       Finalization
  0001:00014B08       Finalization
@@ -1135,7 +1135,7 @@ Detailed map of segments
  0001:000579C8       Finalization
  0001:00058D8C       Finalization
  0001:000299DC       Finalization
- 0001:00080108       Finalization
+ 0001:0008046C       Finalization
  0001:00060EC8       Finalization
  0001:0005A94C       Finalization
  0001:00028DE8       Finalization
@@ -1318,7 +1318,7 @@ Detailed map of segments
  0001:00075A20       gethostbyname
  0001:00060D68       GetHotkey
  0001:00005DDC       GetIconInfo
- 0001:0007C694       GetIfTable
+ 0001:0007C9F8       GetIfTable
  0001:000149B0       GetInt64Prop
  0001:00014A14       GetInterfaceProp
  0001:00005DF4       GetKeyboardLayout
@@ -1339,9 +1339,9 @@ Detailed map of segments
  0001:000058F4       GetLocalTime
  0001:00049330       GetLongHint
  0001:0001423C       GetLongStrProp
- 0001:0007CF74       GetMAC
- 0001:0007C6DC       GetMACAddress
- 0001:0007CB00       GetMACAddress
+ 0001:0007D2D8       GetMAC
+ 0001:0007CA40       GetMACAddress
+ 0001:0007CE64       GetMACAddress
  0001:00005E14       GetMenu
  0001:00067D6C       GetMenuHelpContext
  0001:00005E1C       GetMenuItemCount
@@ -1388,7 +1388,7 @@ Detailed map of segments
  0001:0000591C       GetStdHandle
  0001:00000224       GetStdHandle
  0001:00005B4C       GetStockObject
- 0001:0007EF04       GetString
+ 0001:0007F268       GetString
  0001:00005924       GetStringTypeEx
  0001:0001436C       GetStrProp
  0001:00005E7C       GetSubMenu
@@ -1699,11 +1699,11 @@ Detailed map of segments
  0001:00005F54       KillTimer
  0001:000777D0       LabRADAPIExceptions
  0001:00077328       LabRADAPIInfo
- 0001:0007C68C       LabRADClient
- 0001:00079DF4       LabRADConnection
+ 0001:0007C9F0       LabRADClient
+ 0001:0007A158       LabRADConnection
  0001:00073370       LabRADDataConverter
  0001:000759F8       LabRADDataStructures
- 0001:0007A1EC       LabRADEnvironmentDialog
+ 0001:0007A550       LabRADEnvironmentDialog
  0001:00078290       LabRADEnvironmentVariables
  0001:0006F5B8       LabRADExceptions
  0001:00072504       LabRADFlattenBigEndian
@@ -1717,11 +1717,11 @@ Detailed map of segments
  0001:00073338       LabRADMemoryTools
  0002:00001040       LabRADNodeTypeName
  0001:00071788       LabRADNonLinearUnits
- 0001:00078430       LabRADPacketHandler
+ 0001:00078794       LabRADPacketHandler
  0001:0007699C       LabRADPacketQueues
  0001:00078068       LabRADPasswordDialog
  0001:000730A8       LabRADPrettyPrinter
- 0001:0007B55C       LabRADServer
+ 0001:0007B8C0       LabRADServer
  0001:000764FC       LabRADSharedObjects
  0001:0007705C       LabRADSocket
  0001:000722C0       LabRADTimeStamps
@@ -1743,7 +1743,7 @@ Detailed map of segments
  0001:00005B7C       LineTo
  0001:00034964       ListActns
  0001:0004AB14       ListAdd
- 0001:00080138       ListenThread
+ 0001:0008049C       ListenThread
  0001:00033B70       ListItemsCompare
  0001:0004AB3C       ListRemove
  0002:0000374E       ListSeparator
@@ -1817,7 +1817,7 @@ Detailed map of segments
  0002:00003820       LVarTypes
  0002:00003824       LVarTypeSync
  0001:0006D828       MACtoStr
- 0001:0007FD80       Main
+ 0001:000800E4       Main
  0002:000071FC       MainForm
  0002:0000302C       MainInstance
  0002:00003030       MainThreadID
@@ -1935,7 +1935,7 @@ Detailed map of segments
  0002:000038EC       PatternManager
  0001:0006E098       Pcap
  0001:0006E04C       PCapAvailable
- 0001:0007FDFC       PCapCallback
+ 0001:00080160       PCapCallback
  0002:00003C08       pcap_breakloop
  0002:00003C04       pcap_close
  0002:00003C18       pcap_compile
@@ -2291,20 +2291,20 @@ Detailed map of segments
  0001:00058640       TActionLink.SetImageIndex
  0001:00058644       TActionLink.SetShortCut
  0001:00058648       TActionLink.SetVisible
- 0001:000814D8       TAdapterForm.AddLANLog
- 0001:00080DA0       TAdapterForm.AddListener
- 0001:0008149C       TAdapterForm.CheckBox1Click
- 0001:00080A24       TAdapterForm.ClrLANLogBtnClick
- 0001:0008089C       TAdapterForm.FormCreate
- 0001:0008057C       TAdapterForm.HandleData
- 0001:00080C24       TAdapterForm.PacketQueueMessage
- 0001:00081A18       TAdapterForm.Panel12Click
- 0001:00080F34       TAdapterForm.RemoveListener
- 0001:00080560       TAdapterForm.RunLoop
- 0001:00080A38       TAdapterForm.Send
- 0001:000808E8       TAdapterForm.Timer1Timer
- 0001:0008191C       TAdapterForm.Timer2Timer
- 0001:00081084       TAdapterForm.UpdateContext
+ 0001:0008183C       TAdapterForm.AddLANLog
+ 0001:00081104       TAdapterForm.AddListener
+ 0001:00081800       TAdapterForm.CheckBox1Click
+ 0001:00080D88       TAdapterForm.ClrLANLogBtnClick
+ 0001:00080C00       TAdapterForm.FormCreate
+ 0001:000808E0       TAdapterForm.HandleData
+ 0001:00080F88       TAdapterForm.PacketQueueMessage
+ 0001:00081D7C       TAdapterForm.Panel12Click
+ 0001:00081298       TAdapterForm.RemoveListener
+ 0001:000808C4       TAdapterForm.RunLoop
+ 0001:00080D9C       TAdapterForm.Send
+ 0001:00080C4C       TAdapterForm.Timer1Timer
+ 0001:00081C80       TAdapterForm.Timer2Timer
+ 0001:000813E8       TAdapterForm.UpdateContext
  0001:0006CE68       TApplication.ActivateHint
  0001:0006BABC       TApplication.BringToFront
  0001:0006CBD0       TApplication.CancelHint
@@ -3538,14 +3538,14 @@ Detailed map of segments
  0001:00076220       TCustomWSAThreadSocket.DoDisconnect
  0001:00075C58       TCustomWSAThreadSocket.Execute
  0001:00076034       TCustomWSAThreadSocket.Write
- 0001:0007B80C       TDEContext.AddFilter
- 0001:0007B854       TDEContext.AddPacket
- 0001:0007C560       TDEContext.CheckTimeout
- 0001:0007C5C8       TDEContext.ClearPackets
- 0001:0007B808       TDEContext.Connect
- 0001:0007B648       TDEContext.Create
- 0001:0007B7B0       TDEContext.Destroy
- 0001:0007C024       TDEContext.ReadPackets
+ 0001:0007BB70       TDEContext.AddFilter
+ 0001:0007BBB8       TDEContext.AddPacket
+ 0001:0007C8C4       TDEContext.CheckTimeout
+ 0001:0007C92C       TDEContext.ClearPackets
+ 0001:0007BB6C       TDEContext.Connect
+ 0001:0007B9AC       TDEContext.Create
+ 0001:0007BB14       TDEContext.Destroy
+ 0001:0007C388       TDEContext.ReadPackets
  0001:0005503C       TDockTree.AdjustDockRect
  0001:00055050       TDockTree.BeginUpdate
  0001:00056D0C       TDockTree.ControlVisibilityChanged
@@ -3640,8 +3640,8 @@ Detailed map of segments
  0001:00049674       TDragObject.ReleaseCapture
  0001:000497AC       TDragObject.ShowDragImage
  0001:00049688       TDragObject.WndProc
- 0001:0007A038       TEnvironmentDialogForm.Execute
- 0001:0007A19C       TEnvironmentDialogForm.FormShow
+ 0001:0007A39C       TEnvironmentDialogForm.Execute
+ 0001:0007A500       TEnvironmentDialogForm.FormShow
  0002:00000310       TerminateProcList
  0002:0000304A       Test8086
  0001:0002B72C       TEvent.Create
@@ -3807,24 +3807,24 @@ Detailed map of segments
  0001:000771EC       TLabRADAPIInfo.GetHelp
  0001:00077254       TLabRADAPIInfo.GetInfo
  0001:000772D4       TLabRADAPIInfo.GetVersion
- 0001:00078FAC       TLabRADConnection.Connect
- 0001:00078C18       TLabRADConnection.Create
- 0001:00078D28       TLabRADConnection.Destroy
- 0001:00079124       TLabRADConnection.Disconnect
- 0001:00078F5C       TLabRADConnection.DoConnect
- 0001:00078F7C       TLabRADConnection.DoDisconnect
- 0001:000796C0       TLabRADConnection.LookupPacket
- 0001:000795E8       TLabRADConnection.NewMessageHandler
- 0001:00079188       TLabRADConnection.OnChallenge
- 0001:00079404       TLabRADConnection.OnID
- 0001:00078D9C       TLabRADConnection.OnPacket
- 0001:00079340       TLabRADConnection.OnWelcome
- 0001:00079528       TLabRADConnection.Request
- 0001:00079480       TLabRADConnection.Request
- 0001:00079458       TLabRADConnection.Send
- 0001:00079164       TLabRADConnection.SetActive
- 0001:00078D90       TLabRADConnection.SetAPIInfo
- 0001:00078D84       TLabRADConnection.SetManInfo
+ 0001:00079310       TLabRADConnection.Connect
+ 0001:00078F7C       TLabRADConnection.Create
+ 0001:0007908C       TLabRADConnection.Destroy
+ 0001:00079488       TLabRADConnection.Disconnect
+ 0001:000792C0       TLabRADConnection.DoConnect
+ 0001:000792E0       TLabRADConnection.DoDisconnect
+ 0001:00079A24       TLabRADConnection.LookupPacket
+ 0001:0007994C       TLabRADConnection.NewMessageHandler
+ 0001:000794EC       TLabRADConnection.OnChallenge
+ 0001:00079768       TLabRADConnection.OnID
+ 0001:00079100       TLabRADConnection.OnPacket
+ 0001:000796A4       TLabRADConnection.OnWelcome
+ 0001:0007988C       TLabRADConnection.Request
+ 0001:000797E4       TLabRADConnection.Request
+ 0001:000797BC       TLabRADConnection.Send
+ 0001:000794C8       TLabRADConnection.SetActive
+ 0001:000790F4       TLabRADConnection.SetAPIInfo
+ 0001:000790E8       TLabRADConnection.SetManInfo
  0001:00073828       TLabRADData.Create
  0001:000738C8       TLabRADData.Create
  0001:000736A0       TLabRADData.Create
@@ -3872,8 +3872,8 @@ Detailed map of segments
  0001:000740F8       TLabRADData.SetWord
  0001:00073E50       TLabRADData.TypeTag
  0001:00073E28       TLabRADData.Unflatten
- 0001:00078BA8       TLabRADManagerInfo.AssignTo
- 0001:00078B5C       TLabRADManagerInfo.Create
+ 0001:00078F0C       TLabRADManagerInfo.AssignTo
+ 0001:00078EC0       TLabRADManagerInfo.Create
  0001:00076898       TLabRADMultiPacketQueue.Add
  0001:00076804       TLabRADMultiPacketQueue.Create
  0001:00076844       TLabRADMultiPacketQueue.Destroy
@@ -3891,7 +3891,7 @@ Detailed map of segments
  0001:00075130       TLabRADPacket.Keep
  0001:00075764       TLabRADPacket.Unflatten
  0001:00078304       TLabRADPacketHandler.Create
- 0001:000783D8       TLabRADPacketHandler.DoEvent
+ 0001:000785E8       TLabRADPacketHandler.DoEvent
  0001:00078374       TLabRADPacketHandler.DoTerminate
  0001:00078388       TLabRADPacketHandler.Execute
  0001:0007665C       TLabRADPacketQueueObject.Create
@@ -3903,17 +3903,17 @@ Detailed map of segments
  0001:000749B8       TLabRADRecord.Destroy
  0001:000749EC       TLabRADRecord.Flatten
  0001:00074E14       TLabRADRecord.Unflatten
- 0001:0007A5A8       TLabRADServer.Create
- 0001:0007B2A8       TLabRADServer.DoConnect
- 0001:0007A82C       TLabRADServer.DoRequest
- 0001:0007A66C       TLabRADServer.GetLoginData
- 0001:0007A9A8       TLabRADServer.HandleRecords
- 0001:0007B338       TLabRADServer.OnConnect
- 0001:0007B344       TLabRADServer.OnContextExpiration
- 0001:0007B044       TLabRADServer.RegisterSetting
- 0001:0007AF94       TLabRADServer.SendError
- 0001:0007AE3C       TLabRADServer.SendReply
- 0001:0007B004       TLabRADServer.StartServing
+ 0001:0007A90C       TLabRADServer.Create
+ 0001:0007B60C       TLabRADServer.DoConnect
+ 0001:0007AB90       TLabRADServer.DoRequest
+ 0001:0007A9D0       TLabRADServer.GetLoginData
+ 0001:0007AD0C       TLabRADServer.HandleRecords
+ 0001:0007B69C       TLabRADServer.OnConnect
+ 0001:0007B6A8       TLabRADServer.OnContextExpiration
+ 0001:0007B3A8       TLabRADServer.RegisterSetting
+ 0001:0007B2F8       TLabRADServer.SendError
+ 0001:0007B1A0       TLabRADServer.SendReply
+ 0001:0007B368       TLabRADServer.StartServing
  0001:000762F8       TLabRADSharedObject.Create
  0001:00076348       TLabRADSharedObject.Destroy
  0001:00076378       TLabRADSharedObject.Free
@@ -4012,10 +4012,10 @@ Detailed map of segments
  0001:00033C74       TListControlItems.QuickSort
  0001:00033D1C       TListControlItems.SetSortType
  0001:00033D34       TListControlItems.Sort
- 0001:0007FE8C       TListenThread.Create
- 0001:0007FEDC       TListenThread.Execute
- 0001:00080004       TListenThread.PCap_Loop_Exception
- 0001:0008004C       TListenThread.PCap_Loop_Exit
+ 0001:000801F0       TListenThread.Create
+ 0001:00080240       TListenThread.Execute
+ 0001:00080368       TListenThread.PCap_Loop_Exception
+ 0001:000803B0       TListenThread.PCap_Loop_Exit
  0001:00038834       TListItem.Assign
  0001:0003832C       TListItem.Create
  0001:000383F0       TListItem.Delete
@@ -4062,24 +4062,24 @@ Detailed map of segments
  0002:0000366C       tlsBuffer
  0001:0000553C       TlsGetValue
  0002:000000A0       TlsIndex
- 0002:FFB7D010       TlsLast
+ 0002:FFB7C010       TlsLast
  0001:00005544       TlsSetValue
  0001:0006DBDC       TMACFilter.Create
  0001:0006DC68       TMACFilter.Match
- 0001:0007FCAC       TMainForm.Button1Click
- 0001:0007FD04       TMainForm.Button2Click
- 0001:0007EFCC       TMainForm.FormCloseQuery
- 0001:0007D620       TMainForm.FormPaint
- 0001:0007DD68       TMainForm.LabRADServer1Connect
- 0001:0007F0B8       TMainForm.LabRADServer1ExpireContext
- 0001:0007F03C       TMainForm.LabRADServer1NewContext
- 0001:0007F130       TMainForm.LabRADServer1Request
- 0001:0007FC38       TMainForm.Log
- 0001:0007FCC8       TMainForm.Panel2Click
- 0001:0007F090       TMainForm.SpeedButton1Click
- 0001:0007F0A0       TMainForm.SpeedButton2Click
- 0001:0007F0B0       TMainForm.SpeedButton3Click
- 0001:0007FB3C       TMainForm.ThreadMessageQueue1Message
+ 0001:00080010       TMainForm.Button1Click
+ 0001:00080068       TMainForm.Button2Click
+ 0001:0007F330       TMainForm.FormCloseQuery
+ 0001:0007D984       TMainForm.FormPaint
+ 0001:0007E0CC       TMainForm.LabRADServer1Connect
+ 0001:0007F41C       TMainForm.LabRADServer1ExpireContext
+ 0001:0007F3A0       TMainForm.LabRADServer1NewContext
+ 0001:0007F494       TMainForm.LabRADServer1Request
+ 0001:0007FF9C       TMainForm.Log
+ 0001:0008002C       TMainForm.Panel2Click
+ 0001:0007F3F4       TMainForm.SpeedButton1Click
+ 0001:0007F404       TMainForm.SpeedButton2Click
+ 0001:0007F414       TMainForm.SpeedButton3Click
+ 0001:0007FEA0       TMainForm.ThreadMessageQueue1Message
  0001:000603B8       TMainMenu.GetHandle
  0001:0006038C       TMainMenu.ItemChanged
  0001:000602FC       TMainMenu.MenuChanged
@@ -5301,7 +5301,7 @@ Detailed map of segments
 
   Address         Publics by Value
 
- 0002:FFB7D010       TlsLast
+ 0002:FFB7C010       TlsLast
  0001:00000204       CloseHandle
  0001:0000020C       CreateFileA
  0001:00000214       GetFileType
@@ -9630,107 +9630,107 @@ Detailed map of segments
  0001:00078304       TLabRADPacketHandler.Create
  0001:00078374       TLabRADPacketHandler.DoTerminate
  0001:00078388       TLabRADPacketHandler.Execute
- 0001:000783D8       TLabRADPacketHandler.DoEvent
- 0001:00078400       Finalization
- 0001:00078430       LabRADPacketHandler
- 0001:00078B5C       TLabRADManagerInfo.Create
- 0001:00078BA8       TLabRADManagerInfo.AssignTo
- 0001:00078C18       TLabRADConnection.Create
- 0001:00078D28       TLabRADConnection.Destroy
- 0001:00078D84       TLabRADConnection.SetManInfo
- 0001:00078D90       TLabRADConnection.SetAPIInfo
- 0001:00078D9C       TLabRADConnection.OnPacket
- 0001:00078F5C       TLabRADConnection.DoConnect
- 0001:00078F7C       TLabRADConnection.DoDisconnect
- 0001:00078FAC       TLabRADConnection.Connect
- 0001:00079124       TLabRADConnection.Disconnect
- 0001:00079164       TLabRADConnection.SetActive
- 0001:00079188       TLabRADConnection.OnChallenge
- 0001:00079340       TLabRADConnection.OnWelcome
- 0001:00079404       TLabRADConnection.OnID
- 0001:00079458       TLabRADConnection.Send
- 0001:00079480       TLabRADConnection.Request
- 0001:00079528       TLabRADConnection.Request
- 0001:000795E8       TLabRADConnection.NewMessageHandler
- 0001:000796C0       TLabRADConnection.LookupPacket
- 0001:00079DC4       Finalization
- 0001:00079DF4       LabRADConnection
- 0001:0007A038       TEnvironmentDialogForm.Execute
- 0001:0007A19C       TEnvironmentDialogForm.FormShow
- 0001:0007A1BC       Finalization
- 0001:0007A1EC       LabRADEnvironmentDialog
- 0001:0007A5A8       TLabRADServer.Create
- 0001:0007A66C       TLabRADServer.GetLoginData
- 0001:0007A82C       TLabRADServer.DoRequest
- 0001:0007A9A8       TLabRADServer.HandleRecords
- 0001:0007AE3C       TLabRADServer.SendReply
- 0001:0007AF94       TLabRADServer.SendError
- 0001:0007B004       TLabRADServer.StartServing
- 0001:0007B044       TLabRADServer.RegisterSetting
- 0001:0007B2A8       TLabRADServer.DoConnect
- 0001:0007B338       TLabRADServer.OnConnect
- 0001:0007B344       TLabRADServer.OnContextExpiration
- 0001:0007B52C       Finalization
- 0001:0007B55C       LabRADServer
- 0001:0007B648       TDEContext.Create
- 0001:0007B7B0       TDEContext.Destroy
- 0001:0007B808       TDEContext.Connect
- 0001:0007B80C       TDEContext.AddFilter
- 0001:0007B854       TDEContext.AddPacket
- 0001:0007C024       TDEContext.ReadPackets
- 0001:0007C560       TDEContext.CheckTimeout
- 0001:0007C5C8       TDEContext.ClearPackets
- 0001:0007C624       Finalization
- 0001:0007C654       Contexts
- 0001:0007C65C       Finalization
- 0001:0007C68C       LabRADClient
- 0001:0007C694       GetIfTable
- 0001:0007C6DC       GetMACAddress
- 0001:0007CB00       GetMACAddress
- 0001:0007CF34       Finalization
- 0001:0007CF74       GetMAC
- 0001:0007D620       TMainForm.FormPaint
- 0001:0007DD68       TMainForm.LabRADServer1Connect
- 0001:0007EF04       GetString
- 0001:0007EFCC       TMainForm.FormCloseQuery
- 0001:0007F03C       TMainForm.LabRADServer1NewContext
- 0001:0007F090       TMainForm.SpeedButton1Click
- 0001:0007F0A0       TMainForm.SpeedButton2Click
- 0001:0007F0B0       TMainForm.SpeedButton3Click
- 0001:0007F0B8       TMainForm.LabRADServer1ExpireContext
- 0001:0007F130       TMainForm.LabRADServer1Request
- 0001:0007FB3C       TMainForm.ThreadMessageQueue1Message
- 0001:0007FC38       TMainForm.Log
- 0001:0007FCAC       TMainForm.Button1Click
- 0001:0007FCC8       TMainForm.Panel2Click
- 0001:0007FD04       TMainForm.Button2Click
- 0001:0007FD50       Finalization
- 0001:0007FD80       Main
- 0001:0007FDFC       PCapCallback
- 0001:0007FE8C       TListenThread.Create
- 0001:0007FEDC       TListenThread.Execute
- 0001:00080004       TListenThread.PCap_Loop_Exception
- 0001:0008004C       TListenThread.PCap_Loop_Exit
- 0001:00080108       Finalization
- 0001:00080138       ListenThread
- 0001:00080560       TAdapterForm.RunLoop
- 0001:0008057C       TAdapterForm.HandleData
- 0001:0008089C       TAdapterForm.FormCreate
- 0001:000808E8       TAdapterForm.Timer1Timer
- 0001:00080A24       TAdapterForm.ClrLANLogBtnClick
- 0001:00080A38       TAdapterForm.Send
- 0001:00080C24       TAdapterForm.PacketQueueMessage
- 0001:00080DA0       TAdapterForm.AddListener
- 0001:00080F34       TAdapterForm.RemoveListener
- 0001:00081084       TAdapterForm.UpdateContext
- 0001:0008149C       TAdapterForm.CheckBox1Click
- 0001:000814D8       TAdapterForm.AddLANLog
- 0001:0008191C       TAdapterForm.Timer2Timer
- 0001:00081A18       TAdapterForm.Panel12Click
- 0001:00081A64       Finalization
- 0001:00081A94       Adapter
- 0001:00081A9C       Finalization
- 0001:00081DCC       DirectEthernet
+ 0001:000785E8       TLabRADPacketHandler.DoEvent
+ 0001:00078764       Finalization
+ 0001:00078794       LabRADPacketHandler
+ 0001:00078EC0       TLabRADManagerInfo.Create
+ 0001:00078F0C       TLabRADManagerInfo.AssignTo
+ 0001:00078F7C       TLabRADConnection.Create
+ 0001:0007908C       TLabRADConnection.Destroy
+ 0001:000790E8       TLabRADConnection.SetManInfo
+ 0001:000790F4       TLabRADConnection.SetAPIInfo
+ 0001:00079100       TLabRADConnection.OnPacket
+ 0001:000792C0       TLabRADConnection.DoConnect
+ 0001:000792E0       TLabRADConnection.DoDisconnect
+ 0001:00079310       TLabRADConnection.Connect
+ 0001:00079488       TLabRADConnection.Disconnect
+ 0001:000794C8       TLabRADConnection.SetActive
+ 0001:000794EC       TLabRADConnection.OnChallenge
+ 0001:000796A4       TLabRADConnection.OnWelcome
+ 0001:00079768       TLabRADConnection.OnID
+ 0001:000797BC       TLabRADConnection.Send
+ 0001:000797E4       TLabRADConnection.Request
+ 0001:0007988C       TLabRADConnection.Request
+ 0001:0007994C       TLabRADConnection.NewMessageHandler
+ 0001:00079A24       TLabRADConnection.LookupPacket
+ 0001:0007A128       Finalization
+ 0001:0007A158       LabRADConnection
+ 0001:0007A39C       TEnvironmentDialogForm.Execute
+ 0001:0007A500       TEnvironmentDialogForm.FormShow
+ 0001:0007A520       Finalization
+ 0001:0007A550       LabRADEnvironmentDialog
+ 0001:0007A90C       TLabRADServer.Create
+ 0001:0007A9D0       TLabRADServer.GetLoginData
+ 0001:0007AB90       TLabRADServer.DoRequest
+ 0001:0007AD0C       TLabRADServer.HandleRecords
+ 0001:0007B1A0       TLabRADServer.SendReply
+ 0001:0007B2F8       TLabRADServer.SendError
+ 0001:0007B368       TLabRADServer.StartServing
+ 0001:0007B3A8       TLabRADServer.RegisterSetting
+ 0001:0007B60C       TLabRADServer.DoConnect
+ 0001:0007B69C       TLabRADServer.OnConnect
+ 0001:0007B6A8       TLabRADServer.OnContextExpiration
+ 0001:0007B890       Finalization
+ 0001:0007B8C0       LabRADServer
+ 0001:0007B9AC       TDEContext.Create
+ 0001:0007BB14       TDEContext.Destroy
+ 0001:0007BB6C       TDEContext.Connect
+ 0001:0007BB70       TDEContext.AddFilter
+ 0001:0007BBB8       TDEContext.AddPacket
+ 0001:0007C388       TDEContext.ReadPackets
+ 0001:0007C8C4       TDEContext.CheckTimeout
+ 0001:0007C92C       TDEContext.ClearPackets
+ 0001:0007C988       Finalization
+ 0001:0007C9B8       Contexts
+ 0001:0007C9C0       Finalization
+ 0001:0007C9F0       LabRADClient
+ 0001:0007C9F8       GetIfTable
+ 0001:0007CA40       GetMACAddress
+ 0001:0007CE64       GetMACAddress
+ 0001:0007D298       Finalization
+ 0001:0007D2D8       GetMAC
+ 0001:0007D984       TMainForm.FormPaint
+ 0001:0007E0CC       TMainForm.LabRADServer1Connect
+ 0001:0007F268       GetString
+ 0001:0007F330       TMainForm.FormCloseQuery
+ 0001:0007F3A0       TMainForm.LabRADServer1NewContext
+ 0001:0007F3F4       TMainForm.SpeedButton1Click
+ 0001:0007F404       TMainForm.SpeedButton2Click
+ 0001:0007F414       TMainForm.SpeedButton3Click
+ 0001:0007F41C       TMainForm.LabRADServer1ExpireContext
+ 0001:0007F494       TMainForm.LabRADServer1Request
+ 0001:0007FEA0       TMainForm.ThreadMessageQueue1Message
+ 0001:0007FF9C       TMainForm.Log
+ 0001:00080010       TMainForm.Button1Click
+ 0001:0008002C       TMainForm.Panel2Click
+ 0001:00080068       TMainForm.Button2Click
+ 0001:000800B4       Finalization
+ 0001:000800E4       Main
+ 0001:00080160       PCapCallback
+ 0001:000801F0       TListenThread.Create
+ 0001:00080240       TListenThread.Execute
+ 0001:00080368       TListenThread.PCap_Loop_Exception
+ 0001:000803B0       TListenThread.PCap_Loop_Exit
+ 0001:0008046C       Finalization
+ 0001:0008049C       ListenThread
+ 0001:000808C4       TAdapterForm.RunLoop
+ 0001:000808E0       TAdapterForm.HandleData
+ 0001:00080C00       TAdapterForm.FormCreate
+ 0001:00080C4C       TAdapterForm.Timer1Timer
+ 0001:00080D88       TAdapterForm.ClrLANLogBtnClick
+ 0001:00080D9C       TAdapterForm.Send
+ 0001:00080F88       TAdapterForm.PacketQueueMessage
+ 0001:00081104       TAdapterForm.AddListener
+ 0001:00081298       TAdapterForm.RemoveListener
+ 0001:000813E8       TAdapterForm.UpdateContext
+ 0001:00081800       TAdapterForm.CheckBox1Click
+ 0001:0008183C       TAdapterForm.AddLANLog
+ 0001:00081C80       TAdapterForm.Timer2Timer
+ 0001:00081D7C       TAdapterForm.Panel12Click
+ 0001:00081DC8       Finalization
+ 0001:00081DF8       Adapter
+ 0001:00081E00       Finalization
+ 0001:00082130       DirectEthernet
  0002:00000000       ExitCode
  0002:00000004       ErrorAddr
  0002:00000008       FileMode
@@ -10887,307 +10887,313 @@ Line numbers for LabRADEnvironmentVariables(LabRADEnvironmentVariables.pas) segm
 
 Line numbers for LabRADPacketHandler(LabRADPacketHandler.pas) segment .text
 
-    62 0001:00078304    63 0001:0007831D    64 0001:00078328    65 0001:00078337
-    66 0001:0007833A    67 0001:00078346    68 0001:0007834A    69 0001:0007836A
-    74 0001:00078374    76 0001:00078377    77 0001:0007837F    78 0001:00078386
-    83 0001:00078388    86 0001:0007838E    87 0001:0007839F    89 0001:000783A5
-    90 0001:000783C1    93 0001:000783C8    84 0001:000783CF    96 0001:000783D5
-   101 0001:000783D8   102 0001:000783D9   103 0001:000783FB   105 0001:00078430
-   105 0001:00078437
+    64 0001:00078304    65 0001:0007831D    66 0001:00078328    67 0001:00078337
+    68 0001:0007833A    69 0001:00078346    70 0001:0007834A    71 0001:0007836A
+    76 0001:00078374    78 0001:00078377    79 0001:0007837F    80 0001:00078386
+    87 0001:00078388    88 0001:000783AF    89 0001:000783BC    92 0001:000783CC
+    93 0001:000783D9    94 0001:000783EA    95 0001:000783F7    97 0001:000783FD
+    98 0001:0007840A    99 0001:00078426   102 0001:0007842D   103 0001:0007843A
+    90 0001:00078441   107 0001:00078465   108 0001:00078467   109 0001:00078475
+   110 0001:00078485   112 0001:00078497   113 0001:000784A7   115 0001:000784B7
+   116 0001:000784F2   117 0001:00078502   120 0001:0007853F   126 0001:000785E8
+   127 0001:0007860A   128 0001:00078618   130 0001:00078658   131 0001:0007865A
+   132 0001:00078668   133 0001:00078678   135 0001:0007868A   136 0001:0007869A
+   138 0001:000786AA   139 0001:000786D8   140 0001:000786E8   143 0001:0007871D
+   145 0001:00078794   145 0001:0007879B
 
 Line numbers for LabRADConnection(LabRADConnection.pas) segment .text
 
-   184 0001:00078B5C   185 0001:00078B6E   186 0001:00078B77   187 0001:00078B7F
-   188 0001:00078B85   189 0001:00078BA4   192 0001:00078BA8   193 0001:00078BAF
-   194 0001:00078BC0   195 0001:00078BDA   196 0001:00078BEF   198 0001:00078C09
-   200 0001:00078C12   205 0001:00078C18   206 0001:00078C2F   207 0001:00078C38
-   208 0001:00078C3C   209 0001:00078C4B   210 0001:00078C5A   211 0001:00078C62
-   212 0001:00078C67   213 0001:00078C72   214 0001:00078C7F   215 0001:00078C9C
-   216 0001:00078CA3   217 0001:00078CAB   218 0001:00078CB5   219 0001:00078CD0
-   220 0001:00078D04   223 0001:00078D28   224 0001:00078D33   225 0001:00078D42
-   226 0001:00078D4D   227 0001:00078D58   228 0001:00078D60   229 0001:00078D68
-   230 0001:00078D7F   240 0001:00078D84   241 0001:00078D8C   245 0001:00078D90
-   246 0001:00078D98   251 0001:00078D9C   252 0001:00078DAA   253 0001:00078DB8
-   254 0001:00078DC2   255 0001:00078DC8   257 0001:00078DE5   258 0001:00078DE8
-   259 0001:00078DEF   261 0001:00078DFF   263 0001:00078E15   266 0001:00078E26
-   267 0001:00078E2E   268 0001:00078E48   269 0001:00078E60   270 0001:00078E92
-   272 0001:00078EE0   274 0001:00078F1C   267 0001:00078F1F   276 0001:00078F2A
-   280 0001:00078F41   282 0001:00078F51   285 0001:00078F5C   286 0001:00078F5D
-   287 0001:00078F78   290 0001:00078F7C   291 0001:00078F7F   292 0001:00078F83
-   293 0001:00078F8B   294 0001:00078F90   295 0001:00078F9B   296 0001:00078FAA
-   302 0001:00078FAC   303 0001:00078FC3   304 0001:00078FD0   305 0001:00078FDE
-   306 0001:00078FE2   307 0001:00078FF5   308 0001:00079013   309 0001:0007901E
-   310 0001:00079028   311 0001:0007903E   312 0001:00079057   313 0001:0007906D
-   315 0001:0007907B   316 0001:00079080   317 0001:0007908B   318 0001:000790AE
-   319 0001:000790C2   320 0001:000790D5   321 0001:000790F6   324 0001:00079124
-   325 0001:00079127   326 0001:00079131   327 0001:00079136   328 0001:0007913E
-   329 0001:00079142   331 0001:00079151   332 0001:00079156   333 0001:00079161
-   337 0001:00079164   338 0001:00079169   339 0001:0007916F   341 0001:00079181
-   343 0001:00079184   349 0001:00079188   350 0001:000791A7   351 0001:000791B4
-   352 0001:000791DB   353 0001:000791EF   354 0001:000791FD   355 0001:00079210
-   356 0001:00079228   357 0001:0007922E   358 0001:00079238   359 0001:00079250
-   360 0001:00079260   361 0001:00079267   363 0001:0007926C   365 0001:00079282
-   366 0001:00079298   367 0001:000792A6   368 0001:000792D5   370 0001:000792EA
-   372 0001:00079313   376 0001:00079340   377 0001:00079359   378 0001:00079378
-   379 0001:0007939A   380 0001:000793B0   381 0001:000793C2   383 0001:000793D7
-   385 0001:000793FB   388 0001:00079404   389 0001:0007940D   390 0001:0007942C
-   391 0001:00079440   393 0001:00079449   395 0001:00079450   399 0001:00079458
-   400 0001:00079472   401 0001:0007947D   431 0001:00079480   432 0001:00079491
-   433 0001:000794AB   434 0001:000794BD   435 0001:000794CB   437 0001:000794F1
-   438 0001:000794FF   441 0001:00079509   442 0001:0007951E   451 0001:00079528
-   452 0001:00079536   453 0001:00079550   454 0001:00079562   455 0001:00079570
-   457 0001:00079596   458 0001:000795A4   461 0001:000795AE   462 0001:000795B8
-   463 0001:000795C3   464 0001:000795C6   465 0001:000795DF   482 0001:000795E8
-   483 0001:000795EF   484 0001:000795F1   485 0001:000795FC   486 0001:00079600
-   487 0001:0007962C   488 0001:00079661   489 0001:00079682   490 0001:0007968E
-   510 0001:000796C0   511 0001:000796E4   514 0001:000796EE   516 0001:000796F0
-   517 0001:000796F8   518 0001:00079724   519 0001:00079736   520 0001:0007973E
-   523 0001:00079753   527 0001:0007977B   528 0001:00079791   529 0001:000797A9
-   530 0001:000797C7   532 0001:000797CE   531 0001:000797D1   533 0001:0007982D
-   534 0001:00079847   535 0001:00079863   538 0001:00079895   528 0001:00079896
-   542 0001:0007989F   543 0001:000798A9   545 0001:000798AD   546 0001:000798C8
-   544 0001:000798C9   548 0001:000798DB   551 0001:000798E5   554 0001:000798FC
-   555 0001:00079902   556 0001:00079914   558 0001:0007992D   559 0001:0007993F
-   563 0001:00079956   564 0001:0007996E   565 0001:00079986   566 0001:000799A0
-   567 0001:000799C0   569 0001:000799F8   564 0001:000799F9   570 0001:000799FE
-   571 0001:00079A21   572 0001:00079A35   571 0001:00079A75   575 0001:00079A7A
-   578 0001:00079A8C   579 0001:00079AA2   580 0001:00079AB0   582 0001:00079B04
-   586 0001:00079B14   587 0001:00079B1E   588 0001:00079B3D   589 0001:00079B68
-   590 0001:00079B8D   591 0001:00079BB6   592 0001:00079BBE   593 0001:00079BCA
-   596 0001:00079BDA   597 0001:00079BDF   598 0001:00079BF7   599 0001:00079C15
-   600 0001:00079C4F   601 0001:00079CA1   602 0001:00079D01   603 0001:00079D1D
-   604 0001:00079D62   606 0001:00079D65   597 0001:00079D66   610 0001:00079D6F
-   611 0001:00079DA2   718 0001:00079DF4   718 0001:00079DFB
+   184 0001:00078EC0   185 0001:00078ED2   186 0001:00078EDB   187 0001:00078EE3
+   188 0001:00078EE9   189 0001:00078F08   192 0001:00078F0C   193 0001:00078F13
+   194 0001:00078F24   195 0001:00078F3E   196 0001:00078F53   198 0001:00078F6D
+   200 0001:00078F76   205 0001:00078F7C   206 0001:00078F93   207 0001:00078F9C
+   208 0001:00078FA0   209 0001:00078FAF   210 0001:00078FBE   211 0001:00078FC6
+   212 0001:00078FCB   213 0001:00078FD6   214 0001:00078FE3   215 0001:00079000
+   216 0001:00079007   217 0001:0007900F   218 0001:00079019   219 0001:00079034
+   220 0001:00079068   223 0001:0007908C   224 0001:00079097   225 0001:000790A6
+   226 0001:000790B1   227 0001:000790BC   228 0001:000790C4   229 0001:000790CC
+   230 0001:000790E3   240 0001:000790E8   241 0001:000790F0   245 0001:000790F4
+   246 0001:000790FC   251 0001:00079100   252 0001:0007910E   253 0001:0007911C
+   254 0001:00079126   255 0001:0007912C   257 0001:00079149   258 0001:0007914C
+   259 0001:00079153   261 0001:00079163   263 0001:00079179   266 0001:0007918A
+   267 0001:00079192   268 0001:000791AC   269 0001:000791C4   270 0001:000791F6
+   272 0001:00079244   274 0001:00079280   267 0001:00079283   276 0001:0007928E
+   280 0001:000792A5   282 0001:000792B5   285 0001:000792C0   286 0001:000792C1
+   287 0001:000792DC   290 0001:000792E0   291 0001:000792E3   292 0001:000792E7
+   293 0001:000792EF   294 0001:000792F4   295 0001:000792FF   296 0001:0007930E
+   302 0001:00079310   303 0001:00079327   304 0001:00079334   305 0001:00079342
+   306 0001:00079346   307 0001:00079359   308 0001:00079377   309 0001:00079382
+   310 0001:0007938C   311 0001:000793A2   312 0001:000793BB   313 0001:000793D1
+   315 0001:000793DF   316 0001:000793E4   317 0001:000793EF   318 0001:00079412
+   319 0001:00079426   320 0001:00079439   321 0001:0007945A   324 0001:00079488
+   325 0001:0007948B   326 0001:00079495   327 0001:0007949A   328 0001:000794A2
+   329 0001:000794A6   331 0001:000794B5   332 0001:000794BA   333 0001:000794C5
+   337 0001:000794C8   338 0001:000794CD   339 0001:000794D3   341 0001:000794E5
+   343 0001:000794E8   349 0001:000794EC   350 0001:0007950B   351 0001:00079518
+   352 0001:0007953F   353 0001:00079553   354 0001:00079561   355 0001:00079574
+   356 0001:0007958C   357 0001:00079592   358 0001:0007959C   359 0001:000795B4
+   360 0001:000795C4   361 0001:000795CB   363 0001:000795D0   365 0001:000795E6
+   366 0001:000795FC   367 0001:0007960A   368 0001:00079639   370 0001:0007964E
+   372 0001:00079677   376 0001:000796A4   377 0001:000796BD   378 0001:000796DC
+   379 0001:000796FE   380 0001:00079714   381 0001:00079726   383 0001:0007973B
+   385 0001:0007975F   388 0001:00079768   389 0001:00079771   390 0001:00079790
+   391 0001:000797A4   393 0001:000797AD   395 0001:000797B4   399 0001:000797BC
+   400 0001:000797D6   401 0001:000797E1   431 0001:000797E4   432 0001:000797F5
+   433 0001:0007980F   434 0001:00079821   435 0001:0007982F   437 0001:00079855
+   438 0001:00079863   441 0001:0007986D   442 0001:00079882   451 0001:0007988C
+   452 0001:0007989A   453 0001:000798B4   454 0001:000798C6   455 0001:000798D4
+   457 0001:000798FA   458 0001:00079908   461 0001:00079912   462 0001:0007991C
+   463 0001:00079927   464 0001:0007992A   465 0001:00079943   482 0001:0007994C
+   483 0001:00079953   484 0001:00079955   485 0001:00079960   486 0001:00079964
+   487 0001:00079990   488 0001:000799C5   489 0001:000799E6   490 0001:000799F2
+   510 0001:00079A24   511 0001:00079A48   514 0001:00079A52   516 0001:00079A54
+   517 0001:00079A5C   518 0001:00079A88   519 0001:00079A9A   520 0001:00079AA2
+   523 0001:00079AB7   527 0001:00079ADF   528 0001:00079AF5   529 0001:00079B0D
+   530 0001:00079B2B   532 0001:00079B32   531 0001:00079B35   533 0001:00079B91
+   534 0001:00079BAB   535 0001:00079BC7   538 0001:00079BF9   528 0001:00079BFA
+   542 0001:00079C03   543 0001:00079C0D   545 0001:00079C11   546 0001:00079C2C
+   544 0001:00079C2D   548 0001:00079C3F   551 0001:00079C49   554 0001:00079C60
+   555 0001:00079C66   556 0001:00079C78   558 0001:00079C91   559 0001:00079CA3
+   563 0001:00079CBA   564 0001:00079CD2   565 0001:00079CEA   566 0001:00079D04
+   567 0001:00079D24   569 0001:00079D5C   564 0001:00079D5D   570 0001:00079D62
+   571 0001:00079D85   572 0001:00079D99   571 0001:00079DD9   575 0001:00079DDE
+   578 0001:00079DF0   579 0001:00079E06   580 0001:00079E14   582 0001:00079E68
+   586 0001:00079E78   587 0001:00079E82   588 0001:00079EA1   589 0001:00079ECC
+   590 0001:00079EF1   591 0001:00079F1A   592 0001:00079F22   593 0001:00079F2E
+   596 0001:00079F3E   597 0001:00079F43   598 0001:00079F5B   599 0001:00079F79
+   600 0001:00079FB3   601 0001:0007A005   602 0001:0007A065   603 0001:0007A081
+   604 0001:0007A0C6   606 0001:0007A0C9   597 0001:0007A0CA   610 0001:0007A0D3
+   611 0001:0007A106   718 0001:0007A158   718 0001:0007A15F
 
 Line numbers for LabRADEnvironmentDialog(LabRADEnvironmentDialog.pas) segment .text
 
-    61 0001:0007A038    63 0001:0007A06D    64 0001:0007A07B    65 0001:0007A0A3
-    67 0001:0007A0CB    69 0001:0007A0D8    71 0001:0007A0E6    72 0001:0007A13F
-    77 0001:0007A19C    78 0001:0007A19F    79 0001:0007A1AD    80 0001:0007A1B8
-    82 0001:0007A1EC    82 0001:0007A1F3
+    61 0001:0007A39C    63 0001:0007A3D1    64 0001:0007A3DF    65 0001:0007A407
+    67 0001:0007A42F    69 0001:0007A43C    71 0001:0007A44A    72 0001:0007A4A3
+    77 0001:0007A500    78 0001:0007A503    79 0001:0007A511    80 0001:0007A51C
+    82 0001:0007A550    82 0001:0007A557
 
 Line numbers for LabRADServer(LabRADServer.pas) segment .text
 
-    88 0001:0007A5A8    89 0001:0007A5BA    90 0001:0007A5C3    91 0001:0007A5D0
-    92 0001:0007A5E0    93 0001:0007A5EB    94 0001:0007A61D   100 0001:0007A66C
-   102 0001:0007A688   104 0001:0007A693   105 0001:0007A695   106 0001:0007A6A4
-   107 0001:0007A6AC   108 0001:0007A6C0   109 0001:0007A6D4   110 0001:0007A6E3
-   111 0001:0007A6EB   112 0001:0007A6ED   113 0001:0007A701   114 0001:0007A715
-   115 0001:0007A720   116 0001:0007A726   117 0001:0007A730   118 0001:0007A746
-   119 0001:0007A75C   121 0001:0007A772   124 0001:0007A788   125 0001:0007A790
-   126 0001:0007A7A3   127 0001:0007A7B1   128 0001:0007A7C0   129 0001:0007A7D2
-   130 0001:0007A808   134 0001:0007A82C   135 0001:0007A833   137 0001:0007A837
-   136 0001:0007A838   138 0001:0007A86A   139 0001:0007A87D   140 0001:0007A89A
-   141 0001:0007A8BC   142 0001:0007A8D2   143 0001:0007A8E1   144 0001:0007A90F
-   146 0001:0007A91E   147 0001:0007A952   148 0001:0007A959   149 0001:0007A989
-   150 0001:0007A9A2   157 0001:0007A9A8   158 0001:0007A9CA   160 0001:0007A9F0
-   161 0001:0007AA19   162 0001:0007AA33   163 0001:0007AA74   166 0001:0007AA8E
-   167 0001:0007AAAC   168 0001:0007AABA   169 0001:0007AACB   170 0001:0007AB1A
-   172 0001:0007AB2B   173 0001:0007AB4B   175 0001:0007AB6F   177 0001:0007ABA3
-   179 0001:0007ABDC   180 0001:0007ABDE   181 0001:0007AC11   183 0001:0007AC2A
-   184 0001:0007AC2C   185 0001:0007AC6F   165 0001:0007AC8B   189 0001:0007ACC2
-   190 0001:0007ACDF   191 0001:0007ACF4   192 0001:0007ACFC   193 0001:0007AD1F
-   192 0001:0007AD6B   194 0001:0007AD6E   159 0001:0007ADAE   196 0001:0007ADEB
-   200 0001:0007AE3C   201 0001:0007AE4D   203 0001:0007AE51   202 0001:0007AE52
-   204 0001:0007AE85   205 0001:0007AE98   206 0001:0007AEB2   207 0001:0007AEC6
-   208 0001:0007AF0E   209 0001:0007AF57   210 0001:0007AF82   211 0001:0007AF8B
-   214 0001:0007AF94   215 0001:0007AFBE   216 0001:0007AFF9   220 0001:0007B004
-   221 0001:0007B008   222 0001:0007B01E   223 0001:0007B02C   224 0001:0007B03E
-   229 0001:0007B044   230 0001:0007B0C7   231 0001:0007B0DD   232 0001:0007B0EE
-   233 0001:0007B103   234 0001:0007B11C   235 0001:0007B135   236 0001:0007B151
-   237 0001:0007B16B   238 0001:0007B184   239 0001:0007B1D1   240 0001:0007B220
-   241 0001:0007B284   253 0001:0007B2A8   254 0001:0007B2AC   255 0001:0007B2C5
-   256 0001:0007B2D6   257 0001:0007B2F8   258 0001:0007B310   259 0001:0007B323
-   262 0001:0007B338   263 0001:0007B33B   264 0001:0007B340   268 0001:0007B344
-   269 0001:0007B34D   270 0001:0007B35B   271 0001:0007B36B   273 0001:0007B372
-   274 0001:0007B38C   275 0001:0007B3B4   276 0001:0007B3F6   278 0001:0007B41E
-   272 0001:0007B41F   282 0001:0007B437   285 0001:0007B43B   283 0001:0007B43C
-   286 0001:0007B47F   287 0001:0007B492   288 0001:0007B4BA   289 0001:0007B4FC
-   293 0001:0007B522   301 0001:0007B55C   301 0001:0007B563
+    88 0001:0007A90C    89 0001:0007A91E    90 0001:0007A927    91 0001:0007A934
+    92 0001:0007A944    93 0001:0007A94F    94 0001:0007A981   100 0001:0007A9D0
+   102 0001:0007A9EC   104 0001:0007A9F7   105 0001:0007A9F9   106 0001:0007AA08
+   107 0001:0007AA10   108 0001:0007AA24   109 0001:0007AA38   110 0001:0007AA47
+   111 0001:0007AA4F   112 0001:0007AA51   113 0001:0007AA65   114 0001:0007AA79
+   115 0001:0007AA84   116 0001:0007AA8A   117 0001:0007AA94   118 0001:0007AAAA
+   119 0001:0007AAC0   121 0001:0007AAD6   124 0001:0007AAEC   125 0001:0007AAF4
+   126 0001:0007AB07   127 0001:0007AB15   128 0001:0007AB24   129 0001:0007AB36
+   130 0001:0007AB6C   134 0001:0007AB90   135 0001:0007AB97   137 0001:0007AB9B
+   136 0001:0007AB9C   138 0001:0007ABCE   139 0001:0007ABE1   140 0001:0007ABFE
+   141 0001:0007AC20   142 0001:0007AC36   143 0001:0007AC45   144 0001:0007AC73
+   146 0001:0007AC82   147 0001:0007ACB6   148 0001:0007ACBD   149 0001:0007ACED
+   150 0001:0007AD06   157 0001:0007AD0C   158 0001:0007AD2E   160 0001:0007AD54
+   161 0001:0007AD7D   162 0001:0007AD97   163 0001:0007ADD8   166 0001:0007ADF2
+   167 0001:0007AE10   168 0001:0007AE1E   169 0001:0007AE2F   170 0001:0007AE7E
+   172 0001:0007AE8F   173 0001:0007AEAF   175 0001:0007AED3   177 0001:0007AF07
+   179 0001:0007AF40   180 0001:0007AF42   181 0001:0007AF75   183 0001:0007AF8E
+   184 0001:0007AF90   185 0001:0007AFD3   165 0001:0007AFEF   189 0001:0007B026
+   190 0001:0007B043   191 0001:0007B058   192 0001:0007B060   193 0001:0007B083
+   192 0001:0007B0CF   194 0001:0007B0D2   159 0001:0007B112   196 0001:0007B14F
+   200 0001:0007B1A0   201 0001:0007B1B1   203 0001:0007B1B5   202 0001:0007B1B6
+   204 0001:0007B1E9   205 0001:0007B1FC   206 0001:0007B216   207 0001:0007B22A
+   208 0001:0007B272   209 0001:0007B2BB   210 0001:0007B2E6   211 0001:0007B2EF
+   214 0001:0007B2F8   215 0001:0007B322   216 0001:0007B35D   220 0001:0007B368
+   221 0001:0007B36C   222 0001:0007B382   223 0001:0007B390   224 0001:0007B3A2
+   229 0001:0007B3A8   230 0001:0007B42B   231 0001:0007B441   232 0001:0007B452
+   233 0001:0007B467   234 0001:0007B480   235 0001:0007B499   236 0001:0007B4B5
+   237 0001:0007B4CF   238 0001:0007B4E8   239 0001:0007B535   240 0001:0007B584
+   241 0001:0007B5E8   253 0001:0007B60C   254 0001:0007B610   255 0001:0007B629
+   256 0001:0007B63A   257 0001:0007B65C   258 0001:0007B674   259 0001:0007B687
+   262 0001:0007B69C   263 0001:0007B69F   264 0001:0007B6A4   268 0001:0007B6A8
+   269 0001:0007B6B1   270 0001:0007B6BF   271 0001:0007B6CF   273 0001:0007B6D6
+   274 0001:0007B6F0   275 0001:0007B718   276 0001:0007B75A   278 0001:0007B782
+   272 0001:0007B783   282 0001:0007B79B   285 0001:0007B79F   283 0001:0007B7A0
+   286 0001:0007B7E3   287 0001:0007B7F6   288 0001:0007B81E   289 0001:0007B860
+   293 0001:0007B886   301 0001:0007B8C0   301 0001:0007B8C7
 
 Line numbers for Contexts(Contexts.pas) segment .text
 
-    75 0001:0007B648    76 0001:0007B668    77 0001:0007B671    78 0001:0007B689
-    79 0001:0007B6A1    80 0001:0007B6A8    81 0001:0007B6AE    82 0001:0007B6BA
-    83 0001:0007B6C1    84 0001:0007B6C5    85 0001:0007B6C9    86 0001:0007B6D0
-    87 0001:0007B6D7    88 0001:0007B6E5    89 0001:0007B6F3    90 0001:0007B701
-    91 0001:0007B71B    92 0001:0007B74C    93 0001:0007B794    97 0001:0007B7B0
-    98 0001:0007B7BC    99 0001:0007B7EB   100 0001:0007B802   104 0001:0007B808
-   105 0001:0007B80B   108 0001:0007B80C   109 0001:0007B812   110 0001:0007B832
-   111 0001:0007B84E   118 0001:0007B854   119 0001:0007B875   120 0001:0007B87F
-   121 0001:0007B88D   122 0001:0007B89A   123 0001:0007B89E   124 0001:0007B8E0
-   125 0001:0007B8F0   126 0001:0007B8FD   127 0001:0007B905   128 0001:0007B90D
-   129 0001:0007B913   130 0001:0007B92D   131 0001:0007B961   132 0001:0007B96E
-   133 0001:0007B98E   134 0001:0007B9AD   135 0001:0007B9BE   136 0001:0007B9C8
-   137 0001:0007B9D2   138 0001:0007B9DF   139 0001:0007B9F2   140 0001:0007BA1E
-   142 0001:0007BAA7   143 0001:0007BAB4   144 0001:0007BAC7   146 0001:0007BAEC
-   147 0001:0007BAF9   148 0001:0007BB1A   149 0001:0007BB3F   150 0001:0007BB64
-   152 0001:0007BB82   153 0001:0007BB8F   154 0001:0007BBAA   155 0001:0007BBBD
-   156 0001:0007BBC7   157 0001:0007BBD9   158 0001:0007BBE3   159 0001:0007BBF0
-   160 0001:0007BC26   162 0001:0007BCAE   163 0001:0007BCBB   165 0001:0007BCEC
-   166 0001:0007BCF9   167 0001:0007BD27   168 0001:0007BD58   169 0001:0007BD89
-   170 0001:0007BDA0   156 0001:0007BDA1   172 0001:0007BDAA   173 0001:0007BDB7
-   174 0001:0007BDBE   175 0001:0007BDD6   176 0001:0007BDDD   181 0001:0007BE02
-   182 0001:0007BE04   183 0001:0007BE26   186 0001:0007BE7C   190 0001:0007C024
-   191 0001:0007C032   192 0001:0007C038   193 0001:0007C056   194 0001:0007C069
-   196 0001:0007C06E   197 0001:0007C078   198 0001:0007C089   199 0001:0007C09D
-   200 0001:0007C0A7   201 0001:0007C0BA   202 0001:0007C0E6   204 0001:0007C16F
-   205 0001:0007C182   207 0001:0007C1A7   208 0001:0007C1C8   209 0001:0007C1ED
-   210 0001:0007C212   212 0001:0007C230   213 0001:0007C24B   214 0001:0007C25E
-   215 0001:0007C268   216 0001:0007C27A   217 0001:0007C284   218 0001:0007C2BA
-   220 0001:0007C342   222 0001:0007C373   223 0001:0007C3A1   224 0001:0007C3D2
-   225 0001:0007C403   226 0001:0007C41A   215 0001:0007C41B   228 0001:0007C424
-   229 0001:0007C46A   231 0001:0007C48E   232 0001:0007C49C   233 0001:0007C49E
-   234 0001:0007C4A4   235 0001:0007C4B0   236 0001:0007C4C5   238 0001:0007C4CD
-   241 0001:0007C4E9   244 0001:0007C560   245 0001:0007C566   246 0001:0007C578
-   247 0001:0007C581   248 0001:0007C588   250 0001:0007C59E   254 0001:0007C5C8
-   255 0001:0007C5CC   256 0001:0007C5FB   257 0001:0007C613   258 0001:0007C621
-   260 0001:0007C654   260 0001:0007C65B
+    75 0001:0007B9AC    76 0001:0007B9CC    77 0001:0007B9D5    78 0001:0007B9ED
+    79 0001:0007BA05    80 0001:0007BA0C    81 0001:0007BA12    82 0001:0007BA1E
+    83 0001:0007BA25    84 0001:0007BA29    85 0001:0007BA2D    86 0001:0007BA34
+    87 0001:0007BA3B    88 0001:0007BA49    89 0001:0007BA57    90 0001:0007BA65
+    91 0001:0007BA7F    92 0001:0007BAB0    93 0001:0007BAF8    97 0001:0007BB14
+    98 0001:0007BB20    99 0001:0007BB4F   100 0001:0007BB66   104 0001:0007BB6C
+   105 0001:0007BB6F   108 0001:0007BB70   109 0001:0007BB76   110 0001:0007BB96
+   111 0001:0007BBB2   118 0001:0007BBB8   119 0001:0007BBD9   120 0001:0007BBE3
+   121 0001:0007BBF1   122 0001:0007BBFE   123 0001:0007BC02   124 0001:0007BC44
+   125 0001:0007BC54   126 0001:0007BC61   127 0001:0007BC69   128 0001:0007BC71
+   129 0001:0007BC77   130 0001:0007BC91   131 0001:0007BCC5   132 0001:0007BCD2
+   133 0001:0007BCF2   134 0001:0007BD11   135 0001:0007BD22   136 0001:0007BD2C
+   137 0001:0007BD36   138 0001:0007BD43   139 0001:0007BD56   140 0001:0007BD82
+   142 0001:0007BE0B   143 0001:0007BE18   144 0001:0007BE2B   146 0001:0007BE50
+   147 0001:0007BE5D   148 0001:0007BE7E   149 0001:0007BEA3   150 0001:0007BEC8
+   152 0001:0007BEE6   153 0001:0007BEF3   154 0001:0007BF0E   155 0001:0007BF21
+   156 0001:0007BF2B   157 0001:0007BF3D   158 0001:0007BF47   159 0001:0007BF54
+   160 0001:0007BF8A   162 0001:0007C012   163 0001:0007C01F   165 0001:0007C050
+   166 0001:0007C05D   167 0001:0007C08B   168 0001:0007C0BC   169 0001:0007C0ED
+   170 0001:0007C104   156 0001:0007C105   172 0001:0007C10E   173 0001:0007C11B
+   174 0001:0007C122   175 0001:0007C13A   176 0001:0007C141   181 0001:0007C166
+   182 0001:0007C168   183 0001:0007C18A   186 0001:0007C1E0   190 0001:0007C388
+   191 0001:0007C396   192 0001:0007C39C   193 0001:0007C3BA   194 0001:0007C3CD
+   196 0001:0007C3D2   197 0001:0007C3DC   198 0001:0007C3ED   199 0001:0007C401
+   200 0001:0007C40B   201 0001:0007C41E   202 0001:0007C44A   204 0001:0007C4D3
+   205 0001:0007C4E6   207 0001:0007C50B   208 0001:0007C52C   209 0001:0007C551
+   210 0001:0007C576   212 0001:0007C594   213 0001:0007C5AF   214 0001:0007C5C2
+   215 0001:0007C5CC   216 0001:0007C5DE   217 0001:0007C5E8   218 0001:0007C61E
+   220 0001:0007C6A6   222 0001:0007C6D7   223 0001:0007C705   224 0001:0007C736
+   225 0001:0007C767   226 0001:0007C77E   215 0001:0007C77F   228 0001:0007C788
+   229 0001:0007C7CE   231 0001:0007C7F2   232 0001:0007C800   233 0001:0007C802
+   234 0001:0007C808   235 0001:0007C814   236 0001:0007C829   238 0001:0007C831
+   241 0001:0007C84D   244 0001:0007C8C4   245 0001:0007C8CA   246 0001:0007C8DC
+   247 0001:0007C8E5   248 0001:0007C8EC   250 0001:0007C902   254 0001:0007C92C
+   255 0001:0007C930   256 0001:0007C95F   257 0001:0007C977   258 0001:0007C985
+   260 0001:0007C9B8   260 0001:0007C9BF
 
 Line numbers for LabRADClient(LabRADClient.pas) segment .text
 
-    74 0001:0007C68C    74 0001:0007C693
+    74 0001:0007C9F0    74 0001:0007C9F7
 
 Line numbers for GetMAC(GetMAC.pas) segment .text
 
-    73 0001:0007C694    94 0001:0007C6DC    95 0001:0007C70E    97 0001:0007C715
-    98 0001:0007C72E   104 0001:0007CABE   106 0001:0007CAC0    96 0001:0007CAC1
-   108 0001:0007CAD0   109 0001:0007CAF5   114 0001:0007CB00   115 0001:0007CB19
-   117 0001:0007CB20   118 0001:0007CB30   124 0001:0007CF0B   126 0001:0007CF0D
-   116 0001:0007CF0E   128 0001:0007CF1D   129 0001:0007CF25   144 0001:0007CF74
-   145 0001:0007CF9B   146 0001:0007CFAC   147 0001:0007CFC6   148 0001:0007CFC8
-   149 0001:0007CFCF   150 0001:0007CFDC   151 0001:0007CFEC   152 0001:0007CFF8
-   153 0001:0007D00D   154 0001:0007D01F   156 0001:0007D060   157 0001:0007D084
-   158 0001:0007D0B6   159 0001:0007D0F2   160 0001:0007D11B   161 0001:0007D144
-   162 0001:0007D16D   163 0001:0007D196   164 0001:0007D1BF   165 0001:0007D1E8
-   167 0001:0007D201   168 0001:0007D22E   153 0001:0007D22F   170 0001:0007D238
-   172 0001:0007D261
+    73 0001:0007C9F8    94 0001:0007CA40    95 0001:0007CA72    97 0001:0007CA79
+    98 0001:0007CA92   104 0001:0007CE22   106 0001:0007CE24    96 0001:0007CE25
+   108 0001:0007CE34   109 0001:0007CE59   114 0001:0007CE64   115 0001:0007CE7D
+   117 0001:0007CE84   118 0001:0007CE94   124 0001:0007D26F   126 0001:0007D271
+   116 0001:0007D272   128 0001:0007D281   129 0001:0007D289   144 0001:0007D2D8
+   145 0001:0007D2FF   146 0001:0007D310   147 0001:0007D32A   148 0001:0007D32C
+   149 0001:0007D333   150 0001:0007D340   151 0001:0007D350   152 0001:0007D35C
+   153 0001:0007D371   154 0001:0007D383   156 0001:0007D3C4   157 0001:0007D3E8
+   158 0001:0007D41A   159 0001:0007D456   160 0001:0007D47F   161 0001:0007D4A8
+   162 0001:0007D4D1   163 0001:0007D4FA   164 0001:0007D523   165 0001:0007D54C
+   167 0001:0007D565   168 0001:0007D592   153 0001:0007D593   170 0001:0007D59C
+   172 0001:0007D5C5
 
 Line numbers for Main(Main.pas) segment .text
 
-    88 0001:0007D620    89 0001:0007D643    90 0001:0007D64A    91 0001:0007D658
-    92 0001:0007D661    93 0001:0007D679    95 0001:0007D685    96 0001:0007D6A7
-    97 0001:0007D6BF    99 0001:0007D6CB   100 0001:0007D6CE   101 0001:0007D6E9
-   102 0001:0007D6EB   103 0001:0007D6F3   104 0001:0007D6FD   105 0001:0007D723
-   106 0001:0007D755   107 0001:0007D77C   108 0001:0007D7F5   109 0001:0007D85F
-   110 0001:0007D8C9   111 0001:0007D90E   112 0001:0007D966   113 0001:0007D9DD
-   114 0001:0007DA13   118 0001:0007DAD8   119 0001:0007DB09   120 0001:0007DB3A
-   121 0001:0007DB6B   122 0001:0007DB9C   123 0001:0007DBE8   125 0001:0007DC0F
-   126 0001:0007DC11   102 0001:0007DC12   128 0001:0007DC1A   129 0001:0007DC28
-   130 0001:0007DCA0   133 0001:0007DD68   134 0001:0007DD87   135 0001:0007DD93
-   140 0001:0007DDC8   146 0001:0007DE0B   151 0001:0007DE3D   156 0001:0007DE72
-   163 0001:0007DEBA   170 0001:0007DF02   175 0001:0007DF34   181 0001:0007DF71
-   186 0001:0007DFA6   192 0001:0007DFE3   198 0001:0007E020   204 0001:0007E060
-   210 0001:0007E0A0   216 0001:0007E0E0   222 0001:0007E120   227 0001:0007E155
-   232 0001:0007E18A   237 0001:0007E1BF   242 0001:0007E1F4   248 0001:0007E231
-   254 0001:0007E26E   255 0001:0007E296   259 0001:0007EF04   260 0001:0007EF22
-   261 0001:0007EF29   262 0001:0007EF3D   263 0001:0007EF48   264 0001:0007EF73
-   263 0001:0007EF95   265 0001:0007EFC3   269 0001:0007EFCC   270 0001:0007EFD1
-   271 0001:0007EFD8   272 0001:0007EFEE   271 0001:0007F01A   273 0001:0007F01D
-   274 0001:0007F02A   275 0001:0007F035   278 0001:0007F03C   279 0001:0007F04E
-   280 0001:0007F05A   281 0001:0007F070   285 0001:0007F090   286 0001:0007F097
-   287 0001:0007F09C   291 0001:0007F0A0   292 0001:0007F0A7   293 0001:0007F0AC
-   297 0001:0007F0B0   298 0001:0007F0B5   302 0001:0007F0B8   303 0001:0007F0C0
-   304 0001:0007F0CC   305 0001:0007F0CF   306 0001:0007F0D3   307 0001:0007F10A
-   308 0001:0007F111   315 0001:0007F130   316 0001:0007F161   317 0001:0007F1A5
-   318 0001:0007F1A8   321 0001:0007F25E   322 0001:0007F271   323 0001:0007F285
-   324 0001:0007F2A2   325 0001:0007F2C7   326 0001:0007F31F   323 0001:0007F322
-   331 0001:0007F330   332 0001:0007F340   333 0001:0007F354   334 0001:0007F3A8
-   335 0001:0007F3DF   336 0001:0007F3E9   337 0001:0007F420   338 0001:0007F433
-   340 0001:0007F480   346 0001:0007F49F   347 0001:0007F4A3   352 0001:0007F4B6
-   353 0001:0007F4C2   358 0001:0007F4D5   359 0001:0007F4FE   364 0001:0007F522
-   365 0001:0007F529   370 0001:0007F53C   371 0001:0007F574   372 0001:0007F578
-   377 0001:0007F58B   378 0001:0007F5B5   383 0001:0007F5C8   384 0001:0007F5E1
-   385 0001:0007F5E8   390 0001:0007F5FB   391 0001:0007F611   392 0001:0007F62B
-   393 0001:0007F631   394 0001:0007F64B   395 0001:0007F683   396 0001:0007F68B
-   397 0001:0007F6A5   398 0001:0007F6D9   403 0001:0007F6EC   404 0001:0007F703
-   405 0001:0007F738   406 0001:0007F74B   411 0001:0007F75A   412 0001:0007F789
-   417 0001:0007F79C   418 0001:0007F7C5   423 0001:0007F7D8   424 0001:0007F7E9
-   426 0001:0007F7FE   427 0001:0007F82C   428 0001:0007F842   427 0001:0007F884
-   430 0001:0007F889   431 0001:0007F8C1   434 0001:0007F8D1   436 0001:0007F98D
-   448 0001:0007FB3C   449 0001:0007FB58   450 0001:0007FB60   451 0001:0007FB76
-   453 0001:0007FB78   454 0001:0007FB89   455 0001:0007FB8B   456 0001:0007FBFF
-   460 0001:0007FC38   461 0001:0007FC59   462 0001:0007FC67   463 0001:0007FC72
-   464 0001:0007FC7A   465 0001:0007FCA4   469 0001:0007FCAC   470 0001:0007FCB6
-   473 0001:0007FCC8   474 0001:0007FCCB   475 0001:0007FCD8   476 0001:0007FCE5
-   477 0001:0007FCF2   478 0001:0007FCFF   481 0001:0007FD04   482 0001:0007FD07
-   483 0001:0007FD1D   484 0001:0007FD2F   486 0001:0007FD80   486 0001:0007FD87
+    88 0001:0007D984    89 0001:0007D9A7    90 0001:0007D9AE    91 0001:0007D9BC
+    92 0001:0007D9C5    93 0001:0007D9DD    95 0001:0007D9E9    96 0001:0007DA0B
+    97 0001:0007DA23    99 0001:0007DA2F   100 0001:0007DA32   101 0001:0007DA4D
+   102 0001:0007DA4F   103 0001:0007DA57   104 0001:0007DA61   105 0001:0007DA87
+   106 0001:0007DAB9   107 0001:0007DAE0   108 0001:0007DB59   109 0001:0007DBC3
+   110 0001:0007DC2D   111 0001:0007DC72   112 0001:0007DCCA   113 0001:0007DD41
+   114 0001:0007DD77   118 0001:0007DE3C   119 0001:0007DE6D   120 0001:0007DE9E
+   121 0001:0007DECF   122 0001:0007DF00   123 0001:0007DF4C   125 0001:0007DF73
+   126 0001:0007DF75   102 0001:0007DF76   128 0001:0007DF7E   129 0001:0007DF8C
+   130 0001:0007E004   133 0001:0007E0CC   134 0001:0007E0EB   135 0001:0007E0F7
+   140 0001:0007E12C   146 0001:0007E16F   151 0001:0007E1A1   156 0001:0007E1D6
+   163 0001:0007E21E   170 0001:0007E266   175 0001:0007E298   181 0001:0007E2D5
+   186 0001:0007E30A   192 0001:0007E347   198 0001:0007E384   204 0001:0007E3C4
+   210 0001:0007E404   216 0001:0007E444   222 0001:0007E484   227 0001:0007E4B9
+   232 0001:0007E4EE   237 0001:0007E523   242 0001:0007E558   248 0001:0007E595
+   254 0001:0007E5D2   255 0001:0007E5FA   259 0001:0007F268   260 0001:0007F286
+   261 0001:0007F28D   262 0001:0007F2A1   263 0001:0007F2AC   264 0001:0007F2D7
+   263 0001:0007F2F9   265 0001:0007F327   269 0001:0007F330   270 0001:0007F335
+   271 0001:0007F33C   272 0001:0007F352   271 0001:0007F37E   273 0001:0007F381
+   274 0001:0007F38E   275 0001:0007F399   278 0001:0007F3A0   279 0001:0007F3B2
+   280 0001:0007F3BE   281 0001:0007F3D4   285 0001:0007F3F4   286 0001:0007F3FB
+   287 0001:0007F400   291 0001:0007F404   292 0001:0007F40B   293 0001:0007F410
+   297 0001:0007F414   298 0001:0007F419   302 0001:0007F41C   303 0001:0007F424
+   304 0001:0007F430   305 0001:0007F433   306 0001:0007F437   307 0001:0007F46E
+   308 0001:0007F475   315 0001:0007F494   316 0001:0007F4C5   317 0001:0007F509
+   318 0001:0007F50C   321 0001:0007F5C2   322 0001:0007F5D5   323 0001:0007F5E9
+   324 0001:0007F606   325 0001:0007F62B   326 0001:0007F683   323 0001:0007F686
+   331 0001:0007F694   332 0001:0007F6A4   333 0001:0007F6B8   334 0001:0007F70C
+   335 0001:0007F743   336 0001:0007F74D   337 0001:0007F784   338 0001:0007F797
+   340 0001:0007F7E4   346 0001:0007F803   347 0001:0007F807   352 0001:0007F81A
+   353 0001:0007F826   358 0001:0007F839   359 0001:0007F862   364 0001:0007F886
+   365 0001:0007F88D   370 0001:0007F8A0   371 0001:0007F8D8   372 0001:0007F8DC
+   377 0001:0007F8EF   378 0001:0007F919   383 0001:0007F92C   384 0001:0007F945
+   385 0001:0007F94C   390 0001:0007F95F   391 0001:0007F975   392 0001:0007F98F
+   393 0001:0007F995   394 0001:0007F9AF   395 0001:0007F9E7   396 0001:0007F9EF
+   397 0001:0007FA09   398 0001:0007FA3D   403 0001:0007FA50   404 0001:0007FA67
+   405 0001:0007FA9C   406 0001:0007FAAF   411 0001:0007FABE   412 0001:0007FAED
+   417 0001:0007FB00   418 0001:0007FB29   423 0001:0007FB3C   424 0001:0007FB4D
+   426 0001:0007FB62   427 0001:0007FB90   428 0001:0007FBA6   427 0001:0007FBE8
+   430 0001:0007FBED   431 0001:0007FC25   434 0001:0007FC35   436 0001:0007FCF1
+   448 0001:0007FEA0   449 0001:0007FEBC   450 0001:0007FEC4   451 0001:0007FEDA
+   453 0001:0007FEDC   454 0001:0007FEED   455 0001:0007FEEF   456 0001:0007FF63
+   460 0001:0007FF9C   461 0001:0007FFBD   462 0001:0007FFCB   463 0001:0007FFD6
+   464 0001:0007FFDE   465 0001:00080008   469 0001:00080010   470 0001:0008001A
+   473 0001:0008002C   474 0001:0008002F   475 0001:0008003C   476 0001:00080049
+   477 0001:00080056   478 0001:00080063   481 0001:00080068   482 0001:0008006B
+   483 0001:00080081   484 0001:00080093   486 0001:000800E4   486 0001:000800EB
 
 Line numbers for ListenThread(ListenThread.pas) segment .text
 
-    43 0001:0007FDFC    44 0001:0007FDFF    45 0001:0007FE10    46 0001:0007FE36
-    47 0001:0007FE47    51 0001:0007FE8C    52 0001:0007FEA4    53 0001:0007FEAF
-    54 0001:0007FEB3    55 0001:0007FEB6    56 0001:0007FED3    59 0001:0007FEDC
-    60 0001:0007FEE6    61 0001:0007FEF4    63 0001:0007FF30    64 0001:0007FF32
-    65 0001:0007FF4F    68 0001:0007FF65    69 0001:0007FF80    72 0001:00080004
-    73 0001:00080007    74 0001:0008003B    78 0001:0008004C    79 0001:00080064
-    81 0001:00080138    81 0001:0008013F
+    43 0001:00080160    44 0001:00080163    45 0001:00080174    46 0001:0008019A
+    47 0001:000801AB    51 0001:000801F0    52 0001:00080208    53 0001:00080213
+    54 0001:00080217    55 0001:0008021A    56 0001:00080237    59 0001:00080240
+    60 0001:0008024A    61 0001:00080258    63 0001:00080294    64 0001:00080296
+    65 0001:000802B3    68 0001:000802C9    69 0001:000802E4    72 0001:00080368
+    73 0001:0008036B    74 0001:0008039F    78 0001:000803B0    79 0001:000803C8
+    81 0001:0008049C    81 0001:000804A3
 
 Line numbers for Adapter(Adapter.pas) segment .text
 
-    92 0001:00080560    93 0001:00080579   102 0001:0008057C   103 0001:000805A3
-   104 0001:000805B3   105 0001:000805BC   106 0001:000805BF   107 0001:000805CE
-   108 0001:000805D8   109 0001:000805F6   110 0001:000805FF   111 0001:00080621
-   112 0001:00080634   113 0001:00080638   114 0001:0008063B   115 0001:0008064A
-   116 0001:00080663   117 0001:00080666   118 0001:00080675   119 0001:0008068B
-   120 0001:000806A9   121 0001:000806C0   122 0001:000806C3   123 0001:000806FD
-   124 0001:00080705   125 0001:0008070D   126 0001:0008071B   128 0001:00080778
-   129 0001:0008077A   130 0001:00080794   133 0001:000807CD   134 0001:000807D6
-   136 0001:000807E6   137 0001:000807F2   138 0001:000807FE   140 0001:0008080C
-   141 0001:0008081B   144 0001:00080849   147 0001:0008089C   148 0001:0008089F
-   149 0001:000808A7   150 0001:000808AF   151 0001:000808B7   152 0001:000808BE
-   153 0001:000808D9   154 0001:000808E6   160 0001:000808E8   161 0001:00080902
-   162 0001:00080908   163 0001:0008090A   164 0001:0008090E   165 0001:00080914
-   166 0001:00080918   167 0001:0008091E   168 0001:00080929   170 0001:0008092E
-   171 0001:00080937   172 0001:00080942   175 0001:0008094A   176 0001:0008094C
-   163 0001:0008094F   179 0001:00080953   180 0001:00080964   181 0001:00080990
-   182 0001:000809A6   181 0001:000809C8   183 0001:000809CB   184 0001:000809E5
-   185 0001:00080A0E   188 0001:00080A24   189 0001:00080A27   190 0001:00080A35
-   194 0001:00080A38   195 0001:00080A76   196 0001:00080AA0   197 0001:00080AD3
-   198 0001:00080ADD   199 0001:00080AED   200 0001:00080B1B   201 0001:00080B49
-   202 0001:00080B77   203 0001:00080BB5   204 0001:00080C00   208 0001:00080C24
-   209 0001:00080C3F   210 0001:00080C47   211 0001:00080C5D   213 0001:00080C62
-   214 0001:00080C73   215 0001:00080C81   217 0001:00080CB6   218 0001:00080CB8
-   219 0001:00080CD2   222 0001:00080D28   226 0001:00080DA0   227 0001:00080DBE
-   228 0001:00080DCF   229 0001:00080DF5   230 0001:00080E17   231 0001:00080E2A
-   232 0001:00080E6A   233 0001:00080E74   234 0001:00080E7E   235 0001:00080E88
-   236 0001:00080E92   237 0001:00080E9C   238 0001:00080EA6   239 0001:00080EB1
-   240 0001:00080EBB   241 0001:00080EC4   242 0001:00080EDE   243 0001:00080F07
-   247 0001:00080F34   248 0001:00080F3C   250 0001:00080F43   251 0001:00080F5C
-   252 0001:00080F71   251 0001:00080FA8   253 0001:00080FAB   255 0001:00080FD3
-   249 0001:00080FD4   258 0001:00080FE7   259 0001:00080FFB   260 0001:0008101D
-   258 0001:00081038   261 0001:0008103B   262 0001:0008104F   263 0001:00081060
-   271 0001:00081084   272 0001:000810AA   273 0001:000810C3   275 0001:000810CB
-   276 0001:000810D9   277 0001:000810F3   278 0001:000810FF   279 0001:00081113
-   281 0001:0008111D   284 0001:0008112A   285 0001:00081138   286 0001:00081155
-   287 0001:00081161   288 0001:00081175   290 0001:0008117F   293 0001:0008118F
-   294 0001:0008119D   295 0001:000811BA   296 0001:000811C6   297 0001:000811DA
-   299 0001:000811E4   302 0001:000811F4   303 0001:00081207   304 0001:00081214
-   305 0001:00081231   306 0001:0008123D   307 0001:00081251   309 0001:0008125B
-   312 0001:0008126B   313 0001:0008127E   314 0001:0008128B   315 0001:000812A8
-   316 0001:000812B4   317 0001:000812C8   319 0001:000812D2   322 0001:000812E2
-   323 0001:000812EC   325 0001:000812FB   327 0001:00081315   328 0001:00081332
-   329 0001:0008133E   330 0001:00081352   332 0001:0008135C   335 0001:0008136C
-   336 0001:0008136E   337 0001:00081388   338 0001:000813B0   339 0001:000813C5
-   340 0001:000813CB   341 0001:000813CE   343 0001:000813E3   344 0001:000813E8
-   345 0001:000813F4   346 0001:00081408   348 0001:00081412   350 0001:00081447
-   353 0001:0008149C   354 0001:0008149F   355 0001:000814D3   362 0001:000814D8
-   363 0001:000814FC   364 0001:00081510   365 0001:0008153E   366 0001:00081576
-   367 0001:0008159A   368 0001:000815A7   369 0001:000815A9   370 0001:000815CB
-   371 0001:000815DC   372 0001:00081614   373 0001:00081651   374 0001:0008169A
-   368 0001:0008169B   375 0001:000816A4   376 0001:000816BB   366 0001:000816BE
-   377 0001:000816C7   378 0001:000816DF   379 0001:000816EC   380 0001:0008170D
-   381 0001:0008172F   382 0001:00081740   383 0001:00081778   384 0001:000817B5
-   385 0001:000817FE   379 0001:000817FF   386 0001:00081808   387 0001:0008181F
-   388 0001:00081850   393 0001:0008191C   394 0001:0008193D   395 0001:00081974
-   396 0001:0008197D   397 0001:00081993   396 0001:000819B9   398 0001:000819DE
-   401 0001:00081A18   402 0001:00081A1B   403 0001:00081A31   404 0001:00081A43
-   406 0001:00081A94   406 0001:00081A9B
+    92 0001:000808C4    93 0001:000808DD   102 0001:000808E0   103 0001:00080907
+   104 0001:00080917   105 0001:00080920   106 0001:00080923   107 0001:00080932
+   108 0001:0008093C   109 0001:0008095A   110 0001:00080963   111 0001:00080985
+   112 0001:00080998   113 0001:0008099C   114 0001:0008099F   115 0001:000809AE
+   116 0001:000809C7   117 0001:000809CA   118 0001:000809D9   119 0001:000809EF
+   120 0001:00080A0D   121 0001:00080A24   122 0001:00080A27   123 0001:00080A61
+   124 0001:00080A69   125 0001:00080A71   126 0001:00080A7F   128 0001:00080ADC
+   129 0001:00080ADE   130 0001:00080AF8   133 0001:00080B31   134 0001:00080B3A
+   136 0001:00080B4A   137 0001:00080B56   138 0001:00080B62   140 0001:00080B70
+   141 0001:00080B7F   144 0001:00080BAD   147 0001:00080C00   148 0001:00080C03
+   149 0001:00080C0B   150 0001:00080C13   151 0001:00080C1B   152 0001:00080C22
+   153 0001:00080C3D   154 0001:00080C4A   160 0001:00080C4C   161 0001:00080C66
+   162 0001:00080C6C   163 0001:00080C6E   164 0001:00080C72   165 0001:00080C78
+   166 0001:00080C7C   167 0001:00080C82   168 0001:00080C8D   170 0001:00080C92
+   171 0001:00080C9B   172 0001:00080CA6   175 0001:00080CAE   176 0001:00080CB0
+   163 0001:00080CB3   179 0001:00080CB7   180 0001:00080CC8   181 0001:00080CF4
+   182 0001:00080D0A   181 0001:00080D2C   183 0001:00080D2F   184 0001:00080D49
+   185 0001:00080D72   188 0001:00080D88   189 0001:00080D8B   190 0001:00080D99
+   194 0001:00080D9C   195 0001:00080DDA   196 0001:00080E04   197 0001:00080E37
+   198 0001:00080E41   199 0001:00080E51   200 0001:00080E7F   201 0001:00080EAD
+   202 0001:00080EDB   203 0001:00080F19   204 0001:00080F64   208 0001:00080F88
+   209 0001:00080FA3   210 0001:00080FAB   211 0001:00080FC1   213 0001:00080FC6
+   214 0001:00080FD7   215 0001:00080FE5   217 0001:0008101A   218 0001:0008101C
+   219 0001:00081036   222 0001:0008108C   226 0001:00081104   227 0001:00081122
+   228 0001:00081133   229 0001:00081159   230 0001:0008117B   231 0001:0008118E
+   232 0001:000811CE   233 0001:000811D8   234 0001:000811E2   235 0001:000811EC
+   236 0001:000811F6   237 0001:00081200   238 0001:0008120A   239 0001:00081215
+   240 0001:0008121F   241 0001:00081228   242 0001:00081242   243 0001:0008126B
+   247 0001:00081298   248 0001:000812A0   250 0001:000812A7   251 0001:000812C0
+   252 0001:000812D5   251 0001:0008130C   253 0001:0008130F   255 0001:00081337
+   249 0001:00081338   258 0001:0008134B   259 0001:0008135F   260 0001:00081381
+   258 0001:0008139C   261 0001:0008139F   262 0001:000813B3   263 0001:000813C4
+   271 0001:000813E8   272 0001:0008140E   273 0001:00081427   275 0001:0008142F
+   276 0001:0008143D   277 0001:00081457   278 0001:00081463   279 0001:00081477
+   281 0001:00081481   284 0001:0008148E   285 0001:0008149C   286 0001:000814B9
+   287 0001:000814C5   288 0001:000814D9   290 0001:000814E3   293 0001:000814F3
+   294 0001:00081501   295 0001:0008151E   296 0001:0008152A   297 0001:0008153E
+   299 0001:00081548   302 0001:00081558   303 0001:0008156B   304 0001:00081578
+   305 0001:00081595   306 0001:000815A1   307 0001:000815B5   309 0001:000815BF
+   312 0001:000815CF   313 0001:000815E2   314 0001:000815EF   315 0001:0008160C
+   316 0001:00081618   317 0001:0008162C   319 0001:00081636   322 0001:00081646
+   323 0001:00081650   325 0001:0008165F   327 0001:00081679   328 0001:00081696
+   329 0001:000816A2   330 0001:000816B6   332 0001:000816C0   335 0001:000816D0
+   336 0001:000816D2   337 0001:000816EC   338 0001:00081714   339 0001:00081729
+   340 0001:0008172F   341 0001:00081732   343 0001:00081747   344 0001:0008174C
+   345 0001:00081758   346 0001:0008176C   348 0001:00081776   350 0001:000817AB
+   353 0001:00081800   354 0001:00081803   355 0001:00081837   362 0001:0008183C
+   363 0001:00081860   364 0001:00081874   365 0001:000818A2   366 0001:000818DA
+   367 0001:000818FE   368 0001:0008190B   369 0001:0008190D   370 0001:0008192F
+   371 0001:00081940   372 0001:00081978   373 0001:000819B5   374 0001:000819FE
+   368 0001:000819FF   375 0001:00081A08   376 0001:00081A1F   366 0001:00081A22
+   377 0001:00081A2B   378 0001:00081A43   379 0001:00081A50   380 0001:00081A71
+   381 0001:00081A93   382 0001:00081AA4   383 0001:00081ADC   384 0001:00081B19
+   385 0001:00081B62   379 0001:00081B63   386 0001:00081B6C   387 0001:00081B83
+   388 0001:00081BB4   393 0001:00081C80   394 0001:00081CA1   395 0001:00081CD8
+   396 0001:00081CE1   397 0001:00081CF7   396 0001:00081D1D   398 0001:00081D42
+   401 0001:00081D7C   402 0001:00081D7F   403 0001:00081D95   404 0001:00081DA7
+   406 0001:00081DF8   406 0001:00081DFF
 
 Line numbers for DirectEthernet(E:\SourceForge\Modules\Delphi\DirectEthernetServer\trunk\DirectEthernet.dpr) segment .text
 
-    29 0001:00081DCC    30 0001:00081DDC    31 0001:00081DE8    32 0001:00081E00
-    33 0001:00081E0C
+    29 0001:00082130    30 0001:00082140    31 0001:0008214C    32 0001:00082164
+    33 0001:00082170
 
 Bound resource files
 
@@ -11205,4 +11211,4 @@ DirectEthernet.res
 DirectEthernet.drf
 
 
-Program entry point at 0001:00081DCC
+Program entry point at 0001:00082130
