@@ -39,7 +39,9 @@ class RuOxWrapper(GPIBDeviceWrapper):
     def initialize(self):
         self.readings = [(0, datetime.now())] * N_CHANNELS
         self.alive = True
+        self.onlyChannel = 0
         self.readLoop().addErrback(log.err)
+
 
     def shutdown(self):
         self.alive = False
@@ -47,12 +49,20 @@ class RuOxWrapper(GPIBDeviceWrapper):
     @inlineCallbacks
     def readLoop(self, idx=0):
         while self.alive:
-            chan = READ_ORDER[idx]
-            yield self.write('SCAN %d,0' % chan)
-            yield util.wakeupCall(SETTLE_TIME)
-            r = yield self.query('RDGR? %d' % chan)
-            self.readings[chan-1] = float(r), datetime.now()
-            idx = (idx + 1) % len(READ_ORDER)
+            # read only one specific channel
+            if self.onlyChannel > 0:
+                chan = self.onlyChannel
+                yield util.wakeupCall(SETTLE_TIME)
+                r = yield self.query('RDGR? %d' % chan)
+                self.readings[chan-1] = float(r), datetime.now()
+            # scan over channels
+            else:   
+                chan = READ_ORDER[idx]
+                yield self.write('SCAN %d,0' % chan)
+                yield util.wakeupCall(SETTLE_TIME)
+                r = yield self.query('RDGR? %d' % chan)
+                self.readings[chan-1] = float(r), datetime.now()
+                idx = (idx + 1) % len(READ_ORDER)
         
 class LakeshoreRuOxServer(GPIBDeviceServer):
     name = 'Lakeshore RuOx'
@@ -76,6 +86,19 @@ class LakeshoreRuOxServer(GPIBDeviceServer):
         """
         dev = self.selectedDevice(c)
         return dev.readings
+
+    @setting(12, 'Select channel', channel=['w'], returns=['w'])
+    def selectchannel(self, c, channel):
+        """Select channel to be read. If argument is 0,
+        scan over channels.
+
+        Returns selected channel.
+        """
+        dev = self.selectedDevice(c)
+        dev.onlyChannel=channel
+        return channel
+
+
 
 __server__ = LakeshoreRuOxServer()
 
