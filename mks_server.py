@@ -33,7 +33,7 @@ class MKSServer(LabradServer):
         'server': 'DR Serial Server',
         'ID': None,
         'gauges': [dict(port='COM6', ch1='Pot Low', ch2='Pot High'),
-                   dict(port='COM3', ch1='Still',   ch2=''),
+                   dict(port='COM3', ch1='',   ch2='Still'),
                    dict(port='COM5', ch1='Keg 1',   ch2='He Flow'),
                    dict(port='COM4', ch1='Return',  ch2='')]
         }]
