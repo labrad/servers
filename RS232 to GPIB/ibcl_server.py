@@ -30,6 +30,10 @@ class IBCLServer(LabradServer):
     Links = [{'Name':     'Governator GPIB-422CT',
               'server':   'governator_serial_server',
               'port':     'COM1',
+              'settings': (19200, 7, 'E', 1)},
+             {'Name':     'ProbeStation GPIB-422CT',
+              'server':   'probestation_serial_server',
+              'port':     'COM2',
               'settings': (19200, 7, 'E', 1)}]
 
     @inlineCallbacks
