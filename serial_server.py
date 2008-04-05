@@ -272,7 +272,7 @@ class SerialServer(LabradServer):
         while len(recd) < count:
             r = ser.read(count - len(recd))
             if r == '':
-                r = yield self.deferredRead(ser, timeout, count=count)
+                r = yield self.deferredRead(ser, timeout, count - len(recd))
                 if r == '':
                     ser.close()
                     ser.open()
