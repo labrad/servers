@@ -122,9 +122,9 @@ def getRange(selection, defmin, defmax, defstep):
         regmax  = defmax
         regstep = defstep
     else:
-        regmin  =     selection[0]
-        regmax  =     selection[1]
-        regstep = abs(selection[2])
+        regmin  =     selection[0].value
+        regmax  =     selection[1].value
+        regstep = abs(selection[2].value)
     if regmax < regmin:
         dummy  = regmin
         regmin = regmax
@@ -176,7 +176,8 @@ class ExperimentServer(LabradServer):
             self.ContextStack[base] = {}
         if not index in self.ContextStack[base]:
             self.ContextStack[base][index] = self.client.context()
-        return self.ContextStack[base][index]
+        h, l = self.ContextStack[base][index]
+        return (long(h), long(l))
 
     def getMyContext(self, base, index):
         if base not in self.ContextStack:
@@ -185,7 +186,8 @@ class ExperimentServer(LabradServer):
             ctxt = self.client.context()
             ctxt = (self.ID, ctxt[1])
             self.ContextStack[base][index] = ctxt
-        return self.ContextStack[base][index]
+        h, l = self.ContextStack[base][index]
+        return (long(h), long(l))
 
     def curQubit(self, ctxt):
         if 'Qubit' not in ctxt:
@@ -624,7 +626,7 @@ class ExperimentServer(LabradServer):
         
         if not(region is None):
             region = list(region)
-            region[2] = T.Value(region[2]/1000.0, 'GHz')
+            region[2] = region[2].inUnitsOf('GHz')
 
         frqmin, frqmax, frqstep = getRange(region, 5, 10, 100)
 

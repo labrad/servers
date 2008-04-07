@@ -739,10 +739,13 @@ class QubitServer(LabradServer):
             p.board(chinfo['Info']['Board'][1])
             p.dac  (chinfo['Info']['DAC'][1])
             p.correct([0])
-            p.correct([0]*SRAMPREPAD + data + [0]*SRAMPOSTPAD)
+            p.correct(numpy.hstack((numpy.zeros(SRAMPREPAD),
+                                    data.asarray,
+                                    numpy.zeros(SRAMPOSTPAD))))
+            #p.correct([0]*SRAMPREPAD + data.aslist + [0]*SRAMPOSTPAD)
             deconv = yield p.send()
-            zerodata = deconv.correct[0][0]
-            cordata  = numpy.array(deconv.correct[1])
+            zerodata = deconv.correct[0].asarray[0]
+            cordata  = deconv.correct[1].asarray
         else:
             zerodata = 0
             cordata = numpy.array([0]*(SRAMPREPAD+len(data)+SRAMPOSTPAD))
@@ -756,7 +759,7 @@ class QubitServer(LabradServer):
             p.add_dependent_variable('amplitude')
             p.add_datapoint([[t, d][i] for t, d in enumerate(cordata) for i in range(2)])
             yield p.send()
-            
+
         if len(chinfo['Data'])==0:
             chinfo['Data']=cordata
         else:
