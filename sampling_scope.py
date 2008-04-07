@@ -84,9 +84,9 @@ class SamplingScope(GPIBDeviceServer):
         vals = _parseBinaryData(resp)
         returnValue([T.Value(v, 'V') for v in vals])
     
-    @setting(241, 'Send Trace To Dataserver',
-                  server=['s'], session=['s'], dataset=['s'], trace=['w'],
-                  returns=['s: Dataset Name'])
+    @setting(241, 'Send Trace To Data Vault',
+                  server=['s'], session=['*s'], dataset=['s'], trace=['w'],
+                  returns=['*s s: Dataset Name'])
     def send_trace(self, c, server, session, dataset, trace=1):
         """Send the current trace to the data vault.
         """
@@ -100,16 +100,12 @@ class SamplingScope(GPIBDeviceServer):
         vals = vals[2:]
 
         out = [[(startx + i*stepx)*1e9, d] for i, d in enumerate(vals)]
-        ds = self.client[server]
-        p = ds.packet()
-        p.open_session(session)
-        p.new_dataset(dataset)
-        p.add_independent_variable('time', 'ns')
-        p.add_dependent_variable('amplitude', 'V')
-        p.add_parameter('Trace', trace)
-        p.add_data(out)
+        p = self.client[server].packet()
+        p.cd(session,True)
+        p.new(dataset,[('time', 'ns')],[('amplitude','trace %d' % trace, 'V')])
+        p.add(out)
         resp = yield p.send()
-        name = resp.new_dataset
+        name = resp.new
         returnValue(name)
 
  
