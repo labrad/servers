@@ -27,10 +27,9 @@ from datetime import datetime
 import struct
 
 import numpy
+from scipy.signal import slepian
 
 DEBUG = 0
-
-CHANNELS = ['ch1', 'ch2']
 
 SRAMPREPAD  = 20
 SRAMPOSTPAD = 80
@@ -459,13 +458,13 @@ class QubitServer(LabradServer):
 
 
 
-    @setting(105, 'Experiment Current Memory', returns=['*(s*w)'])
+    @setting(105, 'Current Memory ', returns=['*(s*w)'])
     def get_mem(self, c):
         if 'Experiment' not in c:
             raise NoExperimentError()
         return c['Experiment']['Memory'].items()
 
-    @setting(106, 'Experiment Current Memory Text', returns=['(*s*2s)'])
+    @setting(106, 'Current Memory As Text', returns=['(*s*2s)'])
     def get_mem_text(self, c):
         if 'Experiment' not in c:
             raise NoExperimentError()
@@ -476,9 +475,9 @@ class QubitServer(LabradServer):
             dat.append(["0x%06X" % vals[a][b] for a in range(len(vals))])
         return (fpgas, dat)
 
-    @setting(110, 'Experiment Send Bias Commands', commands=['*((sw)w)'],
-                                                   delay=['v[us]'],
-                                                   returns=['v[us]'])
+    @setting(110, 'Memory Bias Commands', commands=['*((sw)w)'],
+                                          delay=['v[us]'],
+                                          returns=['v[us]'])
     def send_bias_commands(self, c, commands, delay=T.Value(10, 'us')):
         if 'Experiment' not in c:
             raise NoExperimentError()
@@ -526,7 +525,7 @@ class QubitServer(LabradServer):
 
 
 
-    @setting(111, 'Experiment Add Bias Delay', delay=['v[us]'], returns=['v[us]'])
+    @setting(111, 'Memory Delay', delay=['v[us]'], returns=['v[us]'])
     def add_bias_delay(self, c, delay):
         if 'Experiment' not in c:
             raise NoExperimentError()
@@ -547,7 +546,7 @@ class QubitServer(LabradServer):
 
 
 
-    @setting(112, 'Experiment Start Timer', qubits=['*w'], returns=['v[us]'])
+    @setting(112, 'Memory Start Timer', qubits=['*w'], returns=['v[us]'])
     def start_timer(self, c, qubits):
         if 'Experiment' not in c:
             raise NoExperimentError()
@@ -579,7 +578,7 @@ class QubitServer(LabradServer):
 
 
 
-    @setting(113, 'Experiment Stop Timer', qubits=['*w'], returns=['v[us]'])
+    @setting(113, 'Memory Stop Timer', qubits=['*w'], returns=['v[us]'])
     def stop_timer(self, c, qubits):
         if 'Experiment' not in c:
             raise NoExperimentError()
@@ -635,16 +634,6 @@ class QubitServer(LabradServer):
                 data = numpy.array(data)
                 cordata=((data.real*0x1FFF).astype(int),
                          (data.imag*0x1FFF).astype(int))
-
-        if DEBUG==1:
-            p = cxn.data_server.packet()
-            p.open_session('debug')
-            p.new_dataset('IQ data')
-            p.add_independent_variable('Time')
-            p.add_dependent_variable('real')
-            p.add_dependent_variable('imag')
-            p.add_datapoint([[t, d[0], d[1]][i] for t, d in enumerate(zip(*cordata)) for i in range(3)])
-            yield p.send()
             
         if len(chinfo['Data'][0])==0:
             chinfo['Data']=(numpy.array(cordata[0]), numpy.array(cordata[1]))
@@ -657,8 +646,8 @@ class QubitServer(LabradServer):
         chinfo['Data'][1][0:4]=zerodata[1]*4
 
 
-    @setting(200, 'Add IQ Data', channel=['(sw)'], data = ['*(vv)','*c'],
-                                 carrierfrq=['v[GHz]'], correct=['b'])
+    @setting(200, 'SRAM IQ Data', channel=['(sw)'], data = ['*(vv)','*c'],
+                                  carrierfrq=['v[GHz]'], correct=['b'])
     def add_iq_data(self, c, channel, data, carrierfrq, correct=True):
         if 'Experiment' not in c:
             raise NoExperimentError()
@@ -679,8 +668,8 @@ class QubitServer(LabradServer):
 
 
 
-    @setting(201, 'Add IQ Delay', channel=['(sw)'], delay=['v[ns]'],
-                                  carrierfrq=['v[GHz]'], correct=['b'])
+    @setting(201, 'SRAM IQ Delay', channel=['(sw)'], delay=['v[ns]'],
+                                   carrierfrq=['v[GHz]'], correct=['b'])
     def add_iq_delay(self, c, channel, delay, carrierfrq, correct=True):
         if 'Experiment' not in c:
             raise NoExperimentError()
@@ -702,9 +691,9 @@ class QubitServer(LabradServer):
                           numpy.hstack((chinfo['Data'][1], zerodata[1]*int(delay.value))))
 
 
-    @setting(202, 'Add IQ Data by Envelope', channel=['(sw)'], data = ['*v'],
-                                             carrierfrq=['v[GHz]'], mixfreq=['v[MHz]'],
-                                             phaseshift=['v[rad]'], correct=['b'])
+    @setting(202, 'SRAM IQ Envelope', channel=['(sw)'], data = ['*v'],
+                                      carrierfrq=['v[GHz]'], mixfreq=['v[MHz]'],
+                                      phaseshift=['v[rad]'], correct=['b'])
     def add_iq_envelope(self, c, channel, data, carrierfrq, mixfreq, phaseshift, correct=True):
         if 'Experiment' not in c:
             raise NoExperimentError()
@@ -722,9 +711,32 @@ class QubitServer(LabradServer):
 
         yield self.insertIQData(correct, self.client, c.ID, chinfo, carrierfrq, data)
 
+    @setting(203, 'SRAM IQ Slepian', channel=['(sw)'],
+                                     amplitude=['v'], length=['v[ns]'],
+                                     carrierfrq=['v[GHz]'], mixfreq=['v[MHz]'],
+                                     phaseshift=['v[rad]'], correct=['b'])
+    def add_iq_slepian(self, c, channel, amplitude, length, carrierfrq, mixfreq, phaseshift, correct=True):
+        if 'Experiment' not in c:
+            raise NoExperimentError()
+        if channel not in c['Experiment']['IQs']:
+            raise QubitChannelNotFoundError(channel[1], channel[0])
+        #goto_sram(c)
+        chinfo = c['Experiment']['IQs'][channel]
+
+        length = int(length)
+        data = amplitude*slepian(length, 10.0/length)
+
+        if len(data)>0:
+            tofs = max(len(chinfo['Data'][0])-SRAMPOSTPAD, 0)
+            data = numpy.array(data)*numpy.exp(-(2.0j*numpy.pi*(numpy.arange(len(data))+tofs) + phaseshift.value)*mixfreq.value/1000.0)
+            data = [0]*SRAMPREPAD + data.tolist() + [0]*SRAMPOSTPAD
+        else:
+            data = [0]*(SRAMPREPAD+SRAMPOSTPAD)
+
+        yield self.insertIQData(correct, self.client, c.ID, chinfo, carrierfrq, data)
 
 
-    @setting(210, 'Add Analog Data', channel=['(sw)'], data=['*v'], correct=['b'])
+    @setting(210, 'SRAM Analog Data', channel=['(sw)'], data=['*v'], correct=['b'])
     def add_analog_data(self, c, channel, data, correct=True):
         if 'Experiment' not in c:
             raise NoExperimentError()
@@ -750,15 +762,6 @@ class QubitServer(LabradServer):
             zerodata = 0
             cordata = numpy.array([0]*(SRAMPREPAD+len(data)+SRAMPOSTPAD))
             cordata[SRAMPREPAD:SRAMPREPAD+len(data)]=(numpy.array(data)*0x1FFF).astype(int)
-            
-        if DEBUG==1:
-            p = cxn.data_server.packet()
-            p.open_session('debug')
-            p.new_dataset('IQ data')
-            p.add_independent_variable('Time')
-            p.add_dependent_variable('amplitude')
-            p.add_datapoint([[t, d][i] for t, d in enumerate(cordata) for i in range(2)])
-            yield p.send()
 
         if len(chinfo['Data'])==0:
             chinfo['Data']=cordata
@@ -769,7 +772,7 @@ class QubitServer(LabradServer):
 
 
 
-    @setting(211, 'Add Analog Delay', channel=['(sw)'], delay=['v[ns]'], correct=['b'])
+    @setting(211, 'SRAM Analog Delay', channel=['(sw)'], delay=['v[ns]'], correct=['b'])
     def add_analog_delay(self, c, channel, delay, correct=True):
         if 'Experiment' not in c:
             raise NoExperimentError()
@@ -794,8 +797,8 @@ class QubitServer(LabradServer):
             chinfo['Data']=numpy.hstack((chinfo['Data'], [zerodata]*int(delay.value)))
 
 
-    @setting(220, 'Add Trigger Pulse', channel=['(sw)'], length=['v[ns]'],
-                                       returns=['w'])
+    @setting(220, 'SRAM Trigger Pulse', channel=['(sw)'], length=['v[ns]'],
+                                        returns=['w'])
     def add_trigger_pulse(self, c, channel, length):
         if 'Experiment' not in c:
             raise NoExperimentError()
@@ -810,8 +813,8 @@ class QubitServer(LabradServer):
         return n
 
 
-    @setting(221, 'Add Trigger Delay', channel=['(sw)'], length=['v[ns]'],
-                                       returns=['w'])
+    @setting(221, 'SRAM Trigger Delay', channel=['(sw)'], length=['v[ns]'],
+                                        returns=['w'])
     def add_trigger_delay(self, c, channel, length):
         if 'Experiment' not in c:
             raise NoExperimentError()
@@ -826,7 +829,7 @@ class QubitServer(LabradServer):
         return n
 
         
-    @setting(299, 'Finish SRAM Block', returns=['*s'])
+    @setting(299, 'Memory Call SRAM', returns=['*s'])
     def finish_sram(self, c):
         if 'Experiment' not in c:
             raise NoExperimentError()
@@ -907,9 +910,9 @@ class QubitServer(LabradServer):
 
     
 
-    @setting(1000, 'Run Experiment', stats=['w'],
-                                     setuppkts=['*((ww){context}, s{server}, *(s{setting}, ?{data}))'],
-                                     returns=['*2w'])
+    @setting(1000, 'Run', stats=['w'],
+                          setuppkts=['*((ww){context}, s{server}, *(s{setting}, ?{data}))'],
+                          returns=['*2w'])
     def run_experiment(self, c, stats, setuppkts=None):
         if 'Experiment' not in c:
             raise NoExperimentError()
