@@ -102,11 +102,15 @@ class IBCLGPIBServer(LabradServer):
         res = yield p.send()
         if 'addr' in res.settings:
             c['buffer'] = int(res['addr'][0][0])
+        c['address'] = addr
         return
 
-    @setting(20, 'Write', addr=['w'], data=['s'], returns=['*b'])
-    def write(self, c, addr, data):
+    @setting(20, 'Write', data=['s'], returns=['*b'])
+    def write(self, c, data):
         """Send GPIB data"""
+        if not ('address' in c):
+            raise Exception("No address selected!")
+        addr = c['address']
         res = yield self.client.ibcl.command('%X " %s" write' % (addr, data), context=c.ID)
         state = int(res[0][0],16)
         state = [(state & 2**b)>0 for b in range(16)]
