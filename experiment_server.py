@@ -57,11 +57,11 @@ def add_qubit_resets(p, Qubits):
             maxsettling = qubit['Reset Settling Time']
         if qubit['Reset Cycles'] > maxcount:
             maxcount = qubit['Reset Cycles']
-    p.experiment_send_bias_commands(initreset, T.Value(7.0, 'us'))
-    p.experiment_send_bias_commands(dac1s, T.Value(maxsettling, 'us'))
+    p.memory_bias_commands(initreset, T.Value(7.0, 'us'))
+    p.memory_bias_commands(dac1s, T.Value(maxsettling, 'us'))
     for a in range(maxcount):
-        p.experiment_send_bias_commands(reset2, T.Value(maxsettling, 'us'))
-        p.experiment_send_bias_commands(reset1, T.Value(maxsettling, 'us'))
+        p.memory_bias_commands(reset2, T.Value(maxsettling, 'us'))
+        p.memory_bias_commands(reset1, T.Value(maxsettling, 'us'))
     pass
 
 def add_qubit_inits(p, Qubits):
@@ -74,33 +74,33 @@ def add_qubit_inits(p, Qubits):
         setop.append((('Flux', qid+1), getCMD(1, qubit['Operating Bias'])))
         if qubit['Bias Settling Time'] > maxsettling:
             maxsettling = qubit['Bias Settling Time']
-    p.experiment_send_bias_commands(setop, T.Value(float(maxsettling), 'us'))
+    p.memory_bias_commands(setop, T.Value(float(maxsettling), 'us'))
 
 def add_squid_ramp(p, Qubit, qIndex=1):
     # Set Squid Bias to Ramp Start
-    p.experiment_send_bias_commands([(('Squid', qIndex), getCMD(1, Qubit['Squid Ramp Start']))],
+    p.memory_bias_commands([(('Squid', qIndex), getCMD(1, Qubit['Squid Ramp Start']))],
                                     T.Value(7.0, 'us'))
     # Set Squid DAC to slow
-    p.experiment_send_bias_commands([(('Squid', qIndex), 0x50002)], T.Value(5.0, 'us'))
+    p.memory_bias_commands([(('Squid', qIndex), 0x50002)], T.Value(5.0, 'us'))
     # Start timer
-    p.experiment_start_timer([qIndex])
+    p.memory_start_timer([qIndex])
     # Set Squid Bias to Ramp End
-    p.experiment_send_bias_commands([(('Squid', qIndex), getCMD(1, Qubit['Squid Ramp End']))],
+    p.memory_bias_commands([(('Squid', qIndex), getCMD(1, Qubit['Squid Ramp End']))],
                                     Qubit['Squid Ramp Time'])
     # Set Biases to Zero
-    p.experiment_send_bias_commands([(('Flux',  qIndex), getCMD(1, 0)),
+    p.memory_bias_commands([(('Flux',  qIndex), getCMD(1, 0)),
                                      (('Squid', qIndex), getCMD(1, Qubit['Squid Zero']))],
                                     T.Value(7.0, 'us'))
     # Stop timer
-    p.experiment_stop_timer([qIndex])
+    p.memory_stop_timer([qIndex])
     # Set Squid DAC to fast
-    p.experiment_send_bias_commands([(('Squid', qIndex), 0x50001)],
+    p.memory_bias_commands([(('Squid', qIndex), 0x50001)],
                                     T.Value(5.0, 'us'))
 
 
 def add_measurement(p, Qubit, qIndex=1):
     # Set Flux bias to measure point
-    p.experiment_send_bias_commands([(('Flux', qIndex), getCMD(1, Qubit['Measure Bias']))],
+    p.memory_bias_commands([(('Flux', qIndex), getCMD(1, Qubit['Measure Bias']))],
                                     Qubit['Measure Settling Time'])
     # Ramp Squid
     add_squid_ramp(p, Qubit, qIndex)
@@ -113,7 +113,7 @@ def add_goto_measure_biases(p, Qubits):
         setop.append((('Flux', qid+1), getCMD(1, qubit['Measure Bias'])))
         if qubit['Measure Settling Time'] > maxsettling:
             maxsettling = qubit['Measure Settling Time']
-    p.experiment_send_bias_commands(setop, T.Value(maxsettling, 'us'))
+    p.memory_bias_commands(setop, T.Value(maxsettling, 'us'))
 
 
 def getRange(selection, defmin, defmax, defstep):
@@ -286,7 +286,7 @@ class ExperimentServer(LabradServer):
         self.qubitServer   = self.client.qubits
         self.dataServer    = self.client.data_vault
         self.anritsuServer = self.client.anritsu_server
-        self.setups = yield self.qubitServer.list_experimental_setups()
+        self.setups = yield self.qubitServer.setup_list()
         self.Qubits={}
         self.abort = False
         self.parameters={'Flux Limit Negative':    T.Value(-2500, 'mV' ),
@@ -318,7 +318,7 @@ class ExperimentServer(LabradServer):
                          
     @setting(1, 'list experimental setups', returns=['*s'])
     def list_setups(self, c):
-        self.setups = yield self.qubitServer.list_experimental_setups()
+        self.setups = yield self.qubitServer.setup_list()
         returnValue(self.setups)
 
     @setting(2, 'select experimental setup', name=['s'], returns=['*s'])
@@ -439,11 +439,11 @@ class ExperimentServer(LabradServer):
         def handleData(results, flux, reset):
             if flux in switchings:
                 d = [[flux, a/25.0, b/25.0]
-                      for a, b in zip(switchings[flux], results.run_experiment[0])]
+                      for a, b in zip(switchings[flux], results.run[0])]
                 self.dataServer.add(d, context = c.ID)
                 del switchings[flux]
             else:
-                switchings[flux] = results.run_experiment[0]
+                switchings[flux] = results.run[0]
 
         # Take data
         fluxneg = self.Qubits[qubit]['Flux Limit Negative']
@@ -461,19 +461,19 @@ class ExperimentServer(LabradServer):
                 
                 p.experiment_new(c['Setup'])
                 # Set Biases to Reset, Zero
-                p.experiment_send_bias_commands([(('Flux',  1), getCMD(1, reset)),
+                p.memory_bias_commands([(('Flux',  1), getCMD(1, reset)),
                                                  (('Squid', 1), getCMD(1, self.Qubits[qubit]['Squid Zero']))],
                                                 T.Value(7.0, 'us'))
                 # Select DAC 1 fast for flux and squid
-                p.experiment_send_bias_commands([(('Flux',  1), 0x50001),
+                p.memory_bias_commands([(('Flux',  1), 0x50001),
                                                  (('Squid', 1), 0x50001)],
                                                 self.Qubits[qubit]['Reset Settling Time'])
                 # Set Flux bias to Measure
-                p.experiment_send_bias_commands([(('Flux',  1), getCMD(1, flux))],
+                p.memory_bias_commands([(('Flux',  1), getCMD(1, flux))],
                                                 self.Qubits[qubit]['Measure Settling Time'])
                 # Squid Ramp
                 add_squid_ramp(p, self.Qubits[qubit])
-                p.run_experiment(c['Stats'])
+                p.run(c['Stats'])
 
                 yield self.threadSend(c, handleData, p, flux, reset)
             flux += fluxstep
@@ -485,13 +485,13 @@ class ExperimentServer(LabradServer):
 
     # Default 1-Qubit data handling function
     def handleSingleQubitData(self, results, cutoffvals, cID, *scanpos):
-        total = len(results.run_experiment[0])
+        total = len(results.run[0])
         states = [0]*total
         for i, coval in enumerate(cutoffvals):
             statemask = 1 << i
             cutoff = abs(coval)*25
             negate = coval<0      
-            for ofs, a in enumerate(results.run_experiment[i]):
+            for ofs, a in enumerate(results.run[i]):
                 if (a>cutoff) ^ negate:
                     states[ofs]|=statemask
         counts = [0]*((1 << len(cutoffvals))-1)
@@ -534,11 +534,11 @@ class ExperimentServer(LabradServer):
             # Reset Qubit
             add_qubit_resets(p, [self.Qubits[qubit]])
             # Go to Operating Bias
-            p.experiment_send_bias_commands([(('Flux',  1), getCMD(1, flux))],
+            p.memory_bias_commands([(('Flux',  1), getCMD(1, flux))],
                                             self.Qubits[qubit]['Bias Settling Time'])
             # Measure
             add_measurement(p, self.Qubits[qubit])
-            p.run_experiment(c['Stats'])
+            p.run(c['Stats'])
 
             yield self.threadSend(c, self.handleSingleQubitData, p, cutoffs, c.ID, flux)
             flux += fluxstep
@@ -579,12 +579,15 @@ class ExperimentServer(LabradServer):
             p.experiment_new(c['Setup'])
             # Initialize Qubit
             add_qubit_inits(p, [self.Qubits[qubit]])
+            # Set up a trigger for the scope
+            p.sram_trigger_pulse(('Trigger', 1), 25)
             # Send Measure Pulse
-            p.add_analog_data(('Measure', 1), [amp/1000.0]*mplen)
-            p.finish_sram_block()
+            p.sram_analog_delay(('Measure', 1), 200)
+            p.sram_analog_data (('Measure', 1), [amp/1000.0]*mplen)
+            p.memory_call_sram()
             # Readout
             add_measurement(p, self.Qubits[qubit])
-            p.run_experiment(c['Stats'])
+            p.run(c['Stats'])
 
             yield self.threadSend(c, self.handleSingleQubitData, p, cutoffs, c.ID, amp)
             amp += ampstep
@@ -642,22 +645,25 @@ class ExperimentServer(LabradServer):
             # Initialize Qubits
             add_qubit_inits(p, [self.Qubits[qubit] for qubit in c['Qubits']])
             for i, qubit in enumerate(c['Qubits']):
+                # Set up a trigger for the scope
+                p.sram_trigger_pulse(('Trigger', i+1), 25)
                 # Send uWave Pulse
-                p.add_iq_data     (('uWaves',  i+1), [1]*2000, 6, False)
+                p.sram_iq_delay    (('uWaves',  i+1), 200, 6, False)
+                p.sram_iq_data     (('uWaves',  i+1), [1]*2000, 6, False)
                 # Send Measure Pulse
-                p.add_analog_delay(('Measure', i+1), 2000)
-                p.add_analog_data (('Measure', i+1), [mpamp[qubit]]*mplen[qubit])
-            p.finish_sram_block()
+                p.sram_analog_delay(('Measure', i+1), 2200)
+                p.sram_analog_data (('Measure', i+1), [mpamp[qubit]]*mplen[qubit])
+            p.memory_call_sram()
             # Readout
             add_goto_measure_biases(p, [self.Qubits[qubit] for qubit in c['Qubits']])
             arsetup=[]
             for i, qubit in enumerate(c['Qubits']):
                 if i>0:
-                    p.experiment_add_bias_delay(T.Value(200,'us'))
+                    p.memory_delay(T.Value(200,'us'))
                 add_squid_ramp(p, self.Qubits[qubit], i+1)
                 arsetup.append((arctxts[i], 'Anritsu Server', [('Frequency', T.Value(frq, 'GHz'))]))
             # Set anritsu frequency and run experiment
-            p.run_experiment(c['Stats'], arsetup)
+            p.run(c['Stats'], arsetup)
 
             yield self.threadSend(c, self.handleSingleQubitData, p, cutoffs, c.ID, frq)
             frq += frqstep
@@ -676,7 +682,7 @@ class ExperimentServer(LabradServer):
         qubit = c['Qubits'][0]
 
         sbmix = self.Qubits[qubit]['Sideband Frequency']
-        frq = T.Value(self.Qubits[qubit]['Resonance Frequency'] - sbmix/1000.0, ' GHz')
+        frq = self.Qubits[qubit]['Resonance Frequency'] - sbmix
 
 
         p = self.anritsuServer.packet(context = c.ID)
@@ -711,17 +717,17 @@ class ExperimentServer(LabradServer):
             # Initialize Qubit
             add_qubit_inits(p, [self.Qubits[qubit]])
             # Add trigger
-#            p.add_trigger_pulse(('Trigger', 1), 25)
+            p.sram_trigger_pulse(('Trigger', 1), 25)
             # Send uWave Pulse
-            p.add_iq_delay           (('uWaves', 1), 200, frq)
-            p.add_iq_data_by_envelope(('uWaves', 1), [amplitude]*int(time), frq, sbmix, 0)
+            p.sram_iq_delay           (('uWaves', 1), 200, frq)
+            p.sram_iq_envelope(('uWaves', 1), [amplitude]*int(time), frq, sbmix, 0)
             # Send Measure Pulse
-            p.add_analog_delay(('Measure', 1), time+mpofs+200)
-            p.add_analog_data (('Measure', 1), [mpamp]*mplen)
-            p.finish_sram_block()
+            p.sram_analog_delay(('Measure', 1), time+mpofs+200)
+            p.sram_analog_data (('Measure', 1), [mpamp]*mplen)
+            p.memory_call_sram()
             # Readout
             add_measurement(p, self.Qubits[qubit])
-            p.run_experiment(c['Stats'])
+            p.run(c['Stats'])
 
             yield self.threadSend(c, self.handleSingleQubitData, p, cutoffs, c.ID, time)
             time += timestep
@@ -744,7 +750,7 @@ class ExperimentServer(LabradServer):
         # Set Anritsu amplitudes and frequencies
         for i, qubit in enumerate(c['Qubits']):
             sbmix = self.Qubits[qubit]['Sideband Frequency']
-            frq = T.Value(self.Qubits[qubit]['Resonance Frequency'] - sbmix/1000.0, ' GHz')
+            frq = self.Qubits[qubit]['Resonance Frequency'] - sbmix
             p = self.anritsuServer.packet(context = arctxts[i])
             p.select_device(int(self.Qubits[qubit]['Anritsu ID']))
             p.amplitude(T.Value(2.7,'dBm'))
@@ -784,20 +790,22 @@ class ExperimentServer(LabradServer):
             # Initialize Qubits
             add_qubit_inits(p, [self.Qubits[qubit] for qubit in c['Qubits']])
             for i, qubit in enumerate(c['Qubits']):
+                # Set up a trigger for the scope
+                p.sram_trigger_pulse(('Trigger', i+1), 25)
                 # Send uWave Pulse
-                p.add_iq_delay           (('uWaves', i+1), 200, rfreq[qubit])
-                p.add_iq_data_by_envelope(('uWaves', i+1), [piamp[qubit]]*pilen[qubit], rfreq[qubit], sbmix[qubit], 0)
+                p.sram_iq_delay           (('uWaves', i+1), 200, rfreq[qubit])
+                p.sram_iq_envelope(('uWaves', i+1), [piamp[qubit]]*pilen[qubit], rfreq[qubit], sbmix[qubit], 0)
                 # Send Measure Pulse
-                p.add_analog_delay(('Measure', i+1), time+mpofs[qubit]+200)
-                p.add_analog_data (('Measure', i+1), [mpamp[qubit]]*mplen[qubit])
-            p.finish_sram_block()
+                p.sram_analog_delay(('Measure', i+1), time+mpofs[qubit]+200)
+                p.sram_analog_data (('Measure', i+1), [mpamp[qubit]]*mplen[qubit])
+            p.memory_call_sram()
             add_goto_measure_biases(p, [self.Qubits[qubit] for qubit in c['Qubits']])
             for i, qubit in enumerate(c['Qubits']):
                 if i>0:
-                    p.experiment_add_bias_delay(T.Value(200,'us'))
+                    p.memory_delay(T.Value(200,'us'))
                 add_squid_ramp(p, self.Qubits[qubit], i+1)
             # Set anritsu frequency and run experiment
-            p.run_experiment(c['Stats'])
+            p.run(c['Stats'])
 
             yield self.threadSend(c, self.handleSingleQubitData, p, cutoffs, c.ID, time)
             time += timestep
