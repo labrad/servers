@@ -80,6 +80,7 @@ replacements = [('%%%02X' % i, chr(i)) for i in range(32)+range(127,256)] + [('%
 
 class IBCLGPIBServer(LabradServer):
     name = 'IBCL GPIB Bus'
+    isLocal = True
 
     @inlineCallbacks
     def initServer(self):
