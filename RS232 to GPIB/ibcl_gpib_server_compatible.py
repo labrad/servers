@@ -205,7 +205,7 @@ class IBCLGPIBServer(LabradServer):
             if not result[15]:
                 idnstr = (yield self.readGPIB(addr, tmo))[0]
                 if idnstr is not '':
-                    mfr, model = idnstr.split(',')[:2]
+                    mfr, model = [s.strip() for s in idnstr.split(',')][:2]
                     self.devicelist.append((addr, mfr + ' ' + model))
                     print "%2d - %s" % (addr, mfr[0:10] + ' ' + model[0:10])
                 else:    
