@@ -38,7 +38,7 @@ class NoPortsAvailableError(Error):
 
 class SerialServer(LabradServer):
     """Provides access to a computer's serial (COM) ports."""
-    name = 'Serial Ports'
+    name = 'Serial Server'
     isLocal = True
 
     def initServer(self):
