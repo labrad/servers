@@ -30,15 +30,6 @@ class SpectrumAnalyzer(GPIBDeviceServer):
     name = 'Spectrum Analyzer Server'
     deviceName = 'Hewlett-Packard E4407B'
 
-    # this lets us override the default values of the inherited
-    # settings, to maintain backwards compatibility with the old
-    # LabVIEW version of the code.
-    settingMap = {
-        'echo': ('echo', 11111),
-        'list_devices': ('Devices', 0),
-        'select_device': ('Select Device', 5)
-    }
-
     @setting(10, 'Get Trace',
                  data=['{Query TRACE1}',
                           'w {Specify trace to query: 1, 2, or 3}'],
