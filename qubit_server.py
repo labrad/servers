@@ -999,6 +999,8 @@ class QubitServer(LabradServer):
         if len(c['Experiment']['TimerStopped'])<len(fpgas):
             raise QubitTimerNotStoppedError()
 
+        cxn = self.client
+
         if len(c['Experiment']['Anritsus'])>0:
             pkt = []
             for anritsu, settings in c['Experiment']['Anritsus'].items():
@@ -1011,9 +1013,7 @@ class QubitServer(LabradServer):
                     pkt.append(('Output', False))
             if setuppkts is None:
                 setuppkts=[]
-            setuppkts.append(((0L, 1L), 'Anritsu Server', tuple(pkt)))
-
-        cxn = self.client
+            setuppkts.append(((long(cxn.ID), 1L), 'Anritsu Server', tuple(pkt)))
 
         for value in c['Experiment']['Memory'].values():
             value.append(0xF00000)
