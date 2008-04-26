@@ -1013,7 +1013,7 @@ class QubitServer(LabradServer):
                     pkt.append(('Output', False))
             if setuppkts is None:
                 setuppkts=[]
-            setuppkts.append(((long(cxn.ID), 1L), 'Anritsu Server', tuple(pkt)))
+            setuppkts.append(((long(cxn._cxn.ID), 1L), 'Anritsu Server', tuple(pkt)))
 
         for value in c['Experiment']['Memory'].values():
             value.append(0xF00000)
