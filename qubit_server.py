@@ -108,6 +108,16 @@ class NoExperimentError(T.Error):
     """No experiment is defined in the current context"""
     code = 15
 
+class AnritsuSetupError(T.Error):
+    """I/Q signals need to be corrected for the carrier frequency. Please use 'Experiment Set Anritsu' to setup the microwave generator"""
+    code = 16
+
+class AnritsuConflictError(T.Error):
+    """Anritsu is already configured with conflicting parameters"""
+    code = 17
+
+    
+
 
 def GrabFromList(element, options, error):
     if isinstance(element, str):
@@ -281,8 +291,7 @@ class QubitServer(LabradServer):
         cQ = self.curQubit(c)
         fpgaboard = GrabFromList(fpgaboard, self.GHzDACs,  DeviceNotFoundError)
         anritsu   = GrabFromList(anritsu,   self.Anritsus, DeviceNotFoundError)
-        cQ['IQs'][channel_name]= {'Board':   fpgaboard;
-                                  'Anritsu': anritsu}
+        cQ['IQs'][channel_name]= {'Board': fpgaboard, 'Anritsu': anritsu}
         return 'I/Q on %s connected to %s' % (fpgaboard[1], anritsu[1])
 
 
@@ -328,7 +337,7 @@ class QubitServer(LabradServer):
 
 
     @setting(60, 'Setup New', name=['s'], qubits=['*s'], masterFPGAboard=['s','w'],
-                              returns=['*(s, *s): List of involved FPGAs and their used channels'])
+                              returns=['*(s, *s)*s: List of involved FPGAs and their used channels, list of involved Anritsus'])
     def add_setup(self, c, name, qubits, masterFPGAboard):
         """Creates a new Experimental Setup definition by selecting the involved Qubits and the Master FPGA"""
         if name in self.Setups:
@@ -347,7 +356,7 @@ class QubitServer(LabradServer):
                         raise ResourceConflictError(i['Board'][1], d)
                 Resources[i['Board'][1]].extend(self.DACchannels)
                 if i['Anritsu'][1] not in Anritsus:
-                    Anritsus.extend(i['Anritsu'][1])
+                    Anritsus.append(i['Anritsu'][1])
                 
             for i in q['Analogs'].values():
                 if i['Board'][1] not in Resources:
@@ -374,7 +383,7 @@ class QubitServer(LabradServer):
                            'Master':   masterFPGAboard[1],
                            'Devices':  Resources,
                            'Anritsus': Anritsus}
-        return Resources.items()
+        return Resources.items(), Anritsus
 
 
 
@@ -448,7 +457,7 @@ class QubitServer(LabradServer):
                 c['Experiment']['IQs'][(ch, qindex+1)] = {'Info': info,
                                                           'Data': ([],[])}
                 Result.append((ch, qindex+1,
-                              "IQ channel '%s' on Qubit %d" % (ch, qindex+1)))
+                              "IQ channel '%s' on Qubit %d connected to %s" % (ch, qindex+1, info['Anritsu'][1])))
             for ChName in ['Analog', 'Trigger']:
                 for ch, info in q[ChName+'s'].items():
                     c['Experiment'][ChName+'s'][(ch, qindex+1)] = {'Info': info,
@@ -464,6 +473,36 @@ class QubitServer(LabradServer):
                 Result.append((ch, qindex+1,
                               "FO channel '%s' on Qubit %d" % (ch, qindex+1)))
         return (Setup['Qubits'], Result)
+
+
+
+    @setting(101, 'Experiment Set Anritsu', data=['(sw): Turn Anritsu off',
+                                                  '((sw)v[GHz]v[dBm]): Set Anritsu to this frequency and amplitude'],
+                                            returns=['b'])
+    def set_anritsu(self, c, data):
+        """Specifies the Anritsu settings to be used for this experiment for the given channel."""
+        if len(data)==3:
+            channel, frq, amp = data
+            data = (frq, amp)
+        else:
+            channel = data
+            data = None
+        if 'Experiment' not in c:
+            raise NoExperimentError()
+        if channel not in c['Experiment']['IQs']:
+            raise QubitChannelNotFoundError(channel[1], channel[0])
+        anritsu = c['Experiment']['IQs'][channel]['Info']['Anritsu'][1]
+        anritsuinfo = c['Experiment']['Anritsus']
+        if data is None:
+            newInfo = False
+        else:
+            newInfo = data
+        if anritsuinfo[anritsu] is None:
+            anritsuinfo[anritsu] = newInfo
+        else:
+            if not (anritsuinfo[anritsu] == newInfo):
+                raise AnritsuConflictError()
+        return anritsuinfo!=False
 
 
 
@@ -627,8 +666,8 @@ class QubitServer(LabradServer):
 
 
     @inlineCallbacks
-    def insertIQData(self, correct, cxn, cID, chinfo, carrierfrq, data):
-        if correct:
+    def insertIQData(self, cxn, cID, chinfo, carrierfrq, data):
+        if not (carrierfrq is None):
             p = cxn.dac_calibration.packet(context = cID)
             p.board    (chinfo['Info']['Board'][1])
             p.frequency(carrierfrq)
@@ -661,15 +700,25 @@ class QubitServer(LabradServer):
         chinfo['Data'][1][0:4]=zerodata[1]*4
 
 
-    @setting(200, 'SRAM IQ Data', channel=['(sw)'], data = ['*(vv)','*c'],
-                                  carrierfrq=['v[GHz]'], correct=['b'])
-    def add_iq_data(self, c, channel, data, carrierfrq, correct=True):
+    def getCarrier(self, c, channel):
+        anritsu = c['Experiment']['IQs'][channel]['Info']['Anritsu'][1]
+        anritsuinfo = c['Experiment']['Anritsus'][anritsu]
+        if not isinstance(anritsuinfo, tuple):
+            raise AnritsuSetupError()
+        return anritsuinfo[0]
+
+
+    @setting(200, 'SRAM IQ Data', channel=['(sw)'], data = ['*(vv)','*c'], correct=['b'])
+    def add_iq_data(self, c, channel, data, correct=True):
         """Adds IQ data to the specified Channel"""
         if 'Experiment' not in c:
             raise NoExperimentError()
         if channel not in c['Experiment']['IQs']:
             raise QubitChannelNotFoundError(channel[1], channel[0])
-        #goto_sram(c)
+        if correct:
+            carrierfrq = self.getCarrier(c, channel)
+        else:
+            carrierfrq = None
 
         if len(data)>0:
             if isinstance(data[0], tuple):
@@ -679,23 +728,21 @@ class QubitServer(LabradServer):
         else:
             data = [0]*(SRAMPREPAD+SRAMPOSTPAD)
 
-        yield self.insertIQData(correct, self.client, c.ID,
-                                c['Experiment']['IQs'][channel], carrierfrq, data)
+        yield self.insertIQData(self.client, c.ID, c['Experiment']['IQs'][channel], carrierfrq, data)
 
 
 
-    @setting(201, 'SRAM IQ Delay', channel=['(sw)'], delay=['v[ns]'],
-                                   carrierfrq=['v[GHz]'], correct=['b'])
-    def add_iq_delay(self, c, channel, delay, carrierfrq, correct=True):
+    @setting(201, 'SRAM IQ Delay', channel=['(sw)'], delay=['v[ns]'], correct=['b'])
+    def add_iq_delay(self, c, channel, delay, correct=True):
         """Adds a delay in the IQ data to the specified Channel"""
         if 'Experiment' not in c:
             raise NoExperimentError()
         if channel not in c['Experiment']['IQs']:
             raise QubitChannelNotFoundError(channel[1], channel[0])
-        #goto_sram(c)
         chinfo = c['Experiment']['IQs'][channel]
 
         if correct:
+            carrierfrq = self.getCarrier(c, channel)
             cxn = self.client
             p = cxn.dac_calibration.packet(context = c.ID)
             p.board    (chinfo['Info']['Board'][1])
@@ -708,17 +755,19 @@ class QubitServer(LabradServer):
                           numpy.hstack((chinfo['Data'][1], zerodata[1]*int(delay.value))))
 
 
-    @setting(202, 'SRAM IQ Envelope', channel=['(sw)'], data = ['*v'],
-                                      carrierfrq=['v[GHz]'], mixfreq=['v[MHz]'],
+    @setting(202, 'SRAM IQ Envelope', channel=['(sw)'], data = ['*v'], mixfreq=['v[MHz]'],
                                       phaseshift=['v[rad]'], correct=['b'])
-    def add_iq_envelope(self, c, channel, data, carrierfrq, mixfreq, phaseshift, correct=True):
+    def add_iq_envelope(self, c, channel, data, mixfreq, phaseshift, correct=True):
         """Turns the given envelope data into IQ data with the specified Phase and
         Sideband Mixing. The resulting data is added to the specified Channel"""
         if 'Experiment' not in c:
             raise NoExperimentError()
         if channel not in c['Experiment']['IQs']:
             raise QubitChannelNotFoundError(channel[1], channel[0])
-        #goto_sram(c)
+        if correct:
+            carrierfrq = self.getCarrier(c, channel)
+        else:
+            carrierfrq = None
         chinfo = c['Experiment']['IQs'][channel]
 
         if len(data)>0:
@@ -728,20 +777,21 @@ class QubitServer(LabradServer):
         else:
             data = [0]*(SRAMPREPAD+SRAMPOSTPAD)
 
-        yield self.insertIQData(correct, self.client, c.ID, chinfo, carrierfrq, data)
+        yield self.insertIQData(self.client, c.ID, chinfo, carrierfrq, data)
 
-    @setting(203, 'SRAM IQ Slepian', channel=['(sw)'],
-                                     amplitude=['v'], length=['v[ns]'],
-                                     carrierfrq=['v[GHz]'], mixfreq=['v[MHz]'],
-                                     phaseshift=['v[rad]'], correct=['b'])
-    def add_iq_slepian(self, c, channel, amplitude, length, carrierfrq, mixfreq, phaseshift, correct=True):
+    @setting(203, 'SRAM IQ Slepian', channel=['(sw)'], amplitude=['v'], length=['v[ns]'],
+                                     mixfreq=['v[MHz]'], phaseshift=['v[rad]'], correct=['b'])
+    def add_iq_slepian(self, c, channel, amplitude, length, mixfreq, phaseshift, correct=True):
         """Generates IQ data for a Slepian Pulse with the specified Amplitude, Width, Phase and
         Sideband Mixing. The resulting data is added to the specified Channel"""
         if 'Experiment' not in c:
             raise NoExperimentError()
         if channel not in c['Experiment']['IQs']:
             raise QubitChannelNotFoundError(channel[1], channel[0])
-        #goto_sram(c)
+        if correct:
+            carrierfrq = self.getCarrier(c, channel)
+        else:
+            carrierfrq = None
         chinfo = c['Experiment']['IQs'][channel]
 
         length = int(length)
@@ -754,7 +804,7 @@ class QubitServer(LabradServer):
         else:
             data = [0]*(SRAMPREPAD+SRAMPOSTPAD)
 
-        yield self.insertIQData(correct, self.client, c.ID, chinfo, carrierfrq, data)
+        yield self.insertIQData(self.client, c.ID, chinfo, carrierfrq, data)
 
 
     @setting(210, 'SRAM Analog Data', channel=['(sw)'], data=['*v'], correct=['b'])
@@ -938,7 +988,7 @@ class QubitServer(LabradServer):
     
 
     @setting(1000, 'Run', stats=['w'],
-                          setuppkts=['*((ww){context}, s{server}, *(s{setting}, ?{data}))'],
+                          setuppkts=['*((ww){context}, s{server}, ?{((s?)(s?)(s?)...)})'],
                           returns=['*2w'])
     def run_experiment(self, c, stats, setuppkts=None):
         """Runs the experiment and returns the raw switching data"""
@@ -948,6 +998,20 @@ class QubitServer(LabradServer):
         fpgas = [fpga for fpga in c['Experiment']['FPGAs']]
         if len(c['Experiment']['TimerStopped'])<len(fpgas):
             raise QubitTimerNotStoppedError()
+
+        if len(c['Experiment']['Anritsus'])>0:
+            pkt = []
+            for anritsu, settings in c['Experiment']['Anritsus'].items():
+                pkt.append(('Select Device', anritsu))
+                if isinstance(settings, tuple):
+                    pkt.append(('Output', True))
+                    pkt.append(('Frequency', settings[0]))
+                    pkt.append(('Amplitude', settings[1]))
+                else:
+                    pkt.append(('Output', False))
+            if setuppkts is None:
+                setuppkts=[]
+            setuppkts.append(((0L, 1L), 'Anritsu Server', tuple(pkt)))
 
         cxn = self.client
 
