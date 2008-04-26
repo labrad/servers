@@ -289,29 +289,39 @@ class ExperimentServer(LabradServer):
         self.setups = yield self.qubitServer.setup_list()
         self.Qubits={}
         self.abort = False
-        self.parameters={'Flux Limit Negative':    T.Value(-2500, 'mV' ),
-                         'Flux Limit Positive':    T.Value( 2500, 'mV' ),
-                         'Squid Zero':             T.Value(    0, 'mV' ),
-                         'Squid Ramp Start':       T.Value(    0, 'mV' ),
-                         'Squid Ramp End':         T.Value( 2000, 'mV' ),
-                         'Squid Ramp Time':        T.Value(  100, 'us' ),
-                         'Reset Settling Time':    T.Value(   10, 'us' ),
-                         'Bias Settling Time':     T.Value(  200, 'us' ),
-                         'Measure Settling Time':  T.Value(   50, 'us' ),
-                         'Reset Bias 1':           T.Value(    0, 'mV' ),
-                         'Reset Bias 2':           T.Value(    0, 'mV' ),
-                         'Reset Cycles':           T.Value(    1, ''   ),
-                         'Measure Bias':           T.Value( 1000, 'mV' ),
-                         '1-State Cutoff':         T.Value(   50, 'us' ),
-                         'Operating Bias':         T.Value( 1500, 'mV' ),
-                         'Measure Pulse Length':   T.Value(    3, 'ns' ),
-                         'Measure Pulse Amplitude':T.Value(  500, 'mV' ),
-                         'Anritsu ID':             T.Value(    0, ''   ),
-                         'Measure Pulse Offset':   T.Value(   50, 'ns' ),
-                         'Resonance Frequency':    T.Value(  6.5, 'GHz'),
-                         'Sideband Frequency':     T.Value(  100, 'MHz'),
-                         'Pi-Pulse Length':        T.Value(    9, 'ns' ),
-                         'Pi-Pulse Amplitude':     T.Value(    1, ''   )}
+        self.parameters={'Flux Limit Negative':                  T.Value(-2500, 'mV' ),
+                         'Flux Limit Positive':                  T.Value( 2500, 'mV' ),
+                         'Squid Zero':                           T.Value(    0, 'mV' ),
+                         'Squid Ramp Start':                     T.Value(    0, 'mV' ),
+                         'Squid Ramp End':                       T.Value( 2000, 'mV' ),
+                         'Squid Ramp Time':                      T.Value(  100, 'us' ),
+                         'Reset Settling Time':                  T.Value(   10, 'us' ),
+                         'Bias Settling Time':                   T.Value(  200, 'us' ),
+                         'Measure Settling Time':                T.Value(   50, 'us' ),
+                         'Reset Bias 1':                         T.Value(    0, 'mV' ),
+                         'Reset Bias 2':                         T.Value(    0, 'mV' ),
+                         'Reset Cycles':                         T.Value(    1, ''   ),
+                         'Measure Bias':                         T.Value( 1000, 'mV' ),
+                         '1-State Cutoff':                       T.Value(   50, 'us' ),
+                         'Operating Bias':                       T.Value( 1500, 'mV' ),
+                         'Measure Pulse Length':                 T.Value(    3, 'ns' ),
+                         'Measure Pulse Amplitude':              T.Value(  500, 'mV' ),
+                         'Anritsu ID':                           T.Value(    0, ''   ),
+                         'Measure Pulse Offset':                 T.Value(   50, 'ns' ),
+                         'Resonance Frequency':                  T.Value(  6.5, 'GHz'),
+                         'Sideband Frequency':                   T.Value(  100, 'MHz'),
+                         'Pi-Pulse Length':                      T.Value(    9, 'ns' ),
+                         'Pi-Pulse Amplitude':                   T.Value(    1, ''   ),
+                         'CalPoints Given':                      T.Value(    0, ''   ),
+                         'CalPoint 1 - Operating Bias':          T.Value(    0, 'mV' ),
+                         'CalPoint 1 - Resonance Frequency':     T.Value(    0, 'GHz'),
+                         'CalPoint 1 - Measure Pulse Amplitude': T.Value(    0, 'mV' ),
+                         'CalPoint 2 - Operating Bias':          T.Value(    0, 'mV' ),
+                         'CalPoint 2 - Resonance Frequency':     T.Value(    0, 'GHz'),
+                         'CalPoint 2 - Measure Pulse Amplitude': T.Value(    0, 'mV' ),
+                         'CalPoint 3 - Operating Bias':          T.Value(    0, 'mV' ),
+                         'CalPoint 3 - Resonance Frequency':     T.Value(    0, 'GHz'),
+                         'CalPoint 3 - Measure Pulse Amplitude': T.Value(    0, 'mV' )}
 
     def initContext(self, c):
         c['Stats'] = 300L
@@ -619,7 +629,83 @@ class ExperimentServer(LabradServer):
 
         # Setup dataset
         p = self.dataServer.packet(context = c.ID)
-        self.add_dataset_setup(p, c['Session'], 'Spectroscopy on %s' % c['Setup'], ['Frequency [GHz]'], axes)
+        self.add_dataset_setup(p, c['Session'], 'Spectroscopy on %s' % c['Setup'], ['Flux Bias [mV]', 'Frequency [GHz]'], axes)
+        self.add_qubit_parameters(p, qubit)
+        p.add_parameter('Stats', float(c["Stats"]))
+        name = (yield p.send()).new
+
+        # Take data
+        self.setupThreading(c)
+        
+        if not(region is None):
+            region = list(region)
+            region[2] = region[2].inUnitsOf('GHz')
+
+        frqmin, frqmax, frqstep = getRange(region, 5, 10, 100)
+
+        cutoffs = [self.Qubits[qubit]['1-State Cutoff'] for qubit in c['Qubits']]
+        frq=frqmin
+        self.abort = False
+        mplen = dict([(qubit, int(self.Qubits[qubit]['Measure Pulse Length'   ]      )) for qubit in c['Qubits']])
+        mpamp = dict([(qubit,     self.Qubits[qubit]['Measure Pulse Amplitude']/1000.0) for qubit in c['Qubits']])
+        while (frq<frqmax+(frqstep/3.0)) and not self.abort:
+            p = self.qubitServer.packet(context = self.nextThreadContext(c))
+            
+            p.experiment_new(c['Setup'])
+            # Initialize Qubits
+            add_qubit_inits(p, [self.Qubits[qubit] for qubit in c['Qubits']])
+            for i, qubit in enumerate(c['Qubits']):
+                # Set up a trigger for the scope
+                p.sram_trigger_pulse(('Trigger', i+1), 25)
+                # Send uWave Pulse
+                p.sram_iq_delay    (('uWaves',  i+1), 200, 6, False)
+                p.sram_iq_data     (('uWaves',  i+1), [1]*2000, 6, False)
+                # Send Measure Pulse
+                p.sram_analog_delay(('Measure', i+1), 2200)
+                p.sram_analog_data (('Measure', i+1), [mpamp[qubit]]*mplen[qubit])
+            p.memory_call_sram()
+            # Readout
+            add_goto_measure_biases(p, [self.Qubits[qubit] for qubit in c['Qubits']])
+            arsetup=[]
+            for i, qubit in enumerate(c['Qubits']):
+                if i>0:
+                    p.memory_delay(T.Value(200,'us'))
+                add_squid_ramp(p, self.Qubits[qubit], i+1)
+                arsetup.append((arctxts[i], 'Anritsu Server', [('Frequency', T.Value(frq, 'GHz'))]))
+            # Set anritsu frequency and run experiment
+            p.run(c['Stats'], arsetup)
+
+            yield self.threadSend(c, self.handleSingleQubitData, p, cutoffs, c.ID, frq)
+            frq += frqstep
+
+        yield self.finishThreads(c, self.handleSingleQubitData)
+        
+        returnValue(name)
+
+
+
+    @setting(131, 'Fine Spectroscopy', power=['v[dBm]'], region=['(v[GHz]{start}, v[GHz]{end}, v[MHz]{steps})'],
+                                       returns=['*ss'])
+    def finespectroscopy(self, c, power, region = None):
+        self.checkSetup(c, 'Spectroscopy', 1)
+
+        arctxts = [self.getMyContext('Anritsu', i) for i in range(len(c['Qubits']))]
+
+        waits = []
+
+        for i, qubit in enumerate(c['Qubits']):
+            p = self.anritsuServer.packet(context = arctxts[i])
+            p.select_device(int(self.Qubits[qubit]['Anritsu ID']))
+            p.amplitude(power)
+            waits.append(p.send())
+            
+        yield defer.DeferredList(waits)
+
+        axes  = ['Probability (%s) [%%]' % stname for stname in getStates(len(c['Qubits']))]
+
+        # Setup dataset
+        p = self.dataServer.packet(context = c.ID)
+        self.add_dataset_setup(p, c['Session'], 'Fine Spectroscopy on %s' % c['Setup'], ['Frequency [GHz]'], axes)
         self.add_qubit_parameters(p, qubit)
         p.add_parameter('Stats', float(c["Stats"]))
         name = (yield p.send()).new
