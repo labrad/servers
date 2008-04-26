@@ -168,8 +168,10 @@ class QubitServer(LabradServer):
         self.Qubits = {}
         self.Setups = {}
         cxn = self.client
-        self.devices = yield cxn.ghz_dacs.list_devices()
-        self.devices = [d for i, d in self.devices]
+        self.GHzDACs = yield cxn.ghz_dacs.list_devices()
+        self.GHzDACs = [d for i, d in self.GHzDACs]
+        self.Anritsus = yield cxn.anritsu_server.list_devices()
+        self.Anritsus = [d for i, d in self.Anritsus]
         self.DACchannels  = ['DAC A', 'DAC B']
         self.FOchannels   = [ 'FO 0',  'FO 1']
         self.FOcommands   = [0x100000, 0x200000]
@@ -177,10 +179,10 @@ class QubitServer(LabradServer):
         
 
 
-    @setting(1, 'List FPGA boards', returns=['*(ws)'])
+    @setting(1, 'List GHzDAC boards', returns=['*(ws)'])
     def list_fpgaboards(self, c):
-        """Returns a list of all available FPGA boards"""
-        return list(enumerate(self.devices))
+        """Returns a list of all available GHzDAC boards"""
+        return list(enumerate(self.GHzDACs))
 
 
 
@@ -202,6 +204,13 @@ class QubitServer(LabradServer):
     def list_trigchannels(self, c):
         """Returns a list of all Trigger channels"""
         return list(enumerate(self.Trigchannels))
+        
+
+
+    @setting(5, 'List Anritsus', returns=['*(ws)'])
+    def list_anritsus(self, c):
+        """Returns a list of all available Anritsu microwave generators"""
+        return list(enumerate(self.Anritsus))
 
 
 
@@ -210,7 +219,7 @@ class QubitServer(LabradServer):
         """Creates a new Qubit definition"""
         if qubit in self.Qubits:
             raise QubitExistsError(qubit)
-        timingboard = GrabFromList(timingboard, self.devices, DeviceNotFoundError)
+        timingboard = GrabFromList(timingboard, self.GHzDACs, DeviceNotFoundError)
         self.Qubits[qubit]={'Timing':   timingboard,
                             'IQs':      {},
                             'Analogs':  {},
@@ -265,14 +274,16 @@ class QubitServer(LabradServer):
 
 
     @setting(30, 'Qubit Add I/Q Channel', channel_name=['s'], fpgaboard=['w','s'],
-                                          returns=['s'])
-    def add_IQchannel(self, c, channel_name, fpgaboard):
+                                          anritsu=['w','s'], returns=['s'])
+    def add_IQchannel(self, c, channel_name, fpgaboard, anritsu):
         """Adds an analog output channel with IQ mixing capabilities, i.e. a
         channel that plays back complex data"""
         cQ = self.curQubit(c)
-        fpgaboard = GrabFromList(fpgaboard, self.devices, DeviceNotFoundError)
-        cQ['IQs'][channel_name]= {'Board': fpgaboard}
-        return 'I/Q on %s' % fpgaboard[1]
+        fpgaboard = GrabFromList(fpgaboard, self.GHzDACs,  DeviceNotFoundError)
+        anritsu   = GrabFromList(anritsu,   self.Anritsus, DeviceNotFoundError)
+        cQ['IQs'][channel_name]= {'Board':   fpgaboard;
+                                  'Anritsu': anritsu}
+        return 'I/Q on %s connected to %s' % (fpgaboard[1], anritsu[1])
 
 
 
@@ -282,7 +293,7 @@ class QubitServer(LabradServer):
         """Adds an analog output channel without IQ mixing capabilities, i.e. a
         channel that plays back real data"""
         cQ = self.curQubit(c)
-        fpgaboard = GrabFromList(fpgaboard, self.devices, DeviceNotFoundError)
+        fpgaboard = GrabFromList(fpgaboard, self.GHzDACs, DeviceNotFoundError)
         dac = GrabFromList(dac, self.DACchannels, ChannelNotFoundError)
         cQ['Analogs'][channel_name]= {'Board': fpgaboard,
                                       'DAC':   dac}
@@ -295,7 +306,7 @@ class QubitServer(LabradServer):
     def add_digitalchannel(self, c, channel_name, fpgaboard, trigger):
         """Adds a digital output channel (trigger)"""
         cQ = self.curQubit(c)
-        fpgaboard = GrabFromList(fpgaboard, self.devices, DeviceNotFoundError)
+        fpgaboard = GrabFromList(fpgaboard, self.GHzDACs, DeviceNotFoundError)
         trigger = GrabFromList(trigger, self.Trigchannels, ChannelNotFoundError)
         cQ['Triggers'][channel_name]= {'Board':   fpgaboard,
                                        'Trigger': trigger}
@@ -308,7 +319,7 @@ class QubitServer(LabradServer):
     def add_biaschannel(self, c, channel_name, fpgaboard, fo_channel):
         """Adds a fiber optic bias channel"""
         cQ = self.curQubit(c)
-        fpgaboard = GrabFromList(fpgaboard, self.devices, DeviceNotFoundError)
+        fpgaboard = GrabFromList(fpgaboard, self.GHzDACs, DeviceNotFoundError)
         fo_channel = GrabFromList(fo_channel, self.FOchannels, ChannelNotFoundError)
         cQ['FOs'][channel_name]= {'Board': fpgaboard,
                                   'FO':    fo_channel}
@@ -323,8 +334,9 @@ class QubitServer(LabradServer):
         if name in self.Setups:
             raise SetupExistsError(name)
         
-        masterFPGAboard = GrabFromList(masterFPGAboard, self.devices, DeviceNotFoundError)
+        masterFPGAboard = GrabFromList(masterFPGAboard, self.GHzDACs, DeviceNotFoundError)
         Resources = {masterFPGAboard[1]: []}
+        Anritsus = []
         for qname in qubits:
             q = self.getQubit(qname)
             for i in q['IQs'].values():
@@ -334,6 +346,8 @@ class QubitServer(LabradServer):
                     if d in Resources[i['Board'][1]]:
                         raise ResourceConflictError(i['Board'][1], d)
                 Resources[i['Board'][1]].extend(self.DACchannels)
+                if i['Anritsu'][1] not in Anritsus:
+                    Anritsus.extend(i['Anritsu'][1])
                 
             for i in q['Analogs'].values():
                 if i['Board'][1] not in Resources:
@@ -356,9 +370,10 @@ class QubitServer(LabradServer):
                     raise ResourceConflictError(i['Board'][1], i['FO'][1])
                 Resources[i['Board'][1]].append(i['FO'][1])
                     
-        self.Setups[name]={'Qubits':  qubits,
-                           'Master':  masterFPGAboard[1],
-                           'Devices': Resources}
+        self.Setups[name]={'Qubits':   qubits,
+                           'Master':   masterFPGAboard[1],
+                           'Devices':  Resources,
+                           'Anritsus': Anritsus}
         return Resources.items()
 
 
@@ -409,21 +424,23 @@ class QubitServer(LabradServer):
             qubit = self.getQubit(q)
             supportfpgas.remove(qubit['Timing'][1])
             
-        c['Experiment']={'Setup':    setup,
-                         'IQs':      {},
-                         'Analogs':  {},
-                         'Triggers': {},
-                         'FOs':      {},
-                         'FPGAs':    Setup['Devices'].keys(),
-                         'Master':   Setup['Master'],
-                         'Memory':   dict([(board, [0x000000])
-                                           for board in Setup['Devices'].keys()]),
-                         'SRAM':     dict([(board, '')
-                                           for board in Setup['Devices'].keys()]),
-                         'InSRAM':   False,
+        c['Experiment']={'Setup':         setup,
+                         'IQs':           {},
+                         'Analogs':       {},
+                         'Triggers':      {},
+                         'FOs':           {},
+                         'FPGAs':         Setup['Devices'].keys(),
+                         'Master':        Setup['Master'],
+                         'Memory':        dict([(board, [0x000000])
+                                                for board in Setup['Devices'].keys()]),
+                         'SRAM':          dict([(board, '')
+                                                for board in Setup['Devices'].keys()]),
+                         'InSRAM':        False,
                          'TimerStarted':  [],
                          'TimerStopped':  [],
-                         'NonTimerFPGAs': supportfpgas}
+                         'NonTimerFPGAs': supportfpgas,
+                         'Anritsus':      dict([(anritsu, None)
+                                                for anritsu in Setup['Anritsus']])}
 
         for qindex, qname in enumerate(Setup['Qubits']):
             q = self.getQubit(qname)
@@ -440,7 +457,7 @@ class QubitServer(LabradServer):
                                   "%s channel '%s' on Qubit %d" %
                                   (ChName,     ch,          qindex+1)))
             for ch, info in q['FOs'].items():
-                fpgaboard = GrabFromList(info['Board'][1], self.devices, DeviceNotFoundError)
+                fpgaboard = GrabFromList(info['Board'][1], self.GHzDACs, DeviceNotFoundError)
                 fo_channel = GrabFromList(info['FO'][1], self.FOchannels, ChannelNotFoundError)
                 c['Experiment']['FOs'][(ch, qindex+1)] = {'FPGA': fpgaboard[1],
                                                           'FO':   fo_channel[0]}
