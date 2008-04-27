@@ -167,6 +167,16 @@ class NoSessionSelectedError(T.Error):
     """No data-server session selected"""
     code = 3
 
+class UndefinedSequenceError(T.Error):
+    code = 5
+    def __init__(self, name):
+        self.msg="Sequence '%s' is not defined yet" % name
+
+class MissingValueError(T.Error):
+    code = 6
+    def __init__(self, name):
+        self.msg="Value for parameter '%s' is not given" % name
+
 
 class ExperimentServer(LabradServer):
     name = 'Experiments'
@@ -282,6 +292,7 @@ class ExperimentServer(LabradServer):
 
     @inlineCallbacks
     def initServer(self):
+        self.sequences={}
         self.ContextStack = {}
         self.qubitServer   = self.client.qubits
         self.dataServer    = self.client.data_vault
@@ -311,17 +322,17 @@ class ExperimentServer(LabradServer):
                          'Resonance Frequency':                  T.Value(  6.5, 'GHz'),
                          'Sideband Frequency':                   T.Value(  100, 'MHz'),
                          'Pi-Pulse Length':                      T.Value(    9, 'ns' ),
-                         'Pi-Pulse Amplitude':                   T.Value(    1, ''   ),
-                         'CalPoints Given':                      T.Value(    0, ''   ),
-                         'CalPoint 1 - Operating Bias':          T.Value(    0, 'mV' ),
-                         'CalPoint 1 - Resonance Frequency':     T.Value(    0, 'GHz'),
-                         'CalPoint 1 - Measure Pulse Amplitude': T.Value(    0, 'mV' ),
-                         'CalPoint 2 - Operating Bias':          T.Value(    0, 'mV' ),
-                         'CalPoint 2 - Resonance Frequency':     T.Value(    0, 'GHz'),
-                         'CalPoint 2 - Measure Pulse Amplitude': T.Value(    0, 'mV' ),
-                         'CalPoint 3 - Operating Bias':          T.Value(    0, 'mV' ),
-                         'CalPoint 3 - Resonance Frequency':     T.Value(    0, 'GHz'),
-                         'CalPoint 3 - Measure Pulse Amplitude': T.Value(    0, 'mV' )}
+                         'Pi-Pulse Amplitude':                   T.Value(    1, ''   )}
+##                         'CalPoints Given':                      T.Value(    0, ''   ),
+##                         'CalPoint 1 - Operating Bias':          T.Value(    0, 'mV' ),
+##                         'CalPoint 1 - Resonance Frequency':     T.Value(    0, 'GHz'),
+##                         'CalPoint 1 - Measure Pulse Amplitude': T.Value(    0, 'mV' ),
+##                         'CalPoint 2 - Operating Bias':          T.Value(    0, 'mV' ),
+##                         'CalPoint 2 - Resonance Frequency':     T.Value(    0, 'GHz'),
+##                         'CalPoint 2 - Measure Pulse Amplitude': T.Value(    0, 'mV' ),
+##                         'CalPoint 3 - Operating Bias':          T.Value(    0, 'mV' ),
+##                         'CalPoint 3 - Resonance Frequency':     T.Value(    0, 'GHz'),
+##                         'CalPoint 3 - Measure Pulse Amplitude': T.Value(    0, 'mV' )}
 
     def initContext(self, c):
         c['Stats'] = 300L
@@ -493,8 +504,8 @@ class ExperimentServer(LabradServer):
         returnValue(name)
 
 
-    # Default 1-Qubit data handling function
-    def handleSingleQubitData(self, results, cutoffvals, cID, *scanpos):
+    # Default data handling function
+    def handleSwitchingData(self, results, cutoffvals, cID, *scanpos):
         total = len(results.run[0])
         states = [0]*total
         for i, coval in enumerate(cutoffvals):
@@ -550,10 +561,10 @@ class ExperimentServer(LabradServer):
             add_measurement(p, self.Qubits[qubit])
             p.run(c['Stats'])
 
-            yield self.threadSend(c, self.handleSingleQubitData, p, cutoffs, c.ID, flux)
+            yield self.threadSend(c, self.handleSwitchingData, p, cutoffs, c.ID, flux)
             flux += fluxstep
 
-        yield self.finishThreads(c, self.handleSingleQubitData)
+        yield self.finishThreads(c, self.handleSwitchingData)
 
         returnValue(name)
 
@@ -599,10 +610,10 @@ class ExperimentServer(LabradServer):
             add_measurement(p, self.Qubits[qubit])
             p.run(c['Stats'])
 
-            yield self.threadSend(c, self.handleSingleQubitData, p, cutoffs, c.ID, amp)
+            yield self.threadSend(c, self.handleSwitchingData, p, cutoffs, c.ID, amp)
             amp += ampstep
 
-        yield self.finishThreads(c, self.handleSingleQubitData)
+        yield self.finishThreads(c, self.handleSwitchingData)
 
         returnValue(name)
 
@@ -613,24 +624,13 @@ class ExperimentServer(LabradServer):
     def spectroscopy(self, c, power, region = None):
         self.checkSetup(c, 'Spectroscopy', None)
 
-        arctxts = [self.getMyContext('Anritsu', i) for i in range(len(c['Qubits']))]
-
-        waits = []
-
-        for i, qubit in enumerate(c['Qubits']):
-            p = self.anritsuServer.packet(context = arctxts[i])
-            p.select_device(int(self.Qubits[qubit]['Anritsu ID']))
-            p.amplitude(power)
-            waits.append(p.send())
-            
-        yield defer.DeferredList(waits)
-
         axes  = ['Probability (%s) [%%]' % stname for stname in getStates(len(c['Qubits']))]
 
         # Setup dataset
         p = self.dataServer.packet(context = c.ID)
-        self.add_dataset_setup(p, c['Session'], 'Spectroscopy on %s' % c['Setup'], ['Flux Bias [mV]', 'Frequency [GHz]'], axes)
-        self.add_qubit_parameters(p, qubit)
+        self.add_dataset_setup(p, c['Session'], 'Spectroscopy on %s' % c['Setup'], ['Frequency [GHz]'], axes)
+        for qubit in c['Qubits']:
+            self.add_qubit_parameters(p, qubit)
         p.add_parameter('Stats', float(c["Stats"]))
         name = (yield p.send()).new
 
@@ -641,7 +641,7 @@ class ExperimentServer(LabradServer):
             region = list(region)
             region[2] = region[2].inUnitsOf('GHz')
 
-        frqmin, frqmax, frqstep = getRange(region, 5, 10, 100)
+        frqmin, frqmax, frqstep = getRange(region, 5.0, 10.0, 0.1)
 
         cutoffs = [self.Qubits[qubit]['1-State Cutoff'] for qubit in c['Qubits']]
         frq=frqmin
@@ -655,106 +655,30 @@ class ExperimentServer(LabradServer):
             # Initialize Qubits
             add_qubit_inits(p, [self.Qubits[qubit] for qubit in c['Qubits']])
             for i, qubit in enumerate(c['Qubits']):
+                # Set up Anritsu
+                p.experiment_set_anritsu(('uWaves', i+1), T.Value(frq, 'GHz'), power)
                 # Set up a trigger for the scope
                 p.sram_trigger_pulse(('Trigger', i+1), 25)
                 # Send uWave Pulse
-                p.sram_iq_delay    (('uWaves',  i+1), 200, 6, False)
-                p.sram_iq_data     (('uWaves',  i+1), [1]*2000, 6, False)
+                p.sram_iq_delay    (('uWaves',  i+1), 200, False)
+                p.sram_iq_data     (('uWaves',  i+1), [1]*2000, False)
                 # Send Measure Pulse
                 p.sram_analog_delay(('Measure', i+1), 2200)
                 p.sram_analog_data (('Measure', i+1), [mpamp[qubit]]*mplen[qubit])
             p.memory_call_sram()
             # Readout
             add_goto_measure_biases(p, [self.Qubits[qubit] for qubit in c['Qubits']])
-            arsetup=[]
             for i, qubit in enumerate(c['Qubits']):
                 if i>0:
                     p.memory_delay(T.Value(200,'us'))
                 add_squid_ramp(p, self.Qubits[qubit], i+1)
-                arsetup.append((arctxts[i], 'Anritsu Server', [('Frequency', T.Value(frq, 'GHz'))]))
-            # Set anritsu frequency and run experiment
-            p.run(c['Stats'], arsetup)
+            # Run experiment
+            p.run(c['Stats'])
 
-            yield self.threadSend(c, self.handleSingleQubitData, p, cutoffs, c.ID, frq)
+            yield self.threadSend(c, self.handleSwitchingData, p, cutoffs, c.ID, frq)
             frq += frqstep
 
-        yield self.finishThreads(c, self.handleSingleQubitData)
-        
-        returnValue(name)
-
-
-
-    @setting(131, 'Fine Spectroscopy', power=['v[dBm]'], region=['(v[GHz]{start}, v[GHz]{end}, v[MHz]{steps})'],
-                                       returns=['*ss'])
-    def finespectroscopy(self, c, power, region = None):
-        self.checkSetup(c, 'Spectroscopy', 1)
-
-        arctxts = [self.getMyContext('Anritsu', i) for i in range(len(c['Qubits']))]
-
-        waits = []
-
-        for i, qubit in enumerate(c['Qubits']):
-            p = self.anritsuServer.packet(context = arctxts[i])
-            p.select_device(int(self.Qubits[qubit]['Anritsu ID']))
-            p.amplitude(power)
-            waits.append(p.send())
-            
-        yield defer.DeferredList(waits)
-
-        axes  = ['Probability (%s) [%%]' % stname for stname in getStates(len(c['Qubits']))]
-
-        # Setup dataset
-        p = self.dataServer.packet(context = c.ID)
-        self.add_dataset_setup(p, c['Session'], 'Fine Spectroscopy on %s' % c['Setup'], ['Frequency [GHz]'], axes)
-        self.add_qubit_parameters(p, qubit)
-        p.add_parameter('Stats', float(c["Stats"]))
-        name = (yield p.send()).new
-
-        # Take data
-        self.setupThreading(c)
-        
-        if not(region is None):
-            region = list(region)
-            region[2] = region[2].inUnitsOf('GHz')
-
-        frqmin, frqmax, frqstep = getRange(region, 5, 10, 100)
-
-        cutoffs = [self.Qubits[qubit]['1-State Cutoff'] for qubit in c['Qubits']]
-        frq=frqmin
-        self.abort = False
-        mplen = dict([(qubit, int(self.Qubits[qubit]['Measure Pulse Length'   ]      )) for qubit in c['Qubits']])
-        mpamp = dict([(qubit,     self.Qubits[qubit]['Measure Pulse Amplitude']/1000.0) for qubit in c['Qubits']])
-        while (frq<frqmax+(frqstep/3.0)) and not self.abort:
-            p = self.qubitServer.packet(context = self.nextThreadContext(c))
-            
-            p.experiment_new(c['Setup'])
-            # Initialize Qubits
-            add_qubit_inits(p, [self.Qubits[qubit] for qubit in c['Qubits']])
-            for i, qubit in enumerate(c['Qubits']):
-                # Set up a trigger for the scope
-                p.sram_trigger_pulse(('Trigger', i+1), 25)
-                # Send uWave Pulse
-                p.sram_iq_delay    (('uWaves',  i+1), 200, 6, False)
-                p.sram_iq_data     (('uWaves',  i+1), [1]*2000, 6, False)
-                # Send Measure Pulse
-                p.sram_analog_delay(('Measure', i+1), 2200)
-                p.sram_analog_data (('Measure', i+1), [mpamp[qubit]]*mplen[qubit])
-            p.memory_call_sram()
-            # Readout
-            add_goto_measure_biases(p, [self.Qubits[qubit] for qubit in c['Qubits']])
-            arsetup=[]
-            for i, qubit in enumerate(c['Qubits']):
-                if i>0:
-                    p.memory_delay(T.Value(200,'us'))
-                add_squid_ramp(p, self.Qubits[qubit], i+1)
-                arsetup.append((arctxts[i], 'Anritsu Server', [('Frequency', T.Value(frq, 'GHz'))]))
-            # Set anritsu frequency and run experiment
-            p.run(c['Stats'], arsetup)
-
-            yield self.threadSend(c, self.handleSingleQubitData, p, cutoffs, c.ID, frq)
-            frq += frqstep
-
-        yield self.finishThreads(c, self.handleSingleQubitData)
+        yield self.finishThreads(c, self.handleSwitchingData)
         
         returnValue(name)
 
@@ -770,13 +694,6 @@ class ExperimentServer(LabradServer):
         sbmix = self.Qubits[qubit]['Sideband Frequency']
         frq = self.Qubits[qubit]['Resonance Frequency'] - sbmix
 
-
-        p = self.anritsuServer.packet(context = c.ID)
-        p.select_device(int(self.Qubits[qubit]['Anritsu ID']))
-        p.amplitude(T.Value(2.7,'dBm'))
-        p.frequency(frq)
-        yield p.send()
-            
         # Setup dataset
         p = self.dataServer.packet(context = c.ID)
         self.add_dataset_setup(p, c['Session'], 'Rabi on %s' % qubit, ['Rabi Length [ns]'],
@@ -800,13 +717,15 @@ class ExperimentServer(LabradServer):
             p = self.qubitServer.packet(context = self.nextThreadContext(c))
 
             p.experiment_new(c['Setup'])
+            # Set up Anritsu
+            p.experiment_set_anritsu(('uWaves', 1), frq, T.Value(2.7,'dBm'))
             # Initialize Qubit
             add_qubit_inits(p, [self.Qubits[qubit]])
             # Add trigger
             p.sram_trigger_pulse(('Trigger', 1), 25)
             # Send uWave Pulse
-            p.sram_iq_delay           (('uWaves', 1), 200, frq)
-            p.sram_iq_envelope(('uWaves', 1), [amplitude]*int(time), frq, sbmix, 0)
+            p.sram_iq_delay   (('uWaves', 1), 200)
+            p.sram_iq_envelope(('uWaves', 1), [amplitude]*int(time), sbmix, 0)
             # Send Measure Pulse
             p.sram_analog_delay(('Measure', 1), time+mpofs+200)
             p.sram_analog_data (('Measure', 1), [mpamp]*mplen)
@@ -815,10 +734,10 @@ class ExperimentServer(LabradServer):
             add_measurement(p, self.Qubits[qubit])
             p.run(c['Stats'])
 
-            yield self.threadSend(c, self.handleSingleQubitData, p, cutoffs, c.ID, time)
+            yield self.threadSend(c, self.handleSwitchingData, p, cutoffs, c.ID, time)
             time += timestep
 
-        yield self.finishThreads(c, self.handleSingleQubitData)
+        yield self.finishThreads(c, self.handleSwitchingData)
 
         returnValue(name)
 
@@ -829,28 +748,13 @@ class ExperimentServer(LabradServer):
     def t1(self, c, region = None):
         self.checkSetup(c, 'Spectroscopy', None)
 
-        arctxts = [self.getMyContext('Anritsu', i) for i in range(len(c['Qubits']))]
-
-        waits = []
-
-        # Set Anritsu amplitudes and frequencies
-        for i, qubit in enumerate(c['Qubits']):
-            sbmix = self.Qubits[qubit]['Sideband Frequency']
-            frq = self.Qubits[qubit]['Resonance Frequency'] - sbmix
-            p = self.anritsuServer.packet(context = arctxts[i])
-            p.select_device(int(self.Qubits[qubit]['Anritsu ID']))
-            p.amplitude(T.Value(2.7,'dBm'))
-            p.frequency(frq)
-            waits.append(p.send())
-            
-        yield defer.DeferredList(waits)
-
         axes  = ['Probability (%s) [%%]' % stname for stname in getStates(len(c['Qubits']))]
 
         # Setup dataset
         p = self.dataServer.packet(context = c.ID)
         self.add_dataset_setup(p, c['Session'], 'T1-Sweep on %s' % c['Setup'], ['Frequency [GHz]'], axes)
-        self.add_qubit_parameters(p, qubit)
+        for qubit in c['Qubits']:
+            self.add_qubit_parameters(p, qubit)
         p.add_parameter('Stats', float(c["Stats"]))
         name = (yield p.send()).new
 
@@ -876,11 +780,13 @@ class ExperimentServer(LabradServer):
             # Initialize Qubits
             add_qubit_inits(p, [self.Qubits[qubit] for qubit in c['Qubits']])
             for i, qubit in enumerate(c['Qubits']):
+                # Set up Anritst
+                p.experiment_set_anritsu(('uWaves', i+1), rfreq[qubit]-sbmix[qubit], T.Value(2.7,'dBm'))
                 # Set up a trigger for the scope
                 p.sram_trigger_pulse(('Trigger', i+1), 25)
                 # Send uWave Pulse
-                p.sram_iq_delay           (('uWaves', i+1), 200, rfreq[qubit])
-                p.sram_iq_envelope(('uWaves', i+1), [piamp[qubit]]*pilen[qubit], rfreq[qubit], sbmix[qubit], 0)
+                p.sram_iq_delay   (('uWaves', i+1), 200)
+                p.sram_iq_envelope(('uWaves', i+1), [piamp[qubit]]*pilen[qubit], sbmix[qubit], 0)
                 # Send Measure Pulse
                 p.sram_analog_delay(('Measure', i+1), time+mpofs[qubit]+200)
                 p.sram_analog_data (('Measure', i+1), [mpamp[qubit]]*mplen[qubit])
@@ -893,10 +799,241 @@ class ExperimentServer(LabradServer):
             # Set anritsu frequency and run experiment
             p.run(c['Stats'])
 
-            yield self.threadSend(c, self.handleSingleQubitData, p, cutoffs, c.ID, time)
+            yield self.threadSend(c, self.handleSwitchingData, p, cutoffs, c.ID, time)
             time += timestep
 
-        yield self.finishThreads(c, self.handleSingleQubitData)
+        yield self.finishThreads(c, self.handleSwitchingData)
+        
+        returnValue(name)
+
+        
+
+    @setting(200, 'New Sequence', name=['s'], qubitcount=['w'],
+                                  returns=[''])
+    def define_sequence(self, c, name, qubitcount=1):
+        info={'QubitCount':qubitcount,
+              'Operations':[]}
+        self.sequences={name: info}
+        c['Sequence']=name
+        return
+
+    
+        
+    @setting(201, 'Add Operation', name=['s'], channel=['(sw)'], parameters=['?{(ss)(vs)...}'], returns=[''])
+    def add_operation(self, c, name, channel, parameters):
+        info = self.sequences[c['Sequence']]
+        info['Operations'].append((name, channel, list(parameters)))
+        return
+
+
+
+    @setting(202, 'Sequence Save', name=['s'], returns=['s'])
+    def save_sequence(self, c, name):
+        if name not in self.sequences:
+            raise QubitNotFoundError(name)
+        yield self.saveVariable('Sequences', name, self.sequences[name])
+        returnValue(name)
+
+
+
+    @setting(203, 'Sequence Load', name=['s'], returns=['s'])
+    def load_sequence(self, c, name):
+        data = yield self.loadVariable('Sequences', name)
+        self.sequences[name]={'QubitCount':1, 'Operations':[]}
+        self.sequences[name].update(data)
+        returnValue(repr(self.sequences[name]))
+
+
+
+    @setting(204, 'List Saved Sequence', returns=['*s'])
+    def list_saved_sequences(self, c):
+        names = yield self.listVariables('Sequences')
+        returnValue(names)
+
+
+
+    def getValue(self, name, qubit, given={}, units=None):
+        if not isinstance(name, str):
+            return name
+        result = None
+        if name in given:
+            result = given[name]
+        if (result is None) and (name in self.Qubits[qubit]):
+            result = self.Qubits[qubit][name]
+        if result is None:
+            raise MissingValueError(name)
+            
+        if isinstance(result, T.Value) and not (units is None):
+#            print result, units
+            return result.inUnitsOf(units).value
+        return result
+
+
+
+    def addOperations(self, pkt, ops, qubits, given={}):
+        for name, channel, parameters in ops:
+            qubit = qubits[channel[1]-1]
+#            print parameters, given
+            params = [self.getValue(p[0], qubit, given, p[1]) for p in parameters]
+#            print params
+            if channel[0]=='uWaves':
+                if name=='Slepian':
+                    pkt.sram_iq_slepian (channel, params[0], params[1], params[2], params[3])
+                if name=='TopHat':
+                    pkt.sram_iq_envelope(channel, [params[0]]*int(params[1]), params[2], params[3])
+                if name=='Delay':
+                    pkt.sram_iq_delay   (channel, params[0])
+                    
+            if channel[0]=='Measure':
+                if name=='Delay':
+                    pkt.sram_analog_delay(channel, params[0])
+                if name=='TopHat':
+                    pkt.sram_analog_data (channel, [params[0]]*int(params[1]))
+                if name=='Ramp':
+                    data=[params[0]+i*(params[1]-params[0])/params[2] for i in range(int(params[2]))]
+                    pkt.sram_analog_data (channel, data)
+                    
+        
+    @setting(210, 'Run 1D Sweep', sequencename=['s'], sweepvariable=['s'],
+                                  sweep=['(v{start}v{end}v{steps})'], returns=['*ss'])
+    def sweep_1d(self, c, sequencename, sweepvariable, sweep):
+        if not sequencename in self.sequences:
+            raise UndefinedSequenceError(sequencename)
+        seqinfo = self.sequences[sequencename]
+        self.checkSetup(c, sequencename, seqinfo['QubitCount'])
+
+        axes  = ['Probability (%s) [%%]' % stname for stname in getStates(len(c['Qubits']))]
+
+        if isinstance(sweep[0], T.Value):
+            units = sweep[0].units
+        else:
+            units = ''
+        # Setup dataset
+        p = self.dataServer.packet(context = c.ID)
+        self.add_dataset_setup(p, c['Session'], '%s on %s' % (sequencename, c['Setup']), [(sweepvariable, units)], axes)
+        for qubit in c['Qubits']:
+            self.add_qubit_parameters(p, qubit)
+        p.add_parameter('Stats', float(c["Stats"]))
+        name = (yield p.send()).new
+
+        # Take data
+        self.setupThreading(c)
+
+        cutoffs = [self.Qubits[qubit]['1-State Cutoff'] for qubit in c['Qubits']]
+        self.abort = False
+        mpofs = dict([(qubit, int(self.Qubits[qubit]['Measure Pulse Offset'   ]      )) for qubit in c['Qubits']])
+        sbmix = dict([(qubit,     self.Qubits[qubit]['Sideband Frequency'     ]       ) for qubit in c['Qubits']])
+        rfreq = dict([(qubit,     self.Qubits[qubit]['Resonance Frequency'    ]       ) for qubit in c['Qubits']])
+        
+        sweepvar = sweep[0]
+        while (sweepvar<=sweep[1]) and not self.abort:
+            p = self.qubitServer.packet(context = self.nextThreadContext(c))
+            c['Qubits']
+            p.experiment_new(c['Setup'])
+            # Initialize Qubits
+            add_qubit_inits(p, [self.Qubits[qubit] for qubit in c['Qubits']])
+            for i, qubit in enumerate(c['Qubits']):
+                # Set up Anritsu
+                p.experiment_set_anritsu(('uWaves', i+1), rfreq[qubit]-sbmix[qubit], T.Value(2.7,'dBm'))
+                # Set up a trigger for the scope
+                p.sram_trigger_pulse(('Trigger', i+1), 25)
+                # Add a base delay for all channels
+                p.sram_iq_delay     (('uWaves' , i+1), 200)
+                p.sram_analog_delay (('Measure', i+1), mpofs[qubit]+200)
+                
+            # Add experiment sequence
+            self.addOperations(p, seqinfo['Operations'], c['Qubits'], {sweepvariable: sweepvar})
+            
+            # Finish up memory
+            p.memory_call_sram()
+            add_goto_measure_biases(p, [self.Qubits[qubit] for qubit in c['Qubits']])
+            for i, qubit in enumerate(c['Qubits']):
+                if i>0:
+                    p.memory_delay(T.Value(200,'us'))
+                add_squid_ramp(p, self.Qubits[qubit], i+1)
+            # Run experiment
+            p.run(c['Stats'])
+
+            yield self.threadSend(c, self.handleSwitchingData, p, cutoffs, c.ID, sweepvar)
+            sweepvar += sweep[2]
+
+        yield self.finishThreads(c, self.handleSwitchingData)
+        
+        returnValue(name)
+                    
+        
+    @setting(211, 'Run 2D Sweep', sequencename=['s'], sweepvariable1=['s'],
+                                  sweep1=['(v{start}v{end}v{steps})'], sweepvariable2=['s'],
+                                  sweep2=['(v{start}v{end}v{steps})'], returns=['*ss'])
+    def sweep_2d(self, c, sequencename, sweepvariable1, sweep1, sweepvariable2, sweep2):
+        if not sequencename in self.sequences:
+            raise UndefinedSequenceError(sequencename)
+        seqinfo = self.sequences[sequencename]
+        self.checkSetup(c, sequencename, seqinfo['QubitCount'])
+
+        axes  = ['Probability (%s) [%%]' % stname for stname in getStates(len(c['Qubits']))]
+
+        if isinstance(sweep1[0], T.Value):
+            units1 = sweep1[0].units
+        else:
+            units1 = ''
+        if isinstance(sweep2[0], T.Value):
+            units2 = sweep2[0].units
+        else:
+            units2 = ''
+        # Setup dataset
+        p = self.dataServer.packet(context = c.ID)
+        self.add_dataset_setup(p, c['Session'], '%s on %s' % (sequencename, c['Setup']), [(sweepvariable1, units1), (sweepvariable2, units2)], axes)
+        for qubit in c['Qubits']:
+            self.add_qubit_parameters(p, qubit)
+        p.add_parameter('Stats', float(c["Stats"]))
+        name = (yield p.send()).new
+
+        # Take data
+        self.setupThreading(c)
+
+        cutoffs = [self.Qubits[qubit]['1-State Cutoff'] for qubit in c['Qubits']]
+        self.abort = False
+        mpofs = dict([(qubit, int(self.Qubits[qubit]['Measure Pulse Offset'   ]      )) for qubit in c['Qubits']])
+        sbmix = dict([(qubit,     self.Qubits[qubit]['Sideband Frequency'     ]       ) for qubit in c['Qubits']])
+        rfreq = dict([(qubit,     self.Qubits[qubit]['Resonance Frequency'    ]       ) for qubit in c['Qubits']])
+        
+        sweepvar2 = sweep2[0]
+        while (sweepvar2<=sweep2[1]) and not self.abort:
+            sweepvar1 = sweep1[0]
+            while (sweepvar1<=sweep1[1]) and not self.abort:
+                p = self.qubitServer.packet(context = self.nextThreadContext(c))
+                c['Qubits']
+                p.experiment_new(c['Setup'])
+                # Initialize Qubits
+                add_qubit_inits(p, [self.Qubits[qubit] for qubit in c['Qubits']])
+                for i, qubit in enumerate(c['Qubits']):
+                    # Set up Anritsu
+                    p.experiment_set_anritsu(('uWaves', i+1), rfreq[qubit]-sbmix[qubit], T.Value(2.7,'dBm'))
+                    # Set up a trigger for the scope
+                    p.sram_trigger_pulse(('Trigger', i+1), 25)
+                    # Add a base delay for all channels
+                    p.sram_iq_delay     (('uWaves' , i+1), 200)
+                    p.sram_analog_delay (('Measure', i+1), mpofs[qubit]+200)
+                    
+                # Add experiment sequence
+                self.addOperations(p, seqinfo['Operations'], c['Qubits'], {sweepvariable1: sweepvar1, sweepvariable2: sweepvar2})
+                
+                # Finish up memory
+                p.memory_call_sram()
+                add_goto_measure_biases(p, [self.Qubits[qubit] for qubit in c['Qubits']])
+                for i, qubit in enumerate(c['Qubits']):
+                    if i>0:
+                        p.memory_delay(T.Value(200,'us'))
+                    add_squid_ramp(p, self.Qubits[qubit], i+1)
+                # Run experiment
+                p.run(c['Stats'])
+
+                yield self.threadSend(c, self.handleSwitchingData, p, cutoffs, c.ID, sweepvar1, sweepvar2)
+                sweepvar1 += sweep1[2]
+            sweepvar2 += sweep2[2]
+
+        yield self.finishThreads(c, self.handleSwitchingData)
         
         returnValue(name)
 
