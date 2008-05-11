@@ -1,4 +1,4 @@
-# Copyright (C) 2007  Max Hofheinz 
+# Copyright (C) 2007  Max Hofheinz
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,11 +25,30 @@ def cosinefilter(n, width=0.4):
     """cosinefilter(n,width) cosine lowpass filter
     n samples from 0 to 0.5 GHz
     1 from 0 GHz to width GHz
-    rolls of from width GHz to 0.5 GHz like a quater cosine wave""" 
+    rolls of from width GHz to 0.5 GHz like a quater cosine wave"""
     result = ones(n,dtype=float)
     width = int(round((0.5-width)*n*2.0))
     if width > 0:
-        result[n-width:] = 0.5+0.5*cos(arange(0.0,pi,pi/width))
+
+        #                _                         _
+        #               |_|                       |_|
+        #               | |         /^^^\         | |
+        #              _| |_      (| "o" |)      _| |_
+        #            _| | | | _    (_---_)    _ | | | |_
+        #           | | | | |' |    _| |_    | `| | | | |
+        #           |          |   /     \   |          |
+        #            \        /  / /(. .)\ \  \        /
+        #              \    /  / /  | . |  \ \  \    /
+        #                \  \/ /    ||Y||    \ \/  /
+        #                 \__/      || ||      \__/
+        #                           () ()
+        #                           || ||
+        #                          ooO Ooo
+        #              MAX, DON'T CODE SHIT IN MY LAB!!!!
+
+
+        #print "width = %g  n=%g" % (width,n);
+        result[n-width:] = 0.5+0.5*cos(arange(0.0,pi-.01/width,pi/width)) # <---- problem!!!
     return result
 
 
@@ -103,7 +122,7 @@ def interpol(signal, x, extrapolate=False):
 class IQcorrection:
 
     def __init__(self, lowpass = cosinefilter, bandwidth = 0.4):
-    
+
         """
         Returns a DACcorrection object for the given DAC board.
         """
@@ -117,20 +136,20 @@ class IQcorrection:
         self.min_rescale_factor = 1.0
 
         self.flipChannels = False
-        
+
         # Set the Lowpass, i.e. the transfer function we want after correction
         # Unless otherwise specified, the filter will be flat and than roll off
         # between (1-bandwidth)*Nyquist and Nyquist
-        
+
         if lowpass == False:
             lowpass = flatfilter
 
         self.lowpass = lowpass
         self.bandwidth = bandwidth
-        
+
         self.correctionI=None
         self.correctionQ=None
-                    
+
         self.zeroTableStart = 0.0
         self.zeroTableStep = 1e6
         self.zeroTableI = self.zeroTableQ = array([0,0])
@@ -156,7 +175,7 @@ class IQcorrection:
         self.sidebandStep = sidebandStep
         l,sidebandCount = shape(sidebandData)
         sidebandCount = (sidebandCount-1)/2
-       
+
         self.sidebandCarrierStart = sidebandData[0,0]
         self.sidebandCarrierStep = \
             (sidebandData[-1,0] - sidebandData[0,0]) / (l - 1)
@@ -169,11 +188,11 @@ class IQcorrection:
             sidebandData[:,:,0] + 1.0j * sidebandData[:,:,1]
         print '  sideband frequencies: %g MHz to %g Mhz in steps of %g MHz' % \
               (-500.0*(sidebandCount-1)*self.sidebandStep,
-               500.0*(sidebandCount-1)*self.sidebandStep, 
+               500.0*(sidebandCount-1)*self.sidebandStep,
                self.sidebandStep*1000)
 
 
-        
+
 
     def loadPulseCal(self, dataPoints, carrierfreq, flipChannels = False):
 
@@ -211,7 +230,7 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         #go to frequency space
         i=rfft(i,n=n)
         q=rfft(q,n=n)
-        
+
         #demodulate
         low = i[carrierfreqIndex:carrierfreqIndex-finalLength/2-1:-1]
         high = i[carrierfreqIndex:carrierfreqIndex+finalLength/2+1:1]
@@ -220,7 +239,7 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         phase/=abs(phase)
         if (conjugate(phase)*low[0]).real < 0:
             phase*=-1
-     
+
         self.correctionI = 1.0 / \
             (0.5 / abs(low[0]) * (conjugate(low/phase) + high/phase))
 
@@ -233,17 +252,17 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
             phase*=-1
         self.correctionQ = 1.0 / \
             (0.5 / abs(low[0]) * (conjugate(low/phase) + high/phase))
-        #Make sure the correction does not get too large    
+        #Make sure the correction does not get too large
         #If correction goes above 3 * dynamicReserve,
-        #scale to 3 * dynamicReserve but preserve phase     
+        #scale to 3 * dynamicReserve but preserve phase
         self.correctionI /= \
             clip(abs(self.correctionI)/3/self.dynamicReserve, 1.0, Inf)
         self.correctionQ /= \
             clip(abs(self.correctionQ)/3/self.dynamicReserve, 1.0, Inf)
-        
-        
 
-    
+
+
+
 
     def DACzeros(self, carrierFreq):
         """Returns the DAC values for which, at the given carrier frequency,
@@ -251,7 +270,7 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         carrierFreq = (carrierFreq - self.zeroTableStart) / self.zeroTableStep
         return [interpol(self.zeroTableI, carrierFreq), \
                 interpol(self.zeroTableQ, carrierFreq)]
-     
+
 
 
     def _IQcompensation(self, carrierFreq, n):
@@ -286,12 +305,12 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         """
         Deconvolves the signal i with the stored response function and
         if iqcor=True, perform IQ mixer compensation at given carrier frequency.
-        
+
         If loop=True the fft is performed directly on the signal, otherwise the
         signal is padded with 0 to obtain a signal length for which fft is
         faster. The return value always has the same length as i, however.
         """
-    
+
         n=alen(i)
         if loop:
             nfft=n
@@ -305,7 +324,7 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         #add the first point at the end so that the elements of signal and
         #signal[::-1] are the Fourier components at opposite frequencies
         signal[nfft]=signal[0]
-        
+
         #correct for the non-orthoganality of the IQ channels
         if iqcor:
             signal += signal[::-1].conjugate() * \
@@ -314,7 +333,7 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         #separate I (FT of a real signal) and Q (FT of an imaginary signal)
         i =  0.5  * (signal[0:nrfft] + signal[nfft:nfft-nrfft:-1].conjugate())
         q = -0.5j * (signal[0:nrfft] - signal[nfft:nfft-nrfft:-1].conjugate())
-        
+
         #resample the FT of the response function at intervals 1 ns / nfft
         l=alen(self.correctionI)
         freqs = arange(0,nrfft) * 2.0 * (l - 1.0) / nfft
@@ -324,7 +343,7 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         lp = self.lowpass(nrfft, self.bandwidth)
         i=irfft(i*correctionI*lp, n=nfft)
         q=irfft(q*correctionQ*lp, n=nfft)
-        
+
         return [i[0:n],q[0:n]]
 
 
@@ -355,7 +374,7 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
 
 
         Keyword arguments:
-    
+
         loop=True: Does the the FFT on exactly the length of i and q.
             You need this if you have a periodic signal that is non-zero at
             the borders of the signal (like a continous sinewave). Otherwise
@@ -370,18 +389,18 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
             DACcorrection.last_rescale_factor contains the rescale factor
             actually used. DACcorrection.min_rescale_factor contains the
             smallest rescale factor used so far.
-        
+
         zerocor=False: Do not perform zero correction.
-     
+
         deconv=False: Do not perform deconvolution. Sideband frequency
             dependence of the IQ compensation will be ignored.
-        
+
         iqcor=False: Do not perform IQ mixer correction.
 
         zipSRAM=False: returns (I,Q) tupels instead of packed SRAM data,
             tupels are not clipped.
 
-        
+
         Example:
             cor = DACcorrection('DR Lab FPGA 0')
             t = arange(-50.0,50.0)
@@ -422,7 +441,7 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         # return [i,q]
 
         fullscale = 0x1FFF / self.dynamicReserve
-        
+
         if rescale:
             rescale = min([1.0, \
                            ( 0x1FFF - zeroI) / fullscale / max(i), \
@@ -431,19 +450,19 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
                            (-0x2000 - zeroQ) / fullscale / min(q)])
             if rescale < 1.0:
                 print 'Corrected signal scaled by %g to fit DAC range.'
-            # keep track of rescaling in the object data    
+            # keep track of rescaling in the object data
             self.last_rescale_factor = rescale
             if not isinstance(self.min_rescale_factor, float) or rescale < self.min_rescale_factor:
                 self.min_rescale_factor = rescale
             fullscale *= rescale
-                            
-        
+
+
         i = round(i * fullscale + zeroI).astype(int32)
         q = round(q * fullscale + zeroQ).astype(int32)
 
         if not zipSRAM:
             return (i, q)
-        
+
         if not rescale:
             if (max(i) > 0x1FFF) or (min(i) < -0x2000):
                 print 'Corrected I signal beyond DAC range, clipping.'
@@ -465,13 +484,13 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
 #                                           #
 #############################################
 
-        
-        
+
+
 class DACcorrection:
 
 
     def __init__(self, lowpass = gaussfilter, bandwidth = 0.13):
-    
+
         """
         Returns a DACcorrection object for the given DAC board.
         keywords:
@@ -488,7 +507,7 @@ class DACcorrection:
             bandwidth:
                 bandwidth are arguments passed to the lowpass filter function
                 (see above)
-                
+
         """
 
         #Set dynamic reserve
@@ -499,17 +518,17 @@ class DACcorrection:
         #Use this to see the smallest rescale factor DACify had to use
         self.min_rescale_factor = 1.0
 
- 
+
         # Set the Lowpass, i.e. the transfer function we want after correction
-       
+
         if lowpass == False:
             lowpass = flatfilter
 
         self.lowpass = lowpass
         self.bandwidth = 0.13
-        
+
         self.correction = None
-                    
+
         self.zero = 0.0
 
         self.clicsPerVolt = None
@@ -524,7 +543,7 @@ class DACcorrection:
         """
 
         #read pulse calibration from data server
-        
+
 
         samplingfreq=int(round(1.0/(dataPoints[1,0]-dataPoints[0,0])))
         dataPoints=dataPoints[:,1]
@@ -532,13 +551,13 @@ class DACcorrection:
         #length for fft, long because we want good frequency resolution
         finalLength=10240
         n=finalLength*samplingfreq
-        
+
         #go to frequency space
         dataPoints=rfft(dataPoints,n=n)
         self.zero = zero
         self.clicsPerVolt = clicsPerVolt
         self.correction = abs(dataPoints[0]) / dataPoints[0:finalLength/2+1]
-     
+
 
 
     def _deconvolve(self, signal, loop=False):
@@ -549,7 +568,7 @@ class DACcorrection:
         signal is padded with 0 to obtain a signal length for which fft is
         faster. The return value always has the same length as i, however.
         """
-    
+
         n=alen(signal)
 
         if loop:
@@ -582,8 +601,8 @@ class DACcorrection:
           - gain (if volts is True)
           - pulse shape (if deconv is True)
         DACify returns a long array in the range -0x2000 to 0x1FFF
-     
-  
+
+
         If you use deconvolution and unless you have a periodic signal
         (i.e. the signal given to DACify is looped without any dead time),
         you should have at least 5ns before and 20ns after your pulse where
@@ -592,7 +611,7 @@ class DACcorrection:
 
 
         Keyword arguments:
-    
+
         loop=True: Does the the FFT on exactly the length of the input
             signal.  You need this if you have a periodic signal that
             is non-zero at the borders of the signal (like a continous
@@ -609,18 +628,18 @@ class DACcorrection:
             smallest rescale factor used so far.
         fitRange=False: Do not clip data to fit into 14 bits. Only effective
             without rescaling.
-        
+
         zerocor=False: Do not perform zero correction.
-     
-        deconv=False: Do not perform deconvolution. 
-        
+
+        deconv=False: Do not perform deconvolution.
+
         volts=False: Do not correct the gain. 1 corresponds to
             DACrange/dynamicReserve
 
          """
 
         signal = asarray(signal)
-        
+
         if (alen(signal)==0):
             return zeros(0)
 
@@ -630,7 +649,7 @@ class DACcorrection:
         else:
             zero = 0
 
- 
+
         if deconv and (self.correction != None) and (alen(signal) > 1):
             #apply convolution and iq correction
             signal = self._deconvolve(signal,loop=loop)
@@ -638,7 +657,7 @@ class DACcorrection:
         # for testing uncomment this
         # return signal
         if volts and self.clicsPerVolt:
-            fullscale = 0x1FFF / self.clicsPerVolt             
+            fullscale = 0x1FFF / self.clicsPerVolt
         else:
             fullscale = 0x1FFF / self.dynamicReserve
         if rescale:
@@ -647,13 +666,13 @@ class DACcorrection:
                            (-0x2000 - zero) / fullscale / min(signal)])
             if rescale < 1.0:
                 print 'Corrected signal scaled by %g to fit DAC range.'
-            # keep track of rescaling in the object data    
+            # keep track of rescaling in the object data
             self.last_rescale_factor = rescale
             if not isinstance(self.min_rescale_factor, float) or rescale < self.min_rescale_factor:
                 self.min_rescale_factor = rescale
             fullscale *= rescale
-                            
-        
+
+
         signal = round(signal * fullscale + zero).astype(int32)
 
         if fitRange and not rescale :
@@ -663,6 +682,6 @@ class DACcorrection:
                 signal = clip(signal,-0x2000,0x1FFF)
         return (signal & 0x3FFF).astype(uint32)
 
-  
-        
-    
+
+
+
