@@ -16,8 +16,8 @@
 
 
 from numpy import conjugate, array, asarray, floor, ceil, round, min, max, \
-alen, clip, sqrt, log, arange, zeros, ones, reshape, outer, compress, sum, \
-shape, cos, pi, exp, Inf, size, real, imag, uint32, int32
+alen, clip, sqrt, log, arange, linspace, zeros, ones, reshape, outer, \
+compress, sum, shape, cos, pi, exp, Inf, size, real, imag, uint32, int32
 from numpy.fft import fft, rfft, irfft
 
 
@@ -29,26 +29,7 @@ def cosinefilter(n, width=0.4):
     result = ones(n,dtype=float)
     width = int(round((0.5-width)*n*2.0))
     if width > 0:
-
-        #                _                         _
-        #               |_|                       |_|
-        #               | |         /^^^\         | |
-        #              _| |_      (| "o" |)      _| |_
-        #            _| | | | _    (_---_)    _ | | | |_
-        #           | | | | |' |    _| |_    | `| | | | |
-        #           |          |   /     \   |          |
-        #            \        /  / /(. .)\ \  \        /
-        #              \    /  / /  | . |  \ \  \    /
-        #                \  \/ /    ||Y||    \ \/  /
-        #                 \__/      || ||      \__/
-        #                           () ()
-        #                           || ||
-        #                          ooO Ooo
-        #              MAX, DON'T CODE SHIT IN MY LAB!!!!
-
-
-        #print "width = %g  n=%g" % (width,n);
-        result[n-width:] = 0.5+0.5*cos(arange(0.0,pi-.01/width,pi/width)) # <---- problem!!!
+        result[n-width:] = 0.5+0.5*cos(linspace(0,pi,width,endpoint=False))
     return result
 
 
@@ -59,7 +40,7 @@ def gaussfilter(n, width=0.13):
     -3dB frequency at width GHz
     """
     x=0.5 / width * sqrt(log(2.0)/2.0)
-    gauss=exp(-arange(0,x,x/n)**2)
+    gauss=exp(-linspace(0,x,n,endpoint=False)**2)
     x=gauss[n-1]
     gauss -= x
     gauss /= (1.0 - x)
@@ -583,8 +564,15 @@ class DACcorrection:
 
         l=alen(self.correction)
         freqs = arange(0,nrfft) * 2.0 * (l - 1.0) / nfft
+        print 'AA'
         correction = interpol(self.correction, freqs, extrapolate=True)
+        print 'BB'
         #do the actual deconvolution and transform back to time space
+        print signal.shape
+        print correction.shape
+        print nrfft
+        print self.bandwidth
+        print self.lowpass(nrfft, self.bandwidth).shape
         signal=irfft(signal*correction*self.lowpass(nrfft, self.bandwidth),
                      n=nfft)
         return signal[0:n]
@@ -638,21 +626,24 @@ class DACcorrection:
 
          """
 
+        print 'A'
         signal = asarray(signal)
 
         if (alen(signal)==0):
             return zeros(0)
+        print 'B'
 
         #read DAC zeros
         if zerocor:
             zero = self.zero
         else:
             zero = 0
-
+        print 'C'
 
         if deconv and (self.correction != None) and (alen(signal) > 1):
             #apply convolution and iq correction
             signal = self._deconvolve(signal,loop=loop)
+        print 'D'
 
         # for testing uncomment this
         # return signal
@@ -671,7 +662,7 @@ class DACcorrection:
             if not isinstance(self.min_rescale_factor, float) or rescale < self.min_rescale_factor:
                 self.min_rescale_factor = rescale
             fullscale *= rescale
-
+        print 'E'
 
         signal = round(signal * fullscale + zero).astype(int32)
 
