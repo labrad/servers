@@ -564,15 +564,8 @@ class DACcorrection:
 
         l=alen(self.correction)
         freqs = arange(0,nrfft) * 2.0 * (l - 1.0) / nfft
-        print 'AA'
         correction = interpol(self.correction, freqs, extrapolate=True)
-        print 'BB'
         #do the actual deconvolution and transform back to time space
-        print signal.shape
-        print correction.shape
-        print nrfft
-        print self.bandwidth
-        print self.lowpass(nrfft, self.bandwidth).shape
         signal=irfft(signal*correction*self.lowpass(nrfft, self.bandwidth),
                      n=nfft)
         return signal[0:n]
@@ -626,24 +619,20 @@ class DACcorrection:
 
          """
 
-        print 'A'
         signal = asarray(signal)
 
         if (alen(signal)==0):
             return zeros(0)
-        print 'B'
 
         #read DAC zeros
         if zerocor:
             zero = self.zero
         else:
             zero = 0
-        print 'C'
 
         if deconv and (self.correction != None) and (alen(signal) > 1):
             #apply convolution and iq correction
             signal = self._deconvolve(signal,loop=loop)
-        print 'D'
 
         # for testing uncomment this
         # return signal
@@ -662,7 +651,6 @@ class DACcorrection:
             if not isinstance(self.min_rescale_factor, float) or rescale < self.min_rescale_factor:
                 self.min_rescale_factor = rescale
             fullscale *= rescale
-        print 'E'
 
         signal = round(signal * fullscale + zero).astype(int32)
 
