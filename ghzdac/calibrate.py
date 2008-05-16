@@ -219,6 +219,8 @@ def modulated_pulse(cxn, scanparams, boardname, setupType, baselineA, baselineB)
         print """Time scales are different for measurement of DAC A and B.
         Did you change settings on the scope during the measurement?"""
         exit
+    #set output to zero    
+    fpga.run_sram([baseline]*4)
     ds = cxn.data_vault
     ds.cd(['',SESSIONNAME,boardname],True)
     ds.new(PULSENAME,[('Time','ns')],[('Voltage','A','V'),('Voltage','B','V')])
@@ -265,6 +267,8 @@ def unmodulated_pulse(cxn,scanparams,boardname,channel):
     print 'Measuring pulse response...'
     trace = measure_impulse_response(fpga, scope, baseline, pulse,
         dacoffsettime=scanparams['dacOffsetTimeNoIQ'])
+
+    fpga.run_sram([0]*4,False)
     ds = cxn.data_vault
     ds.cd(['',SESSIONNAME,boardname],True)
     ds.new(CHANNELNAMES[channel],[('Time','ns')],[('Voltage','','V')])
