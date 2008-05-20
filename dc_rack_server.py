@@ -37,9 +37,12 @@ class PreampServer(LabradServer):
                      {'Server': 'twins_serial_server',
                       'Port':   'COM1',
                       'Name':   'Electronics Room'},
-                     {'Server': 't1000_serial_server',
+                     {'Server': 'dr_serial_server',
                       'Port':   'COM1',
                       'Name':   'DR Lab'},
+                     {'Server': 't1000_serial_server',
+                      'Port':   'COM1',
+                      'Name':   'T1000 Lab'},
                      {'Server': 'adr_serial_server',
                       'Port':   'COM1',
                       'Name':   'ADR Lab'}]
