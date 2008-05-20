@@ -38,7 +38,7 @@ class PreampServer(LabradServer):
                       'Port':   'COM1',
                       'Name':   'Electronics Room'},
                      {'Server': 'dr_serial_server',
-                      'Port':   'COM1',
+                      'Port':   'COM8',
                       'Name':   'DR Lab'},
                      {'Server': 't1000_serial_server',
                       'Port':   'COM1',
@@ -59,7 +59,7 @@ class PreampServer(LabradServer):
             if S['Server'] in cxn.servers:
                 print 'Checking %s...' % S['Name']
                 ser = cxn.servers[S['Server']]
-                ports = (yield ser.list_serial_ports())[0]
+                ports = (yield ser.list_serial_ports())
                 if S['Port'] in ports:
                     print '  Found %s on %s' % (S['Port'], S['Server'])
                     self.Links += [{'Server': ser,
