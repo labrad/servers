@@ -454,17 +454,14 @@ class QubitServer(LabradServer):
         for qindex, qname in enumerate(Setup['Qubits']):
             q = self.getQubit(qname)
             for ch, info in q['IQs'].items():
-                c['Experiment']['IQs'][(ch, qindex+1)] = {'Info': info,
-                                                          'Data': ([],[])}
-                Result.append((ch, qindex+1,
-                              "IQ channel '%s' on Qubit %d connected to %s" % (ch, qindex+1, info['Anritsu'][1])))
-            for ChName in ['Analog', 'Trigger']:
-                for ch, info in q[ChName+'s'].items():
-                    c['Experiment'][ChName+'s'][(ch, qindex+1)] = {'Info': info,
-                                                                   'Data': []}
-                    Result.append((ch, qindex+1,
-                                  "%s channel '%s' on Qubit %d" %
-                                  (ChName,     ch,          qindex+1)))
+                c['Experiment']['IQs'     ][(ch, qindex+1)] = {'Info': info, 'Data': numpy.array( [0+0j]*SRAMPREPAD)}
+                Result.append((ch, qindex+1, "IQ channel '%s' on Qubit %d connected to %s" % (ch, qindex+1, info['Anritsu'][1])))
+            for ch, info in q['Analogs'].items():
+                c['Experiment']['Analogs' ][(ch, qindex+1)] = {'Info': info, 'Data': numpy.array(  [0.0]*SRAMPREPAD)}
+                Result.append((ch, qindex+1, "Analog channel '%s' on Qubit %d" % (ch, qindex+1)))
+            for ch, info in q['Triggers'].items():
+                c['Experiment']['Triggers'][(ch, qindex+1)] = {'Info': info, 'Data': []}
+                Result.append((ch, qindex+1, "Trigger channel '%s' on Qubit %d" % (ch, qindex+1)))
             for ch, info in q['FOs'].items():
                 fpgaboard = GrabFromList(info['Board'][1], self.GHzDACs, DeviceNotFoundError)
                 fo_channel = GrabFromList(info['FO'][1], self.FOchannels, ChannelNotFoundError)
@@ -665,94 +662,31 @@ class QubitServer(LabradServer):
         return T.Value(1/25.0, 'us')
 
 
-    @inlineCallbacks
-    def insertIQData(self, cxn, cID, chinfo, carrierfrq, data):
-        if not (carrierfrq is None):
-            p = cxn.dac_calibration.packet(context = cID)
-            p.board    (chinfo['Info']['Board'][1])
-            p.frequency(carrierfrq)
-            p.correct([0])
-            p.correct(data)
-            deconv = yield p.send()
-            zerodata = deconv.correct[0]
-            cordata  = deconv.correct[1]
-            cordata  = (numpy.array(cordata[0]), numpy.array(cordata[1]))
-        else:
-            zerodata = ([0],[0])
-            if isinstance(data[0], tuple):
-                cordata = (numpy.array([0]*len(data)),numpy.array([0]*len(data)))
-                for ofs,i,q in enumerate(data):
-                    cordata[0][ofs] = i.value*0x1FFF
-                    cordata[1][ofs] = q.value*0x1FFF
-            else:
-                data = numpy.array(data)
-                cordata=((data.real*0x1FFF).astype(int),
-                         (data.imag*0x1FFF).astype(int))
-            
-        if len(chinfo['Data'][0])==0:
-            chinfo['Data']=(numpy.array(cordata[0]), numpy.array(cordata[1]))
-        else:
-            chinfo['Data'][0][-SRAMPAD:] += cordata[0][0:SRAMPAD] - zerodata[0][0]
-            chinfo['Data'][1][-SRAMPAD:] += cordata[1][0:SRAMPAD] - zerodata[1][0]
-            chinfo['Data'] = (numpy.hstack((chinfo['Data'][0], cordata[0][SRAMPAD:])),
-                              numpy.hstack((chinfo['Data'][1], cordata[1][SRAMPAD:])))
-        chinfo['Data'][0][0:4]=zerodata[0]*4
-        chinfo['Data'][1][0:4]=zerodata[1]*4
-
-
-    def getCarrier(self, c, channel):
-        anritsu = c['Experiment']['IQs'][channel]['Info']['Anritsu'][1]
-        anritsuinfo = c['Experiment']['Anritsus'][anritsu]
-        if not isinstance(anritsuinfo, tuple):
-            raise AnritsuSetupError()
-        return anritsuinfo[0]
+    def getChannel(self, c, channel, chtype):
+        if 'Experiment' not in c:
+            raise NoExperimentError()
+        if channel not in c['Experiment'][chtype]:
+            raise QubitChannelNotFoundError(channel[1], channel[0])
+        return c['Experiment'][chtype][channel]
 
 
     @setting(200, 'SRAM IQ Data', channel=['(sw)'], data = ['*(vv)','*c'], correct=['b'])
     def add_iq_data(self, c, channel, data, correct=True):
         """Adds IQ data to the specified Channel"""
-        if 'Experiment' not in c:
-            raise NoExperimentError()
-        if channel not in c['Experiment']['IQs']:
-            raise QubitChannelNotFoundError(channel[1], channel[0])
-        if correct:
-            carrierfrq = self.getCarrier(c, channel)
-        else:
-            carrierfrq = None
-
-        if len(data)>0:
-            if isinstance(data[0], tuple):
-                data = [(0,0)]*SRAMPREPAD + data + [(0,0)]*SRAMPOSTPAD
-            else:
-                data = [0]*SRAMPREPAD + data + [0]*SRAMPOSTPAD
-        else:
-            data = [0]*(SRAMPREPAD+SRAMPOSTPAD)
-
-        yield self.insertIQData(self.client, c.ID, c['Experiment']['IQs'][channel], carrierfrq, data)
-
+        chinfo = self.getChannel(c, channel, 'IQs')        
+        data = data.asarray
+        # convert to complex data
+        if len(data.shape)==2:
+            data = data[:,0] + data[:,1] * 1j
+        chinfo['Data'] = numpy.hstack((chinfo['Data'], data))
 
 
     @setting(201, 'SRAM IQ Delay', channel=['(sw)'], delay=['v[ns]'], correct=['b'])
     def add_iq_delay(self, c, channel, delay, correct=True):
         """Adds a delay in the IQ data to the specified Channel"""
-        if 'Experiment' not in c:
-            raise NoExperimentError()
-        if channel not in c['Experiment']['IQs']:
-            raise QubitChannelNotFoundError(channel[1], channel[0])
-        chinfo = c['Experiment']['IQs'][channel]
-
-        if correct:
-            carrierfrq = self.getCarrier(c, channel)
-            cxn = self.client
-            p = cxn.dac_calibration.packet(context = c.ID)
-            p.board    (chinfo['Info']['Board'][1])
-            p.frequency(carrierfrq)
-            p.correct  ([0])
-            zerodata = (yield p.send()).correct
-        else:
-            zerodata = ([0],[0])
-        chinfo['Data'] = (numpy.hstack((chinfo['Data'][0], zerodata[0]*int(delay.value))),
-                          numpy.hstack((chinfo['Data'][1], zerodata[1]*int(delay.value))))
+        chinfo = self.getChannel(c, channel, 'IQs')        
+        data = numpy.array([0+0j]*int(delay))
+        chinfo['Data'] = numpy.hstack((chinfo['Data'], data))
 
 
     @setting(202, 'SRAM IQ Envelope', channel=['(sw)'], data = ['*v'], mixfreq=['v[MHz]'],
@@ -760,127 +694,44 @@ class QubitServer(LabradServer):
     def add_iq_envelope(self, c, channel, data, mixfreq, phaseshift, correct=True):
         """Turns the given envelope data into IQ data with the specified Phase and
         Sideband Mixing. The resulting data is added to the specified Channel"""
-        if 'Experiment' not in c:
-            raise NoExperimentError()
-        if channel not in c['Experiment']['IQs']:
-            raise QubitChannelNotFoundError(channel[1], channel[0])
-        if correct:
-            carrierfrq = self.getCarrier(c, channel)
-        else:
-            carrierfrq = None
-        chinfo = c['Experiment']['IQs'][channel]
+        chinfo = self.getChannel(c, channel, 'IQs')        
+        tofs = max(len(chinfo['Data'])-SRAMPOSTPAD, 0)
+        data = data.asarray*numpy.exp(-(2.0j*numpy.pi*(numpy.arange(len(data))+tofs))*mixfreq.value/1000.0 + phaseshift.value*1.0j)
+        chinfo['Data'] = numpy.hstack((chinfo['Data'], data))
 
-        if len(data)>0:
-            tofs = max(len(chinfo['Data'][0])-SRAMPOSTPAD, 0)
-            data = numpy.array(data)*numpy.exp(-(2.0j*numpy.pi*(numpy.arange(len(data))+tofs) + phaseshift.value)*mixfreq.value/1000.0)
-            data = [0]*SRAMPREPAD + data.tolist() + [0]*SRAMPOSTPAD
-        else:
-            data = [0]*(SRAMPREPAD+SRAMPOSTPAD)
-
-        yield self.insertIQData(self.client, c.ID, chinfo, carrierfrq, data)
 
     @setting(203, 'SRAM IQ Slepian', channel=['(sw)'], amplitude=['v'], length=['v[ns]'],
                                      mixfreq=['v[MHz]'], phaseshift=['v[rad]'], correct=['b'])
     def add_iq_slepian(self, c, channel, amplitude, length, mixfreq, phaseshift, correct=True):
         """Generates IQ data for a Slepian Pulse with the specified Amplitude, Width, Phase and
         Sideband Mixing. The resulting data is added to the specified Channel"""
-        if 'Experiment' not in c:
-            raise NoExperimentError()
-        if channel not in c['Experiment']['IQs']:
-            raise QubitChannelNotFoundError(channel[1], channel[0])
-        if correct:
-            carrierfrq = self.getCarrier(c, channel)
-        else:
-            carrierfrq = None
-        chinfo = c['Experiment']['IQs'][channel]
-
+        chinfo = self.getChannel(c, channel, 'IQs')        
         length = int(length)
         data = amplitude*slepian(length, 10.0/length)
-
-        if len(data)>0:
-            tofs = max(len(chinfo['Data'][0])-SRAMPOSTPAD, 0)
-            data = numpy.array(data)*numpy.exp(-(2.0j*numpy.pi*(numpy.arange(len(data))+tofs) + phaseshift.value)*mixfreq.value/1000.0)
-            data = [0]*SRAMPREPAD + data.tolist() + [0]*SRAMPOSTPAD
-        else:
-            data = [0]*(SRAMPREPAD+SRAMPOSTPAD)
-
-        yield self.insertIQData(self.client, c.ID, chinfo, carrierfrq, data)
+        tofs = max(len(chinfo['Data'])-SRAMPOSTPAD, 0)
+        data = data*numpy.exp(-(2.0j*numpy.pi*(numpy.arange(len(data))+tofs))*mixfreq.value/1000.0 + phaseshift.value*1.0j)
+        chinfo['Data'] = numpy.hstack((chinfo['Data'], data))
 
 
     @setting(210, 'SRAM Analog Data', channel=['(sw)'], data=['*v'], correct=['b'])
     def add_analog_data(self, c, channel, data, correct=True):
         """Adds analog data to the specified Channel"""
-        if 'Experiment' not in c:
-            raise NoExperimentError()
-        if channel not in c['Experiment']['Analogs']:
-            raise QubitChannelNotFoundError(channel[1], channel[0])
-        #goto_sram(c)
-        chinfo = c['Experiment']['Analogs'][channel]
-
-        if correct:
-            cxn = self.client
-            p = cxn.dac_calibration.packet(context = c.ID)
-            p.board(chinfo['Info']['Board'][1])
-            p.dac  (chinfo['Info']['DAC'][1])
-            p.correct([0])
-            p.correct(numpy.hstack((numpy.zeros(SRAMPREPAD),
-                                    data.asarray,
-                                    numpy.zeros(SRAMPOSTPAD))))
-            #p.correct([0]*SRAMPREPAD + data.aslist + [0]*SRAMPOSTPAD)
-            deconv = yield p.send()
-            zerodata = deconv.correct[0].asarray[0]
-            cordata  = deconv.correct[1].asarray
-        else:
-            zerodata = 0
-            cordata = numpy.array([0]*(SRAMPREPAD+len(data)+SRAMPOSTPAD))
-            cordata[SRAMPREPAD:SRAMPREPAD+len(data)]=(numpy.array(data)*0x1FFF).astype(int)
-
-        if len(chinfo['Data'])==0:
-            chinfo['Data']=cordata
-        else:
-            chinfo['Data'][-SRAMPAD:] += (cordata[0:SRAMPAD] - zerodata)
-            chinfo['Data'] = numpy.hstack((chinfo['Data'], cordata[SRAMPAD:]))
-        chinfo['Data'][0:4]=[zerodata]*4
-
+        chinfo = self.getChannel(c, channel, 'Analogs')        
+        chinfo['Data'] = numpy.hstack((chinfo['Data'], data.asarray))
 
 
     @setting(211, 'SRAM Analog Delay', channel=['(sw)'], delay=['v[ns]'], correct=['b'])
     def add_analog_delay(self, c, channel, delay, correct=True):
         """Adds a delay to the analog data of the specified Channel"""
-        if 'Experiment' not in c:
-            raise NoExperimentError()
-        if channel not in c['Experiment']['Analogs']:
-            raise QubitChannelNotFoundError(channel[1], channel[0])
-        #goto_sram(c)
-        chinfo = c['Experiment']['Analogs'][channel]
-
-        if correct:
-            cxn = self.client
-            p = cxn.dac_calibration.packet(context = c.ID)
-            p.board  (chinfo['Info']['Board'][1])
-            p.dac    (chinfo['Info']['DAC'][1])
-            p.correct([0])
-            zerodata = (yield p.send()).correct[0]
-        else:
-            zerodata = 0
-            
-        if len(chinfo['Data'])==0:
-            chinfo['Data']=[zerodata]*(int(delay.value)+SRAMPAD)
-        else:
-            chinfo['Data']=numpy.hstack((chinfo['Data'], [zerodata]*int(delay.value)))
+        chinfo = self.getChannel(c, channel, 'Analogs')        
+        chinfo['Data'] = numpy.hstack((chinfo['Data'], numpy.array([0+0j]*int(delay))))
 
 
     @setting(220, 'SRAM Trigger Pulse', channel=['(sw)'], length=['v[ns]'],
                                         returns=['w'])
     def add_trigger_pulse(self, c, channel, length):
         """Adds a Trigger Pulse of the given length to the specified Channel"""
-        if 'Experiment' not in c:
-            raise NoExperimentError()
-        if channel not in c['Experiment']['Triggers']:
-            raise QubitChannelNotFoundError(channel[1], channel[0])
-        #goto_sram(c)
-        chinfo = c['Experiment']['Triggers'][channel]
-
+        chinfo = self.getChannel(c, channel, 'Triggers')        
         n = int(length.value)
         if n>0:
             chinfo['Data'].append((True, n))
@@ -891,78 +742,74 @@ class QubitServer(LabradServer):
                                         returns=['w'])
     def add_trigger_delay(self, c, channel, length):
         """Adds a delay of the given length to the specified Trigger Channel"""
-        if 'Experiment' not in c:
-            raise NoExperimentError()
-        if channel not in c['Experiment']['Triggers']:
-            raise QubitChannelNotFoundError(channel[1], channel[0])
-        #goto_sram(c)
-        chinfo = c['Experiment']['Triggers'][channel]
-
+        chinfo = self.getChannel(c, channel, 'Triggers')        
         n = int(length.value)
         if n>0:
             chinfo['Data'].append((False, n))
         return n
 
-        
-    @setting(299, 'Memory Call SRAM', returns=['*s'])
-    def finish_sram(self, c):
-        """Constructs the final SRAM data from all the Channel data and adds the right
-        "Call SRAM" command into the Memory of all Qubits to execute the SRAM data"""
-        if 'Experiment' not in c:
-            raise NoExperimentError()
-        # figure out longest SRAM block
-        longest = 24
-        for info in c['Experiment']['IQs'].values():
-            if len(info['Data'][0])>longest:
-                longest = len(info['Data'][0])
-        for info in c['Experiment']['Analogs'].values():
-            if len(info['Data'])>longest:
-                longest = len(info['Data'])
-        for info in c['Experiment']['Triggers'].values():
-            totalcount = SRAMPREPAD
-            for val, count in info['Data']:
-                totalcount+=count
-            if totalcount>longest:
-                longest = totalcount
-        # make sure SRAM length is divisible by 4
-        longest = (longest + 3) & 0xFFFFFC
 
-        # generate empty SRAM data (NOT USING CORRECT DAC ZEROS YET!)
-        srams = dict([(board, numpy.array([0]*longest)) for board in c['Experiment']['FPGAs']])
-
+    @inlineCallbacks
+    def buildSRAM(self, expt):
+        # Get client connection
         cxn = self.client
         
-        # Fill in data
-        for info in c['Experiment']['IQs'].values():
-            if DEBUG==2:
-                p = cxn.data_server.packet()
-                p.open_session('debug')
-                p.new_dataset('IQ data')
-                p.add_independent_variable('Time')
-                p.add_dependent_variable('real')
-                p.add_dependent_variable('imag')
-                p.add_datapoint([[t, d[0], d[1]][i] for t, d in enumerate(zip(*info['Data'])) for i in range(3)])
-                yield p.send()
-                
-            srams[info['Info']['Board'][1]][0:len(info['Data'][0])] |= \
-                (numpy.array(info['Data'][0]).astype(int) & 0x3FFF) + \
-               ((numpy.array(info['Data'][1]).astype(int) & 0x3FFF) << 14)
-            
-        for info in c['Experiment']['Analogs'].values():
-            if DEBUG==2:
-                p = cxn.data_server.packet()
-                p.open_session('debug')
-                p.new_dataset('Analog data')
-                p.add_independent_variable('Time')
-                p.add_dependent_variable('amplitude')
-                p.add_datapoint([[t, d][i] for t, d in enumerate(info['Data']) for i in range(2)])
-                yield p.send()
-                
-            shift = info['Info']['DAC'][0]*14
-            srams[info['Info']['Board'][1]][0:len(info['Data'])] |= \
-                (numpy.array(info['Data']).astype(int) & 0x3FFF) << shift
+        # Figure out longest SRAM block
+        longest = 24
+        for chname in ['IQs', 'Analogs', 'Triggers']:
+            for ch in expt[chname].keys():
+                l = len(expt[chname][ch]['Data'])+SRAMPOSTPAD
+                if l>longest:
+                    longest = l
+        # make sure SRAM length is divisible by 4
+        longest = (longest + 3) & 0xFFFFFC
+        srams = dict([(board, numpy.zeros(longest).astype('int')) for board in expt['FPGAs']])
 
-        for info in c['Experiment']['Triggers'].values():
+        # deconvolve the IQ and Analog channels
+        deconvolved = {}
+        for chname in ['IQs', 'Analogs']:
+            for ch in expt[chname].keys():
+                board = expt[chname][ch]['Info']['Board'][1]
+                p = cxn.dac_calibration.packet()
+                p.board(board)
+                if expt[chname][ch]['Info'].has_key('Anritsu'):
+                    anritsu = expt[chname][ch]['Info']['Anritsu'][1]
+                    frq = expt['Anritsus'][anritsu]
+                    if frq is None:
+                        d = numpy.hstack((expt[chname][ch]['Data'], numpy.zeros(SRAMPOSTPAD)))
+                        d =  ((d.real*0x1FFF).astype('int') & 0x3FFF) + \
+                            (((d.imag*0x1FFF).astype('int') & 0x3FFF) << 14)
+                        deconvolved[(chname, ch)] = d
+                        continue
+                    frq = frq[0]
+                    p.frequency(frq)
+                else:
+                    dac = expt[chname][ch]['Info']['DAC'][1]
+                    p.dac(dac)
+                p.correct(numpy.hstack((expt[chname][ch]['Data'], numpy.zeros(SRAMPOSTPAD))))
+                ans = yield p.send()
+                d = ans.correct
+                if isinstance(d, tuple):
+                    d = ((d[1].asarray & 0x3FFF) << 14) + (d[0].asarray & 0x3FFF)
+                else:
+                    d = d.asarray & 0x3FFF
+                deconvolved[(chname, ch)] = d
+
+        # plug data into srams
+        for ch, info in expt['IQs'].items():
+            l = len(deconvolved[('IQs', ch)])
+            if l>0:
+                srams[info['Info']['Board'][1]][0:l]       |=  deconvolved[('IQs', ch)]
+                srams[info['Info']['Board'][1]][l:longest] |= [deconvolved[('IQs', ch)][0]] * (longest-l)
+            
+        for ch, info in expt['Analogs'].items():
+            shift = info['Info']['DAC'][0]*14
+            l = len(deconvolved[('Analogs', ch)])
+            if l>0:
+                srams[info['Info']['Board'][1]][0:l]       |=  deconvolved[('Analogs', ch)]    << shift
+                srams[info['Info']['Board'][1]][l:longest] |= [deconvolved[('Analogs', ch)][0] << shift] * (longest-l)
+
+        for info in expt['Triggers'].values():
             mask = 1 << (info['Info']['Trigger'][0] + 28)
             ofs = SRAMPREPAD
             for val, count in info['Data']:
@@ -970,11 +817,135 @@ class QubitServer(LabradServer):
                     srams[info['Info']['Board'][1]][ofs: ofs+count] |= mask
                 ofs += count
 
+        returnValue(srams)
+
+
+    @setting(230, 'SRAM Plot', session=['*s'], name='s', correct=['b'], returns=[])
+    def plot_sram(self, c, session, name, correct=True):
+        cxn = self.client
+        dv  = cxn.data_vault
+        p   = dv.packet()
+        yaxes = []
+        for ch, qb in c['Experiment']['IQs'].keys():
+            yaxes.append(('Amplitude', "Real part of IQ channel '%s' on Qubit %d" % (ch, qb), "a.u."))
+            yaxes.append(('Amplitude', "Imag part of IQ channel '%s' on Qubit %d" % (ch, qb), "a.u."))
+        for ch, qb in c['Experiment']['Analogs'].keys():
+            yaxes.append(('Amplitude', "Analog channel '%s' on Qubit %d" % (ch, qb), "a.u."))
+        for ch, qb in c['Experiment']['Triggers'].keys():
+            yaxes.append(('Amplitude', "Trigger channel '%s' on Qubit %d" % (ch, qb), "a.u."))
+        dir = ['']+session.aslist
+        p.cd(dir)
+        p.new(name, [('Time', 'ns')], yaxes)
+        yield p.send()
+
+        if correct:
+            # Build deconvolved SRAM content
+            srams = yield self.buildSRAM(c['Experiment'])
+            # Extract corrected data from SRAM
+            data = None
+            for ch, info in c['Experiment']['IQs'].items():
+                i  = (srams[info['Info']['Board'][1]]      ) & 0x00003FFF
+                q  = (srams[info['Info']['Board'][1]] >> 14) & 0x00003FFF
+                i-= ((i & 8192) >> 13) * 16384
+                q-= ((q & 8192) >> 13) * 16384
+                i = i.astype('float')/8192.0
+                q = q.astype('float')/8192.0
+                if data is None:
+                    data = numpy.vstack((numpy.arange(0.0, float(len(i)), 1.0), i, q))
+                else:
+                    data = numpy.vstack((data, i, q))
+                
+            for ch, info in c['Experiment']['Analogs'].items():
+                shift = info['Info']['DAC'][0]*14
+                d  = (srams[info['Info']['Board'][1]] >> shift) & 0x00003FFF
+                d -= ((d & 8192) >> 13) * 16384
+                d = d.astype('float')/8192.0
+                if data is None:
+                    data = numpy.vstack((range(len(i)), d))
+                else:
+                    data = numpy.vstack((data, d))
+
+            for info in c['Experiment']['Triggers'].values():
+                shift = info['Info']['Trigger'][0] + 28
+                d  = (srams[info['Info']['Board'][1]] >> shift) & 0x00000001
+                d.astype('float')
+                if data is None:
+                    data = numpy.vstack((range(len(i)), d))
+                else:
+                    data = numpy.vstack((data, d))
+            # Plot
+            data = numpy.transpose(data)
+            yield dv.add(data)
+        else:
+            done = False
+            t=0
+            curtrigs = {}
+            while not done:
+                done = True
+                data = [float(t)]
+                for ch in c['Experiment']['IQs'].keys():
+                    if len(c['Experiment']['IQs'][ch]['Data'])>t:
+                        data.append(c['Experiment']['IQs'][ch]['Data'][t].real)
+                        data.append(c['Experiment']['IQs'][ch]['Data'][t].imag)
+                        done = False
+                    else:
+                        data.extend([0.0,0.0])
+                for ch in c['Experiment']['Analogs'].keys():
+                    if len(c['Experiment']['Analogs'][ch]['Data'])>t:
+                        data.append(c['Experiment']['Analogs'][ch]['Data'][t])
+                        done = False
+                    else:
+                        data.append(0.0)
+                if t<SRAMPREPAD:
+                    data.append(0.0)
+                    done = False
+                else:
+                    for ch in c['Experiment']['Triggers'].keys():
+                        if not curtrigs.has_key(ch):
+                            curtrigs[ch]=[-1, 0, False]
+                        while (not (curtrigs[ch] is None)) and (curtrigs[ch][1]<=0):
+                            curtrigs[ch][0]+=1
+                            if curtrigs[ch][0]>=len(c['Experiment']['Triggers'][ch]['Data']):
+                                curtrigs[ch]=None
+                            else:
+                                curtrigs[ch][2], curtrigs[ch][1] = c['Experiment']['Triggers'][ch]['Data'][curtrigs[ch][0]]
+                        if curtrigs[ch] is None:
+                            data.append(0.0)
+                        else:
+                            curtrigs[ch][1]-=1
+                            if curtrigs[ch][2]:
+                                data.append(1.0)
+                            else:    
+                                data.append(0.0)
+                            done = False
+                if not done:
+                    yield dv.add(data)
+                t += 1
+      
+      
+    @setting(299, 'Memory Call SRAM', returns=['*s'])
+    def finish_sram(self, c):
+        """Constructs the final SRAM data from all the Channel data and adds the right
+        "Call SRAM" command into the Memory of all Qubits to execute the SRAM data"""
+        if 'Experiment' not in c:
+            raise NoExperimentError()
+
+        # build deconvolved SRAM content
+        srams = yield self.buildSRAM(c['Experiment'])
+        
         # add new data onto SRAM
         for board, data in srams.items():
             startaddr = len(c['Experiment']['SRAM'][board])/4
             c['Experiment']['SRAM'][board] += data.tostring()
             endaddr = len(c['Experiment']['SRAM'][board])/4 - 1
+
+        # clear current sram
+        for info in c['Experiment']['IQs'].values():
+            info['Data'] = numpy.array( [0+0j]*SRAMPREPAD)
+        for info in c['Experiment']['Analogs'].values():
+            info['Data'] = numpy.array(  [0.0]*SRAMPREPAD)
+        for info in c['Experiment']['Triggers'].values():
+            info['Data'] = []
 
         # add call command into memories
         callsram = [0x800000 + (startaddr & 0x0FFFFF),
@@ -984,7 +955,6 @@ class QubitServer(LabradServer):
             value.extend(callsram)
 
         returnValue(srams.keys())
-
     
 
     @setting(1000, 'Run', stats=['w'],
