@@ -116,7 +116,11 @@ class AnritsuConflictError(T.Error):
     """Anritsu is already configured with conflicting parameters"""
     code = 17
 
-    
+class QubitChannelNotDeconvolvedError(T.Error):
+    code = 18
+    def __init__(self, qubit, channel):
+        self.msg="Channel '%s' on qubit '%d' does not require deconvolution" % (channel, qubit)
+
 
 
 def GrabFromList(element, options, error):
@@ -386,7 +390,6 @@ class QubitServer(LabradServer):
         return Resources.items(), Anritsus
 
 
-
     @setting(61, 'Setup List', returns=['*s'])
     def list_setups(self, c):
         """Lists all currently loaded Experimental Setup definitions"""
@@ -449,7 +452,8 @@ class QubitServer(LabradServer):
                          'TimerStopped':  [],
                          'NonTimerFPGAs': supportfpgas,
                          'Anritsus':      dict([(anritsu, None)
-                                                for anritsu in Setup['Anritsus']])}
+                                                for anritsu in Setup['Anritsus']]),
+                         'NoDeconvolve':  []}
 
         for qindex, qname in enumerate(Setup['Qubits']):
             q = self.getQubit(qname)
@@ -501,6 +505,29 @@ class QubitServer(LabradServer):
                 raise AnritsuConflictError()
         return anritsuinfo!=False
 
+
+    @setting(102, 'Experiment Turn Off Deconvolution', channels=["(sw): Don't deconvolve this channel",
+                                                                 "*(sw): Don't deconvolve these channels"],
+                                                       returns=['*(sw)'])
+    def dont_deconvolve(self, c, channels):
+        """Prevents deconvolution for a given (set of) channel(s)
+
+        NOTES:
+        This feature can be used to reduce the overall load on the LabRAD system by reducing packet traffic
+        between the Qubit Server and the DAC Calibration Server, for example in a spectroscopy experiment."""
+        if 'Experiment' not in c:
+            raise NoExperimentError()
+        if isinstance(channels, tuple):
+            channels = [channels]
+        for channel in channels:
+            if (channel not in c['Experiment']['IQs']) and (channel not in c['Experiment']['Analogs']):
+                if (channel in c['Experiment']['Triggers']) or (channel in c['Experiment']['FOs']):
+                    raise QubitChannelNotDeconvolvedError(channel[1], channel[0])
+                else:    
+                    raise QubitChannelNotFoundError(channel[1], channel[0])
+            if channel not in c['Experiment']['NoDeconvolve']:
+                c['Experiment']['NoDeconvolve'].append(channel)
+        return c['Experiment']['NoDeconvolve']
 
 
     @setting(105, 'Memory Current', returns=['*(s*w)'])
@@ -670,28 +697,27 @@ class QubitServer(LabradServer):
         return c['Experiment'][chtype][channel]
 
 
-    @setting(200, 'SRAM IQ Data', channel=['(sw)'], data = ['*(vv)','*c'], correct=['b'])
-    def add_iq_data(self, c, channel, data, correct=True):
+    @setting(200, 'SRAM IQ Data', channel=['(sw)'], data = ['*(vv)','*c'])
+    def add_iq_data(self, c, channel, data):
         """Adds IQ data to the specified Channel"""
         chinfo = self.getChannel(c, channel, 'IQs')        
         data = data.asarray
-        # convert to complex data
+        # convert to complex data if it was tuples
         if len(data.shape)==2:
             data = data[:,0] + data[:,1] * 1j
         chinfo['Data'] = numpy.hstack((chinfo['Data'], data))
 
 
-    @setting(201, 'SRAM IQ Delay', channel=['(sw)'], delay=['v[ns]'], correct=['b'])
-    def add_iq_delay(self, c, channel, delay, correct=True):
+    @setting(201, 'SRAM IQ Delay', channel=['(sw)'], delay=['v[ns]'])
+    def add_iq_delay(self, c, channel, delay):
         """Adds a delay in the IQ data to the specified Channel"""
         chinfo = self.getChannel(c, channel, 'IQs')        
         data = numpy.array([0+0j]*int(delay))
         chinfo['Data'] = numpy.hstack((chinfo['Data'], data))
 
 
-    @setting(202, 'SRAM IQ Envelope', channel=['(sw)'], data = ['*v'], mixfreq=['v[MHz]'],
-                                      phaseshift=['v[rad]'], correct=['b'])
-    def add_iq_envelope(self, c, channel, data, mixfreq, phaseshift, correct=True):
+    @setting(202, 'SRAM IQ Envelope', channel=['(sw)'], data = ['*v'], mixfreq=['v[MHz]'], phaseshift=['v[rad]'])
+    def add_iq_envelope(self, c, channel, data, mixfreq, phaseshift):
         """Turns the given envelope data into IQ data with the specified Phase and
         Sideband Mixing. The resulting data is added to the specified Channel"""
         chinfo = self.getChannel(c, channel, 'IQs')        
@@ -700,9 +726,8 @@ class QubitServer(LabradServer):
         chinfo['Data'] = numpy.hstack((chinfo['Data'], data))
 
 
-    @setting(203, 'SRAM IQ Slepian', channel=['(sw)'], amplitude=['v'], length=['v[ns]'],
-                                     mixfreq=['v[MHz]'], phaseshift=['v[rad]'], correct=['b'])
-    def add_iq_slepian(self, c, channel, amplitude, length, mixfreq, phaseshift, correct=True):
+    @setting(203, 'SRAM IQ Slepian', channel=['(sw)'], amplitude=['v'], length=['v[ns]'], mixfreq=['v[MHz]'], phaseshift=['v[rad]'])
+    def add_iq_slepian(self, c, channel, amplitude, length, mixfreq, phaseshift):
         """Generates IQ data for a Slepian Pulse with the specified Amplitude, Width, Phase and
         Sideband Mixing. The resulting data is added to the specified Channel"""
         chinfo = self.getChannel(c, channel, 'IQs')        
@@ -713,22 +738,21 @@ class QubitServer(LabradServer):
         chinfo['Data'] = numpy.hstack((chinfo['Data'], data))
 
 
-    @setting(210, 'SRAM Analog Data', channel=['(sw)'], data=['*v'], correct=['b'])
-    def add_analog_data(self, c, channel, data, correct=True):
+    @setting(210, 'SRAM Analog Data', channel=['(sw)'], data=['*v'])
+    def add_analog_data(self, c, channel, data):
         """Adds analog data to the specified Channel"""
         chinfo = self.getChannel(c, channel, 'Analogs')        
         chinfo['Data'] = numpy.hstack((chinfo['Data'], data.asarray))
 
 
-    @setting(211, 'SRAM Analog Delay', channel=['(sw)'], delay=['v[ns]'], correct=['b'])
-    def add_analog_delay(self, c, channel, delay, correct=True):
+    @setting(211, 'SRAM Analog Delay', channel=['(sw)'], delay=['v[ns]'])
+    def add_analog_delay(self, c, channel, delay):
         """Adds a delay to the analog data of the specified Channel"""
         chinfo = self.getChannel(c, channel, 'Analogs')        
-        chinfo['Data'] = numpy.hstack((chinfo['Data'], numpy.array([0+0j]*int(delay))))
+        chinfo['Data'] = numpy.hstack((chinfo['Data'], numpy.array([0.0]*int(delay))))
 
 
-    @setting(220, 'SRAM Trigger Pulse', channel=['(sw)'], length=['v[ns]'],
-                                        returns=['w'])
+    @setting(220, 'SRAM Trigger Pulse', channel=['(sw)'], length=['v[ns]'], returns=['w'])
     def add_trigger_pulse(self, c, channel, length):
         """Adds a Trigger Pulse of the given length to the specified Channel"""
         chinfo = self.getChannel(c, channel, 'Triggers')        
@@ -738,8 +762,7 @@ class QubitServer(LabradServer):
         return n
 
 
-    @setting(221, 'SRAM Trigger Delay', channel=['(sw)'], length=['v[ns]'],
-                                        returns=['w'])
+    @setting(221, 'SRAM Trigger Delay', channel=['(sw)'], length=['v[ns]'], returns=['w'])
     def add_trigger_delay(self, c, channel, length):
         """Adds a delay of the given length to the specified Trigger Channel"""
         chinfo = self.getChannel(c, channel, 'Triggers')        
@@ -769,6 +792,15 @@ class QubitServer(LabradServer):
         deconvolved = {}
         for chname in ['IQs', 'Analogs']:
             for ch in expt[chname].keys():
+                if ch in expt['NoDeconvolve']:
+                    d = numpy.hstack((expt[chname][ch]['Data'], numpy.zeros(SRAMPOSTPAD)))
+                    if chname=='IQs':
+                        d =  ((d.real*0x1FFF).astype('int') & 0x3FFF) + \
+                            (((d.imag*0x1FFF).astype('int') & 0x3FFF) << 14)
+                    else:                            
+                        d =  ((d*0x1FFF).astype('int') & 0x3FFF)
+                    deconvolved[(chname, ch)] = d
+                    continue
                 board = expt[chname][ch]['Info']['Board'][1]
                 p = cxn.dac_calibration.packet()
                 p.board(board)
