@@ -34,9 +34,10 @@ if DEBUG:
     import numpy
 
 
-#NUMRETRIES = 1
+NUMRETRIES = 2
 SRAM_LEN = 8192
 MEM_LEN = 256
+TIMEOUT_FACTOR = 10
 
 class FPGADevice(DeviceWrapper):
     @inlineCallbacks
@@ -101,7 +102,7 @@ class FPGADevice(DeviceWrapper):
 
         # TODO: handle multiple timers per cycle
         npackets = reps/30
-        totalTime = 2 * (self.seqTime * reps + 1)
+        totalTime = TIMEOUT_FACTOR * (self.seqTime * reps + 1)
         p = server.packet()
         p.timeout(T.Value(totalTime * 1000, 'ms'))
         p.read(npackets)
@@ -238,7 +239,7 @@ class FPGAServer(DeviceServer):
     name = 'GHz DACs'
     deviceWrapper = FPGADevice
 
-    #retryStats = [0] * NUMRETRIES
+    retryStats = [0] * NUMRETRIES
 
     # possible links: name, server, port
     possibleLinks = [('DR Lab', 'direct_ethernet', 1),
@@ -256,12 +257,15 @@ class FPGAServer(DeviceServer):
         
     @inlineCallbacks
     def findDevices(self):
+        print "refreshing..."
         cxn = self.client
         yield cxn.refresh()
         found = []
+        #print cxn.servers
         for name, server, port in self.possibleLinks:
             if server not in cxn.servers:
                 # server not found, remove all devices on this server
+                print "killing servers on ", server
                 names=self.devices.keys()
                 for dname in names:
                     dev = self.devices[dname]
@@ -365,7 +369,7 @@ class FPGAServer(DeviceServer):
 
 
     @setting(40, 'Run Sequence', reps=['w'], getTimingData=['b'],
-                                 setuppkts=['*((ww){context}, s{server}, *(s{setting}, ?{data}))'],
+                                 setuppkts=['*((ww){context}, s{server}, ?{((s?)(s?)(s?)...)})'],
                                  returns=['*2w'])
     def run_sequence(self, c, reps=30, getTimingData=True, setuppkts=None):
         """Executes a sequence on one or more boards."""
