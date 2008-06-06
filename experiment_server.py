@@ -657,11 +657,12 @@ class ExperimentServer(LabradServer):
             for i, qubit in enumerate(c['Qubits']):
                 # Set up Anritsu
                 p.experiment_set_anritsu(('uWaves', i+1), T.Value(frq, 'GHz'), power)
+                p.experiment_turn_off_deconvolution(('uWaves', i+1))
                 # Set up a trigger for the scope
                 p.sram_trigger_pulse(('Trigger', i+1), 25)
                 # Send uWave Pulse
-                p.sram_iq_delay    (('uWaves',  i+1), 200, False)
-                p.sram_iq_data     (('uWaves',  i+1), [1]*2000, False)
+                p.sram_iq_delay    (('uWaves',  i+1), 200)
+                p.sram_iq_data     (('uWaves',  i+1), [1]*2000)
                 # Send Measure Pulse
                 p.sram_analog_delay(('Measure', i+1), 2200)
                 p.sram_analog_data (('Measure', i+1), [mpamp[qubit]]*mplen[qubit])
