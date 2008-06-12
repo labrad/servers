@@ -93,10 +93,10 @@ encodings = [
     (':','%c'),
     ('*','%a'),
     ('?','%q'),
-    ('"','%Q'),
+    ('"','%r'),
     ('<','%l'),
     ('>','%g'),
-    ('|','%P')
+    ('|','%v')
 ]
 
 def dsEncode(name):
@@ -159,6 +159,10 @@ class Session(object):
     
     # feep a dictionary of all created session objects
     _sessions = {}
+
+    @classmethod
+    def getAll(cls):
+        return cls._sessions.values()
     
     @staticmethod
     def exists(path):
@@ -651,8 +655,22 @@ class DataVault(LabradServer):
         root = Session([''], self) # create root session
 
     def initContext(self, c):
+        # start in the root session
         c['path'] = ['']
-        Session([''], self).listeners.add(c.ID) # start listening to the root session
+        # start listening to the root session
+        Session([''], self).listeners.add(c.ID)
+        
+    def expireContext(self, c):
+        """Stop sending any signals to this context."""
+        def removeFromList(ls):
+            if c.ID in ls:
+                ls.remove(c.ID)
+        for session in Session.getAll():
+            removeFromList(session.listeners)
+            for dataset in session.datasets.values():
+                removeFromList(dataset.listeners)
+                removeFromList(dataset.param_listeners)
+                removeFromList(dataset.comment_listeners)
         
     def getSession(self, c):
         """Get a session object for the current path."""
