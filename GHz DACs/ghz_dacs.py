@@ -74,6 +74,7 @@ class FPGADevice(DeviceWrapper):
     def sendRegisters(self, packet, asWords=True):
         """Send a register packet and readback answer."""
         # do we need to clear waiting packets first?
+        packet[45] = 249 # Start on us boundary
         p = self.server.packet()
         p.write(words2str(packet))
         p.read()
@@ -85,6 +86,7 @@ class FPGADevice(DeviceWrapper):
 
     def sendRegistersNoReadback(self, packet):
         """Send a register packet but don't readback anything."""
+        packet[45] = 249 # Start on us boundary
         d = self.server.write(words2str(packet), context=self.ctx)
         return d.addCallback(lambda r: True)
 
@@ -304,7 +306,7 @@ class FPGAServer(DeviceServer):
                     found.append(skips[i].name)
                 else:
                     p.destination_mac(boardMAC(i))
-                    p.write(words2str([0, 1] + [0] * 54))
+                    p.write(words2str([0, 1] + [0] * 43 + [249] + [0]*10))
             yield p.send(context=ctx)
 
             # get ID packets from all boards
