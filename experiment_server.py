@@ -295,13 +295,14 @@ class ExperimentServer(LabradServer):
 
     @inlineCallbacks
     def initServer(self):
-        self.sequences={}
-        self.ContextStack = {}
+        self.viz           = {}
+        self.sequences     = {}
+        self.ContextStack  = {}
         self.qubitServer   = self.client.qubits
         self.dataServer    = self.client.data_vault
         self.anritsuServer = self.client.anritsu_server
-        self.setups = yield self.qubitServer.setup_list()
-        self.Qubits={}
+        self.setups        = yield self.qubitServer.setup_list()
+        self.Qubits        = {}
         self.abort = False
         self.parameters={'Flux Limit Negative':                  T.Value(-2500, 'mV' ),
                          'Flux Limit Positive':                  T.Value( 2500, 'mV' ),
@@ -528,20 +529,23 @@ class ExperimentServer(LabradServer):
 
     # Default data handling function
     def handleVisibilitySwitchingData(self, results, cutoffvals, cID, *scanpos):
-        total   = len(results.zero[0])
+        total   = len(results.run[0])
         coval   = cutoffvals[0]
         cutoff  = abs(coval)*25
         negate  = coval<0
-        zerocnt = 0.0
-        onecnt  = 0.0
-        for z, o in zip(results.zero[0], results.one[0]):
-            if (z>cutoff) ^ negate:
-                zerocnt += 1.0
-            if (o>cutoff) ^ negate:
-                onecnt  += 1.0
-        d = list(scanpos) + [100.0*zerocnt/total, 100.0*onecnt/total, 100.0*(onecnt-zerocnt)/total]
-        self.dataServer.add(d, context = cID)
-
+        cnt     = 0.0
+        doPi    = scanpos[0]
+        amp     = scanpos[1]
+        for s in results.run[0]:
+            if (s>cutoff) ^ negate:
+                cnt += 1.0
+        if doPi:
+            zerocnt = self.viz[(amp, cID)]
+            del self.viz[(amp, cID)]
+            d = [amp, 100.0*zerocnt/total, 100.0*cnt/total, 100.0*(cnt-zerocnt)/total]
+            self.dataServer.add(d, context = cID)
+        else:
+            self.viz[(amp, cID)] = cnt
 
 
     @setting(110, 'Step Edge', region=['(v[mV]{start}, v[mV]{end}, v[mV]{steps})', ''],
@@ -798,44 +802,29 @@ class ExperimentServer(LabradServer):
         pilen = int(self.Qubits[qubit]['Pi-Pulse Length'        ])
         piamp =     self.Qubits[qubit]['Pi-Pulse Amplitude'     ]
         while (amp<=ampmax) and not self.abort:
-            p = self.qubitServer.packet(context = self.nextThreadContext(c))
+            for doPi in [False, True]:
+                p = self.qubitServer.packet(context = self.nextThreadContext(c))
 
-            # Run |0> State
-            p.experiment_new(c['Setup'])
-            # Set up Anritsu
-            p.experiment_set_anritsu(('uWaves', 1), frq, T.Value(2.7,'dBm'))
-            # Initialize Qubit
-            add_qubit_inits(p, [self.Qubits[qubit]])
-            # Add trigger
-            p.sram_trigger_pulse(('Trigger', 1), 25)
-            # Send Measure Pulse
-            p.sram_analog_delay(('Measure', 1), pilen+mpofs+200)
-            p.sram_analog_data (('Measure', 1), [amp/1000.0]*mplen)
-            p.memory_call_sram()
-            # Readout
-            add_measurement(p, self.Qubits[qubit])
-            p.run(c['Stats'], key='zero')
+                p.experiment_new(c['Setup'])
+                # Set up Anritsu
+                p.experiment_set_anritsu(('uWaves', 1), frq, T.Value(2.7,'dBm'))
+                # Initialize Qubit
+                add_qubit_inits(p, [self.Qubits[qubit]])
+                # Add trigger
+                p.sram_trigger_pulse(('Trigger', 1), 25)
+                if doPi:
+                    # Send uWave Pulse
+                    p.sram_iq_delay   (('uWaves', 1), 200)
+                    p.sram_iq_envelope(('uWaves', 1), [piamp]*int(pilen), sbmix, 0)
+                # Send Measure Pulse
+                p.sram_analog_delay(('Measure', 1), pilen+mpofs+200)
+                p.sram_analog_data (('Measure', 1), [amp/1000.0]*mplen)
+                p.memory_call_sram()
+                # Readout
+                add_measurement(p, self.Qubits[qubit])
+                p.run(c['Stats'])
 
-            # Run |1> State
-            p.experiment_new(c['Setup'])
-            # Set up Anritsu
-            p.experiment_set_anritsu(('uWaves', 1), frq, T.Value(2.7,'dBm'))
-            # Initialize Qubit
-            add_qubit_inits(p, [self.Qubits[qubit]])
-            # Add trigger
-            p.sram_trigger_pulse(('Trigger', 1), 25)
-            # Send uWave Pulse
-            p.sram_iq_delay   (('uWaves', 1), 200)
-            p.sram_iq_envelope(('uWaves', 1), [piamp]*int(pilen), sbmix, 0)
-            # Send Measure Pulse
-            p.sram_analog_delay(('Measure', 1), pilen+mpofs+200)
-            p.sram_analog_data (('Measure', 1), [amp/1000.0]*mplen)
-            p.memory_call_sram()
-            # Readout
-            add_measurement(p, self.Qubits[qubit])
-            p.run(c['Stats'], key='one')
-
-            yield self.threadSend(c, self.handleVisibilitySwitchingData, p, cutoffs, c.ID, amp)
+                yield self.threadSend(c, self.handleVisibilitySwitchingData, p, cutoffs, c.ID, doPi, amp)
             amp += ampstep
 
         yield self.finishThreads(c, self.handleVisibilitySwitchingData)
