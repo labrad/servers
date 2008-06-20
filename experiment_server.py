@@ -526,6 +526,23 @@ class ExperimentServer(LabradServer):
         self.dataServer.add(d, context = cID)
 
 
+    # Default data handling function
+    def handleVisibilitySwitchingData(self, results, cutoffvals, cID, *scanpos):
+        total   = len(results.zero[0])
+        coval   = cutoffvals[0]
+        cutoff  = abs(coval)*25
+        negate  = coval<0
+        zerocnt = 0.0
+        onecnt  = 0.0
+        for z, o in zip(results.zero[0], results.one[0]):
+            if (z>cutoff) ^ negate:
+                zerocnt += 1.0
+            if (o>cutoff) ^ negate:
+                onecnt  += 1.0
+        d = list(scanpos) + [100.0*zerocnt/total, 100.0*onecnt/total, 100.0*(onecnt-zerocnt)/total]
+        self.dataServer.add(d, context = cID)
+
+
 
     @setting(110, 'Step Edge', region=['(v[mV]{start}, v[mV]{end}, v[mV]{steps})', ''],
                                returns=['*ss'])
@@ -747,10 +764,90 @@ class ExperimentServer(LabradServer):
 
 
 
-    @setting(150, 'T1', region=['(v[ns]{start}, v[ns]{end}, v[ns]{steps})'],
+    @setting(150, 'Visibility', region=['(v[mV]{start}, v[mV]{end}, v[mV]{steps})', ''],
+                                returns=['*ss'])
+    def visibility(self, c, region = None):
+        self.checkSetup(c, 'Visibility', 1)
+
+        qubit = c['Qubits'][0]
+
+        sbmix = self.Qubits[qubit]['Sideband Frequency']
+        frq = self.Qubits[qubit]['Resonance Frequency'] - sbmix
+
+        # Setup dataset
+        p = self.dataServer.packet(context = c.ID)
+        self.add_dataset_setup(p, c['Session'], 'Visibility on %s' % qubit, ['Measure Pulse Amplitude [mV]'],
+                               ['Tunneling Probability (|0>) [%]',
+                                'Tunneling Probability (|1>) [%]',
+                                'Tunneling Probability (|1> - |0>) [%]'])
+        self.add_qubit_parameters(p, qubit)
+        p.add_parameter('Stats', float(c["Stats"]))
+        name = (yield p.send()).new
+
+        # Take data
+        self.setupThreading(c)
+
+        ampmin, ampmax, ampstep = getRange(region, 0, 1000, 25)
+
+        cutoffs = [self.Qubits[qubit]['1-State Cutoff']]
+        amp=ampmin
+        self.abort = False
+        mplen = int(self.Qubits[qubit]['Measure Pulse Length'   ])
+        mpamp =     self.Qubits[qubit]['Measure Pulse Amplitude']/1000.0
+        mpofs = int(self.Qubits[qubit]['Measure Pulse Offset'   ])
+        pilen = int(self.Qubits[qubit]['Pi-Pulse Length'        ])
+        piamp =     self.Qubits[qubit]['Pi-Pulse Amplitude'     ]
+        while (amp<=ampmax) and not self.abort:
+            p = self.qubitServer.packet(context = self.nextThreadContext(c))
+
+            # Run |0> State
+            p.experiment_new(c['Setup'])
+            # Set up Anritsu
+            p.experiment_set_anritsu(('uWaves', 1), frq, T.Value(2.7,'dBm'))
+            # Initialize Qubit
+            add_qubit_inits(p, [self.Qubits[qubit]])
+            # Add trigger
+            p.sram_trigger_pulse(('Trigger', 1), 25)
+            # Send Measure Pulse
+            p.sram_analog_delay(('Measure', 1), pilen+mpofs+200)
+            p.sram_analog_data (('Measure', 1), [amp/1000.0]*mplen)
+            p.memory_call_sram()
+            # Readout
+            add_measurement(p, self.Qubits[qubit])
+            p.run(c['Stats'], key='zero')
+
+            # Run |1> State
+            p.experiment_new(c['Setup'])
+            # Set up Anritsu
+            p.experiment_set_anritsu(('uWaves', 1), frq, T.Value(2.7,'dBm'))
+            # Initialize Qubit
+            add_qubit_inits(p, [self.Qubits[qubit]])
+            # Add trigger
+            p.sram_trigger_pulse(('Trigger', 1), 25)
+            # Send uWave Pulse
+            p.sram_iq_delay   (('uWaves', 1), 200)
+            p.sram_iq_envelope(('uWaves', 1), [piamp]*int(pilen), sbmix, 0)
+            # Send Measure Pulse
+            p.sram_analog_delay(('Measure', 1), pilen+mpofs+200)
+            p.sram_analog_data (('Measure', 1), [amp/1000.0]*mplen)
+            p.memory_call_sram()
+            # Readout
+            add_measurement(p, self.Qubits[qubit])
+            p.run(c['Stats'], key='one')
+
+            yield self.threadSend(c, self.handleVisibilitySwitchingData, p, cutoffs, c.ID, amp)
+            amp += ampstep
+
+        yield self.finishThreads(c, self.handleVisibilitySwitchingData)
+
+        returnValue(name)
+
+
+
+    @setting(160, 'T1', region=['(v[ns]{start}, v[ns]{end}, v[ns]{steps})'],
                           returns=['*ss'])
     def t1(self, c, region = None):
-        self.checkSetup(c, 'Spectroscopy', None)
+        self.checkSetup(c, 'T1', None)
 
         axes  = ['Probability (%s) [%%]' % stname for stname in getStates(len(c['Qubits']))]
 
