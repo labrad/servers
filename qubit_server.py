@@ -529,6 +529,12 @@ class QubitServer(LabradServer):
                 c['Experiment']['NoDeconvolve'].append(channel)
         return c['Experiment']['NoDeconvolve']
 
+    @setting(103, 'Experiment Involved Qubits', returns=['*s'])
+    def get_qubits(self, c):
+        """Returns the list of qubits involved in the current experiment"""
+        if 'Experiment' not in c:
+            raise NoExperimentError()
+        return c['Experiment']['Setup']['Qubits']
 
     @setting(105, 'Memory Current', returns=['*(s*w)'])
     def get_mem(self, c):
