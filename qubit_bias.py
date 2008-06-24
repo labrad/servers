@@ -103,7 +103,7 @@ class QubitBiasServer(LabradServer):
     @inlineCallbacks
     def getQubits(self, c):
         qubits = yield self.client.qubits.experiment_involved_qubits(context=c.ID)
-        returnValue ([self.getQubit(c, qubit)[2] for qubit in qubits])
+        returnValue ([tuple(self.getQubit(c, qubit)[1:]) for qubit in qubits])
                   
 
     def initServer(self):
@@ -230,10 +230,18 @@ class QubitBiasServer(LabradServer):
         yield p.send()
 
 
-    @setting(100, 'Initialize Qubits', returns=['*v: Operating Biases'])
-    def initialize(self, c):
+    @setting(100, 'Initialize Qubits', operatingbias=['', 'v[mV]', '*(s{Qubit}v[mV])', ], returns=['*(sv[mV]): Operating Biases by Qubit'])
+    def initialize(self, c, operatingbias=None):
         """Send qubit initialization commands to Qubit Server"""
         qubits = yield self.getQubits(c)
+
+        # Get Operating Bias Overrides
+        opbiases = {}
+        if operatingbias is not None:
+            if isinstance(operatingbias, list):
+                opbiases = dict(operatingbias.aslist)
+            else:
+                opbiases[qubits[0][0]] = operatingbias
         
         # Generate Memory Building Blocks
         initreset = []
@@ -244,7 +252,8 @@ class QubitBiasServer(LabradServer):
         maxbiassettling = 7
         maxcount = 0
         setop = []
-        for qid, qubit in enumerate(qubits):
+        for qid, qubitinfo in enumerate(qubits):
+            qname, qubit = qubitinfo
             # Set Flux to Reset Low and Squid to Zero
             initreset.extend([(('Flux',  qid+1), getCMD(1, qubit['Reset Bias Low' ].inUnitsOf('mV'))),
                               (('Squid', qid+1), getCMD(1, qubit['Squid Zero Bias'].inUnitsOf('mV')))])
@@ -255,7 +264,11 @@ class QubitBiasServer(LabradServer):
             # Set Flux to Reset High
             reset2.append((('Flux',  qid+1), getCMD(1, qubit['Reset Bias High'].inUnitsOf('mV'))))
             # Set Flux to Operating Bias
-            setop.append((('Flux', qid+1), getCMD(1, qubit['Operating Bias'].inUnitsOf('mV'))))
+            if qname in opbiases:
+                opbias = opbiases[qname]
+            else:
+                opbias = qubit['Operating Bias']
+            setop.append((('Flux', qid+1), getCMD(1, opbias.inUnitsOf('mV'))))
             # Find maximum number of reset cycles
             if qubit['Reset Cycles'] > maxcount:
                 maxcount = qubit['Reset Cycles']
@@ -277,10 +290,15 @@ class QubitBiasServer(LabradServer):
             p.memory_bias_commands(reset1, maxresetsettling*us)
         p.memory_bias_commands(setop, maxbiassettling*us)
         yield p.send()
-        returnValue([qubit['Operating Bias'] for qubit in qubits])
+
+        ret = dict([(qubit[0], qubit[1]['Operating Bias']) for qubit in qubits])
+        for name, value in opbiases.items():
+            if name in ret:
+                ret[name] = value
+        returnValue(ret.items())
 
 
-    @setting(101, 'Readout Qubits', returns=['*v: |1>-State Cutoffs (negative if |1> switches BEFORE |0>'])
+    @setting(101, 'Readout Qubits', returns=['*(sv[us]): |1>-State Cutoffs by Qubit (negative if |1> switches BEFORE |0>)'])
     def readout(self, c):
         """Send qubit readout commands to Qubit Server"""
         qubits = yield self.getQubits(c)
@@ -290,7 +308,8 @@ class QubitBiasServer(LabradServer):
         setzero    = []
         maxsettling = 7
         todo = {}
-        for qid, qubit in enumerate(qubits):
+        for qid, qubitinfo in enumerate(qubits):
+            qname, qubit = qubitinfo
             delay = float(qubit['Squid Ramp Delay'].inUnitsOf('us'))
             if delay in todo:
                 todo[delay].append((qid, qubit))
@@ -349,13 +368,9 @@ class QubitBiasServer(LabradServer):
             p.memory_bias_commands(dac1fast,  5.0*us)
             curdelay += 24.08 + maxramp
         p.memory_bias_commands(setzero, maxsettling*us)
-        
         yield p.send()
-        returnValue([qubit['|1>-State Cutoff'] for qubit in qubits])
-
-    @setting(10000, 'Kill')
-    def kill(self, c):
-        reactor.callLater(0, reactor.stop)
+        
+        returnValue([(qubit[0], qubit[1]['|1>-State Cutoff']) for qubit in qubits])
 
 __server__ = QubitBiasServer()
 
