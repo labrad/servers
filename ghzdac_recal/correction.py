@@ -341,16 +341,6 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         self.zeroCalIndex = 0
         self.sidebandCalIndex = 0
 
-    def selectCalByRange(self, start,end):
-        """Use only the latest calibration covering the given range. If there is no such calibration use the one that is closest to covering it."""
-        
-        self.zeroCalIndex = self.findCalset(start, end, self.zeroTableStart,
-                                       self.zeroTableEnd, 'zero')
-        self.sidebandCalIndex = self.findCalset(start, end,
-                                           self.sidebandCarrierStart,
-                                           self.sidebandCarrierEnd,
-                                           'sideband')
-        
 
     def findCalset(self, rangeStart, rangeEnd, calStarts, calEnds, calType):
         badness = max([0*calStarts, calStarts-rangeStart,
@@ -366,6 +356,17 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
                     % (calType, rangeStart)
                 print 'Selecting the closest calset.'
         return i
+
+
+    def selectCalByRange(self, start,end):
+        """Use only the latest calibration covering the given range. If there is no such calibration use the one that is closest to covering it."""
+        
+        self.zeroCalIndex = self.findCalset(start, end, self.zeroTableStart,
+                                       self.zeroTableEnd, 'zero')
+        self.sidebandCalIndex = self.findCalset(start, end,
+                                           self.sidebandCarrierStart,
+                                           self.sidebandCarrierEnd,
+                                           'sideband')
         
 
 
@@ -376,8 +377,8 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
             return [0,0]
         i = self.zeroCalIndex
         if i is None:
-            i = findCalset(carrierFreq, self.zeroTableStart, self.zeroTableEnd,
-                           'zero')
+            i = self.findCalset(carrierFreq, carrierFreq, self.zeroTableStart,
+                                self.zeroTableEnd, 'zero')
         carrierFreq = (carrierFreq - self.zeroTableStart[i]) / \
             self.zeroTableStep[i]
         return [interpol(self.zeroTableI[i], carrierFreq), \
@@ -396,7 +397,7 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
             return zeros(n+1, dtype = complex)
         i = self.sidebandCalIndex
         if i is None:
-            i = findCalset(carrierFreq,
+            i = self.findCalset(carrierFreq, carrierFreq, 
                            self.sidebandCarrierStart,
                            self.sidebandCarrierEnd, 'sideband')
         carrierFreq = (carrierFreq - self.sidebandCarrierStart[i]) / \

@@ -1,4 +1,4 @@
-# Copyright (C) 2007  Max Hofheinz 
+# Copyright (C) 2007-2008  Max Hofheinz 
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@ from numpy import shape, array, size
 SETUPTYPESTRINGS = ['no IQ mixer', \
                     'DAC A -> mixer I, DAC B -> mixer Q',\
                     'DAC A -> mixer Q, DAC B -> mixer I']
-SESSIONNAME = 'GHzDAC Calibration'
+SESSIONNAME = 'GHzDAC recalibration test'
 ZERONAME = 'zero'
 PULSENAME = 'pulse'
 IQNAME = 'IQ'
@@ -36,9 +36,8 @@ def getDataSets(cxn, boardname, caltype, errorClass=None):
     reg = cxn.registry
     ds = cxn.data_vault
     yield reg.cd(['',SESSIONNAME,boardname],True)
-    keyname = '%s files' % caltype
-    if keyname in (yield reg.dir())[1]:
-        calfiles = (yield reg.get(keyname))
+    if caltype in (yield reg.dir())[1]:
+        calfiles = (yield reg.get(caltype))
     else:
         calfiles = array([])
     
@@ -119,11 +118,11 @@ def IQcorrectorAsync(fpganame, connection,
     returnValue(corrector)
 
 
-def IQcorrector(fpganame, connection = None, 
+def IQcorrector(fpganame, 
                 zerocor = True, pulsecor = True, iqcor = True,
                 lowpass = cosinefilter, bandwidth = 0.4):
     startReactor()
-    return block(IQcorrectorAsync, fpganame, connection, zerocor,
+    return block(IQcorrectorAsync, fpganame, None, zerocor,
                  pulsecor, iqcor, lowpass, bandwidth)
 
 
@@ -166,18 +165,18 @@ def DACcorrectorAsync(fpganame, channel, connection = None, \
     returnValue(corrector)
 
 
-def DACcorrector(fpganame, channel, connection = None, \
+def DACcorrector(fpganame, channel, \
                  lowpass = gaussfilter, bandwidth = 0.13):
 
     startReactor()
-    return block(DACcorrectorAsync, fpganame, channel, connection,
+    return block(DACcorrectorAsync, fpganame, channel, None,
                  lowpass, bandwidth)
 
     
 
 @inlineCallbacks
-def recalibrateAsync(boardname, carrierMin, carrierMax, zeroCarrierStep=None,
-                sidebandCarrierStep=None, sidebandMax=0.35, sidebandStep=0.05,
+def recalibrateAsync(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
+                sidebandCarrierStep=0.05, sidebandMax=0.35, sidebandStep=0.05,
                 corrector=None):
     cxn = yield labrad.connectAsync()
     if corrector is None:
@@ -210,7 +209,7 @@ def recalibrateAsync(boardname, carrierMin, carrierMax, zeroCarrierStep=None,
         datasets = corrector.eliminateZeroCals()
         # and save which ones are being used now
         yield reg.cd(['',SESSIONNAME,boardname],True)
-        yield reg.key('%s files' % ZERONAME, datasets)
+        yield reg.set(ZERONAME, datasets)
     if sidebandCarrierStep is not None:
         #check if a corrector has been provided and if it is up to date
         #or if we have to load a new one.
@@ -243,11 +242,11 @@ def recalibrateAsync(boardname, carrierMin, carrierMax, zeroCarrierStep=None,
         datasets = corrector.eliminateSidebandCals()
         # and save which ones are being used now
         yield reg.cd(['',SESSIONNAME,boardname],True)
-        yield reg.key('%s files' % IQNAME, datasets)
+        yield reg.set(IQNAME, datasets)
 
 
-def recalibrate(boardname, carrierMin, carrierMax, zeroCarrierStep=None,
-                sidebandCarrierStep=None, sidebandMax=0.35,
+def recalibrate(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
+                sidebandCarrierStep=0.05, sidebandMax=0.35,
                 sidebandStep=0.05, corrector=None):
     startReactor()
     block(recalibrateAsync, boardname, carrierMin, carrierMax,
