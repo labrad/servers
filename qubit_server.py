@@ -903,7 +903,7 @@ class QubitServer(LabradServer):
             srams = yield self.buildSRAM(c['Experiment'])
             # Extract corrected data from SRAM
             data = None
-            for ch, info in c['Experiment']['IQs'].items():
+            for ch, info in sorted(c['Experiment']['IQs'].items()):
                 i  = (srams[info['Info']['Board'][1]]      ) & 0x00003FFF
                 q  = (srams[info['Info']['Board'][1]] >> 14) & 0x00003FFF
                 i-= ((i & 8192) >> 13) * 16384
@@ -915,7 +915,7 @@ class QubitServer(LabradServer):
                 else:
                     data = numpy.vstack((data, i, q))
                 
-            for ch, info in c['Experiment']['Analogs'].items():
+            for ch, info in sorted(c['Experiment']['Analogs'].items()):
                 shift = info['Info']['DAC'][0]*14
                 d  = (srams[info['Info']['Board'][1]] >> shift) & 0x00003FFF
                 d -= ((d & 8192) >> 13) * 16384
@@ -925,7 +925,7 @@ class QubitServer(LabradServer):
                 else:
                     data = numpy.vstack((data, d))
 
-            for info in c['Experiment']['Triggers'].values():
+            for ch, info in sorted(c['Experiment']['Triggers'].items()):
                 shift = info['Info']['Trigger'][0] + 28
                 d  = (srams[info['Info']['Board'][1]] >> shift) & 0x00000001
                 d.astype('float')
@@ -943,25 +943,25 @@ class QubitServer(LabradServer):
             while not done:
                 done = True
                 data = [float(t)]
-                for ch in c['Experiment']['IQs'].keys():
+                for ch in sorted(c['Experiment']['IQs'].keys()):
                     if len(c['Experiment']['IQs'][ch]['Data'])>t:
                         data.append(c['Experiment']['IQs'][ch]['Data'][t].real)
                         data.append(c['Experiment']['IQs'][ch]['Data'][t].imag)
                         done = False
                     else:
                         data.extend([0.0, 0.0])
-                for ch in c['Experiment']['Analogs'].keys():
+                for ch in sorted(c['Experiment']['Analogs'].keys()):
                     if len(c['Experiment']['Analogs'][ch]['Data'])>t:
                         data.append(c['Experiment']['Analogs'][ch]['Data'][t])
                         done = False
                     else:
                         data.append(0.0)
                 if t<SRAMPREPAD:
-                    for ch in c['Experiment']['Triggers'].keys():
+                    for ch in sorted(c['Experiment']['Triggers'].keys()):
                         data.append(0.0)
                     done = False
                 else:
-                    for ch in c['Experiment']['Triggers'].keys():
+                    for ch in sorted(c['Experiment']['Triggers'].keys()):
                         if not curtrigs.has_key(ch):
                             curtrigs[ch]=[-1, 0, False]
                         while (not (curtrigs[ch] is None)) and (curtrigs[ch][1]<=0):
