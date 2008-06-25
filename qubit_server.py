@@ -886,12 +886,12 @@ class QubitServer(LabradServer):
         dv  = cxn.data_vault
         p   = dv.packet()
         yaxes = []
-        for ch, qb in c['Experiment']['IQs'].keys():
+        for ch, qb in sorted(c['Experiment']['IQs'     ].keys()):
             yaxes.append(('Amplitude', "Real part of IQ channel '%s' on Qubit %d" % (ch, qb), "a.u."))
             yaxes.append(('Amplitude', "Imag part of IQ channel '%s' on Qubit %d" % (ch, qb), "a.u."))
-        for ch, qb in c['Experiment']['Analogs'].keys():
+        for ch, qb in sorted(c['Experiment']['Analogs' ].keys()):
             yaxes.append(('Amplitude', "Analog channel '%s' on Qubit %d" % (ch, qb), "a.u."))
-        for ch, qb in c['Experiment']['Triggers'].keys():
+        for ch, qb in sorted(c['Experiment']['Triggers'].keys()):
             yaxes.append(('Amplitude', "Trigger channel '%s' on Qubit %d" % (ch, qb), "a.u."))
         dir = ['']+session.aslist
         p.cd(dir)
@@ -949,7 +949,7 @@ class QubitServer(LabradServer):
                         data.append(c['Experiment']['IQs'][ch]['Data'][t].imag)
                         done = False
                     else:
-                        data.extend([0.0,0.0])
+                        data.extend([0.0, 0.0])
                 for ch in c['Experiment']['Analogs'].keys():
                     if len(c['Experiment']['Analogs'][ch]['Data'])>t:
                         data.append(c['Experiment']['Analogs'][ch]['Data'][t])
@@ -957,7 +957,8 @@ class QubitServer(LabradServer):
                     else:
                         data.append(0.0)
                 if t<SRAMPREPAD:
-                    data.append(0.0)
+                    for ch in c['Experiment']['Triggers'].keys():
+                        data.append(0.0)
                     done = False
                 else:
                     for ch in c['Experiment']['Triggers'].keys():
