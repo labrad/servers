@@ -120,6 +120,11 @@ class QubitChannelNotDeconvolvedError(T.Error):
     code = 18
     def __init__(self, qubit, channel):
         self.msg="Channel '%s' on qubit '%d' does not require deconvolution" % (channel, qubit)
+        
+class ContextNotFoundError(T.Error):
+    code = 19
+    def __init__(self, context):
+        self.msg="Context (%d, %d) not found" % context
 
 
 
@@ -190,6 +195,20 @@ class QubitServer(LabradServer):
         self.FOchannels   = [ 'FO 0',  'FO 1']
         self.FOcommands   = [0x100000, 0x200000]
         self.Trigchannels = ['S 0', 'S 1', 'S 2', 'S 3']
+
+
+
+    @setting(10000, 'Duplicate Context', prototype=['(ww)'])
+    def dupe_ctxt(self, c, prototype):
+        if prototype[0]==0:
+            prototype = (c.ID[0], prototype[1])
+        if prototype not in self.prot.queues:
+            raise ContextNotFoundError(prototype)
+        newc = deepcopy(self.prot.queues[prototype].ctxtData)
+        for key in c.keys():
+            if key not in newc:
+                del c[key]
+        c.update(newc)
         
 
 

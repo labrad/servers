@@ -19,6 +19,8 @@ from labrad        import util, types as T
 from labrad.server import LabradServer, setting
 from labrad.units  import Unit, mV, us
 
+from copy import deepcopy
+
 from twisted.python import log
 from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -66,6 +68,11 @@ class ParameterNotFoundError(T.Error):
     code = 5
     def __init__(self, config, qubit, name):
         self.msg="Qubit '%s' in configuration '%s' does not have a parameter '%s'" % (qubit, config, name)
+        
+class ContextNotFoundError(T.Error):
+    code = 6
+    def __init__(self, context):
+        self.msg="Context (%d, %d) not found" % context
 
 
 def getCMD(DAC, value):
@@ -74,6 +81,7 @@ def getCMD(DAC, value):
 
 class QubitBiasServer(LabradServer):
     name = 'Qubit Bias'
+    sendTracebacks = False
 
     def getConfig(self, c, name = None):
         if name is None:
@@ -108,6 +116,19 @@ class QubitBiasServer(LabradServer):
 
     def initServer(self):
         self.Configs = {}
+
+
+    @setting(10000, 'Duplicate Context', prototype=['(ww)'])
+    def dupe_ctxt(self, c, prototype):
+        if prototype[0]==0:
+            prototype = (c.ID[0], prototype[1])
+        if prototype not in self.prot.queues:
+            raise ContextNotFoundError(prototype)
+        newc = deepcopy(self.prot.queues[prototype].ctxtData)
+        for key in c.keys():
+            if key not in newc:
+                del c[key]
+        c.update(newc)
 
 
     @setting(1, 'Config List', loaded=['b'], returns=['*s'])
@@ -159,7 +180,7 @@ class QubitBiasServer(LabradServer):
                 self.Configs[name][key[0]][key[1]]=ans[key]
         returnValue(self.Configs[name].keys())
 
-    @setting(4, 'Config Save', name=['', 's'])
+    @setting(4, 'Config Save', name=['s'])
     def config_save(self, c, name=None):
         """Save a configuration to the Registry"""
         cfgname, config = self.getConfig(c, name)
@@ -230,7 +251,7 @@ class QubitBiasServer(LabradServer):
         yield p.send()
 
 
-    @setting(100, 'Initialize Qubits', operatingbias=['', 'v[mV]', '*(s{Qubit}v[mV])', ], returns=['*(sv[mV]): Operating Biases by Qubit'])
+    @setting(100, 'Initialize Qubits', operatingbias=['v[mV]', '*(s{Qubit}v[mV])', ], returns=['*(sv[mV]): Operating Biases by Qubit'])
     def initialize(self, c, operatingbias=None):
         """Send qubit initialization commands to Qubit Server"""
         qubits = yield self.getQubits(c)
