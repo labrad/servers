@@ -24,6 +24,8 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 
 from datetime import datetime
 
+from copy import deepcopy
+
 import struct
 
 import numpy
