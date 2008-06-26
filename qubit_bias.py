@@ -276,18 +276,20 @@ class QubitBiasServer(LabradServer):
         c['Overrides'] = {}
 
 
-    @setting(100, 'Initialize Qubits', operatingbias=['v[mV]', '*(s{Qubit}v[mV])', ], returns=['*(sv[mV]): Operating Biases by Qubit'])
-    def initialize(self, c, operatingbias=None):
+    def getPar(self, c, qname, qinfo, parameter, units=None):
+        result = qinfo[parameter]
+        if qname in c['Overrides']:
+            if parameter in c['Overrides'][qname]:
+                result = c['Overrides'][qname][parameter]
+        if units is not None:
+            result = float(result.inUnitsOf(units))
+        return result
+
+
+    @setting(100, 'Initialize Qubits', returns=['*(sv[mV]): Operating Biases by Qubit'])
+    def initialize(self, c):
         """Send qubit initialization commands to Qubit Server"""
         qubits = yield self.getQubits(c)
-
-        # Get Operating Bias Overrides
-        opbiases = {}
-        if operatingbias is not None:
-            if isinstance(operatingbias, list):
-                opbiases = dict(operatingbias.aslist)
-            else:
-                opbiases[qubits[0][0]] = operatingbias
         
         # Generate Memory Building Blocks
         initreset = []
@@ -301,29 +303,25 @@ class QubitBiasServer(LabradServer):
         for qid, qubitinfo in enumerate(qubits):
             qname, qubit = qubitinfo
             # Set Flux to Reset Low and Squid to Zero
-            initreset.extend([(('Flux',  qid+1), getCMD(1, qubit['Reset Bias Low' ].inUnitsOf('mV'))),
-                              (('Squid', qid+1), getCMD(1, qubit['Squid Zero Bias'].inUnitsOf('mV')))])
+            initreset.extend([(('Flux',  qid+1), getCMD(1, self.getPar(c, qname, qubit, 'Reset Bias Low',  'mV'))),
+                              (('Squid', qid+1), getCMD(1, self.getPar(c, qname, qubit, 'Squid Zero Bias', 'mV')))])
             # Set Bias DACs to DAC 1
-            dac1s.extend([(('Flux', qid+1), 0x50001), (('Squid', qid+1), 0x50001)])
+            dac1s.extend ([(('Flux', qid+1), 0x50001), (('Squid', qid+1), 0x50001)])
             # Set Flux to Reset Low
-            reset1.append((('Flux',  qid+1), getCMD(1, qubit['Reset Bias Low'].inUnitsOf('mV'))))
+            reset1.append( (('Flux', qid+1), getCMD(1, self.getPar(c, qname, qubit, 'Reset Bias Low',  'mV'))))
             # Set Flux to Reset High
-            reset2.append((('Flux',  qid+1), getCMD(1, qubit['Reset Bias High'].inUnitsOf('mV'))))
+            reset2.append( (('Flux', qid+1), getCMD(1, self.getPar(c, qname, qubit, 'Reset Bias High', 'mV'))))
             # Set Flux to Operating Bias
-            if qname in opbiases:
-                opbias = opbiases[qname]
-            else:
-                opbias = qubit['Operating Bias']
-            setop.append((('Flux', qid+1), getCMD(1, opbias.inUnitsOf('mV'))))
+            setop.append ( (('Flux', qid+1), getCMD(1, self.getPar(c, qname, qubit, 'Operating Bias',  'mV'))))
             # Find maximum number of reset cycles
-            if qubit['Reset Cycles'] > maxcount:
-                maxcount = qubit['Reset Cycles']
+            if int(self.getPar(c, qname, qubit, 'Reset Cycles')) > maxcount:
+                maxcount = int(self.getPar(c, qname, qubit, 'Reset Cycles'))
             # Find maximum Reset Settling Time
-            settle = float(qubit['Reset Settling Time'].inUnitsOf('us'));
+            settle = self.getPar(c, qname, qubit, 'Reset Settling Time',     'us')
             if settle > maxresetsettling:
                 maxresetsettling = settle
             # Find maximum Bias Settling Time
-            settle = float(qubit['Operating Settling Time'].inUnitsOf('us'));
+            settle = self.getPar(c, qname, qubit, 'Operating Settling Time', 'us')
             if settle > maxbiassettling:
                 maxbiassettling = settle
 
@@ -337,11 +335,7 @@ class QubitBiasServer(LabradServer):
         p.memory_bias_commands(setop, maxbiassettling*us)
         yield p.send()
 
-        ret = dict([(qubit[0], qubit[1]['Operating Bias']) for qubit in qubits])
-        for name, value in opbiases.items():
-            if name in ret:
-                ret[name] = value
-        returnValue(ret.items())
+        returnValue([(qname, self.getPar(c, qname, qubit, 'Operating Bias')) for qname, qubit in qubits])
 
 
     @setting(101, 'Readout Qubits', returns=['*(sv[us]): |1>-State Cutoffs by Qubit (negative if |1> switches BEFORE |0>)'])
@@ -356,16 +350,17 @@ class QubitBiasServer(LabradServer):
         todo = {}
         for qid, qubitinfo in enumerate(qubits):
             qname, qubit = qubitinfo
-            delay = float(qubit['Squid Ramp Delay'].inUnitsOf('us'))
+            delay = self.getPar(c, qname, qubit, 'Squid Ramp Delay', 'us')
             if delay in todo:
-                todo[delay].append((qid, qubit))
+                todo[delay].append((qid, qname, qubit))
             else:
-                todo[delay]=[(qid, qubit)]
+                todo[delay]=[(qid, qname, qubit)]
             # Build Readout Bias Commands
-            setreadout.append( (('Flux', qid+1), getCMD(1, qubit['Readout Bias'].inUnitsOf('mV'))))
-            setzero.extend   ([(('Flux', qid+1), getCMD(1, 0)), (('Squid', qid+1), getCMD(1, 0))])
+            setreadout.append( (('Flux',  qid+1), getCMD(1, self.getPar(c, qname, qubit, 'Readout Bias', 'mV'))))
+            setzero.extend   ([(('Flux',  qid+1), getCMD(1, 0)),
+                               (('Squid', qid+1), getCMD(1, 0))])
             # Find maximum Readout Settling Time
-            settle = float(qubit['Readout Settling Time'].inUnitsOf('us'));
+            settle = self.getPar(c, qname, qubit, 'Readout Settling Time', 'us');
             if settle > maxsettling:
                 maxsettling = settle
 
@@ -386,21 +381,21 @@ class QubitBiasServer(LabradServer):
             srzeros   = []
             dac1fast  = []
             maxramp   = 7
-            for qid, qubit in todo[key]:
+            for qid, qname, qubit in todo[key]:
                 # Set Squid Bias to Ramp Start
-                srstart.append((('Squid', qid+1), getCMD(1, qubit['Squid Ramp Start'].inUnitsOf('mV'))))
+                srstart.append((('Squid', qid+1), getCMD(1, self.getPar(c, qname, qubit, 'Squid Ramp Start', 'mV'))))
                 # Set Bias DACs to DAC 1 slow
                 dac1slow.append((('Squid', qid+1), 0x50002))
                 # Start/Stop Timer
                 timers.append(qid+1)
                 # Set Squid Bias to Ramp End
-                srend.append((('Squid', qid+1), getCMD(1, qubit['Squid Ramp End'].inUnitsOf('mV'))))
+                srend.append((('Squid', qid+1), getCMD(1, self.getPar(c, qname, qubit, 'Squid Ramp End', 'mV'))))
                 # Find maximum Readout Settling Time
-                ramp = float(qubit['Squid Ramp Time'].inUnitsOf('us'));
+                ramp = self.getPar(c, qname, qubit, 'Squid Ramp Time', 'us');
                 if ramp > maxramp:
                     maxramp = ramp
                 # Set Flux to Reset Low and Squid to Zero
-                srzeros.append((('Squid', qid+1), getCMD(1, qubit['Squid Zero Bias'].inUnitsOf('mV'))))
+                srzeros.append((('Squid', qid+1), getCMD(1, self.getPar(c, qname, qubit, 'Squid Zero Bias', 'mV'))))
                 # Set Bias DACs to DAC fast
                 dac1fast.append((('Squid', qid+1), 0x50001))
 
@@ -416,7 +411,7 @@ class QubitBiasServer(LabradServer):
         p.memory_bias_commands(setzero, maxsettling*us)
         yield p.send()
         
-        returnValue([(qubit[0], qubit[1]['|1>-State Cutoff']) for qubit in qubits])
+        returnValue([(qname, self.getPar(c, qname, qubit, '|1>-State Cutoff')) for qname, qubit in qubits])
 
 __server__ = QubitBiasServer()
 
