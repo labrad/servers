@@ -116,6 +116,19 @@ class VoBIServer(LabradServer):
         self.Configs = {}
 
 
+    @setting(10000, 'Duplicate Context', prototype=['(ww)'])
+    def dupe_ctxt(self, c, prototype):
+        if prototype[0]==0:
+            prototype = (c.ID[0], prototype[1])
+        if prototype not in self.prot.queues:
+            raise ContextNotFoundError(prototype)
+        newc = deepcopy(self.prot.queues[prototype].ctxtData)
+        for key in c.keys():
+            if key not in newc:
+                del c[key]
+        c.update(newc)
+
+
     @setting(1, 'Config List', loaded=['b'], returns=['*s'])
     def config_list(self, c, loaded=False):
         """List all available (b=False) or loaded (b=True) configurations"""
