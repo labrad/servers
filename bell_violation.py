@@ -389,7 +389,7 @@ class VoBIServer(LabradServer):
         returnValue((probs, Es, S))
 
 
-    @setting(102, 'Run Koko', stats=['w'], returns=['(*2v, *v, v)'])
+    @setting(102, 'Run Korotkov', stats=['w'], returns=['(*2v, *v, v)'])
     def run_koko(self, c, stats):
         """Runs Korotkov T Measurement"""
         probs = yield self.run(c, 6, stats)
