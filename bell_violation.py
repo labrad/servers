@@ -118,6 +118,7 @@ class VoBIServer(LabradServer):
 
     @setting(10000, 'Duplicate Context', prototype=['(ww)'])
     def dupe_ctxt(self, c, prototype):
+        """Sets up the current context to match the settings of the given prototype context"""
         if prototype[0]==0:
             prototype = (c.ID[0], prototype[1])
         if prototype not in self.prot.queues:
@@ -390,7 +391,7 @@ class VoBIServer(LabradServer):
     def run_single(self, c, stats):
         """Runs Experiment for A, B only"""
         probs = yield self.run(c, 1, stats)
-        returnValue(probs[0])
+        returnValue(probs[0][1:])
 
 
     @setting(101, 'Run CHSH', stats=['w'], returns=['(*2v, *v, v)'])
@@ -399,6 +400,7 @@ class VoBIServer(LabradServer):
         probs = yield self.run(c, 4, stats)
         Es = [p[0] - p[1] - p[2] + p[3] for p in probs]
         S = Es[0] + Es[1] - Es[2] + Es[3]
+        probs = [p[1:] for p in probs]
         returnValue((probs, Es, S))
 
 
@@ -410,6 +412,7 @@ class VoBIServer(LabradServer):
         Rs[4] += probs[4][2]
         Rs[5] += probs[5][1]
         T = Rs[0] + Rs[1] - Rs[2] + Rs[3] - Rs[4] - Rs[5]
+        probs = [p[1:] for p in probs]
         returnValue((probs, Rs, T))
 
 __server__ = VoBIServer()

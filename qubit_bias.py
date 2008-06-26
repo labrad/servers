@@ -120,6 +120,7 @@ class QubitBiasServer(LabradServer):
 
     @setting(10000, 'Duplicate Context', prototype=['(ww)'])
     def dupe_ctxt(self, c, prototype):
+        """Sets up the current context to match the settings of the given prototype context"""
         if prototype[0]==0:
             prototype = (c.ID[0], prototype[1])
         if prototype not in self.prot.queues:
