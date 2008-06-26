@@ -149,6 +149,7 @@ class QubitBiasServer(LabradServer):
         """Create a new configuration"""
         self.Configs[name] = {}
         c['Config'] = name
+        c['Overrides'] = {}
 
     @setting(3, 'Config Load', name=['s'], returns=['*s'])
     def config_load(self, c, name):
@@ -160,6 +161,7 @@ class QubitBiasServer(LabradServer):
         qubits = ans.dir[0]
         
         c['Config'] = name
+        c['Overrides'] = {}
         self.Configs[name] = {}
         p = self.client.registry.packet()
         for qubit in qubits:
@@ -195,7 +197,8 @@ class QubitBiasServer(LabradServer):
     def config_select(self, c, name):
         """Select active configuration for this context"""
         self.getConfig(c, name)
-        c['Config']=name
+        c['Config'] = name
+        c['Overrides'] = {}
 
 
     @setting(10, 'Qubit List', returns=['*s'])
@@ -249,6 +252,28 @@ class QubitBiasServer(LabradServer):
             for key, value in qubit.items():
                 p.add_parameter(qname+' - '+key, value)
         yield p.send()
+        
+
+    @setting(30, 'Parameter Set Override', name=['s'], value=['v'])
+    def override_set(self, c, name, value):
+        """Sets a parameter override for the current context on the current qubit"""
+        cname, qname, qubit = self.getQubit(c)
+        if qname not in c['Overrides']:
+            c['Overrides'][qname] = {}
+        c['Overrides'][qname][name] = value
+
+    @setting(31, 'Parameter Clear Override', name=['s'])
+    def override_clear(self, c, name):
+        """Clears a parameter override for the current context on the current qubit"""
+        cname, qname, qubit = self.getQubit(c)
+        if qname in c['Overrides']:
+            if name in c['Overrides'][qname]:
+                del c['Overrides'][qname][name]
+
+    @setting(32, 'Parameter Clear All Overrides')
+    def override_clear_all(self, c):
+        """Clears all parameter overrides for the current context on the current qubit"""
+        c['Overrides'] = {}
 
 
     @setting(100, 'Initialize Qubits', operatingbias=['v[mV]', '*(s{Qubit}v[mV])', ], returns=['*(sv[mV]): Operating Biases by Qubit'])
