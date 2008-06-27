@@ -579,9 +579,6 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         i = round(i * fullscale + zeroI).astype(int32)
         q = round(q * fullscale + zeroQ).astype(int32)
 
-        if not zipSRAM:
-            return (i, q)
-
         if not rescale:
             if (max(i) > 0x1FFF) or (min(i) < -0x2000):
                 print 'Corrected I signal beyond DAC range, clipping.'
@@ -590,11 +587,22 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
                 print 'Corrected Q signal beyond DAC range, clipping.'
                 q = clip(q,-0x2000,0x1FFF)
 
+        if not zipSRAM:
+            return (i, q)
+
         return ((i & 0x3FFF) << (14 * self.flipChannels) | \
                 (q & 0x3FFF) << (14 * (not self.flipChannels))).astype(uint32)
 
 
-
+    def recalibrate(self, carrierMin, carrierMax, zeroCarrierStep=0.02,
+                sidebandCarrierStep=0.05, sidebandMax=0.35, sidebandStep=0.05):
+        if self.recalibrationRoutine is None:
+            print 'No calibration routine hooked in.'
+            return self
+        return self.recalibrationRoutine(self.board, carrierMin, carrierMax,
+                                         zeroCarrierStep, sidebandCarrierStep,
+                                         sidebandMax, sidebandStep, self)
+ 
 
 
 #############################################
@@ -803,12 +811,4 @@ class DACcorrection:
 
 
 
-    def recalibrate(self, carrierMin, carrierMax, zeroCarrierStep=0.02,
-                sidebandCarrierStep=0.05, sidebandMax=0.35, sidebandStep=0.05):
-        if self.recalibrationRoutine is None:
-            print 'No calibration routine hooked in.'
-            return self
-        return self.recalibrationRoutine(self.boardname, carrierMin, carrierMax,
-                                         zeroCarrierStep, sidebandCarrierStep,
-                                         sidebandMax, sidebandStep, self)
         

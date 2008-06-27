@@ -20,6 +20,7 @@ from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad.thread import blockingCallFromThread as block, startReactor
 import labrad
+
 from numpy import shape, array, size
 SETUPTYPESTRINGS = ['no IQ mixer', \
                     'DAC A -> mixer I, DAC B -> mixer Q',\
@@ -29,7 +30,6 @@ ZERONAME = 'zero'
 PULSENAME = 'pulse'
 IQNAME = 'IQ'
 CHANNELNAMES = ['DAC A','DAC B']
-
 
 @inlineCallbacks
 def getDataSets(cxn, boardname, caltype, errorClass=None):
@@ -77,7 +77,8 @@ def IQcorrectorAsync(fpganame, connection,
     if zerocor:
         datasets = yield getDataSets(cxn, fpganame, ZERONAME, errorClass)
         for dataset in datasets:
-            yield ds.open(dataset,context=ctx)
+            filename = yield ds.open(dataset,context=ctx)
+            print 'Loading zero calibration from %s:' % filename[1]
             datapoints = (yield ds.get(context=ctx)).asarray
             corrector.loadZeroCal(datapoints, dataset)
             
@@ -88,7 +89,8 @@ def IQcorrectorAsync(fpganame, connection,
         dataset = yield getDataSets(cxn, fpganame, PULSENAME, errorClass)
         if dataset != []:
             dataset = dataset[0]
-            yield ds.open(dataset,context=ctx)
+            filename = yield ds.open(dataset,context=ctx)
+            print 'Loading pulse calibration from %s:' % filename[1]
             setupType = yield ds.get_parameter('Setup type',context=ctx)
             print '  %s' % setupType
             IisB = (setupType == SETUPTYPESTRINGS[2])
@@ -102,7 +104,8 @@ def IQcorrectorAsync(fpganame, connection,
     if iqcor:
         datasets = yield getDataSets(cxn, fpganame, IQNAME, errorClass)
         for dataset in datasets:
-            yield ds.open(dataset,context=ctx)
+            filename = yield ds.open(dataset,context=ctx)
+            print 'Loading sideband calibration from %s:' % filename[1]
             sidebandStep = \
                 (yield ds.get_parameter('Sideband frequency step',
                                         context=ctx))['GHz']
@@ -122,8 +125,10 @@ def IQcorrector(fpganame,
                 zerocor = True, pulsecor = True, iqcor = True,
                 lowpass = cosinefilter, bandwidth = 0.4):
     startReactor()
-    return block(IQcorrectorAsync, fpganame, None, zerocor,
-                 pulsecor, iqcor, lowpass, bandwidth)
+    corrector = block(IQcorrectorAsync, fpganame, None, zerocor,
+                      pulsecor, iqcor, lowpass, bandwidth)
+    corrector.recalibrationRoutine = recalibrate
+    return corrector
 
 
 
@@ -172,6 +177,8 @@ def DACcorrector(fpganame, channel, \
     return block(DACcorrectorAsync, fpganame, channel, None,
                  lowpass, bandwidth)
 
+import calibrate
+
     
 
 @inlineCallbacks
@@ -179,6 +186,11 @@ def recalibrateAsync(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
                 sidebandCarrierStep=0.05, sidebandMax=0.35, sidebandStep=0.05,
                 corrector=None):
     cxn = yield labrad.connectAsync()
+    ds = cxn.data_vault
+    reg = cxn.registry
+    reg.cd(['', SESSIONNAME, boardname])
+    anritsuID = yield reg.get('Anritsu ID')
+    anritsuPower = (yield reg.get('Anritsu Power'))['dBm']
     if corrector is None:
         corrector = yield IQcorrectorAsync(boardname, cxn)
     if corrector.board != boardname:
@@ -196,14 +208,15 @@ def recalibrateAsync(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
             corrector = yield IQcorrectorAsync(boardname, cxn)
   
         # do the zero calibration
-        dataset = calibrateZeroAsync(cxn,
+        dataset = calibrate.zeroScanCarrier(cxn,
                                      {'carrrierMin': carrierMin,
                                       'carrierMax': carrierMax,
-                                      'carrierStep': carrierStep},
+                                      'carrierStep': zeroCarrierStep,
+                                      'anritsu dBm': anritsuPower},
                                      boardname)
         # load it into the corrector
-        yield ds.open(dataset,context=ctx)
-        datapoints = (yield ds.get(context=ctx)).asarray
+        yield ds.open(dataset)
+        datapoints = (yield ds.get()).asarray
         corrector.loadZeroCal(datapoints, dataset)
         # eliminate obsolete zero calibrations
         datasets = corrector.eliminateZeroCals()
@@ -223,26 +236,28 @@ def recalibrateAsync(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
 
             
         # do the pulse calibration
-        dataset = calibrateSidebandAsync(cxn,
+        dataset = calibrate.sidebandScanCarrier(cxn,
                                      {'carrrierMin': carrierMin,
                                       'carrierMax': carrierMax,
-                                      'carrierStep': carrierStep},
+                                      'carrierStep': sidebandCarrierStep,
+                                      'anritsu dBm': anritsuPower},
                                      boardname, corrector)
         # load it into the corrector
-        yield ds.open(dataset,context=ctx)
+        yield ds.open(dataset)
         sidebandStep = \
-            (yield ds.get_parameter('Sideband frequency step',
-                                    context=ctx))['GHz']
+            (yield ds.get_parameter('Sideband frequency step'))['GHz']
         sidebandCount = \
-            yield ds.get_parameter('Number of sideband frequencies',
-                                   context=ctx)
-        datapoints = (yield ds.get(context=ctx)).asarray
+            yield ds.get_parameter('Number of sideband frequencies')
+        datapoints = (yield ds.get()).asarray
         corrector.loadSidebandCal(datapoints, sidebandStep, dataset)
         # eliminate obsolete zero calibrations
         datasets = corrector.eliminateSidebandCals()
         # and save which ones are being used now
         yield reg.cd(['',SESSIONNAME,boardname],True)
         yield reg.set(IQNAME, datasets)
+    cxn.disconnect()
+
+
 
 
 def recalibrate(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
