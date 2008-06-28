@@ -18,8 +18,8 @@
 # calibration but also for recalibration. The user interface is provided
 # by GHz_DAC_calibrate in "scripts".
 
-from ghzdac_recal import SESSIONNAME, ZERONAME, PULSENAME, CHANNELNAMES, \
-     IQNAME, SETUPTYPESTRINGS, IQcorrector
+from ghzdac_recal import IQcorrector
+import keys
 from numpy import exp, pi, arange, real, imag, min, max, log, transpose, alen
 from labrad.types import Value
 from datetime import datetime
@@ -121,6 +121,33 @@ def zero(anr, spec, fpga, freq):
     returnValue([a,b])
 
 @inlineCallbacks
+def zeroFixedCarrier(cxn, boardname):
+    fpga = cxn.ghz_dacs
+    anr = cxn.anritsu_server
+    spec = cxn.spectrum_analyzer_server
+    reg = cxn.registry
+    yield reg.cd(['',keys.SESSIONNAME,boardname])
+    spectID = yield reg.get(keys.SPECTID)
+    spec.select_device(spectID)
+    yield spectInit(spec)
+
+    anritsuID = yield reg.get(keys.ANRITSUID)
+    anritsuPower = yield reg.get(keys.ANRITSUPOWER)
+    frequency = (yield reg.get(keys.PULSECARRIERFREQ))['GHz']
+    yield anr.select_device(anritsuID)
+    yield anr.amplitude(anritsuPower)
+    yield anr.output(True)
+
+    print 'Zero calibration...'
+
+    daczeros = yield zero(anr,spec,fpga,frequency)
+
+    yield anr.output(False)        
+    returnValue(daczeros)
+    
+
+
+
 def zeroScanCarrier(cxn, scanparams, boardname):
     """Measures the DAC zeros in function of the carrier frequency."""
     fpga = cxn.ghz_dacs
@@ -128,13 +155,13 @@ def zeroScanCarrier(cxn, scanparams, boardname):
     spec = cxn.spectrum_analyzer_server
     scope = cxn.sampling_scope
     reg = cxn.registry
-    yield reg.cd(['',SESSIONNAME,boardname])
-    spectID = yield reg.get('SpectrumAnalyzer ID')
+    yield reg.cd(['',keys.SESSIONNAME,boardname])
+    spectID = yield reg.get(keys.SPECTID)
     spec.select_device(spectID)
     yield spectInit(spec)
 
-    anritsuID = yield reg.get('Anritsu ID')
-    anritsuPower = yield reg.get('Anritsu Power')
+    anritsuID = yield reg.get(keys.ANRITSUID)
+    anritsuPower = yield reg.get(keys.ANRITSUPOWER)
     yield anr.select_device(anritsuID)
     yield anr.amplitude(anritsuPower)
     yield anr.output(True)
@@ -143,13 +170,12 @@ def zeroScanCarrier(cxn, scanparams, boardname):
         (scanparams['carrierMin'],scanparams['carrierMax'],scanparams['carrierStep'])
 
     ds = cxn.data_vault
-    yield ds.cd(['',SESSIONNAME,boardname],True)
-    dataset = yield ds.new(ZERONAME,
+    yield ds.cd(['',keys.SESSIONNAME,boardname],True)
+    dataset = yield ds.new(keys.ZERONAME,
                            [('Frequency','GHz')],
                            [('DAC zero', 'A', 'clics'),
                             ('DAC zero', 'B', 'clics')])
-    yield ds.add_parameter('Anritsu amplitude',
-                     Value(scanparams['anritsu dBm'],'dBm'))
+    yield ds.add_parameter(keys.ANRITSUPOWER, anritsuPower)
 
     freq=scanparams['carrierMin']
     while freq<scanparams['carrierMax']:
@@ -174,7 +200,7 @@ def measureImpulseResponse(fpga, scope, baseline, pulse, dacoffsettime=6):
     list[2:]: actual data (V)
     """
     #units clock cycles
-
+    dacoffsettime = int(round(dacoffsettime))
     triggerdelay=30
     looplength=256
     pulseindex=(triggerdelay-dacoffsettime) % looplength
@@ -197,12 +223,12 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     pulseheight=0x1800
 
     reg = cxn.registry
-    yield reg.cd(['',SESSIONNAME,boardname])
+    yield reg.cd(['',keys.SESSIONNAME,boardname])
 
     anr = cxn.anritsu_server
-    anritsuID = yield reg.get('Anritsu ID')
-    anritsuPower = yield reg.get('Anritsu Power')
-    carrierFreq = yield reg.get('Pulse calibration Frequency')
+    anritsuID = yield reg.get(keys.ANRITSUID)
+    anritsuPower = yield reg.get(keys.ANRITSUPOWER)
+    carrierFreq = yield reg.get(keys.PULSECARRIERFREQ)
     
     yield anr.select_device(anritsuID)
     yield anr.frequency(carrierFreq)
@@ -211,7 +237,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     
     #Set up the scope
     scope = cxn.sampling_scope
-    scopeID = yield reg.get('Sampling scope ID')
+    scopeID = yield reg.get(keys.SCOPEID)
     yield scope.select_device(scopeID)
     p = scope.packet().\
     reset().\
@@ -228,7 +254,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
 
     fpga = cxn.ghz_dacs
     yield fpga.select_device(boardname)
-    offsettime = yield reg.get('Time offset for pulse calibration')
+    offsettime = yield reg.get(keys.TIMEOFFSET)
 
     baseline = makeSample(baselineA,baselineB)
     print "Measuring offset voltage..."
@@ -255,14 +281,14 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     yield fpga.run_sram([baseline]*4)
     yield anr.output(False)
     ds = cxn.data_vault
-    yield ds.cd(['',SESSIONNAME,boardname],True)
-    dataset = yield ds.new(PULSENAME,[('Time','ns')],
+    yield ds.cd(['',keys.SESSIONNAME,boardname],True)
+    dataset = yield ds.new(keys.PULSENAME,[('Time','ns')],
                            [('Voltage','A','V'),('Voltage','B','V')])
-    setupType = yield reg.get('Wiring')
-    yield ds.add_parameter('Setup type', setupType)
-    yield ds.add_parameter('Anritsu frequency', carrier)
-    yield ds.add_parameter('Anritsu amplitude', anritsuPower)
-    yield ds.add_parameter('DAC offset time', offsettime)
+    setupType = yield reg.get(keys.IQWIRING)
+    yield ds.add_parameter(keys.IQWIRING, setupType)
+    yield ds.add_parameter(keys.PULSECARRIERFREQ, carrierFreq)
+    yield ds.add_parameter(keys.ANRITSUPOWER, anritsuPower)
+    yield ds.add_parameter(keys.TIMEOFFSET, offsettime)
     yield ds.add(transpose([1e9*(starttime+timestep*arange(alen(traceA)-2)),
         traceA[2:]-offset,
         traceB[2:]-offset]))
@@ -272,7 +298,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
 def calibrateDCPulse(cxn,boardname,channel):
 
     reg = cxn.registry
-    yield reg.cd(['',SESSIONNAME,boardname])
+    yield reg.cd(['',keys.SESSIONNAME,boardname])
 
     fpga = cxn.ghz_dacs
     fpga.select_device(boardname)
@@ -288,9 +314,9 @@ def calibrateDCPulse(cxn,boardname,channel):
         baseline = makeSample(dac_baseline, dac_neutral)
     #Set up the scope
     scope = cxn.sampling_scope
-    scopeID = yield reg.get('Sampling scope ID')
+    scopeID = yield reg.get(keys.SCOPEID)
     p = scope.packet().\
-    select_device(scopeID).\    
+    select_device(scopeID).\
     reset().\
     channel(1).\
     trace(1).\
@@ -303,7 +329,7 @@ def calibrateDCPulse(cxn,boardname,channel):
     trigger_positive()
     yield p.send()
 
-    offsettime = yield reg.get('Time offset for pulse calibration')
+    offsettime = yield reg.get(keys.TIMEOFFSET)
 
     
     print 'Measuring offset voltage...'
@@ -316,10 +342,10 @@ def calibrateDCPulse(cxn,boardname,channel):
         dacoffsettime=offsettime['ns'])
     yield fpga.run_sram([makeSample(neutral, neutral)]*4,False)
     ds = cxn.data_vault
-    yield ds.cd(['',SESSIONNAME,boardname],True)
-    dataset = yield ds.new(CHANNELNAMES[channel],[('Time','ns')],
+    yield ds.cd(['',keys.SESSIONNAME,boardname],True)
+    dataset = yield ds.new(keys.CHANNELNAMES[channel],[('Time','ns')],
                            [('Voltage','','V')])
-    yield ds.add_parameter('DAC offset time', offsettime)
+    yield ds.add_parameter(keys.TIMEOFFSET, offsettime)
     yield ds.add(transpose([1e9*(trace[0]+trace[1]*arange(alen(trace)-2)),
         trace[2:]-offset]))
     returnValue(datasetNumber(dataset))
@@ -392,13 +418,13 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
     scope=cxn.sampling_scope
     ds=cxn.data_vault
     reg = cxn.registry
-    yield reg.cd(['',SESSIONNAME,boardname])
-    spectID = yield reg.get('SpectrumAnalyzer ID')
+    yield reg.cd(['',keys.SESSIONNAME,boardname])
+    spectID = yield reg.get(keys.SPECTID)
     spec.select_device(spectID)
     yield spectInit(spec)
 
-    anritsuID = yield reg.get('Anritsu ID')
-    anritsuPower = yield reg.get('Anritsu Power')
+    anritsuID = yield reg.get(keys.ANRITSUID)
+    anritsuPower = yield reg.get(keys.ANRITSUPOWER)
     yield anr.select_device(anritsuID)
     yield anr.amplitude(anritsuPower)
     yield anr.output(True)
@@ -416,10 +442,9 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
                             (sidebandfreq*1e3),''),
                        ('relative compensation', 'I at f_SB = %g MHz' % \
                             (sidebandfreq*1e3),'')]    
-    yield ds.cd(['',SESSIONNAME,boardname],True)
-    dataset = yield ds.new(IQNAME,[('Antritsu Frequency','GHz')],dependents)
-    yield ds.add_parameter('Anritsu amplitude',
-                      Value(scanparams['anritsu dBm'],'dBm'))
+    yield ds.cd(['',keys.SESSIONNAME,boardname],True)
+    dataset = yield ds.new(keys.IQNAME,[('Antritsu Frequency','GHz')],dependents)
+    yield ds.add_parameter(keys.ANRITSUPOWER, (yield reg.get(keys.ANRITSUPOWER)))
     yield ds.add_parameter('Sideband frequency step',
                      Value(scanparams['sidebandFreqStep']*1e3,'MHz'))
     yield ds.add_parameter('Number of sideband frequencies',

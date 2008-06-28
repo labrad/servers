@@ -20,22 +20,14 @@ from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad.thread import blockingCallFromThread as block, startReactor
 import labrad
-
+import keys
 from numpy import shape, array, size
-SETUPTYPESTRINGS = ['no IQ mixer', \
-                    'DAC A -> mixer I, DAC B -> mixer Q',\
-                    'DAC A -> mixer Q, DAC B -> mixer I']
-SESSIONNAME = 'GHzDAC recalibration test'
-ZERONAME = 'zero'
-PULSENAME = 'pulse'
-IQNAME = 'IQ'
-CHANNELNAMES = ['DAC A','DAC B']
 
 @inlineCallbacks
 def getDataSets(cxn, boardname, caltype, errorClass=None):
     reg = cxn.registry
     ds = cxn.data_vault
-    yield reg.cd(['',SESSIONNAME,boardname],True)
+    yield reg.cd(['',keys.SESSIONNAME,boardname],True)
     if caltype in (yield reg.dir())[1]:
         calfiles = (yield reg.get(caltype))
     else:
@@ -69,13 +61,13 @@ def IQcorrectorAsync(fpganame, connection,
     ds=cxn.data_vault
     ctx = ds.context()
 
-    yield ds.cd(['',SESSIONNAME,fpganame],context=ctx)
+    yield ds.cd(['',keys.SESSIONNAME,fpganame],context=ctx)
 
     corrector = IQcorrection(fpganame, lowpass, bandwidth)
 
     # Load Zero Calibration
     if zerocor:
-        datasets = yield getDataSets(cxn, fpganame, ZERONAME, errorClass)
+        datasets = yield getDataSets(cxn, fpganame, keys.ZERONAME, errorClass)
         for dataset in datasets:
             filename = yield ds.open(dataset,context=ctx)
             print 'Loading zero calibration from %s:' % filename[1]
@@ -86,14 +78,14 @@ def IQcorrectorAsync(fpganame, connection,
 
     #Load pulse response
     if pulsecor:
-        dataset = yield getDataSets(cxn, fpganame, PULSENAME, errorClass)
+        dataset = yield getDataSets(cxn, fpganame, keys.PULSENAME, errorClass)
         if dataset != []:
             dataset = dataset[0]
             filename = yield ds.open(dataset,context=ctx)
             print 'Loading pulse calibration from %s:' % filename[1]
-            setupType = yield ds.get_parameter('Setup type',context=ctx)
+            setupType = yield ds.get_parameter(keys.IQWIRING,context=ctx)
             print '  %s' % setupType
-            IisB = (setupType == SETUPTYPESTRINGS[2])
+            IisB = (setupType == keys.SETUPTYPES[2])
             datapoints = (yield ds.get(context=ctx)).asarray
             carrierfreq = (yield ds.get_parameter('Anritsu frequency',
                                                   context=ctx))['GHz']
@@ -102,7 +94,7 @@ def IQcorrectorAsync(fpganame, connection,
 
     # Load Sideband Calibration
     if iqcor:
-        datasets = yield getDataSets(cxn, fpganame, IQNAME, errorClass)
+        datasets = yield getDataSets(cxn, fpganame, keys.IQNAME, errorClass)
         for dataset in datasets:
             filename = yield ds.open(dataset,context=ctx)
             print 'Loading sideband calibration from %s:' % filename[1]
@@ -151,12 +143,12 @@ def DACcorrectorAsync(fpganame, channel, connection = None, \
     ds=cxn.data_vault
     ctx = ds.context()
 
-    yield ds.cd(['',SESSIONNAME,fpganame],context=ctx)
+    yield ds.cd(['',keys.SESSIONNAME,fpganame],context=ctx)
 
     corrector = DACcorrection(fpganame, lowpass, bandwidth)
 
     if not isinstance(channel, str):
-        channel = CHANNELNAMES[channel]
+        channel = keys.CHANNELNAMES[channel]
 
     dataset = yield getDataSets(cxn, fpganame, channel, errorClass)
     if dataset != []:
@@ -188,7 +180,7 @@ def recalibrateAsync(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
     cxn = yield labrad.connectAsync()
     ds = cxn.data_vault
     reg = cxn.registry
-    reg.cd(['', SESSIONNAME, boardname])
+    reg.cd(['', keys.SESSIONNAME, boardname])
     anritsuID = yield reg.get('Anritsu ID')
     anritsuPower = (yield reg.get('Anritsu Power'))['dBm']
     if corrector is None:
@@ -202,7 +194,7 @@ def recalibrateAsync(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
         #check if a corrector has been provided and if it is up to date
         #or if we have to load a new one.
         if corrector.zeroCalFiles != \
-          (yield getDataSets(cxn, boardname, ZERONAME, 'quiet')):
+          (yield getDataSets(cxn, boardname, keys.ZERONAME, 'quiet')):
             print 'Provided correcetor is outdated.'
             print 'Loading new corrector. Provided corrector will not be updated.'
             corrector = yield IQcorrectorAsync(boardname, cxn)
@@ -221,15 +213,15 @@ def recalibrateAsync(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
         # eliminate obsolete zero calibrations
         datasets = corrector.eliminateZeroCals()
         # and save which ones are being used now
-        yield reg.cd(['',SESSIONNAME,boardname],True)
-        yield reg.set(ZERONAME, datasets)
+        yield reg.cd(['',keys.SESSIONNAME,boardname],True)
+        yield reg.set(keys.ZERONAME, datasets)
     if sidebandCarrierStep is not None:
         #check if a corrector has been provided and if it is up to date
         #or if we have to load a new one.
         if (corrector.sidebandCalFiles != \
-          (yield getDataSets(cxn, boardname, IQNAME, 'quiet'))) or \
+          (yield getDataSets(cxn, boardname, keys.IQNAME, 'quiet'))) or \
           (array([corrector.pulseCalFile]) != \
-               (yield getDataSets(cxn, boardname, PULSENAME, 'quiet'))):
+               (yield getDataSets(cxn, boardname, keys.PULSENAME, 'quiet'))):
             print 'Provided correcetor is outdated.'
             print 'Loading new corrector. Provided corrector will not be updated.'
             corrector = yield IQcorrectorAsync(boardname, cxn)
@@ -253,8 +245,8 @@ def recalibrateAsync(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
         # eliminate obsolete zero calibrations
         datasets = corrector.eliminateSidebandCals()
         # and save which ones are being used now
-        yield reg.cd(['',SESSIONNAME,boardname],True)
-        yield reg.set(IQNAME, datasets)
+        yield reg.cd(['',keys.SESSIONNAME,boardname],True)
+        yield reg.set(keys.IQNAME, datasets)
     cxn.disconnect()
 
 
