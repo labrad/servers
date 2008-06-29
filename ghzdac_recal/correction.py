@@ -12,14 +12,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-# Version 1.1.0
-#
-# History
-#
-# 1.1.0   2008/06/17  added recalibrations and possibility to use several
-#                     calibration files
-# 1.0.0               first stable version
 
 
 
@@ -27,7 +19,7 @@
 from numpy import conjugate, array, asarray, floor, ceil, round, min, max, \
 alen, clip, sqrt, log, arange, linspace, zeros, ones, reshape, outer, \
 compress, sum, shape, cos, pi, exp, Inf, size, real, imag, uint32, int32, \
-insert, argmin
+argmin, resize, argwhere, append
 from numpy.fft import fft, rfft, irfft
 
 
@@ -99,11 +91,11 @@ def interpol(signal, x, extrapolate=False):
     return signal[i] * (1.0 - p) + signal[i+1] * p
 
 
-def findRelevent(starts, ends):
+def findRelevant(starts, ends):
     n = size(starts)
     relevant = resize(True, n)
-    for i in arange(1,n):
-        relevant[i] = any((starts[:i-1] < starts[i]) & (ends[:i-1] > ends[i]))
+    for i in arange(n-1):
+        relevant[i] = not any((starts[i+1:] <= starts[i]) & (ends[i+1:] >= ends[i]))
     return argwhere(relevant)[:,0]
 
         
@@ -158,7 +150,7 @@ class IQcorrection:
         self.zeroTableStart = zeros(0,dtype=float)
         self.zeroTableEnd = zeros(0,dtype=float)
         self.zeroTableStep = zeros(0,dtype=float)
-        self.zeroCalFiles = zeros(0)
+        self.zeroCalFiles = zeros(0,dtype=int)
         self.zeroTableI = []
         self.zeroTableQ = []
 
@@ -169,30 +161,24 @@ class IQcorrection:
         self.sidebandStep = zeros(0,dtype=float)
         self.sidebandCount = zeros(0)
         self.sidebandCompensation = []
-        self.sidebandCalFiles = zeros(0)
+        self.sidebandCalFiles = zeros(0,dtype=int)
 
         self.selectCalAll()
         
         self.recalibrationRoutine=None
 
-    def loadZeroCal(self, zeroData, calfile, position=None):
-        if position is None:
-            position = size(self.zeroTableStart)
-
-        self.zeroTableI.insert(position,
-                               zeroData[:, (1 + self.flipChannels)])
-        self.zeroTableQ.insert(position,
-                               zeroData[:, (1 + (not self.flipChannels))])
-        self.zeroTableStart=insert(self.zeroTableStart, position,
-                                   zeroData[0,0])
-        self.zeroTableEnd=insert(self.zeroTableEnd, position,
-                                 zeroData[-1,0])
-        self.zeroTableStep=insert(self.zeroTableStep, position,
-                                  zeroData[1,0]-zeroData[0,0])
-        self.zeroCalFiles = insert(self.zeroCalFiles, position, calfile)
+    def loadZeroCal(self, zeroData, calfile):
+        l = shape(zeroData)[0]
+        self.zeroTableI.append(zeroData[:, (1 + self.flipChannels)])
+        self.zeroTableQ.append(zeroData[:, (1 + (not self.flipChannels))])
+        self.zeroTableStart=append(self.zeroTableStart, zeroData[0,0])
+        self.zeroTableEnd=append(self.zeroTableEnd, zeroData[-1,0])
+        self.zeroTableStep=append(self.zeroTableStep,
+                                  (zeroData[-1,0]-zeroData[0,0]) / (l - (l>1)))
+        self.zeroCalFiles = append(self.zeroCalFiles, calfile)
         print '  carrier frequencies: %g GHz to %g GHz in steps of %g MHz' % \
               (zeroData[0,0], zeroData[-1,0],
-               self.zeroTableStep[position]*1000.0)
+               self.zeroTableStep[-1]*1000.0)
 
     def eliminateZeroCals(self):
         """
@@ -202,8 +188,8 @@ class IQcorrection:
         during a recalibration.
         """
         keep = findRelevant(self.zeroTableStart,self.zeroTableEnd)
-        self.zeroTableI = self.zeroTableI[keep]
-        self.zeroTableQ = self.zeroTableQ[keep]
+        self.zeroTableI = [self.zeroTableI[i] for i in keep]
+        self.zeroTableQ = [self.zeroTableQ[i] for i in keep]
         self.zeroTableStart = self.zeroTableStart[keep]
         self.zeroTableEnd = self.zeroTableEnd[keep]
         self.zeroTableStep = self.zeroTableStep[keep]
@@ -211,37 +197,35 @@ class IQcorrection:
         return self.zeroCalFiles
 
 
-    def loadSidebandCal(self, sidebandData, sidebandStep, calfile, position=None):
+    def loadSidebandCal(self, sidebandData, sidebandStep, calfile):
         
         """
         Load IQ sideband mixing calibration
         """
-        if position is None:
-            position = size(self.sidebandCarrierStart)
         
-        self.sidebandStep = insert(self.sidebandStep, position, sidebandStep)
+        self.sidebandStep = append(self.sidebandStep, sidebandStep)
         
         l,sidebandCount = shape(sidebandData)
         sidebandCount = (sidebandCount-1)/2
 
-        self.sidebandCarrierStart = insert(self.sidebandCarrierStart,
-                                           position, sidebandData[0,0])
-        self.sidebandCarrierEnd = insert(self.sidebandCarrierEnd,
-                                           position, sidebandData[-1,0])
-        self.sidebandCarrierStep = insert(self.sidebandCarrierStep, position, \
-            (sidebandData[-1,0] - sidebandData[0,0]) / (l - 1))
+        self.sidebandCarrierStart = append(self.sidebandCarrierStart,
+                                           sidebandData[0,0])
+        self.sidebandCarrierEnd = append(self.sidebandCarrierEnd,
+                                         sidebandData[-1,0])
+        self.sidebandCarrierStep = append(self.sidebandCarrierStep, 
+            (sidebandData[-1,0] - sidebandData[0,0]) / (l - (l>1)))
         print '  carrier frequencies: %g GHz to %g GHz in steps of %g MHz' % \
               (sidebandData[0,0],
                sidebandData[-1,0],
-               self.sidebandCarrierStep[position]*1000.0)
+               self.sidebandCarrierStep[-1]*1000.0)
         sidebandData = reshape(sidebandData[:,1:],(l,sidebandCount, 2))
-        self.sidebandCompensation.insert(position,
+        self.sidebandCompensation.append( \
             sidebandData[:,:,0] + 1.0j * sidebandData[:,:,1])
-        self.sidebandCalFiles = insert(self.sidebandCalFiles, position, calfile)
+        self.sidebandCalFiles = append(self.sidebandCalFiles, calfile)
         print '  sideband frequencies: %g MHz to %g Mhz in steps of %g MHz' % \
-              (-500.0*(sidebandCount-1)*self.sidebandStep,
-               500.0*(sidebandCount-1)*self.sidebandStep,
-               self.sidebandStep*1000)
+              (-500.0*(sidebandCount-1)*sidebandStep,
+               500.0*(sidebandCount-1)*sidebandStep,
+               sidebandStep*1000)
 
         
     def eliminateSidebandCals(self):
@@ -252,7 +236,7 @@ class IQcorrection:
         during a recalibration.
         """
         keep = findRelevant(self.sidebandCarrierStart,self.sidebandCarrierEnd)
-        self.sidebandCompensation = self.sidebandCompensation[keep]
+        self.sidebandCompensation = [self.sidebandCompensation[i] for i in keep]
         self.sidebandStep = self.sidebandStep[keep]
         self.sidebandCarrierStart = self.sidebandCarrierStart[keep]
         self.sidebandCarrierEnd = self.sidebandCarrierEnd[keep]
@@ -264,7 +248,7 @@ class IQcorrection:
 
         
 
-    def loadPulseCal(self, dataPoints, carrierfreq, flipChannels = False):
+    def loadPulseCal(self, dataPoints, carrierfreq, calfile, flipChannels = False):
 
         """
         Demodulates the IQ mixer output with the carrier frequency.
@@ -329,6 +313,7 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
             clip(abs(self.correctionI)/3/self.dynamicReserve, 1.0, Inf)
         self.correctionQ /= \
             clip(abs(self.correctionQ)/3/self.dynamicReserve, 1.0, Inf)
+        self.pulseCalFile = calfile
 
 
     def selectCalAll(self):
@@ -568,7 +553,7 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
                            ( 0x1FFF - zeroQ) / fullscale / max(q), \
                            (-0x2000 - zeroQ) / fullscale / min(q)])
             if rescale < 1.0:
-                print 'Corrected signal scaled by %g to fit DAC range.'
+                print 'Corrected signal scaled by %g to fit DAC range.' % rescale
             # keep track of rescaling in the object data
             self.last_rescale_factor = rescale
             if not isinstance(self.min_rescale_factor, float) or rescale < self.min_rescale_factor:
@@ -792,7 +777,7 @@ class DACcorrection:
                            ( 0x1FFF - zero) / fullscale / max(signal), \
                            (-0x2000 - zero) / fullscale / min(signal)])
             if rescale < 1.0:
-                print 'Corrected signal scaled by %g to fit DAC range.'
+                print 'Corrected signal scaled by %g to fit DAC range.' % rescale
             # keep track of rescaling in the object data
             self.last_rescale_factor = rescale
             if not isinstance(self.min_rescale_factor, float) or rescale < self.min_rescale_factor:

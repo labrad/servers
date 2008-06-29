@@ -13,6 +13,18 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+#
+# Version 1.1.0
+#
+# History
+#
+# 1.1.0   2008/06/17  added recalibrations and possibility to load several
+#                     calibration files
+# 1.0.0               first stable version
+
+
+
+
 from correction import DACcorrection, IQcorrection, \
      cosinefilter, gaussfilter, flatfilter
 from twisted.python import log
@@ -22,6 +34,9 @@ from labrad.thread import blockingCallFromThread as block, startReactor
 import labrad
 import keys
 from numpy import shape, array, size
+
+def aequal(a,b):
+    return (shape(a) == shape(b)) and (all(a == b))
 
 @inlineCallbacks
 def getDataSets(cxn, boardname, caltype, errorClass=None):
@@ -87,9 +102,9 @@ def IQcorrectorAsync(fpganame, connection,
             print '  %s' % setupType
             IisB = (setupType == keys.SETUPTYPES[2])
             datapoints = (yield ds.get(context=ctx)).asarray
-            carrierfreq = (yield ds.get_parameter('Anritsu frequency',
+            carrierfreq = (yield ds.get_parameter(keys.PULSECARRIERFREQ,
                                                   context=ctx))['GHz']
-            corrector.loadPulseCal(datapoints, carrierfreq, IisB)
+            corrector.loadPulseCal(datapoints, carrierfreq, dataset, IisB)
  
 
     # Load Sideband Calibration
@@ -181,8 +196,8 @@ def recalibrateAsync(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
     ds = cxn.data_vault
     reg = cxn.registry
     reg.cd(['', keys.SESSIONNAME, boardname])
-    anritsuID = yield reg.get('Anritsu ID')
-    anritsuPower = (yield reg.get('Anritsu Power'))['dBm']
+    anritsuID = yield reg.get(keys.ANRITSUID)
+    anritsuPower = (yield reg.get(keys.ANRITSUPOWER))['dBm']
     if corrector is None:
         corrector = yield IQcorrectorAsync(boardname, cxn)
     if corrector.board != boardname:
@@ -193,18 +208,17 @@ def recalibrateAsync(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
     if zeroCarrierStep is not None:
         #check if a corrector has been provided and if it is up to date
         #or if we have to load a new one.
-        if corrector.zeroCalFiles != \
-          (yield getDataSets(cxn, boardname, keys.ZERONAME, 'quiet')):
+        if not aequal(corrector.zeroCalFiles,
+          (yield getDataSets(cxn, boardname, keys.ZERONAME, 'quiet'))):
             print 'Provided correcetor is outdated.'
             print 'Loading new corrector. Provided corrector will not be updated.'
             corrector = yield IQcorrectorAsync(boardname, cxn)
   
         # do the zero calibration
-        dataset = calibrate.zeroScanCarrier(cxn,
-                                     {'carrrierMin': carrierMin,
+        dataset = yield calibrate.zeroScanCarrier(cxn,
+                                     {'carrierMin': carrierMin,
                                       'carrierMax': carrierMax,
-                                      'carrierStep': zeroCarrierStep,
-                                      'anritsu dBm': anritsuPower},
+                                      'carrierStep': zeroCarrierStep},
                                      boardname)
         # load it into the corrector
         yield ds.open(dataset)
@@ -218,21 +232,22 @@ def recalibrateAsync(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
     if sidebandCarrierStep is not None:
         #check if a corrector has been provided and if it is up to date
         #or if we have to load a new one.
-        if (corrector.sidebandCalFiles != \
-          (yield getDataSets(cxn, boardname, keys.IQNAME, 'quiet'))) or \
-          (array([corrector.pulseCalFile]) != \
-               (yield getDataSets(cxn, boardname, keys.PULSENAME, 'quiet'))):
+        if not (aequal(corrector.sidebandCalFiles,
+          (yield getDataSets(cxn, boardname, keys.IQNAME, 'quiet'))) and \
+          aequal(array([corrector.pulseCalFile]),
+               (yield getDataSets(cxn, boardname, keys.PULSENAME, 'quiet')))):
             print 'Provided correcetor is outdated.'
             print 'Loading new corrector. Provided corrector will not be updated.'
             corrector = yield IQcorrectorAsync(boardname, cxn)
 
             
         # do the pulse calibration
-        dataset = calibrate.sidebandScanCarrier(cxn,
-                                     {'carrrierMin': carrierMin,
+        dataset = yield calibrate.sidebandScanCarrier(cxn,
+                                     {'carrierMin': carrierMin,
                                       'carrierMax': carrierMax,
-                                      'carrierStep': sidebandCarrierStep,
-                                      'anritsu dBm': anritsuPower},
+                                      'sidebandCarrierStep': sidebandCarrierStep,
+                                      'sidebandFreqStep' : sidebandStep,
+                                      'sidebandFreqCount' : int(sidebandMax / sidebandStep + 0.5) * 2},
                                      boardname, corrector)
         # load it into the corrector
         yield ds.open(dataset)
@@ -248,6 +263,7 @@ def recalibrateAsync(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
         yield reg.cd(['',keys.SESSIONNAME,boardname],True)
         yield reg.set(keys.IQNAME, datasets)
     cxn.disconnect()
+    returnValue(corrector)
 
 
 

@@ -123,6 +123,7 @@ def zero(anr, spec, fpga, freq):
 @inlineCallbacks
 def zeroFixedCarrier(cxn, boardname):
     fpga = cxn.ghz_dacs
+    yield fpga.select_device(boardname)
     anr = cxn.anritsu_server
     spec = cxn.spectrum_analyzer_server
     reg = cxn.registry
@@ -147,13 +148,13 @@ def zeroFixedCarrier(cxn, boardname):
     
 
 
-
+@inlineCallbacks
 def zeroScanCarrier(cxn, scanparams, boardname):
     """Measures the DAC zeros in function of the carrier frequency."""
     fpga = cxn.ghz_dacs
+    yield fpga.select_device(boardname)
     anr = cxn.anritsu_server
     spec = cxn.spectrum_analyzer_server
-    scope = cxn.sampling_scope
     reg = cxn.registry
     yield reg.cd(['',keys.SESSIONNAME,boardname])
     spectID = yield reg.get(keys.SPECTID)
@@ -413,6 +414,7 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
        sideband at different sideband frequencies."""
 
     fpga=cxn.ghz_dacs
+    yield fpga.select_device(boardname)
     anr=cxn.anritsu_server
     spec=cxn.spectrum_analyzer_server
     scope=cxn.sampling_scope
