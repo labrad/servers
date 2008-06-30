@@ -573,6 +573,8 @@ class NumpyDataset(Dataset):
         if not hasattr(self, '_data'):
             try:
                 self._data = numpy.loadtxt(self.file, delimiter=',')
+                if len(self._data.shape) == 1:
+                    self._data.shape = (1, len(self._data))
             except ValueError:
                 # no data saved yet
                 self._data = numpy.array([[]])
