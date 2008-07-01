@@ -505,10 +505,14 @@ class Dataset:
         self.param_listeners = set()
         return name
 
-    def getParameter(self, name):
+    def getParameter(self, name, case_sensitive=True):
         for p in self.parameters:
-            if p['label'] == name:
-                return p['data']
+            if case_sensitive:
+                if p['label'] == name:
+                    return p['data']
+            else:
+                if p['label'].lower() == name.lower():
+                    return p['data']
         raise BadParameterError(name)
         
     def addData(self, data):
@@ -854,10 +858,10 @@ class DataVault(LabradServer):
         dataset.addParameter(name, data)
 
     @setting(122, 'get parameter', name=['s'])
-    def get_parameter(self, c, name):
+    def get_parameter(self, c, name, case_sensitive=True):
         """Get the value of a parameter."""
         dataset = self.getDataset(c)
-        return dataset.getParameter(name)
+        return dataset.getParameter(name, case_sensitive)
 
     @setting(123, 'get parameters')
     def get_parameters(self, c):
