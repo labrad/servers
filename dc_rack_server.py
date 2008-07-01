@@ -34,7 +34,7 @@ class PreampServer(LabradServer):
     PossibleLinks = [{'Server': 'governator_serial_server',
                       'Port':   'COM3',
                       'Name':   'Gov Loopback'},
-                     {'Server': 'twins_serial_server',
+                     {'Server': 'electronicsroom_serial_server',
                       'Port':   'COM1',
                       'Name':   'Electronics Room'},
                      {'Server': 'dr_serial_server',
