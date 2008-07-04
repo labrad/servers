@@ -47,7 +47,7 @@ def getCMD(DAC, value):
 
 class QubitBiasServer(LabradServer):
     name = 'Qubit Bias'
-    sendTracebacks = True
+    sendTracebacks = False
                   
     def getQubits(self, c):
         return self.client.qubits.experiment_involved_qubits(context=c.ID)

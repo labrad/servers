@@ -22,6 +22,7 @@ from labrad.config import ConfigFile
 from labrad.server import LabradServer, Signal, setting
 
 from twisted.internet.reactor import callLater
+from twisted.internet.defer import inlineCallbacks
 
 from ConfigParser import SafeConfigParser
 import os, re
@@ -877,7 +878,63 @@ class DataVault(LabradServer):
         dataset.param_listeners.add(c.ID) # send a message when new parameters are added
         if len(params):
             return params
-            
+
+
+    @inlineCallbacks
+    def read_pars_int(self, c, dataset, curdirs, subdirs=None):
+        p = self.client.registry.packet()
+        todo = []
+        for curdir, curcontent in curdirs:
+            if len(curdir)>0:
+                p.cd(curdir)
+            for key in curcontent[1]:
+                p.get(key, key=(False, tuple(curdir+[key])))
+            if subdirs is not None:
+                if isinstance(subdirs, list):
+                    for folder in curcontent[0]:
+                        if folder in subdirs:
+                            p.cd(folder)
+                            p.dir(key=(True,  tuple(curdir+[folder])))
+                            p.cd(1)
+                else:
+                    if (subdirs!=0):
+                        for folder in curcontent[0]:
+                            p.cd(folder)
+                            p.dir(key=(True, tuple(curdir+[folder])))
+                            p.cd(1)                
+            if len(curdir)>0:
+                p.cd(len(curdir))
+        ans = yield p.send()
+        if (not isinstance(subdirs, list)) and (subdirs is not None) and (subdirs>0):
+            subdirs-=1
+        for key in sorted(ans.settings.keys()):
+            item=ans[key]
+            if (isinstance(key, tuple)):
+                if key[0]:
+                    curdirs = [(list(key[1]), item)]
+                    yield self.read_pars_int(c, dataset, curdirs, subdirs)
+                else:
+                    dataset.addParameter(' -> '.join(key[1]), item)
+        
+        
+
+    @setting(125, 'import parameters', subdirs=[' : Import current directory',
+                                                'w: Include this many levels of subdirectories (0=all)',
+                                                '*s: Include these subdirectories'], returns=[''])
+    def import_parameters(self, c, subdirs=None):
+        """Reads all entries from the current registry directory, optionally
+        including subdirectories, as parameters into the current dataset."""
+        dataset=self.getDataset(c)
+        p = self.client.registry.packet()
+        p.duplicate_context(c.ID)
+        p.dir()
+        ans = yield p.send()
+        curdirs = [([], ans.dir)]
+        if subdirs==0:
+            subdirs=-1
+        yield self.read_pars_int(c, dataset, curdirs, subdirs)
+        
+
     @setting(200, 'add comment', comment=['s'], user=['s'], returns=[''])
     def add_comment(self, c, comment, user='anonymous'):
         """Add a comment to the current dataset."""

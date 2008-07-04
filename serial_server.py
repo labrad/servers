@@ -245,7 +245,7 @@ class SerialServer(LabradServer):
                 d = ser.read(count)
                 if d:
                     break
-                sleep(0.05)
+                sleep(0.010)
             return d
         data = threads.deferToThread(doRead, count)
         r = yield util.maybeTimeout(data, min(timeout, 300), '')
