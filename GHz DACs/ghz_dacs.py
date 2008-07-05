@@ -372,7 +372,7 @@ class FPGAServer(DeviceServer):
 
     @setting(40, 'Run Sequence', reps=['w'], getTimingData=['b'],
                                  setuppkts=['*((ww){context}, s{server}, ?{((s?)(s?)(s?)...)})'],
-                                 returns=['*2w'])
+                                 returns=['*2w', ''])
     def run_sequence(self, c, reps=30, getTimingData=True, setuppkts=None):
         """Executes a sequence on one or more boards."""
         # Round stats up to multiple of 30
