@@ -31,21 +31,32 @@ class GPIBBusServer(LabradServer):
         
     def refreshDevices(self):
         for s in visa.get_instruments_list():
-            if not s.startswith('GPIB'):
-                print 'skipping:', s
-                continue
-            print 'checking:', s
-            addr = int(s.split('::')[1])
-            instr = visa.instrument(s, timeout=1)
-            try:
-                instr.clear()
-                instr.write('*IDN?')
-                idnstr = instr.read()
-                mfr, model = idnstr.split(',')[:2]
-            except:
-                mfr, model = '<unknown>', '<unkown>'
-            print '    mfr=%s, model=%s' % (mfr, model)
-            self.devices[addr] = dict(instr=instr, mfr=mfr, model=model)
+            if s.startswith('GPIB'):
+                print 'checking:', s
+                addr = int(s.split('::')[1])
+                instr = visa.instrument(s, timeout=1)
+                try:
+                    instr.clear()
+                    instr.write('*IDN?')
+                    idnstr = instr.read()
+                    mfr, model = idnstr.split(',')[:2]
+                except:
+                    mfr, model = '<unknown>', '<unkown>'
+                print '    mfr=%s, model=%s' % (mfr, model)
+                self.devices[addr] = dict(instr=instr, mfr=mfr, model=model)
+            if s.startswith('USB'):
+                print 'checking:', s
+                addr = int(s.split('::')[-1])
+                instr = visa.instrument(s+'::INSTR', timeout=1)
+                try:
+                    instr.clear()
+                    instr.write('*IDN?')
+                    idnstr = instr.read()
+                    mfr, model = idnstr.split(',')[:2]
+                except:
+                    mfr, model = '<unknown>', '<unkown>'
+                print '    mfr=%s, model=%s' % (mfr, model)
+                self.devices[addr] = dict(instr=instr, mfr=mfr, model=model)
     
     def initContext(self, c):
         c['timeout'] = 1
