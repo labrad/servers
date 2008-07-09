@@ -282,14 +282,13 @@ class QubitServer(LabradServer):
 
 
 
-    @setting(23, 'Qubit Delete', qubit=['s'], returns=[''])
+    @setting(23, 'Qubit Delete', qubit=['s'])
     def delete_qubit(self, c, qubit):
         """Deletes a Qubit definition"""
         if qubit not in self.Qubits:
             raise QubitNotFoundError(qubit)
         del self.Qubits[qubit]
         c['Qubit']=''
-        return
 
 
 
@@ -426,6 +425,15 @@ class QubitServer(LabradServer):
     def list_setups(self, c):
         """Lists all currently loaded Experimental Setup definitions"""
         return self.Setups.keys()
+
+
+
+    @setting(62, 'Setup Delete', name=['s'])
+    def delete_setup(self, c, name):
+        """Deletes an Experimental Setup"""
+        if name not in self.Setups:
+            raise SetupNotFoundError(name)
+        del self.Setups[name]
 
 
 
