@@ -282,6 +282,17 @@ class QubitServer(LabradServer):
 
 
 
+    @setting(23, 'Qubit Delete', qubit=['s'], returns=[''])
+    def delete_qubit(self, c, qubit):
+        """Deletes a Qubit definition"""
+        if qubit not in self.Qubits:
+            raise QubitNotFoundError(qubit)
+        del self.Qubits[qubit]
+        c['Qubit']=''
+        return
+
+
+
     @setting(25, 'Qubit Save', qubit=['s'], returns=['s'])
     def save_qubit(self, c, qubit):
         """Saves a Qubit definition to the Registry"""
