@@ -178,9 +178,11 @@ def DACcorrectorAsync(fpganame, channel, connection = None, \
     returnValue(corrector)
 
 
-def DACcorrector(fpganame, channel, \
+def DACcorrector(fpganame, channel, cxn = None,\
                  lowpass = gaussfilter, bandwidth = 0.13):
-
+    if cxn != None:
+        print 'Warning: cxn argument is obsolete and is not being used.'
+        print 'It is only there for backwards compatibility'
     startReactor()
     return block(DACcorrectorAsync, fpganame, channel, None,
                  lowpass, bandwidth)
