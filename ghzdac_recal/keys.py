@@ -24,7 +24,7 @@ TIMEOFFSET = 'DAC delay for pulse calibration'
 SETUPTYPES = ['no IQ mixer', \
                     'DAC A -> mixer I, DAC B -> mixer Q',\
                     'DAC A -> mixer Q, DAC B -> mixer I']
-SESSIONNAME = 'GHzDAC recalibration test'
+SESSIONNAME = 'GHzDAC Calibration'
 ZERONAME = 'zero'
 PULSENAME = 'pulse'
 IQNAME = 'IQ'

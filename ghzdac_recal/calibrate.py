@@ -18,7 +18,7 @@
 # calibration but also for recalibration. The user interface is provided
 # by GHz_DAC_calibrate in "scripts".
 
-from ghzdac_recal import IQcorrector
+from ghzdac import IQcorrector
 import keys
 from numpy import exp, pi, arange, real, imag, min, max, log, transpose, alen
 from labrad.types import Value
