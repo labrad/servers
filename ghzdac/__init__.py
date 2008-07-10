@@ -128,9 +128,13 @@ def IQcorrectorAsync(fpganame, connection,
     returnValue(corrector)
 
 
-def IQcorrector(fpganame, 
+def IQcorrector(fpganame, cxn = None, \
                 zerocor = True, pulsecor = True, iqcor = True,
                 lowpass = cosinefilter, bandwidth = 0.4):
+    if cxn != None:
+        print 'Warning: cxn argument is obsolete and is not being used.'
+        print 'It is only there for backwards compatibility.'
+
     startReactor()
     corrector = block(IQcorrectorAsync, fpganame, None, zerocor,
                       pulsecor, iqcor, lowpass, bandwidth)
