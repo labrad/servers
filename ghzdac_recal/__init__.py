@@ -168,6 +168,7 @@ def DACcorrectorAsync(fpganame, channel, connection = None, \
     dataset = yield getDataSets(cxn, fpganame, channel, errorClass)
     if dataset != []:
         dataset = dataset[0]
+        print 'Loading pulse calibration from %s.' % dataset
         yield ds.open(dataset, context=ctx)
         datapoints = (yield ds.get(context=ctx)).asarray
         corrector.loadCal(datapoints)
