@@ -21,8 +21,10 @@ alen, clip, sqrt, log, arange, linspace, zeros, ones, reshape, outer, \
 compress, sum, shape, cos, pi, exp, Inf, size, real, imag, uint32, int32, \
 argmin, resize, argwhere, append
 from numpy.fft import fft, rfft, irfft
-
-
+#how far (in GHz) beyond its limits a calset will still be used
+#the +0.001 assures that a calset will be used up to 1 MHz beyond
+        #its limits
+        
 
 def cosinefilter(n, width=0.4):
     """cosinefilter(n,width) cosine lowpass filter
@@ -114,7 +116,8 @@ def findRelevant(starts, ends):
 
 class IQcorrection:
 
-    def __init__(self, board, lowpass = cosinefilter, bandwidth = 0.4):
+    def __init__(self, board, lowpass = cosinefilter, bandwidth = 0.4,
+                 exceedCalLimits=0.001):
 
         """
         Returns a DACcorrection object for the given DAC board.
@@ -140,6 +143,7 @@ class IQcorrection:
 
         self.lowpass = lowpass
         self.bandwidth = bandwidth
+        self.exceedCalLimits = exceedCalLimits
 
         # empty pulse calibration
         self.correctionI=None
@@ -173,12 +177,19 @@ class IQcorrection:
         self.zeroTableQ.append(zeroData[:, (1 + (not self.flipChannels))])
         self.zeroTableStart=append(self.zeroTableStart, zeroData[0,0])
         self.zeroTableEnd=append(self.zeroTableEnd, zeroData[-1,0])
-        self.zeroTableStep=append(self.zeroTableStep,
-                                  (zeroData[-1,0]-zeroData[0,0]) / (l - (l>1)))
         self.zeroCalFiles = append(self.zeroCalFiles, calfile)
-        print '  carrier frequencies: %g GHz to %g GHz in steps of %g MHz' % \
-              (zeroData[0,0], zeroData[-1,0],
-               self.zeroTableStep[-1]*1000.0)
+        if l > 1:
+            self.zeroTableStep=append(self.zeroTableStep,
+                                      zeroData[1,0]-zeroData[0,0])
+            print '  carrier frequencies: %g GHz to %g GHz in steps of %g MHz' % \
+                (zeroData[0,0], zeroData[-1,0],
+                self.zeroTableStep[-1]*1000.0)
+
+        else:
+            self.zeroTableStep=append(self.zeroTableStep,1.0)
+            print '  carrier frequency: %g GHz' % zeroData[0,0]
+
+
 
     def eliminateZeroCals(self):
         """
@@ -212,12 +223,17 @@ class IQcorrection:
                                            sidebandData[0,0])
         self.sidebandCarrierEnd = append(self.sidebandCarrierEnd,
                                          sidebandData[-1,0])
-        self.sidebandCarrierStep = append(self.sidebandCarrierStep, 
-            (sidebandData[-1,0] - sidebandData[0,0]) / (l - (l>1)))
-        print '  carrier frequencies: %g GHz to %g GHz in steps of %g MHz' % \
-              (sidebandData[0,0],
-               sidebandData[-1,0],
-               self.sidebandCarrierStep[-1]*1000.0)
+        if l>1:
+            self.sidebandCarrierStep = append(self.sidebandCarrierStep, 
+                sidebandData[1,0] - sidebandData[0,0])
+            print '  carrier frequencies: %g GHz to %g GHz in steps of %g MHz' % \
+                  (sidebandData[0,0],
+                   sidebandData[-1,0],
+                   self.sidebandCarrierStep[-1]*1000.0)
+        else:
+            self.sidebandCarrierStep = append(self.sidebandCarrierStep, 1.0)
+            print '  carrier frequency: %g GHz' % sidebandData[0,0]
+
         sidebandData = reshape(sidebandData[:,1:],(l,sidebandCount, 2))
         self.sidebandCompensation.append( \
             sidebandData[:,:,0] + 1.0j * sidebandData[:,:,1])
@@ -320,38 +336,43 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         """For each frequency use the lastest calibration available. This is the default behaviour.""" 
         self.zeroCalIndex = None
         self.sidebandCalIndex = None
+        print 'For each correction the best calfile will be chosen.'
 
     def selectCalLatest(self):
         """Only use the latest calibration and extrapolate it if the carrier frequency lies outside the calibrated range"""
-        self.zeroCalIndex = 0
-        self.sidebandCalIndex = 0
+        self.zeroCalIndex = -1
+        self.sidebandCalIndex = -1
+        print 'Zero     calibration:  selecting calset %d' % self.zeroCalFiles[-1]
+        print 'Sideband calibration:  selecting calset %d' % self.sidebandCalFiles[-1]
+
 
 
     def findCalset(self, rangeStart, rangeEnd, calStarts, calEnds, calType):
-        badness = max([0*calStarts, calStarts-rangeStart,
+        
+        badness = max([resize(self.exceedCalLimits,shape(calStarts)),
+                       calStarts-rangeStart,
                        rangeEnd-calEnds], axis=0)
-        i = argmin(badness)
-        if badness[i] > 0:
-            if rangeStart != rangeEnd:
-                print 'Warning: None of the loaded %s calsets covers %g to %g GHz.'\
-                    % (calType, rangeStart, rangeEnd)
-                print 'Selecting the calset that covers most.'
-            else:
-                print 'Warning: None of the loaded %s calsets covers %g GHz.'\
-                    % (calType, rangeStart)
-                print 'Selecting the closest calset.'
+        i = size(badness) - argmin(badness[::-1]) - 1
+        if badness[i] > self.exceedCalLimits:
+            print '\n  closest calset only covers %g GHz to %g GHz' \
+                  % (calStarts[i], calEnds[i])
         return i
 
 
     def selectCalByRange(self, start,end):
         """Use only the latest calibration covering the given range. If there is no such calibration use the one that is closest to covering it."""
-        
+        print 'Zero     calibration:',        
         self.zeroCalIndex = self.findCalset(start, end, self.zeroTableStart,
                                        self.zeroTableEnd, 'zero')
+        print '  selecting calset %d' % \
+              self.zeroCalFiles[self.zeroCalIndex]
+        print 'Sideband calibration:', 
         self.sidebandCalIndex = self.findCalset(start, end,
                                            self.sidebandCarrierStart,
                                            self.sidebandCarrierEnd,
                                            'sideband')
+        print '  selecting calset %d' % \
+              self.sidebandCalFiles[self.sidebandCalIndex]
         
 
 

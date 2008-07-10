@@ -341,7 +341,7 @@ def calibrateDCPulse(cxn,boardname,channel):
     print 'Measuring pulse response...'
     trace = yield measureImpulseResponse(fpga, scope, baseline, pulse,
         dacoffsettime=offsettime['ns'])
-    yield fpga.run_sram([makeSample(neutral, neutral)]*4,False)
+    yield fpga.run_sram([makeSample(dac_neutral, dac_neutral)]*4,False)
     ds = cxn.data_vault
     yield ds.cd(['',keys.SESSIONNAME,boardname],True)
     dataset = yield ds.new(keys.CHANNELNAMES[channel],[('Time','ns')],
