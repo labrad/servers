@@ -1,0 +1,94 @@
+;; CSB14xxDriver.inf
+;; J-Works,Inc CSB14xx USB digital IO driver
+
+;--------- Version Section ---------------------------------------------------
+
+[Version]
+Signature="$Windows NT$"
+Provider=%ProviderName%
+
+Class=JWorksClass
+ClassGUID={ff636f80-8def-11d2-9449-00105a075f6b}
+
+
+;--------- SourceDiskNames and SourceDiskFiles Section -----------------------
+
+[SourceDisksNames]
+1 = "CSB14xx",CSB14xx.cd,,
+
+[SourceDisksFiles]
+CSB14xxDriver.sys = 1,,
+
+;--------- ClassInstall/ClassInstall32 Section -------------------------------
+
+; 9X Style
+[ClassInstall]
+Addreg=Class_AddReg
+
+; NT Style
+[ClassInstall32]
+Addreg=Class_AddReg
+
+[Class_AddReg]
+HKR,,,,%DeviceClassName%
+HKR,,Icon,,"-20"
+
+;--------- DestinationDirs Section -------------------------------------------
+
+[DestinationDirs]
+CSB14xxDriver_Files_Driver = 10,System32\Drivers
+
+;--------- Manufacturer and Models Sections ----------------------------------
+
+[Manufacturer]
+%MfgName%=Mfg0
+
+[Mfg0]
+%DeviceDesc%=CSB14xxDriver_DDI, USB\VID_07c3&PID_1470
+
+;---------- DDInstall Sections -----------------------------------------------
+; --------- Windows 9X -----------------
+
+[CSB14xxDriver_DDI]
+CopyFiles=CSB14xxDriver_Files_Driver
+AddReg=CSB14xxDriver_9X_AddReg
+
+[CSB14xxDriver_9X_AddReg]
+HKR,,DevLoader,,*ntkern
+HKR,,NTMPDriver,,CSB14xxDriver.sys
+HKR, "Parameters", "BreakOnEntry", 0x00010001, 0
+
+; --------- Windows NT -----------------
+
+[CSB14xxDriver_DDI.NT]
+CopyFiles=CSB14xxDriver_Files_Driver
+AddReg=CSB14xxDriver_NT_AddReg
+
+[CSB14xxDriver_DDI.NT.Services]
+Addservice = CSB14xxDriver, 0x00000002, CSB14xxDriver_AddService
+
+[CSB14xxDriver_AddService]
+DisplayName    = %SvcDesc%
+ServiceType    = 1                  ; SERVICE_KERNEL_DRIVER
+StartType      = 3                  ; SERVICE_DEMAND_START
+ErrorControl   = 1                  ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %10%\System32\Drivers\CSB14xxDriver.sys
+
+[CSB14xxDriver_NT_AddReg]
+HKLM, "System\CurrentControlSet\Services\CSB14xxDriver\Parameters",\
+	"BreakOnEntry", 0x00010001, 0
+
+
+; --------- Files (common) -------------
+
+[CSB14xxDriver_Files_Driver]
+CSB14xxDriver.sys
+
+;--------- Strings Section ---------------------------------------------------
+
+[Strings]
+ProviderName="J-Works,Inc"
+MfgName="J-Works,Inc"
+DeviceDesc="CSB147x Digital IO"
+DeviceClassName="J-Works USB"
+SvcDesc="J-Works USB Service"
