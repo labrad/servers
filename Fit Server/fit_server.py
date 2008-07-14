@@ -23,6 +23,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.python import log
 
 from fit_spectroscopy import *
+import fit_squid_steps
 
 import time
 from datetime import datetime
@@ -84,7 +85,23 @@ class FitServer(LabradServer):
 
         returnValue(ret)
     
-    
+    @setting(4,"Squid Steps Fit",data=['(*{path}ss{file})','(*{path}sw{index})'],returns=['*((vv)(vv))'])
+    def fit_squidsteps(self,c,data):
+        ans = yield self.get_data_at_path(c,data)
+        data = ans.data.asarray
+        stats = ans.stats
+
+        fitobj = fit_squid_steps.squid_fit(data[:,0],data[:,1],data[:,2],stats)
+        fitobj.fit()
+
+        ret = list()
+
+        for line in fitobj.sharedlines
+            ret.append(((line[0,0],line[0,1]),(line[1,0],line[1,1])));
+
+        return ret
+        
+        
 ##    @setting(2)
 ##    def delayed_echo(self, c, data):
 ##        """Echo a packet after a specified delay."""
