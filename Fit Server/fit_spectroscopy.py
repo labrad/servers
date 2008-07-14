@@ -2,7 +2,7 @@ import labrad
 from numpy import *
 from scipy.optimize import leastsq
 from scipy.optimize.optimize import brute,fmin
-from pylab import *
+
 
 import fitting
 
