@@ -36,8 +36,7 @@ class NoSuchChannelError(Error):
     """This bitnumer does not exist on the selected Darlington board"""
     
 class CSBBoardServer(LabradServer):
-    name = 'Darlington Board'
-    isLocal = True
+    name = '%LABRADNODE% Darlington Board'
 
     @inlineCallbacks
     def initServer(self):

@@ -41,7 +41,7 @@ class MicrowaveSwitch(LabradServer):
     name = 'Microwave Switch'
 
     driverboard = {
-        'server': 'T1000 Darlington Board',
+        'server': 'DR Darlington Board',
         'boardname': '14A123362',
         'bits': [7,1,2,3,4,5,6]
     }
