@@ -43,11 +43,11 @@ class MKSServer(LabradServer):
         self.gauges = []
         yield self.findGauges()
 
-    def serverConnected(self, data):
+    def serverConnected(self, ID, name):
         """Try to connect to gauges when a server connects."""
         self.findGauges()
         
-    def serverDisconnected(self, ID):
+    def serverDisconnected(self, ID, name):
         """Drop gauges from the list when a server disconnects."""
         for S in self.gaugeServers:
             if S['ID'] == ID:
