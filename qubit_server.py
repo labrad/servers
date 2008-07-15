@@ -204,9 +204,9 @@ class QubitServer(LabradServer):
     def dupe_ctxt(self, c, prototype):
         if prototype[0]==0:
             prototype = (c.ID[0], prototype[1])
-        if prototype not in self.prot.queues:
+        if prototype not in self.contexts:
             raise ContextNotFoundError(prototype)
-        newc = deepcopy(self.prot.queues[prototype].ctxtData)
+        newc = deepcopy(self.contexts[prototype].data)
         for key in c.keys():
             if key not in newc:
                 del c[key]
