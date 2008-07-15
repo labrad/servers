@@ -17,6 +17,7 @@
 from labrad import types as T, util
 from labrad.server import LabradServer, setting, Signal
 from labrad.util import hydrant
+from labrad.types import Error
 
 from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -96,11 +97,21 @@ class FitServer(LabradServer):
 
         ret = list()
 
-        for line in fitobj.sharedlines
+        for line in fitobj.shared_lines:
             ret.append(((line[0,0],line[0,1]),(line[1,0],line[1,1])));
 
-        return ret
+        returnValue(ret)
+
+    @setting(5,"Step Edge Fit",data=['(*{path}ss{file})','(*{path}sw{index})'],returns=[''])
+    def fit_stepedge(self,c,data):
+        ans = yield self.get_data_at_path(c,data)
+        data = ans.data.asarray
         
+        fitobj = step_edge_fit(data[:,0],data[:,1])
+        fitobj.fit()
+
+        if fitobj.direction == 0:
+            raise Error("No Direction",100)
         
 ##    @setting(2)
 ##    def delayed_echo(self, c, data):

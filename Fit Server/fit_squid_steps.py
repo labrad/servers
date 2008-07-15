@@ -6,22 +6,6 @@ from numpy import *
 from dv_search import dv_search
 import sys,traceback
 
-cxn = labrad.connect()
-data_vault = cxn.data_vault
-
-paths = []
-
-paths.append((['','Markus','Experiments','2008/04/08 - Trigger Tests'],11))
-paths.append((['','Haohua','080403','r7c6','080407'],7))
-paths.append((['','Markus','Experiments','2008/04/06 - Check Qubits'],39))
-paths.append((['','Markus','Experiments','06/14/2008 - Daniel Settling'],1))
-paths.append((['','Markus','Experiments','2008/04/07 - More Qubit Checks'],18))
-paths.append((['','Markus','Experiments','2008/04/07 - More Qubit Checks'],17))
-paths.append((['','Markus','Experiments','2008/04/07 - More Qubit Checks'],9))
-paths.append((['','Markus','Experiments','2008/04/07 - More Qubit Checks'],13))
-paths.append((['','Markus','Experiments','2008/04/07 - More Qubit Checks'],15))
-
-#paths = dv_search(data_vault,re.compile(".*Squid.*Steps.*"),['','Markus','Experiments','2008/05/10 - Check Qubits (Daniel)'])
 
 ## FUCKUP: (['','Markus','Experiments','2008/04/06 - Check Qubits'],32)
 
@@ -211,138 +195,157 @@ class squid_fit:
 
         self.mean_derivative_mean = self.mean_derivative.mean(axis=0)
         self.mean_derivative_std = self.mean_derivative.std(axis=0)
-        
-for path in paths:
-    try:
-        print "======================================================"
-        print "++++++++++++++++++++++++++++++++++++++++++++++++++++++"
-        print "||||||||||||||||||||||||||||||||||||||||||||||||||||||"
-        print path
 
-        dv = cxn.data_vault.packet()
-        dv.cd(path[0])
-        dv.open(path[1])
-        dv.get(key='data')
-        
-        dv.get_parameter('Stats',key='stats')
+if __name__ == "__main__":
+
+    cxn = labrad.connect()
+    data_vault = cxn.data_vault
+    
+    paths = []
+    
+    paths.append((['','Markus','Experiments','2008/04/08 - Trigger Tests'],11))
+    paths.append((['','Haohua','080403','r7c6','080407'],7))
+    paths.append((['','Markus','Experiments','2008/04/06 - Check Qubits'],39))
+    paths.append((['','Markus','Experiments','06/14/2008 - Daniel Settling'],1))
+    paths.append((['','Markus','Experiments','2008/04/07 - More Qubit Checks'],18))
+    paths.append((['','Markus','Experiments','2008/04/07 - More Qubit Checks'],17))
+    paths.append((['','Markus','Experiments','2008/04/07 - More Qubit Checks'],9))
+    paths.append((['','Markus','Experiments','2008/04/07 - More Qubit Checks'],13))
+    paths.append((['','Markus','Experiments','2008/04/07 - More Qubit Checks'],15))
+
+    paths = dv_search(data_vault,re.compile(".*Squid.*Steps.*"),['','Markus','Experiments','2008/05/10 - Check Qubits (Daniel)'])
+
+    for path in paths:
         try:
-            ans = dv.send()
-        except:
-            print "error during get.  Recovering..."
-            continue
+            print "======================================================"
+            print "++++++++++++++++++++++++++++++++++++++++++++++++++++++"
+            print "||||||||||||||||||||||||||||||||||||||||||||||||||||||"
+            print path
 
-        data = array([[]])
-        data = ans.data.asarray
+            dv = cxn.data_vault.packet()
+            dv.cd(path[0])
+            dv.open(path[1])
+            dv.get(key='data')
+            
+            dv.get_parameter('Stats',key='stats')
+            try:
+                ans = dv.send()
+            except:
+                print "error during get.  Recovering..."
+                continue
 
-        print data.shape
-        
-        if data.shape[1]!=3 or data.shape[0]<=5 or data[:,1].std()<1e-9:
-            print "Skipping because of bad shape: ",data.shape
-            continue
-        
-        print "New Data Set:"
-        print "Mean: ",data[:,1].mean(),",",data[:,2].mean()
-        print "Std:  ",data[:,1].std(),",",data[:,2].std()
-        
-        fitobj = squid_fit(data[:,0],data[:,1],data[:,2],ans.stats)
-        fitobj.fit()
+            data = array([[]])
+            data = ans.data.asarray
 
-        print "Done fitting."
+            print data.shape
+            
+            if data.shape[1]!=3 or data.shape[0]<=5 or data[:,1].std()<1e-9:
+                print "Skipping because of bad shape: ",data.shape
+                continue
+            
+            print "New Data Set:"
+            print "Mean: ",data[:,1].mean(),",",data[:,2].mean()
+            print "Std:  ",data[:,1].std(),",",data[:,2].std()
+            
+            fitobj = squid_fit(data[:,0],data[:,1],data[:,2],ans.stats)
+            fitobj.fit()
 
-        minNeg = data[:,1].min()
-        minPos = data[:,2].min()
-        maxNeg = data[:,1].max()
-        maxPos = data[:,2].max()
+            print "Done fitting."
 
-        if minNeg<minPos:
-            minimum = minNeg
-        else:
-            minimum = minPos
+            minNeg = data[:,1].min()
+            minPos = data[:,2].min()
+            maxNeg = data[:,1].max()
+            maxPos = data[:,2].max()
 
-        if maxNeg<maxPos:
-            maximum = maxPos
-        else:
-            maximum = maxNeg;
-        
-        colors = ["c",(0.5,0.5,1),(1,0.8,0.8,1),(0.5,1,0.5,1),"c"]
-        
-        subplot(221)
-        cla()
-        title('Squid steps')
-        grid()
-        
-        for i in range(1,data.shape[1]):
-            plot(data[:,0],data[:,i],color=colors[i],ls='',marker='.',alpha=0.02)
-        
-        plot(fitobj.mean[:,0],fitobj.mean[:,1],color=(0.5,0.5,1,1),ls="--")
-        plot(fitobj.mean[:,0],fitobj.mean[:,2],color=(1,0.5,0.5,1),ls="--")
-        
-        errorbar(fitobj.actual_mean[:,0],fitobj.actual_mean[:,1],yerr=fitobj.std[:,1],color=(0.5,0.5,1,1),mfc=(0.5,0.5,1), mec=(0.5,0.5,1), ms=10, mew=1)
-        errorbar(fitobj.actual_mean[:,0],fitobj.actual_mean[:,2],yerr=fitobj.std[:,2],color=(1,0.5,0.5,1),mfc=(1,0.5,0.5), mec=(1,0.5,0.5), ms=10, mew=1)
-        
-        for l in fitobj.neg_lines:
-            plot(l[:,0],l[:,1],"b-")
-        for l in fitobj.pos_lines:
-            plot(l[:,0],l[:,1],"r-")
-        for l in fitobj.shared_lines:
-            plot(l[:,0],l[:,1],"g-",alpha=0.3,linewidth=5)
-         
-        #title("Squid Steps")
-        
-        subplot(223)
-        cla()
-        title('Stds for slope')
-        grid()
-        
-        if(fitobj.fit_data.has_key('calc_neg_stds')):
-           hd = array(fitobj.fit_data['calc_neg_stds'])
-           plot(hd[:,0],hd[:,1],'.',color=(0.4,0.4,1.0),alpha=1)
-        if(fitobj.fit_data.has_key('calc_pos_stds')):
-           hd = array(fitobj.fit_data['calc_pos_stds'])
-           plot(hd[:,0],hd[:,1],'.',color=(1.0,0.4,0.4),alpha=1)
-        
-        subplot(224)
-        cla()
-        title('Gap Sizes')
-        if fitobj.fit_data.has_key('gap_sizes'):
-            hd = array(fitobj.fit_data['gap_sizes'])
-            plot(range(len(hd)),hd)
+            if minNeg<minPos:
+                minimum = minNeg
+            else:
+                minimum = minPos
 
-        ion()
-        
-        subplot(222)
-        cla()
-        title('Data histograms')
-        
-        hist(data[:,1],bins=arange(minimum,maximum,0.1),facecolor=(0.0,0.0,1.0),alpha=0.5)
-        hist(data[:,2],bins=arange(minimum,maximum,0.1),facecolor=(1.0,0.0,0.0),alpha=0.5)
-
-        
-        
-        def f(event):
-            i = data[:,0].searchsorted(event.xdata);
-
+            if maxNeg<maxPos:
+                maximum = maxPos
+            else:
+                maximum = maxNeg;
+            
+            colors = ["c",(0.5,0.5,1),(1,0.8,0.8,1),(0.5,1,0.5,1),"c"]
+            
+            subplot(221)
+            cla()
+            title('Squid steps')
+            grid()
+            
+            for i in range(1,data.shape[1]):
+                plot(data[:,0],data[:,i],color=colors[i],ls='',marker='.',alpha=0.02)
+            
+            plot(fitobj.mean[:,0],fitobj.mean[:,1],color=(0.5,0.5,1,1),ls="--")
+            plot(fitobj.mean[:,0],fitobj.mean[:,2],color=(1,0.5,0.5,1),ls="--")
+            
+            errorbar(fitobj.actual_mean[:,0],fitobj.actual_mean[:,1],yerr=fitobj.std[:,1],color=(0.5,0.5,1,1),mfc=(0.5,0.5,1), mec=(0.5,0.5,1), ms=10, mew=1)
+            errorbar(fitobj.actual_mean[:,0],fitobj.actual_mean[:,2],yerr=fitobj.std[:,2],color=(1,0.5,0.5,1),mfc=(1,0.5,0.5), mec=(1,0.5,0.5), ms=10, mew=1)
+            
+            for l in fitobj.neg_lines:
+                plot(l[:,0],l[:,1],"b-")
+            for l in fitobj.pos_lines:
+                plot(l[:,0],l[:,1],"r-")
+            for l in fitobj.shared_lines:
+                plot(l[:,0],l[:,1],"g-",alpha=0.3,linewidth=5)
+             
+            #title("Squid Steps")
+            
+            subplot(223)
+            cla()
+            title('Stds for slope')
+            grid()
+            
+            if(fitobj.fit_data.has_key('calc_neg_stds')):
+               hd = array(fitobj.fit_data['calc_neg_stds'])
+               plot(hd[:,0],hd[:,1],'.',color=(0.4,0.4,1.0),alpha=1)
+            if(fitobj.fit_data.has_key('calc_pos_stds')):
+               hd = array(fitobj.fit_data['calc_pos_stds'])
+               plot(hd[:,0],hd[:,1],'.',color=(1.0,0.4,0.4),alpha=1)
+            
             subplot(224)
             cla()
+            title('Gap Sizes')
+            if fitobj.fit_data.has_key('gap_sizes'):
+                hd = array(fitobj.fit_data['gap_sizes'])
+                plot(range(len(hd)),hd)
 
-            title("Histogram at "+str(data[i,0]))
-            hist(data[i:i+ans.stats,1],bins=arange(minimum,maximum,0.4),facecolor=(0.0,0.0,1.0),alpha=0.5)
-            hist(data[i:i+ans.stats,2],bins=arange(minimum,maximum,0.4),facecolor=(1.0,0.0,0.0),alpha=0.5)
+            ion()
+            
+            subplot(222)
+            cla()
+            title('Data histograms')
+            
+            hist(data[:,1],bins=arange(minimum,maximum,0.1),facecolor=(0.0,0.0,1.0),alpha=0.5)
+            hist(data[:,2],bins=arange(minimum,maximum,0.1),facecolor=(1.0,0.0,0.0),alpha=0.5)
+
+            
+            
+            def f(event):
+                i = data[:,0].searchsorted(event.xdata);
+
+                subplot(224)
+                cla()
+
+                title("Histogram at "+str(data[i,0]))
+                hist(data[i:i+ans.stats,1],bins=arange(minimum,maximum,0.4),facecolor=(0.0,0.0,1.0),alpha=0.5)
+                hist(data[i:i+ans.stats,2],bins=arange(minimum,maximum,0.4),facecolor=(1.0,0.0,0.0),alpha=0.5)
+                show()
+                
+            
+            connect("button_press_event",f)
+
             show()
             
+            
+            raw_input("Hit enter to return")
+        except KeyboardInterrupt:
+            raise
+        except e:
+            print "Trigger Exception, traceback info forward to log file."
+            traceback.print_exc(sys.stdout)
+            continue
         
-        connect("button_press_event",f)
 
-        show()
-        
-        
-        raw_input("Hit enter to return")
-    except KeyboardInterrupt:
-        raise
-    except e:
-        print "Trigger Exception, traceback info forward to log file."
-        traceback.print_exc(sys.stdout)
-        continue
-    
-
-cxn.disconnect()
+    cxn.disconnect()
