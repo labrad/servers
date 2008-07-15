@@ -168,13 +168,13 @@ class squid_fit:
         
         for i in range(len(self.s_flux)/self.stats):
             tneg = self.s_negative_time[i*self.stats:i*self.stats+self.stats]
-            #meanneg = tneg.mean()
-            meanneg = self.mode(tneg)
+            meanneg = tneg.mean()
+            #meanneg = self.mode(tneg)
             stdneg = tneg.std()
 
             tpos = self.s_positive_time[i*self.stats:i*self.stats+self.stats]
-            #meanpos = tpos.mean()
-            meanpos = self.mode(tpos)
+            meanpos = tpos.mean()
+            #meanpos = self.mode(tpos)
             stdpos = tpos.std()
             
             flux = self.s_flux[i*self.stats]
@@ -214,8 +214,22 @@ if __name__ == "__main__":
     paths.append((['','Markus','Experiments','2008/04/07 - More Qubit Checks'],15))
 
     paths = dv_search(data_vault,re.compile(".*Squid.*Steps.*"),['','Markus','Experiments','2008/05/10 - Check Qubits (Daniel)'])
+    paths = dv_search(data_vault,re.compile(".*Squid.*Steps.*"),['','Markus','Test','Basic Experiments'])
 
+    skip = 0
+    n=0
+
+    try:
+        skip = int(sys.argv[1])
+    except:
+        skip = 0
+        
     for path in paths:
+        n+=1
+        if n < skip:
+            continue
+        if n == skip:
+            print 'Skipped ',skip,' datasets.'
         try:
             print "======================================================"
             print "++++++++++++++++++++++++++++++++++++++++++++++++++++++"
@@ -243,7 +257,7 @@ if __name__ == "__main__":
                 print "Skipping because of bad shape: ",data.shape
                 continue
             
-            print "New Data Set:"
+            print "New Data Set:",n
             print "Mean: ",data[:,1].mean(),",",data[:,2].mean()
             print "Std:  ",data[:,1].std(),",",data[:,2].std()
             
