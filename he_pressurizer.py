@@ -39,12 +39,11 @@ class HEPressurizer(LabradServer):
         self.pressurizing = False
         yield self.findValve()
         
-    def serverConnected(self, data):
-        ID, name = data
+    def serverConnected(self, ID, name):
         if name == self.config['server']:
             self.findValve()
         
-    def serverDisconnected(self, ID):
+    def serverDisconnected(self, ID, name):
         if ID == self.config['ID']:
             self.connected = False
 
