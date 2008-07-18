@@ -38,6 +38,7 @@ def getCMD(DAC, value):
     return DAC*0x10000 + 0x60000 + (int((value+2500.0)*65535.0/5000.0) & 0x0FFFF)
 
 
+
 def add_qubit_resets(p, Qubits):
     # Set Biases to Reset, Zero
     initreset = []
@@ -62,7 +63,7 @@ def add_qubit_resets(p, Qubits):
             maxcount = qubit['Reset Cycles']
     p.memory_bias_commands(initreset, T.Value(7.0, 'us'))
     p.memory_bias_commands(dac1s, float(maxsettling)*Unit('us'))
-    for a in range(maxcount):
+    for a in range(int(maxcount)):
         p.memory_bias_commands(reset2, float(maxsettling)*Unit('us'))
         p.memory_bias_commands(reset1, float(maxsettling)*Unit('us'))
     pass
@@ -77,7 +78,7 @@ def add_qubit_inits(p, Qubits):
         setop.append((('Flux', qid+1), getCMD(1, qubit['Operating Bias'])))
         if qubit['Bias Settling Time'] > maxsettling:
             maxsettling = qubit['Bias Settling Time']
-    p.memory_bias_commands(setop, T.Value(float(maxsettling), 'us'))
+    p.memory_bias_commands(setop, float(maxsettling)*Unit('us'))
 
 def add_squid_ramp(p, Qubit, qIndex=1):
     # Set Squid Bias to Ramp Start
@@ -116,7 +117,7 @@ def add_goto_measure_biases(p, Qubits):
         setop.append((('Flux', qid+1), getCMD(1, qubit['Measure Bias'])))
         if qubit['Measure Settling Time'] > maxsettling:
             maxsettling = qubit['Measure Settling Time']
-    p.memory_bias_commands(setop, T.Value(maxsettling, 'us'))
+    p.memory_bias_commands(setop, T.Value(float(maxsettling), 'us'))
 
 
 def getRange(selection, defmin, defmax, defstep):
@@ -832,6 +833,7 @@ class ExperimentServer(LabradServer):
         returnValue(name)
 
 
+    sendTracebacks = True
 
     @setting(160, 'T1', region=['(v[ns]{start}, v[ns]{end}, v[ns]{steps})'],
                           returns=['*ss'])
@@ -997,7 +999,7 @@ class ExperimentServer(LabradServer):
             # Add a base delay for all channels
             p.sram_iq_delay     (('uWaves' , i+1), 200)
             p.sram_analog_delay (('Measure', i+1), mpofs[qubit]+200)
-            
+
         # Add experiment sequence
         self.addOperations(p, operations, qubits, variables)
         
@@ -1127,7 +1129,6 @@ class ExperimentServer(LabradServer):
         mpofs = dict([(qubit, int(self.Qubits[qubit]['Measure Pulse Offset'   ]      )) for qubit in c['Qubits']])
         frqs  = dict([(qubit,     self.Qubits[qubit]['Resonance Frequency'    ] - \
                                   self.Qubits[qubit]['Sideband Frequency'     ]       ) for qubit in c['Qubits']])
-        
         sweepvar2 = sweep2[0]
         while (sweepvar2<=sweep2[1]) and not self.abort:
             sweepvar1 = sweep1[0]
@@ -1139,7 +1140,6 @@ class ExperimentServer(LabradServer):
             sweepvar2 += sweep2[2]
 
         yield self.finishThreads(c, self.handleSwitchingData)
-        
         returnValue(name)
 
 
