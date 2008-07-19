@@ -17,11 +17,13 @@
 
 from labrad        import util, types as T
 from labrad.server import LabradServer, setting
-from labrad.units  import us, mV
+from labrad.units  import us, mV, Unit
 
 from twisted.python         import log
 from twisted.internet       import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
+
+from math import floor
 
 PIPELINE_DEPTH = 5
 
@@ -29,24 +31,31 @@ class ContextBusyError(T.Error):
     """The context is currently busy"""
     code = 1
 
-def NDsweeper(axes):
-    if len(axes):
-        axis = axes[0]
-        cur = axis[0]
-        end = axis[1]
-        stp = abs(axis[2])
-        if cur>end:
-            while cur>=end:
-                for l in NDsweeper(axes[1:]):
-                    yield [(cur, axis[3:])] + l
-                cur-=stp
-        else:
-            while cur<=end:
-                for l in NDsweeper(axes[1:]):
-                    yield [(cur, axis[3:])] + l
-                cur+=stp
+def rangeND(limits):
+    if len(limits):
+        cur = [0]*len(limits)
+        while cur[0]<limits[0]:
+            yield [c for c in cur]
+            a=len(limits)-1
+            cur[a]+=1
+            while (a>0) and (cur[a]==limits[a]):
+                cur[a]=0
+                a-=1
+                cur[a]+=1
+
+def countND(limits):
+    if len(limits):
+        c = 1
+        for l in limits:
+            c*=l
+        return c
     else:
-        yield []
+        return 0
+
+def sweepND(starts, steps, counts, pars):
+    for cur in rangeND(counts):
+        pos = [start+step*count for start,step,count in zip(starts,steps,cur)]
+        yield zip(pos, pars)
 
 class SweepServer(LabradServer):
     name = 'Sweep Server'
@@ -69,6 +78,10 @@ class SweepServer(LabradServer):
             finally:
                 self.Contexts.append(ctxt)
                 semaphore.release()
+            c['Pos']+=1
+            if 'Progress' in c:
+                for tgt, msg in c['Progress']:
+                    self.client._cxn.sendPacket(tgt, c.ID, 0, (msg, long(c['Pos']))) 
             result = result.aslist
             if len(result)>0:
                 if isinstance(result[0], list):
@@ -77,7 +90,11 @@ class SweepServer(LabradServer):
                     result=sweepvars+result
                 yield self.client.data_vault.add(result, context=c.ID)
         except Exception, e:
-            c['Exception']=e
+            if 'Exception' not in c:
+                c['Exception']=e
+                if 'Errors' in c:
+                    for tgt, msg in c['Errors']:
+                        self.client._cxn.sendPacket(tgt, c.ID, 0, (msg, repr(e))) 
 
 
     @inlineCallbacks
@@ -102,54 +119,104 @@ class SweepServer(LabradServer):
             c['Abort'].callback(None)
             del c['Abort']
         del c['Busy']
+        if 'Completion' in c:
+            b = True
+            if 'Abort' in c:
+                b=False;
+            if 'Exception' in c:
+                b=False;
+            for tgt, msg in c['Completion']:
+                self.client._cxn.sendPacket(tgt, c.ID, 0, (msg, b)) 
         
 
-    @setting(1, 'Repeat', server=['s'], setting=['s'], count=['w'], updatemessage=['(w,b)', '(w,w)'])
-    def repeat(self, c, server, setting, count, updatemessage=None):
+    @setting(1, 'Repeat', server=['s'], setting=['s'], count=['w'])
+    def repeat(self, c, server, setting, count):
         if 'Busy' in c:
             raise ContextBusyError()
         c['Busy'] = True
         if 'Exception' in c:
             del c['Exception']
+        c['Pos']=0
         self.runSweep(c, NDsweeper([[1,count,1]]), self.client[server].settings[setting])
         print "done"
         
 
-    @setting(2, 'Sweep 1D', sweeprange=['vvv'], keys=['*(*ss)'], server=['s'],
-                            setting=['s'], updatemessage=['(w,b)', '(w,w)'])
-    def sweep1d(self, c, sweeprange, keys, server, setting, updatemessage=None):
+    @setting(10, 'Simple Sweep', server=['s'], setting=['s'], sweeprangesandkeys=['*((vvvs)*(*ss))'], returns=['w'])
+    def simple_sweep(self, c, server, setting, sweeprangesandkeys):
         if 'Busy' in c:
             raise ContextBusyError()
-        c['Busy'] = True
-        if 'Exception' in c:
-            del c['Exception']
-        self.runSweep(c, NDsweeper([list(sweeprange)+keys.aslist]), self.client[server].settings[setting])
-        
+        if len(sweeprangesandkeys):
+            c['Busy'] = True
+            if 'Exception' in c:
+                del c['Exception']
+            starts=[]
+            steps =[]
+            counts=[]
+            others=[]
+            for rng, keys in sweeprangesandkeys:
+                starts.append(rng[0]*Unit(rng[3]))
+                d = rng[1]-rng[0]
+                if d<0:
+                    s = -abs(rng[2])
+                else:
+                    s = abs(rng[2])
+                steps.append(s*Unit(rng[3]))
+                counts.append(int(floor(d/s+0.000000001))+1)
+                others.append(keys)
+            c['Pos']=0
+            self.runSweep(c, sweepND(starts, steps, counts, others), self.client[server].settings[setting])
+            return countND(counts)
+        else:
+            return 0
 
-    @setting(3, 'Sweep 2D', sweeprangex=['vvv'], keysx=['*(*ss)'], sweeprangey=['vvv'], keysy=['*(*ss)'],
-                            server=['s'], setting=['s'], updatemessage=['(w,b)', '(w,w)'])
-    def sweep2d(self, c, sweeprangex, keysx, sweeprangey, keysy, server, setting, updatemessage=None):
-        if 'Busy' in c:
-            raise ContextBusyError()
-        c['Busy'] = True
-        if 'Exception' in c:
-            del c['Exception']
-        self.runSweep(c, NDsweeper([list(sweeprangex)+keysx.aslist, list(sweeprangey)+keysy.aslist]), self.client[server].settings[setting])
-        
+    @setting(1000, 'Test')
+    def test(self, c):
+        return dir(self.client._cxn)
 
-    @setting(4, 'Sweep ND', sweeprangesandkeys=['*((vvv)*(*ss))'], server=['s'],
-                            setting=['s'], count=['w'], updatemessage=['(w,b)', '(w,w)'])
-    def sweepnd(self, c, sweeprangesandkeys, server, setting, count, updatemessage=None):
-        if 'Busy' in c:
-            raise ContextBusyError()
-        c['Busy'] = True
-        if 'Exception' in c:
-            del c['Exception']
-        l = [list(sak[0])+sak[1].aslist for sak in sweeprangesandkeys]
-        self.runSweep(c, NDsweeper(l), self.client[server].settings[setting])
+    @setting(200, 'Report Progress', messageID=['w'], report=['b'])
+    def report_progress(self, c, messageID, report=True):
+        l = (c.source, messageID)
+        if report:
+            if 'Progress' not in c:
+                c['Progress']=[l]
+            else:
+                if l not in c['Progress']:
+                    c['Progress'].append(l)
+        else:
+            if 'Progress' in c:
+                if l in c['Progress']:
+                    c['Progress'].remove(l)
+
+    @setting(201, 'Report Completion', messageID=['w'], report=['b'])
+    def report_completion(self, c, messageID, report=True):
+        l = (c.source, messageID)
+        if report:
+            if 'Completion' not in c:
+                c['Completion']=[l]
+            else:
+                if l not in c['Completion']:
+                    c['Completion'].append(l)
+        else:
+            if 'Completion' in c:
+                if l in c['Completion']:
+                    c['Completion'].remove(l)
+
+    @setting(202, 'Report Errors', messageID=['w'], report=['b'])
+    def report_errors(self, c, messageID, report=True):
+        l = (c.source, messageID)
+        if report:
+            if 'Errors' not in c:
+                c['Errors']=[l]
+            else:
+                if l not in c['Errors']:
+                    c['Errors'].append(l)
+        else:
+            if 'Errors' in c:
+                if l in c['Errors']:
+                    c['Errors'].remove(l)
 
 
-    @setting(100, 'Abort')
+    @setting(50, 'Abort')
     def abort(self, c):
         if 'Busy' in c:
             c['Abort'] = defer.Deferred()
