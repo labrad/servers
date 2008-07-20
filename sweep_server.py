@@ -154,13 +154,13 @@ class SweepServer(LabradServer):
             counts=[]
             others=[]
             for rng, keys in sweeprangesandkeys:
-                starts.append(rng[0]*Unit(rng[3]))
+                starts.append(float(rng[0])*Unit(rng[3]))
                 d = rng[1]-rng[0]
                 if d<0:
                     s = -abs(rng[2])
                 else:
                     s = abs(rng[2])
-                steps.append(s*Unit(rng[3]))
+                steps.append(float(s)*Unit(rng[3]))
                 counts.append(int(floor(d/s+0.000000001))+1)
                 others.append(keys)
             c['Pos']=0
