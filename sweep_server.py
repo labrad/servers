@@ -81,7 +81,7 @@ class SweepServer(LabradServer):
             c['Pos']+=1
             if 'Progress' in c:
                 for tgt, msg in c['Progress']:
-                    self.client._cxn.sendPacket(tgt, c.ID, 0, (msg, long(c['Pos']))) 
+                    self.client._cxn.sendPacket(tgt, c.ID, 0, [(msg, long(c['Pos']))]) 
             result = result.aslist
             if len(result)>0:
                 if isinstance(result[0], list):
@@ -94,7 +94,7 @@ class SweepServer(LabradServer):
                 c['Exception']=e
                 if 'Errors' in c:
                     for tgt, msg in c['Errors']:
-                        self.client._cxn.sendPacket(tgt, c.ID, 0, (msg, repr(e))) 
+                        self.client._cxn.sendPacket(tgt, c.ID, 0, [(msg, repr(e))]) 
 
 
     @inlineCallbacks
@@ -126,7 +126,7 @@ class SweepServer(LabradServer):
             if 'Exception' in c:
                 b=False;
             for tgt, msg in c['Completion']:
-                self.client._cxn.sendPacket(tgt, c.ID, 0, (msg, b)) 
+                self.client._cxn.sendPacket(tgt, c.ID, 0, [(msg, b)]) 
         
 
     @setting(1, 'Repeat', server=['s'], setting=['s'], count=['w'])
