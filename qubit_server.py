@@ -777,9 +777,10 @@ class QubitServer(LabradServer):
     def add_iq_slepian(self, c, channel, amplitude, length, mixfreq, phaseshift):
         """Generates IQ data for a Slepian Pulse with the specified Amplitude, Width, Phase and
         Sideband Mixing. The resulting data is added to the specified Channel"""
-        chinfo = self.getChannel(c, channel, 'IQs')        
+
         length = int(length)
-        data = amplitude*slepian(length, 10.0/length)
+        data = float(amplitude)*slepian(length, 10.0/length)
+        chinfo = self.getChannel(c, channel, 'IQs')        
         tofs = max(len(chinfo['Data'])-SRAMPOSTPAD, 0)
         data = data*numpy.exp(-(2.0j*numpy.pi*(numpy.arange(len(data))+tofs))*mixfreq.value/1000.0 + phaseshift.value*1.0j)
         chinfo['Data'] = numpy.hstack((chinfo['Data'], data))
