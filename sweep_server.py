@@ -118,7 +118,12 @@ class SweepServer(LabradServer):
         if 'Abort' in c:
             c['Abort'].callback(None)
             del c['Abort']
-        del c['Busy']
+        if 'Busy' in c:
+            if 'Exception' in c:
+                c['Busy'].errback(c['Exception'])
+            else:
+                c['Busy'].callback(None)
+            del c['Busy']
         if 'Completion' in c:
             b = True
             if 'Abort' in c:
@@ -133,10 +138,11 @@ class SweepServer(LabradServer):
     def repeat(self, c, server, setting, count):
         if 'Busy' in c:
             raise ContextBusyError()
-        c['Busy'] = True
+        c['Busy'] = defer.Deferred()
         if 'Exception' in c:
             del c['Exception']
         c['Pos']=0
+        yield self.client.refresh()
         self.runSweep(c, NDsweeper([[1,count,1]]), self.client[server].settings[setting])
         print "done"
         
@@ -146,7 +152,7 @@ class SweepServer(LabradServer):
         if 'Busy' in c:
             raise ContextBusyError()
         if len(sweeprangesandkeys):
-            c['Busy'] = True
+            c['Busy'] = defer.Deferred()
             if 'Exception' in c:
                 del c['Exception']
             starts=[]
@@ -164,10 +170,16 @@ class SweepServer(LabradServer):
                 counts.append(int(floor(d/s+0.000000001))+1)
                 others.append(keys)
             c['Pos']=0
+            yield self.client.refresh()
             self.runSweep(c, sweepND(starts, steps, counts, others), self.client[server].settings[setting])
             return countND(counts)
         else:
             return 0
+
+    @setting(100, 'Wait')
+    def wait(self, c):
+        if 'Busy' in c:
+            return c['Busy']
 
     @setting(1000, 'Test')
     def test(self, c):
