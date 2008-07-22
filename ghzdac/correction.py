@@ -681,7 +681,9 @@ class DACcorrection:
 
         samplingfreq=int(round(1.0/(dataPoints[1,0]-dataPoints[0,0])))
         dataPoints=dataPoints[:,1]
-
+        #calculate impulse response from step response
+        dataPoints=dataPoints[samplingfreq:]-dataPoints[:-samplingfreq]
+        self.dataPoints = dataPoints
         #length for fft, long because we want good frequency resolution
         finalLength=10240
         n=finalLength*samplingfreq

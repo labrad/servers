@@ -20,7 +20,7 @@
 
 from ghzdac import IQcorrector
 import keys
-from numpy import exp, pi, arange, real, imag, min, max, log, transpose, alen
+from numpy import exp, pi, arange, real, imag, min, max, log, transpose, alen, resize
 from labrad.types import Value
 from datetime import datetime
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -190,7 +190,7 @@ def zeroScanCarrier(cxn, scanparams, boardname):
 ####################################################################
 
 @inlineCallbacks
-def measureImpulseResponse(fpga, scope, baseline, pulse, dacoffsettime=6):
+def measureImpulseResponse(fpga, scope, baseline, pulse, dacoffsettime=6, pulselength=1):
     """Measure the response to a DAC pulse
     fpga: connected fpga server
     scope: connected scope server
@@ -203,16 +203,14 @@ def measureImpulseResponse(fpga, scope, baseline, pulse, dacoffsettime=6):
     #units clock cycles
     dacoffsettime = int(round(dacoffsettime))
     triggerdelay=30
-    looplength=256
-    pulseindex=(triggerdelay-dacoffsettime) % looplength
+    looplength=2000
+    pulseindex=triggerdelay-dacoffsettime
     yield scope.start_time(Value(triggerdelay,'ns'))
     #calculate the baseline voltage by capturing a trace without a pulse
 
-    data = looplength * [baseline]
+    data = resize(baseline, looplength)
+    data[pulseindex:pulseindex+pulselength] = pulse
     data[0] |= trigger
-    yield fpga.run_sram(data,True)
-
-    data[pulseindex] = pulse | (trigger * (pulseindex == 0))
     yield fpga.run_sram(data,True)
     data = (yield scope.get_trace(1)).asarray
     data[0]-=triggerdelay*1e-9
@@ -325,7 +323,7 @@ def calibrateDCPulse(cxn,boardname,channel):
     average(128).\
     sensitivity(Value(100.0,'mV')).\
     offset(Value(0,'mV')).\
-    time_step(Value(2,'ns')).\
+    time_step(Value(5,'ns')).\
     trigger_level(Value(0.18,'V')).\
     trigger_positive()
     yield p.send()
@@ -333,14 +331,12 @@ def calibrateDCPulse(cxn,boardname,channel):
     offsettime = yield reg.get(keys.TIMEOFFSET)
 
     
-    print 'Measuring offset voltage...'
-    offset = (yield measureImpulseResponse(fpga, scope, baseline, baseline,
-        dacoffsettime=offsettime['ns']))[2:]
-    offset = sum(offset) / len(offset)
 
-    print 'Measuring pulse response...'
+    print 'Measuring step response...'
     trace = yield measureImpulseResponse(fpga, scope, baseline, pulse,
-        dacoffsettime=offsettime['ns'])
+        dacoffsettime=offsettime['ns'],pulselength=100)
+    # set the output to zero so that the fridge does not warm up when the
+    # cable is plugged back in
     yield fpga.run_sram([makeSample(dac_neutral, dac_neutral)]*4,False)
     ds = cxn.data_vault
     yield ds.cd(['',keys.SESSIONNAME,boardname],True)
@@ -348,7 +344,7 @@ def calibrateDCPulse(cxn,boardname,channel):
                            [('Voltage','','V')])
     yield ds.add_parameter(keys.TIMEOFFSET, offsettime)
     yield ds.add(transpose([1e9*(trace[0]+trace[1]*arange(alen(trace)-2)),
-        trace[2:]-offset]))
+        trace[2:]]))
     returnValue(datasetNumber(dataset))
 
 
