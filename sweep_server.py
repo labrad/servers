@@ -172,9 +172,9 @@ class SweepServer(LabradServer):
             c['Pos']=0
             yield self.client.refresh()
             self.runSweep(c, sweepND(starts, steps, counts, others), self.client[server].settings[setting])
-            return countND(counts)
+            returnValue(countND(counts))
         else:
-            return 0
+            returnValue(0)
 
     @setting(100, 'Wait')
     def wait(self, c):
