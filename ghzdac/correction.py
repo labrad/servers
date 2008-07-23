@@ -21,9 +21,6 @@ alen, clip, sqrt, log, arange, linspace, zeros, ones, reshape, outer, \
 compress, sum, shape, cos, pi, exp, Inf, size, real, imag, uint32, int32, \
 argmin, resize, argwhere, append
 from numpy.fft import fft, rfft, irfft
-#how far (in GHz) beyond its limits a calset will still be used
-#the +0.001 assures that a calset will be used up to 1 MHz beyond
-        #its limits
         
 
 def cosinefilter(n, width=0.4):
@@ -135,7 +132,7 @@ class IQcorrection:
         self.flipChannels = False
 
         # Set the Lowpass, i.e. the transfer function we want after correction
-        # Unless otherwise specified, the filter will be flat and than roll off
+        # Unless otherwise specified, the filter will be flat and then roll off
         # between (1-bandwidth)*Nyquist and Nyquist
 
         if lowpass == False:
