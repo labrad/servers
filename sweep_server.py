@@ -115,6 +115,10 @@ class SweepServer(LabradServer):
                     else:
                         p.override(reg[1], var[0])
             self.runPoint(c, p, setting, semaphore, [v[0] for v in sweep])
+        for a in range(PIPELINE_DEPTH):
+            yield semaphore.acquire()
+        for a in range(PIPELINE_DEPTH):
+            semaphore.release()
         if 'Abort' in c:
             c['Abort'].callback(None)
             del c['Abort']
