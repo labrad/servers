@@ -261,26 +261,60 @@ class VoBIServer(LabradServer):
         returnValue(probs[0][1:])
 
 
-    @setting(101, 'Run CHSH', context=['ww'], returns=['(*2v, *v, v)'])
+    @setting(200, 'Run CHSH', context=['ww'], returns=['*v'])
     def run_chsh(self, c, context):
-        """Runs CHSH S Measurement"""
+        """Runs CHSH S Measurement and returns 17 values:
+
+        P(|10>), P(|01>), P(|11>) for ab, a'b, ab', a'b'
+
+        E(ab), E(a'b), E(ab'), E(a'b')
+
+        S
+        """
         probs = yield self.run(c, context, 4)
         Es = [p[0] - p[1] - p[2] + p[3] for p in probs]
         S = Es[0] + Es[1] - Es[2] + Es[3]
-        probs = [p[1:] for p in probs]
-        returnValue((probs, Es, S))
+        probs = [p for ps in probs for p in ps[1:]]
+        returnValue(probs + Es + [S])
 
 
-    @setting(102, 'Run Korotkov', context=['ww'], returns=['(*2v, *v, v)'])
+    @setting(201, 'Run CHSH (S only)', context=['ww'], returns=['*v'])
+    def run_chsh_s_only(self, c, context):
+        """Runs CHSH S Measurement and returns only S"""
+        probs = yield self.run(c, context, 4)
+        Es = [p[0] - p[1] - p[2] + p[3] for p in probs]
+        S = Es[0] + Es[1] - Es[2] + Es[3]
+        returnValue([S])
+
+
+    @setting(300, 'Run Korotkov', context=['ww'], returns=['*v'])
     def run_koko(self, c, context):
-        """Runs Korotkov T Measurement"""
+        """Runs Korotkov T Measurement and returns 25 values:
+
+        P(|10>), P(|01>), P(|11>) for ab, a'b, ab', a'b', a', b
+
+        R(ab), R(a'b), R(ab'), R(a'b'), R(a'), R(b)
+
+        T
+        """
         probs = yield self.run(c, context, 6)
         Rs = [p[0] for p in probs]
         Rs[4] += probs[4][2]
         Rs[5] += probs[5][1]
         T = Rs[0] + Rs[1] - Rs[2] + Rs[3] - Rs[4] - Rs[5]
-        probs = [p[1:] for p in probs]
-        returnValue((probs, Rs, T))
+        probs = [p for ps in probs for p in ps[1:]]
+        returnValue(probs + Rs + [T])
+
+
+    @setting(301, 'Run Korotkov (T only)', context=['ww'], returns=['*v'])
+    def run_koko_t_only(self, c, context):
+        """Runs Korotkov T Measurement and returns only T"""
+        probs = yield self.run(c, context, 6)
+        Rs = [p[0] for p in probs]
+        Rs[4] += probs[4][2]
+        Rs[5] += probs[5][1]
+        T = Rs[0] + Rs[1] - Rs[2] + Rs[3] - Rs[4] - Rs[5]
+        returnValue([T])
 
 
     @setting(100000, 'Kill')
