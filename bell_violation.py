@@ -23,30 +23,48 @@ from twisted.python import log
 from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 
-PARAMETERS = [("uWave Offset",        "ns" ),
+GLOBALPARS = [ "Stats" ];
+
+QUBITPARAMETERS = [("Microwave Offset",          "ns" ),
+                   ("Resonance Frequency",       "GHz"),
+                   ("Sideband Frequency",        "GHz"),
+                   ("Carrier Power",             "dBm"), 
               
-               "Pi Amplitude",
-              ("Pi Phase",            "deg"),
-              ("Pi Length",           "ns" ),
+                   ("Measure Offset",            "ns" ),
 
-              ("Coupling Time",       "ns" ),
+                   ("Measure Pulse Delay",       "ns" ),
+                    "Measure Pulse Amplitude",
+                   ("Measure Pulse Top Length",  "ns" ),
+                   ("Measure Pulse Tail Length", "ns" )]
 
-              ("Bell Length",         "ns" ),
+BELLPARAMETERS  = [ "Pi Pulse Amplitude",
+                   ("Pi Pulse Phase",            "rad"),
+                   ("Pi Pulse Length",           "ns" ),
+
+                   ("Coupling Time",             "ns" ),
+
+                   ("Bell Pulse Length",         "ns" ),
               
-               "Amplitude",
-              ("Phase",               "deg"),
+                    "Bell Pulse Amplitude",
+                   ("Bell Pulse Phase",          "rad"),
               
-               "Amplitude'",          
-              ("Phase'",              "deg"),
+                    "Bell Pulse Amplitude'",          
+                   ("Bell Pulse Phase'",         "rad"),
 
-              ("Measure Offset",      "ns" ),
+                    "Operating Bias Shift"             ]
 
-              ("Bias Shift",          "mV" ),
 
-              ("Measure Delay",       "ns" ),
-               "Measure Amplitude",
-              ("Measure Top Length",  "ns" ),
-              ("Measure Tail Length", "ns" )]
+def analyzeData(cutoffs, data):
+    states = 2**len(cutoffs)
+    counts = [0.0]*states
+    total  = len(data[0])
+    for pid in range(total):
+        n = 0
+        for qid in range(len(data)):
+            if (data[qid][pid]/25.0>abs(cutoffs[qid][1])) ^ (cutoffs[qid][1]<0):
+                n+=2**qid
+        counts[n]+=1.0
+    return [c/float(total) for c in counts]
 
 
 class NeedTwoQubitsError(T.Error):
@@ -58,20 +76,40 @@ class VoBIServer(LabradServer):
     name = 'Bell Violation'
 
                   
-    def getQubits(self, c):
-        return self.client.qubits.experiment_involved_qubits(context=c.ID)
+    def getQubits(self, cctxt):
+        return self.client.qubits.experiment_involved_qubits(context=cctxt)
 
 
     @inlineCallbacks
-    def readParameters(self, c, qubits, parameters):
+    def readParameters(self, c, globalpars, qubits, qubitpars, bellpars):
         # Make a new packet for the registry
         p = self.client.registry.packet()
         # Copy current directory and overrides from client context
         p.duplicate_context(c.ID)
+        # Load global parameters
+        for parameter in globalpars:
+            if isinstance(parameter, tuple):
+                name, units = parameter
+                # Load setting with units
+                p.get(name, 'v[%s]' % units, key=name)
+            else:
+                # Load setting without units
+                p.get(parameter, key=parameter)
+        # Load qubit specific parameters
         for qubit in qubits:
             # Change into qubit directory
-            p.cd(qubit)
-            for parameter in parameters:
+            p.cd(qubit, key=False)
+            for parameter in qubitpars:
+                if isinstance(parameter, tuple):
+                    name, units = parameter
+                    # Load setting with units
+                    p.get(name, 'v[%s]' % units, key=(qubit, name))
+                else:
+                    # Load setting without units
+                    p.get(parameter, key=(qubit, parameter))
+            # Change into bell directory
+            p.cd('Bell Violation', key=False)
+            for parameter in bellpars:
                 if isinstance(parameter, tuple):
                     name, units = parameter
                     # Load setting with units
@@ -80,24 +118,24 @@ class VoBIServer(LabradServer):
                     # Load setting without units
                     p.get(parameter, key=(qubit, parameter))
             # Change back to root directory
-            p.cd(1)
+            p.cd(2, key=False)
         # Get parameters
         ans = yield p.send()
         # Build and return parameter dictionary
         result = {}
         for key in ans.settings.keys():
-            if isinstance(key, tuple):
+            if isinstance(key, tuple) or isinstance(key, str):
                 result[key]=ans[key]
         returnValue(result)
 
 
     @inlineCallbacks
-    def run(self, c, ops, stats):
-        qubits = yield self.getQubits(c)
+    def run(self, c, cctxt, ops):
+        qubits = yield self.getQubits(cctxt)
         if len(qubits)!=2:
             raise NeedTwoQubitsError()
         
-        pars   = yield self.readParameters(c, qubits, PARAMETERS)
+        pars   = yield self.readParameters(c, GLOBALPARS, qubits, QUBITPARAMETERS, BELLPARAMETERS)
         
         cxn = self.client
         if 'Contexts' not in c:
@@ -113,7 +151,7 @@ class VoBIServer(LabradServer):
         for op in range(ops):
             ctxt = c['Contexts'][op]
             # Setup Qubit Server
-            qsw = qs.duplicate_context(c.ID, context=ctxt)
+            qsw = qs.duplicate_context(cctxt, context=ctxt)
 
             # Setup Registry Server
             rsw = rg.duplicate_context(c.ID, context=ctxt)
@@ -122,115 +160,132 @@ class VoBIServer(LabradServer):
             yield qsw
             yield rsw
 
-            # Setup Qubit Bias Server
-            p = qb.packet(context=ctxt)
-            p.duplicate_context(c.ID)
-
             # Reset Qubits
-            p.initialize_qubits()
-            yield p.send()
+            yield qb.initialize_qubits(context=ctxt)
 
             # Add SRAM Sequence
             p = qs.packet(context=ctxt)
             for qid, qname in enumerate(qubits):
+                # Add a trigger
+                p.sram_trigger_pulse    (('Trigger', qid+1), 20*ns)
+                
+                # Setup Anritsu
+                p.experiment_set_anritsu(('uWaves',  qid+1), pars[(qname, 'Resonance Frequency'      )]- \
+                                                             pars[(qname, 'Sideband Frequency'       )],
+                                                             pars[(qname, 'Carrier Power'            )])
+                
                 # Initial Delay
-                p.sram_iq_delay        (('uWaves',  qid+1), pars[(qname, "uWave Offset" )] + 50.0*ns)
+                p.sram_iq_delay         (('uWaves',  qid+1), pars[(qname, 'Microwave Offset'         )]+50*ns)
+
                 # Pi Pulse
-                p.sram_iq_slepian      (('uWaves',  qid+1), pars[(qname, "Pi Amplitude" )],
-                                                            pars[(qname, "Pi Length"    )], 150.0*MHz,
-                                                            pars[(qname, "Pi Phase"     )])
+                p.sram_iq_slepian       (('uWaves',  qid+1), pars[(qname, 'Pi Pulse Amplitude'       )],
+                                                             pars[(qname, 'Pi Pulse Length'          )],
+                                                       float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
+                                                             pars[(qname, 'Pi Pulse Phase'           )])
                 # Coupling Delay
-                p.sram_iq_delay        (('uWaves',  qid+1), pars[(qname, "Coupling Time")])
+                p.sram_iq_delay         (('uWaves',  qid+1), pars[(qname, 'Coupling Time'            )])
                 # Bell Pulses
                 # A, B
                 if op==0:
-                    p.sram_iq_slepian  (('uWaves',  qid+1), pars[(qname, "Amplitude"    )],
-                                                            pars[(qname, "Bell Length"  )], 150.0*MHz,
-                                                            pars[(qname, "Phase"        )])
+                    p.sram_iq_slepian   (('uWaves',  qid+1), pars[(qname, "Bell Pulse Amplitude"     )],
+                                                             pars[(qname, "Bell Pulse Length"        )],
+                                                       float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
+                                                             pars[(qname, "Bell Pulse Phase"         )])
                 # A', B or B', A
                 if op in [1,2]:
                   if ((op+qid) % 2)==0:
-                    p.sram_iq_slepian  (('uWaves',  qid+1), pars[(qname, "Amplitude"    )],
-                                                            pars[(qname, "Bell Length"  )], 150.0*MHz,
-                                                            pars[(qname, "Phase"        )])
+                    p.sram_iq_slepian   (('uWaves',  qid+1), pars[(qname, "Bell Pulse Amplitude"     )],
+                                                             pars[(qname, "Bell Pulse Length"        )],
+                                                       float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
+                                                             pars[(qname, "Bell Pulse Phase"         )])
                   else:
-                    p.sram_iq_slepian  (('uWaves',  qid+1), pars[(qname, "Amplitude'"   )],
-                                                            pars[(qname, "Bell Length"  )], 150.0*MHz,
-                                                            pars[(qname, "Phase'"       )])
+                    p.sram_iq_slepian   (('uWaves',  qid+1), pars[(qname, "Bell Pulse Amplitude'"    )],
+                                                             pars[(qname, "Bell Pulse Length"        )],
+                                                       float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
+                                                             pars[(qname, "Bell Pulse Phase'"        )])
                 # A', B'
                 if op==3:
-                    p.sram_iq_slepian  (('uWaves',  qid+1), pars[(qname, "Amplitude'"   )],
-                                                            pars[(qname, "Bell Length"  )], 150.0*MHz,
-                                                            pars[(qname, "Phase'"       )])
+                    p.sram_iq_slepian   (('uWaves',  qid+1), pars[(qname, "Bell Pulse Amplitude'"    )],
+                                                             pars[(qname, "Bell Pulse Length"        )],
+                                                       float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
+                                                             pars[(qname, "Bell Pulse Phase'"        )])
                 # A'
                 if (op==4) and (qid==0):
-                    p.sram_iq_slepian  (('uWaves',  qid+1), pars[(qname, "Amplitude'"   )],
-                                                            pars[(qname, "Bell Length"  )], 150.0*MHz,
-                                                            pars[(qname, "Phase'"       )])
+                    p.sram_iq_slepian   (('uWaves',  qid+1), pars[(qname, "Bell Pulse Amplitude'"    )],
+                                                             pars[(qname, "Bell Pulse Length"        )],
+                                                       float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
+                                                             pars[(qname, "Bell Pulse Phase'"        )])
                 # B
                 if (op==5) and (qid==1):
-                    p.sram_iq_slepian  (('uWaves',  qid+1), pars[(qname, "Amplitude"    )],
-                                                            pars[(qname, "Bell Length"  )], 150.0*MHz,
-                                                            pars[(qname, "Phase"        )])
+                    p.sram_iq_slepian   (('uWaves',  qid+1), pars[(qname, "Bell Pulse Amplitude"     )],
+                                                             pars[(qname, "Bell Pulse Length"        )],
+                                                       float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
+                                                             pars[(qname, "Bell Pulse Phase"         )])
 
                 # Measure Delay
-                measofs = 50 + int(pars[(qname, "Measure Offset")]) + int(pars[(qname, "Measure Delay")])
-                p.sram_analog_data (('Measure', qid+1), [pars[(qname, "Bias Shift")]]*measofs)
+                measofs = 50 +                           int(pars[(qname, "Measure Offset"           )]) + \
+                                                         int(pars[(qname, "Pi Pulse Length"          )]) + \
+                                                         int(pars[(qname, "Coupling Time"            )]) + \
+                                                         int(pars[(qname, "Bell Pulse Length"        )]) + \
+                                                         int(pars[(qname, "Measure Pulse Delay"      )])
+                p.sram_analog_data (('Measure', qid+1), [float(pars[(qname, "Operating Bias Shift")])]*measofs)
+
                 # Measure Pulse
-                meastop  = int  (pars[(qname, "Measure Top Length" )])
-                meastail = int  (pars[(qname, "Measure Tail Length")])
-                measamp  = float(pars[(qname, "Measure Amplitude"  )])/1000.0
+                meastop  = int  (pars[(qname, "Measure Pulse Top Length" )])
+                meastail = int  (pars[(qname, "Measure Pulse Tail Length")])
+                measamp  = float(pars[(qname, "Measure Pulse Amplitude"  )])/1000.0
                 measpuls = [measamp]*meastop + [(meastail - t - 1)*measamp/meastail for t in range(meastail)]
-                p.sram_analog_data (('Measure', qid+1), measpuls)
+                p.sram_analog_data  (('Measure', qid+1), measpuls)
+                
+            p.memory_call_sram()
             yield p.send()
 
             # Readout Qubits
             cutoffs.append((yield qb.readout_qubits(context=ctxt)))
 
             # Request Data Run
-            waits.append(qs.run(stats, context=ctxt))
+            waits.append(qs.run(pars["Stats"], context=ctxt))
 
         results =  []
         for wait, coinfos in zip(waits, cutoffs):
             switches = yield wait
-            cutoffs = [float(coinfo[1].inUnitsOf('us')) for coinfo in coinfos]
-            neg_cutoffs = [cutoff<0       for cutoff in cutoffs]
-            cutoffs     = [abs(cutoff)*25 for cutoff in cutoffs]
-            switches = [[int((s<cutoff) ^ neg_cutoff) for s in ss] for ss, neg_cutoff, cutoff in zip(switches, neg_cutoffs, cutoffs)]
-            states = [s1+s2*2 for s1, s2 in zip(switches[0], switches[1])]
-            states = [float(states.count(s))/float(len(states)) for s in range(4)]
-            results.append(states)
+            results.append(analyzeData(coinfos, switches))
 
         returnValue(results)
 
 
-    @setting(100, 'Run Single', stats=['w'], returns=['*v'])
-    def run_single(self, c, stats):
+    @setting(100, 'Run Single', context=['ww'], returns=['*v'])
+    def run_single(self, c, context):
         """Runs Sequence for A, B only"""
-        probs = yield self.run(c, 1, stats)
+        probs = yield self.run(c, context, 1)
         returnValue(probs[0][1:])
 
 
-    @setting(101, 'Run CHSH', stats=['w'], returns=['(*2v, *v, v)'])
-    def run_chsh(self, c, stats):
+    @setting(101, 'Run CHSH', context=['ww'], returns=['(*2v, *v, v)'])
+    def run_chsh(self, c, context):
         """Runs CHSH S Measurement"""
-        probs = yield self.run(c, 4, stats)
+        probs = yield self.run(c, context, 4)
         Es = [p[0] - p[1] - p[2] + p[3] for p in probs]
         S = Es[0] + Es[1] - Es[2] + Es[3]
         probs = [p[1:] for p in probs]
         returnValue((probs, Es, S))
 
 
-    @setting(102, 'Run Korotkov', stats=['w'], returns=['(*2v, *v, v)'])
-    def run_koko(self, c, stats):
+    @setting(102, 'Run Korotkov', context=['ww'], returns=['(*2v, *v, v)'])
+    def run_koko(self, c, context):
         """Runs Korotkov T Measurement"""
-        probs = yield self.run(c, 6, stats)
+        probs = yield self.run(c, context, 6)
         Rs = [p[0] for p in probs]
         Rs[4] += probs[4][2]
         Rs[5] += probs[5][1]
         T = Rs[0] + Rs[1] - Rs[2] + Rs[3] - Rs[4] - Rs[5]
         probs = [p[1:] for p in probs]
         returnValue((probs, Rs, T))
+
+
+    @setting(100000, 'Kill')
+    def kill(self, c, context):
+        reactor.callLater(1, reactor.stop);
 
 __server__ = VoBIServer()
 
