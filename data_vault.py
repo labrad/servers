@@ -905,8 +905,11 @@ class DataVault(LabradServer):
             if len(curdir)>0:
                 p.cd(len(curdir))
         ans = yield p.send()
-        if (not isinstance(subdirs, list)) and (subdirs is not None) and (subdirs>0):
-            subdirs-=1
+        if isinstance(subdirs, list):
+            subdirs=-1
+        else:
+            if (subdirs is not None) and (subdirs>0):
+                subdirs-=1
         for key in sorted(ans.settings.keys()):
             item=ans[key]
             if (isinstance(key, tuple)):
