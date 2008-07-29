@@ -49,11 +49,12 @@ def getDataSets(cxn, boardname, caltype, errorClass=None):
         calfiles = array([])
     
     if not size(calfiles):
-        if errorClass:
+        if isinstance(errorClass, Exception):
             raise errorClass(caltype)
         elif errorClass != 'quiet':
             print 'Warning: No %s calibration loaded.' % caltype
-            print '         No %s correction will be performed.' % caltype
+            print '         No %s correction will be performed.' % caltype\
+    
     returnValue(calfiles)
     
 
@@ -61,7 +62,7 @@ def getDataSets(cxn, boardname, caltype, errorClass=None):
 @inlineCallbacks
 def IQcorrectorAsync(fpganame, connection,
                      zerocor = True, pulsecor = True, iqcor = True,
-                     lowpass = cosinefilter, bandwidth = 0.4, errorClass = None):
+                     lowpass = cosinefilter, bandwidth = 0.4, errorClass = 'quiet'):
 
     """
     Returns a DACcorrection object for the given DAC board.
@@ -76,7 +77,7 @@ def IQcorrectorAsync(fpganame, connection,
     ds=cxn.data_vault
     ctx = ds.context()
 
-    yield ds.cd(['',keys.SESSIONNAME,fpganame],context=ctx)
+    yield ds.cd(['',keys.SESSIONNAME,fpganame], True, context=ctx)
 
     corrector = IQcorrection(fpganame, lowpass, bandwidth)
 
@@ -147,7 +148,7 @@ def IQcorrector(fpganame, cxn = None, \
 
 @inlineCallbacks
 def DACcorrectorAsync(fpganame, channel, connection = None, \
-                      lowpass = gaussfilter, bandwidth = 0.13, errorClass = None):
+                      lowpass = gaussfilter, bandwidth = 0.13, errorClass = 'quiet'):
 
     """
     Returns a DACcorrection object for the given DAC board.
@@ -162,7 +163,7 @@ def DACcorrectorAsync(fpganame, channel, connection = None, \
     ds=cxn.data_vault
     ctx = ds.context()
 
-    yield ds.cd(['',keys.SESSIONNAME,fpganame],context=ctx)
+    yield ds.cd(['',keys.SESSIONNAME,fpganame], True, context=ctx)
 
     corrector = DACcorrection(fpganame, lowpass, bandwidth)
 
