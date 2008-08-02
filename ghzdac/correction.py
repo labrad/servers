@@ -658,19 +658,23 @@ class DACcorrection:
         self.lowpass = lowpass
         self.bandwidth = 0.13
 
-        self.correction = None
+        self.correction = []
 
         self.zero = 0.0
 
         self.clicsPerVolt = None
 
 
-    def loadCal(self, dataPoints, zero = 0.0 , clicsPerVolt = None):
+    def loadCal(self, dataPoints, zero = 0.0 , clicsPerVolt = None,
+                lowpass=flatfilter, bandwidth=0.13):
         """
-        Reads a pulse calibration file from the data server.
-        The result is inverted and multiplied with a lowpass filter, that rolls
-        off between 0.5-cufoffwidth GHz and 0.5 GHz.
-        It is stored in self.correctionI and self.correctionQ.
+        Reads a pulse calibration file from the data server.  The
+        result is inverted and multiplied with a lowpass filter, that
+        rolls off between 0.5-cufoffwidth GHz and 0.5 GHz.  It is
+        stored in self.correctionI and self.correctionQ.  If a lowpass
+        filter has been used to generate the signal give the
+        filterfunction with the 'lowpass' keyword arg and its
+        bandwidth with the 'bandwidth' keyword argument.
         """
 
         #read pulse calibration from data server
@@ -689,7 +693,8 @@ class DACcorrection:
         dataPoints=rfft(dataPoints,n=n)
         self.zero = zero
         self.clicsPerVolt = clicsPerVolt
-        self.correction = abs(dataPoints[0]) / dataPoints[0:finalLength/2+1]
+        self.correction += [lowpass(finalLength/2+1,bandwidth) * \
+                            abs(dataPoints[0]) / dataPoints[0:finalLength/2+1]]
 
 
 
@@ -713,13 +718,13 @@ class DACcorrection:
 
         #FT the input
         signal=rfft(signal, n=nfft)
-
-        l=alen(self.correction)
-        freqs = arange(0,nrfft) * 2.0 * (l - 1.0) / nfft
-        correction = interpol(self.correction, freqs, extrapolate=True)
+        for correction in self.correction:
+            l=alen(correction)
+            freqs = arange(0,nrfft) * 2.0 * (l - 1.0) / nfft
+            correction = interpol(correction, freqs, extrapolate=True)
+            signal*=correction 
         #do the actual deconvolution and transform back to time space
-        signal=irfft(signal*correction*self.lowpass(nrfft, self.bandwidth),
-                     n=nfft)
+        signal=irfft(signal*self.lowpass(nrfft, self.bandwidth), n=nfft)
         return signal[0:n]
 
 
