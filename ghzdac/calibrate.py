@@ -124,8 +124,10 @@ def zero(anr, spec, fpga, freq):
 def zeroFixedCarrier(cxn, boardname):
     fpga = cxn.ghz_dacs
     yield fpga.select_device(boardname)
+    yield cxn.mirowave_switch.switch(boardname)
     anr = cxn.anritsu_server
     spec = cxn.spectrum_analyzer_server
+    
     reg = cxn.registry
     yield reg.cd(['',keys.SESSIONNAME,boardname])
     spectID = yield reg.get(keys.SPECTID)
@@ -143,7 +145,8 @@ def zeroFixedCarrier(cxn, boardname):
 
     daczeros = yield zero(anr,spec,fpga,frequency)
 
-    yield anr.output(False)        
+    yield anr.output(False)
+    yield cxn.microwave_switch.switch(0)
     returnValue(daczeros)
     
 
@@ -153,6 +156,7 @@ def zeroScanCarrier(cxn, scanparams, boardname):
     """Measures the DAC zeros in function of the carrier frequency."""
     fpga = cxn.ghz_dacs
     yield fpga.select_device(boardname)
+    yield cxn.mirowave_switch.switch(boardname)
     anr = cxn.anritsu_server
     spec = cxn.spectrum_analyzer_server
     reg = cxn.registry
@@ -182,7 +186,8 @@ def zeroScanCarrier(cxn, scanparams, boardname):
     while freq<scanparams['carrierMax']:
         yield ds.add([freq]+(yield zero(anr,spec,fpga,freq)))
         freq+=scanparams['carrierStep']
-    yield anr.output(False)        
+    yield anr.output(False)
+    yield cxn.microwave_switch.switch(0)
     returnValue(int(dataset[1][:5]))
                 
 ####################################################################
@@ -228,7 +233,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     anritsuID = yield reg.get(keys.ANRITSUID)
     anritsuPower = yield reg.get(keys.ANRITSUPOWER)
     carrierFreq = yield reg.get(keys.PULSECARRIERFREQ)
-    
+    yield cxn.microwave_switch.switch(0)
     yield anr.select_device(anritsuID)
     yield anr.frequency(carrierFreq)
     yield anr.amplitude(anritsuPower)
@@ -423,6 +428,7 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
 
     anritsuID = yield reg.get(keys.ANRITSUID)
     anritsuPower = yield reg.get(keys.ANRITSUPOWER)
+    yield cxn.microwave_switch.switch(boardname)
     yield anr.select_device(anritsuID)
     yield anr.amplitude(anritsuPower)
     yield anr.output(True)
@@ -458,4 +464,5 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
         yield ds.add(datapoint)
         freq+=scanparams['sidebandCarrierStep']
     yield anr.output(False)
+    yield cxn.microwave_switch.switch(0)
     returnValue(datasetNumber(dataset))
