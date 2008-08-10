@@ -124,7 +124,7 @@ def zero(anr, spec, fpga, freq):
 def zeroFixedCarrier(cxn, boardname):
     fpga = cxn.ghz_dacs
     yield fpga.select_device(boardname)
-    yield cxn.mirowave_switch.switch(boardname)
+    yield cxn.microwave_switch.switch(boardname)
     anr = cxn.anritsu_server
     spec = cxn.spectrum_analyzer_server
     
@@ -156,7 +156,7 @@ def zeroScanCarrier(cxn, scanparams, boardname):
     """Measures the DAC zeros in function of the carrier frequency."""
     fpga = cxn.ghz_dacs
     yield fpga.select_device(boardname)
-    yield cxn.mirowave_switch.switch(boardname)
+    yield cxn.microwave_switch.switch(boardname)
     anr = cxn.anritsu_server
     spec = cxn.spectrum_analyzer_server
     reg = cxn.registry
