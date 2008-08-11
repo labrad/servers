@@ -1,6 +1,6 @@
 #!c:\python25\python.exe
 
-# Copyright (C) 2007  Markus Ansmann
+# Copyright (C) 2008  Markus Ansmann
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -82,6 +82,18 @@ def analyzeData(cutoffs, data):
         counts[n]+=1.0
     return [c*100.0/float(total) for c in counts[1:]]
 
+
+def analyzeDataSeparate(cutoffs, data):
+    counts = [0.0]*len(cutoffs)
+    total  = len(data[0])
+    for pid in range(total):
+        n = 0
+        for qid in range(len(data)):
+            if (data[qid][pid]/25.0>abs(cutoffs[qid][1])) ^ (cutoffs[qid][1]<0):
+                counts[qid]+=1.0
+    return [c*100.0/float(total) for c in counts]
+
+
 class BEServer(LabradServer):
     name = 'Basic Experiments'
 
@@ -125,7 +137,7 @@ class BEServer(LabradServer):
                 else:
                     # Load setting without units
                     p.get(parameter, key=(qubit, parameter))
-            # Change back to root directory
+            # Change back to analyzeDataSeparateroot directory
             p.cd(1, key=False)
         # Get parameters
         ans = yield p.send()
@@ -253,6 +265,17 @@ class BEServer(LabradServer):
         returnValue(analyzeData(cutoffs, data))
 
 
+    @setting(12, 'Step Edge (Probability, Separate)', ctxt=['ww'], returns=['*v'])
+    def step_edge_prob_sep(self, c, ctxt):
+        """Runs a Step Edge Sequence for a single Operating Bias and returns the
+        tunneling probabilities"""
+        # Take data
+        cutoffs, data = yield self.run_step_edge(c, ctxt)
+
+        # Convert to probability
+        returnValue(analyzeDataSeparate(cutoffs, data))
+
+
     @inlineCallbacks
     def init_qubits(self, c, ctxt, globalpars, qubitpars):
         # Grab list of qubits
@@ -261,7 +284,7 @@ class BEServer(LabradServer):
         # Get experiment parameters
         pars = yield self.readParameters(c, globalpars, qubits, qubitpars)
         
-        # Set up qubit experiment
+        # Set up qubit experianalyzeDataSeparatement
         yield self.client.qubits.duplicate_context(ctxt, context=c.ID)
 
         # Initialize qubits
@@ -291,9 +314,24 @@ class BEServer(LabradServer):
         returnValue(analyzeData(cutoffs, data))
 
 
+    @inlineCallbacks
+    def run_qubits_separate(self, c, p, stats):
+        # Setup SRAM
+        p.memory_call_sram()
+        yield p.send()
+        
+        # Readout qubits
+        cutoffs = yield self.client.qubit_bias.readout_qubits(context = c.ID)
+
+        # Run experiment
+        data = yield self.client.qubits.run(stats, context = c.ID)
+
+        returnValue(analyzeDataSeparate(cutoffs, data))
+
+
     @setting(20, 'S-Curve', ctxt=['ww'], returns=['*v'])
     def s_curve(self, c, ctxt):
-        """Runs an S-Curve Sequence"""
+        """Runs an S-Curve Sequence and returns P|10..>, P|01...>, ..., P|11...>"""
         # Initialize experiment
         qubits, pars, p = yield self.init_qubits(c, ctxt, GLOBALPARS, SCURVEPARS)
 
@@ -312,7 +350,30 @@ class BEServer(LabradServer):
         # Run experiment and return result
         data = yield self.run_qubits(c, p, pars['Stats'])
         returnValue(data)
-        
+
+
+    @setting(21, 'S-Curve Separate', ctxt=['ww'], returns=['*v'])
+    def s_curve_sep(self, c, ctxt):
+        """Runs an S-Curve Sequence and returns P|1xx...>, P|x1x...>, P|xx1...>, ..."""
+        # Initialize experiment
+        qubits, pars, p = yield self.init_qubits(c, ctxt, GLOBALPARS, SCURVEPARS)
+
+        # Build SRAM
+        for qid, qname in enumerate(qubits):
+            # Add Measure Delay
+            p.sram_analog_delay (('Measure', qid+1), 50*ns+pars[(qname, 'Measure Offset')])
+            
+            # Measure PulseanalyzeDataSeparate
+            meastop  = int  (pars[(qname, "Measure Pulse Top Length" )])
+            meastail = int  (pars[(qname, "Measure Pulse Tail Length")])
+            measamp  = float(pars[(qname, "Measure Pulse Amplitude"  )])/1000.0
+            measpuls = [measamp]*meastop + [(meastail - t - 1)*measamp/meastail for t in range(meastail)]
+            p.sram_analog_data  (('Measure', qid+1), measpuls)
+
+        # Run experiment and return result
+        data = yield self.run_qubits_separate(c, p, pars['Stats'])
+        returnValue(data)
+  
 
     @setting(30, 'Spectroscopy', ctxt=['ww'], returns=['*v'])
     def spectroscopy(self, c, ctxt):
@@ -449,6 +510,50 @@ class BEServer(LabradServer):
         # Run experiment and return result
         data = yield self.run_qubits(c, p, pars['Stats'])
         returnValue(data)
+
+
+    @setting(100, 'Visibility', ctxt=['ww'], returns=['*v'])
+    def visibility(self, c, ctxt):
+        """Runs a Sequence with and without a single Slepian pulse and returns Pw(|1>), Pw/o(|1>) and Pw-Pw/o for each qubit"""
+
+        data = []
+
+        for pt in [False, True]:
+        
+            # Initialize experiment
+            qubits, pars, p = yield self.init_qubits(c, ctxt, GLOBALPARS, SLEPIANPARS)
+
+            # Build SRAM
+            for qid, qname in enumerate(qubits):
+                # Add Microwave Pulse
+                p.experiment_set_anritsu(('uWaves',  qid+1), pars[(qname, 'Resonance Frequency'      )]- \
+                                                             pars[(qname, 'Sideband Frequency'       )],
+                                                             pars[(qname, 'Carrier Power'            )])
+                if pt:
+                    p.sram_iq_delay         (('uWaves',  qid+1), pars[(qname, 'Microwave Offset'         )]+50*ns)
+                    p.sram_iq_slepian       (('uWaves',  qid+1), pars[(qname, 'Microwave Pulse Amplitude')],
+                                                                 pars[(qname, 'Microwave Pulse Length'   )],
+                                                           float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
+                                                                 pars[(qname, 'Microwave Pulse Phase'    )])
+                # Add Measure Delay
+                p.sram_analog_delay     (('Measure', qid+1), pars[(qname, 'Measure Offset'           )]+ \
+                                                             pars[(qname, 'Microwave Pulse Length'   )]+ \
+                                                             pars[(qname, 'Measure Pulse Delay'      )]+50*ns)
+                # Measure Pulse
+                meastop  = int  (pars[(qname, "Measure Pulse Top Length" )])
+                meastail = int  (pars[(qname, "Measure Pulse Tail Length")])
+                measamp  = float(pars[(qname, "Measure Pulse Amplitude"  )])/1000.0
+                measpuls = [measamp]*meastop + [(meastail - t - 1)*measamp/meastail for t in range(meastail)]
+                p.sram_analog_data  (('Measure', qid+1), measpuls)
+
+            # Run experiment and return result
+            data.append((yield self.run_qubits_separate(c, p, pars['Stats'])))
+
+        ans = []
+        for off, on in zip(data[0], data[1]):
+            ans.extend([off, on, on-off])
+            
+        returnValue(ans)
 
 
     @setting(100000, 'Kill')
