@@ -15,14 +15,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from labrad.gpib import GPIBDeviceServer
+from labrad.gpib import GPIBManagedServer
 from labrad.server import setting
 from labrad import types as T
 from twisted.internet.defer import inlineCallbacks, returnValue
 
-class XYAttenuatorServer(GPIBDeviceServer):
+class XYAttenuatorServer(GPIBManagedServer):
     name = 'XY Attenuator Server'
-    deviceName = '<unknown> <unknown>'
+    deviceName = 'XY Attenuators'
+    deviceIdentFunc = 'identify_device'
 
     @inlineCallbacks
     def setAtten(self, c, data, commands):
@@ -40,6 +41,13 @@ class XYAttenuatorServer(GPIBDeviceServer):
         returnValue(T.Value(val, 'dB'))
 
     # settings
+
+    @setting(1000, server='s', address='s', idn='s')
+    def identify_device(self, c, server, address, idn=None):
+        devices = [('ADR GPIB Bus', 'GPIB0::28'),
+                   ('DR GPIB Bus', 'GPIB0::28')]
+        if (server, address) in devices:
+            return self.deviceName
 
     @setting(10000, data=['v[dB]'], returns=['v[dB]'])
     def x_atten(self, c, data):
