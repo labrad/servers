@@ -22,7 +22,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 
 class XYAttenuatorServer(GPIBManagedServer):
     name = 'XY Attenuator Server'
-    deviceName = 'XY Attenuators'
+    deviceName = 'Hewlett-Packard 11713A'
     deviceIdentFunc = 'identify_device'
 
     @inlineCallbacks
@@ -49,7 +49,7 @@ class XYAttenuatorServer(GPIBManagedServer):
         if (server, address) in devices:
             return self.deviceName
 
-    @setting(10000, data=['v[dB]'], returns=['v[dB]'])
+    @setting(10000, "X Atten", data=['v[dB]'], returns=['v[dB]'])
     def x_atten(self, c, data):
         """Set the X attenuation.
 
@@ -57,13 +57,24 @@ class XYAttenuatorServer(GPIBManagedServer):
         """
         return self.setAtten(c, data, XattnDict)
 
-    @setting(10001, data=['v[dB]'], returns=['v[dB]'])
+    @setting(10001, "Y Atten", data=['v[dB]'], returns=['v[dB]'])
     def y_atten(self, c, data):
         """Set the Y attenuation.
 
         Allowed values are 0, 10, 20, ... 70 dB.
         """
         return self.setAtten(c, data, YattnDict)
+
+    @setting(10002, "Total Atten", data=['v[dB]'], returns=['v[dB]v[dB]'])
+    def total_atten(self, c, data):
+        """Set the total attenuation on X and Y channels (connected in series).
+
+        Allowed values of are 0, 1, 2, ... 81 dB.
+        """
+        val = int(data.value)
+        x = yield self.setAtten(c, val%10, XattnDict)
+        y = yield self.setAtten(c, (val/10)*10, YattnDict)
+        returnValue((x,y))
 
 # commands for X attenuation
 XattnDict = {
