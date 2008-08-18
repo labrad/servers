@@ -23,7 +23,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 
 from labrad import types as T, util
 from labrad.server import setting
-from labrad.gpib import GPIBDeviceServer, GPIBDeviceWrapper
+from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 
 READ_ORDER = [1, 2, 1, 3, 1, 4, 1, 5]
 N_CHANNELS = 5
@@ -64,7 +64,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 self.readings[chan-1] = float(r), datetime.now()
                 idx = (idx + 1) % len(READ_ORDER)
         
-class LakeshoreRuOxServer(GPIBDeviceServer):
+class LakeshoreRuOxServer(GPIBManagedServer):
     name = 'Lakeshore RuOx'
     deviceName = 'LSCI MODEL370'
     deviceWrapper = RuOxWrapper

@@ -15,10 +15,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from labrad.gpib import GPIBDeviceServer
+from labrad.gpib import GPIBManagedServer
 from labrad.server import setting, returnValue
 
-class AgilentPSServer(GPIBDeviceServer):
+class AgilentPSServer(GPIBManagedServer):
     name = 'Agilent 6641A PS'
     deviceName = 'HEWLETT-PACKARD 6641A'
 

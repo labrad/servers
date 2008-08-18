@@ -17,7 +17,7 @@
 
 from labrad import types as T
 from labrad.server import setting
-from labrad.gpib import GPIBDeviceServer, GPIBDeviceWrapper
+from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 class AnritsuWrapper(GPIBDeviceWrapper):
@@ -48,7 +48,7 @@ class AnritsuWrapper(GPIBDeviceWrapper):
         yield self.write('RF %d' % int(out))
         self.output = out
 
-class AnritsuServer(GPIBDeviceServer):
+class AnritsuServer(GPIBManagedServer):
     name = 'Anritsu Server'
     deviceName = 'ANRITSU 68367C'
     deviceWrapper = AnritsuWrapper

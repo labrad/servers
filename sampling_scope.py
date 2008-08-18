@@ -17,7 +17,7 @@
 
 from labrad import types as T, errors, util
 from labrad.server import setting
-from labrad.gpib import GPIBDeviceServer, GPIBDeviceWrapper
+from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 import struct
 import re
@@ -54,10 +54,16 @@ class SamplingScopeDevice(GPIBDeviceWrapper):
         yield self.timeout(TIMEOUT)
 
 
-class SamplingScope(GPIBDeviceServer):
+class SamplingScope(GPIBManagedServer):
     name = 'Sampling Scope'
     deviceName = 'Tektronix 11801C'
     deviceWrapper = SamplingScopeDevice
+    deviceIdentFunc = 'identify_device'
+
+    @setting(1000, server='s', address='s', idn='s')
+    def identify_device(self, c, server, address, idn):
+        if idn == '\xff':
+            return self.deviceName
 
     @setting(10, 'Get Trace',
                  trace=[': Query TRACE1',

@@ -17,10 +17,10 @@
 
 from labrad import types as T, gpib
 from labrad.server import setting
-from labrad.gpib import GPIBDeviceServer
+from labrad.gpib import GPIBManagedServer
 from twisted.internet.defer import inlineCallbacks, returnValue
 
-class LakeshoreDiodeServer(GPIBDeviceServer):
+class LakeshoreDiodeServer(GPIBManagedServer):
     name = 'Lakeshore Diodes'
     deviceName = 'LSCI MODEL218S'
 

@@ -17,7 +17,7 @@
 
 from labrad import types as T, errors
 from labrad.server import setting
-from labrad.gpib import GPIBDeviceServer
+from labrad.gpib import GPIBManagedServer
 from struct import unpack
 from twisted.internet.defer import inlineCallbacks, returnValue
 
@@ -26,7 +26,7 @@ __QUERY__ = """\
 :FORM:BORD NORM
 :TRAC? TRACE%s"""
 
-class SpectrumAnalyzer(GPIBDeviceServer):
+class SpectrumAnalyzer(GPIBManagedServer):
     name = 'Spectrum Analyzer Server'
     deviceName = 'Hewlett-Packard E4407B'
 

@@ -1,6 +1,6 @@
 #!c:\Python25\python.exe
 
-# Copyright (C) 2007  Matthew Neeley
+# Copyright (C) 2008  Matthew Neeley
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,65 +15,81 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from labrad import types as T, util
 from labrad.server import LabradServer, setting
 from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.reactor import callLater
+from twisted.internet.task import LoopingCall
 
 from pyvisa import visa, vpp43
 
 class GPIBBusServer(LabradServer):
-    name = 'GPIB Bus'
-    isLocal = True
+    name = '%LABRADNODE% GPIB Bus'
+
+    refreshInterval = 10
 
     def initServer(self):
         self.devices = {}
-        self.refreshDevices()
+        # start refreshing only after we have started serving
+        # this ensures that we are added to the list of available
+        # servers before we start sending messages
+        callLater(0.1, self.startRefreshing)
+
+    def startRefreshing(self):
+        l = LoopingCall(self.refreshDevices)
+        self.refresher = l, l.start(self.refreshInterval, now=True)
+
+    @inlineCallbacks
+    def stopServer(self):
+        if hasattr(self, 'refresher'):
+            self.refresher[0].stop()
+            yield self.refresher[1]
         
     def refreshDevices(self):
-        for s in visa.get_instruments_list():
-            if s.startswith('GPIB'):
-                print 'checking:', s
-                addr = int(s.split('::')[1])
-                instr = visa.instrument(s, timeout=1)
+        """Refresh the list of known devices on this bus."""
+        try:
+            addresses = visa.get_instruments_list()
+            additions = set(addresses) - set(self.devices.keys())
+            deletions = set(self.devices.keys()) - set(addresses)
+            for addr in additions:
                 try:
+                    if addr.startswith('GPIB'):
+                        instName = addr
+                    elif addr.startswith('USB'):
+                        instName = addr + '::INSTR'
+                    else:
+                        continue
+                    instr = visa.instrument(instName, timeout=1.0)
                     instr.clear()
-                    instr.write('*IDN?')
-                    idnstr = instr.read()
-                    mfr, model = idnstr.split(',')[:2]
-                except:
-                    mfr, model = '<unknown>', '<unkown>'
-                print '    mfr=%s, model=%s' % (mfr, model)
-                self.devices[addr] = dict(instr=instr, mfr=mfr, model=model)
-            if s.startswith('USB'):
-                print 'checking:', s
-                addr = int(s.split('::')[-1])
-                instr = visa.instrument(s+'::INSTR', timeout=1)
-                try:
-                    instr.clear()
-                    instr.write('*IDN?')
-                    idnstr = instr.read()
-                    mfr, model = idnstr.split(',')[:2]
-                except:
-                    mfr, model = '<unknown>', '<unkown>'
-                print '    mfr=%s, model=%s' % (mfr, model)
-                self.devices[addr] = dict(instr=instr, mfr=mfr, model=model)
-    
+                    self.devices[addr] = instr
+                    self.sendDeviceMessage('GPIB Device Connect', addr)
+                except Exception, e:
+                    print 'failed to add ' + addr + ':' + str(e)
+            for addr in deletions:
+                del self.devices[addr]
+                self.sendDeviceMessage('GPIB Device Disconnect', addr)
+        except Exception, e:
+            print 'problem while refreshing devices:', str(e)
+            
+    def sendDeviceMessage(self, msg, addr):
+        print msg + ': ' + addr
+        self.client.manager.send_named_message(msg, (self.name, addr))
+            
     def initContext(self, c):
-        c['timeout'] = 1
+        c['timeout'] = 1.0
+
+    def getDevice(self, c):
+        if c['addr'] not in self.devices:
+            raise Exception('Could not find device ' + c['addr'])
+        instr = self.devices[c['addr']]
+        instr.timeout = c['timeout']
+        return instr
         
-    @setting(0, addr=['s', 'w'], returns=['w'])
+    @setting(0, addr=['s'], returns=['s'])
     def address(self, c, addr=None):
         """Get or set the GPIB address."""
         if addr is not None:
-            c['addr'] = int(addr)
+            c['addr'] = addr
         return c['addr']
-        
-    #@setting(1, data=['w'], returns=['w'])
-    #def mode(self, c, data=None):
-    #    """Get or set the GPIB read/write mode."""
-    #    if data is not None:
-    #        c['mode'] = mode
-    #    return c['mode']
 
     @setting(2, time=['v[s]'], returns=['v[s]'])
     def timeout(self, c, time=None):
@@ -82,36 +98,25 @@ class GPIBBusServer(LabradServer):
             c['timeout'] = time
         return c['timeout'] 
 
-    @setting(3, data=['s'], returns=['*b{status}'])
+    @setting(3, data=['s'], returns=[''])
     def write(self, c, data):
         """Write a string to the GPIB bus."""
-        instr = self.devices[c['addr']]['instr']
-        instr.timeout = c['timeout']
-        instr.write(data)
-        status = vpp43.read_stb(instr.vi)
-        return byteToBoolList(status)
+        self.getDevice(c).write(data)
 
-    @setting(4, bytes=['w'], returns=['(s{data}, *b{status})'])
+    @setting(4, bytes=['w'], returns=['s'])
     def read(self, c, bytes=None):
         """Read from the GPIB bus."""
-        instr = self.devices[c['addr']]['instr']
-        instr.timeout = c['timeout']
+        instr = self.getDevice(c)
         if bytes is None:
             ans = instr.read()
         else:
             ans = vpp43.read(instr.vi, bytes)
-        status = vpp43.read_stb(instr.vi)
-        return ans, byteToBoolList(status)
+        return ans
 
-    @setting(20, bytes=['w'], returns=['*(w{GPIB ID}, s{device name})'])
-    def list_devices(self, c, bytes=None):
-        """Get a list of devices."""
-        return [(addr, '%(mfr)s %(model)s' % dev)
-                for addr, dev in sorted(self.devices.items())]
-
-
-def byteToBoolList(byte):
-    return [bool((byte >> n) & 1) for n in range(15, -1, -1)]
+    @setting(20, returns=['*s'])
+    def list_devices(self, c):
+        """Get a list of devices on this bus."""
+        return sorted(self.devices.keys())
 
 __server__ = GPIBBusServer()
 

@@ -17,7 +17,7 @@
 
 from labrad import types as T
 from labrad.server import setting
-from labrad.gpib import GPIBDeviceServer, GPIBDeviceWrapper
+from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 CHANNELS = 'T T0 A B AB C D CD ALL'.split()
@@ -44,13 +44,28 @@ def makeChannelCommand(cmd, channel, params, all_channels=[2,3,4,5,6,7]):
     cmds = ['%s %d%s' % (cmd, c, params) for c in channel]
     return ';'.join(cmds)
 
-class DG535Server(GPIBDeviceServer):
+class DG535Server(GPIBManagedServer):
     name = 'DG535'
     deviceName = 'SRS DG535'
-
+    deviceIdentFunc = 'identify_device'
+    
     def initContext(self, c):
         c['channel'] = 2
         c['anchor'] = 1
+
+    @setting(1000, server='s', address='s', idn='s')
+    def identify_device(self, c, server, address, idn=None):
+        try:
+            yield self.client.refresh()
+            p = self.client[server].packet()
+            p.address(address)
+            p.timeout(1)
+            p.write('ES')
+            p.read()
+            resp = yield p.send()
+            return self.deviceName
+        except:
+            pass
         
     @setting(11, 'Select Channel', chan=['s', 'w'], returns=['w'])
     def select_channel(self, c, chan=2):

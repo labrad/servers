@@ -17,7 +17,7 @@
 
 from labrad import types as T, util
 from labrad.server import setting
-from labrad.gpib import GPIBDeviceServer, GPIBDeviceWrapper
+from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 from struct import unpack
@@ -62,7 +62,7 @@ class PNAWrapper(GPIBDeviceWrapper):
 def _parName(meas):
     return 'labrad_%s' % meas
 
-class AgilentPNAServer(GPIBDeviceServer):
+class AgilentPNAServer(GPIBManagedServer):
     name = 'Agilent N5230A PNA'
     deviceName = 'Agilent Technologies N5230A'
     deviceWrapper = PNAWrapper
@@ -88,7 +88,7 @@ class AgilentPNAServer(GPIBDeviceServer):
         if f is None:
             resp = yield dev.query('SENS:FREQ:CW?')
             f = T.Value(float(resp), 'Hz')
-        elif isinstance(data, T.Value):
+        elif isinstance(f, T.Value):
             yield dev.write('SENS:FREQ:CW %f' % f.value)
         returnValue(f)
 
@@ -122,9 +122,15 @@ class AgilentPNAServer(GPIBDeviceServer):
             resp = yield dev.query('SOUR:POW:STAR?; STOP?')
             ps = tuple(T.Value(float(p), 'dBm') for p in resp.split(';'))
         else:
-            attn = -(ps[0]+30)
+            good_atten = None
+            for attn in [0, 10, 20, 30, 40, 50, 60]:
+                if -attn-30 <= ps[0] and -attn+20 >= ps[1]:
+                    good_atten = attn
+                    break
+            if good_atten is None:
+                raise Exception('Power out of range.')
             yield dev.write('SOUR:POW:ATT %f; STAR %f; STOP %f' % \
-                            (attn, ps[0], ps[1]))
+                            (good_atten, ps[0], ps[1]))
         returnValue(ps)
 
     @setting(15, n=['w'], returns=['w'])
@@ -180,7 +186,7 @@ class AgilentPNAServer(GPIBDeviceServer):
         """Initiate a power sweep."""
         dev = self.selectedDevice(c)
 
-        resp = yield dev.query('SENS:POW:STAR?; STOP?')
+        resp = yield dev.query('SOUR:POW:STAR?; STOP?')
         pstar, pstop = [float(p) for p in resp.split(';')]
 
         sweeptime, npoints = yield self.startSweep(dev, 'POW')
@@ -195,7 +201,53 @@ class AgilentPNAServer(GPIBDeviceServer):
             for i, c in enumerate(s):
                 s[i] = T.Complex(c)
         returnValue((power, sparams))
+        
+    @setting(111, name=['s'], returns=['*2v'])
+    def power_sweep_save(self, c, name='untitled'):
+        """Initiate a power sweep.
 
+        The data will be saved to the data vault in the current
+        directory for this context.  Note that the default directory
+        in the data vault is the root directory, so you should cd
+        before trying to save."""
+        dev = self.selectedDevice(c)
+
+        resp = yield dev.query('SOUR:POW:STAR?; STOP?')
+        pstar, pstop = [float(p) for p in resp.split(';')]
+
+        sweeptime, npoints = yield self.startSweep(dev, 'POW')
+        if sweeptime > 1:
+            yield util.wakeupCall(sweeptime)
+
+        sparams = yield self.getSweepData(dev, c['meas'])
+
+        power = util.linspace(pstar, pstop, npoints)
+        power = [T.Value(p, 'dBm') for p in power]
+        for s in sparams:
+            for i, cplx in enumerate(s):
+                s[i] = T.Complex(cplx)
+
+        p = numpy.array(power)
+        s = 20*numpy.log10(abs(numpy.array(sparams)))
+        data = numpy.vstack((p, s)).T
+        data = data.astype('float64')
+
+        dv = self.client.data_vault
+        freq = yield self.frequency(c)
+        bw = yield self.bandwidth(c)
+        
+        independents = ['power [dBm]']
+        dependents = [('log mag', Sij, 'dB') for Sij in c['meas']]
+        p = dv.packet()
+        p.new(name, independents, dependents)
+        p.add(data)
+        p.add_comment('Autosaved by PNA server.')
+        p.add_parameter('frequency', freq)
+        p.add_parameter('bandwidth', bw)
+        yield p.send(context=c.ID)
+        
+        returnValue(data)
+        
     @setting(110, name=['s'], returns=['*2v'])
     def freq_sweep_save(self, c, name='untitled'):
         """Initiate a frequency sweep.
