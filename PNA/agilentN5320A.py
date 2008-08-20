@@ -36,7 +36,7 @@ class PNAWrapper(GPIBDeviceWrapper):
     @inlineCallbacks
     def setupMeasurements(self, desired_meas):
         resp = yield self.query('CALC:PAR:CAT?')
-        resp = resp[1:-2].split(',')
+        resp = resp[1:-1].split(',')
         
         defined_par = resp[::2]
         defined_meas = resp[1::2]
@@ -170,8 +170,11 @@ class AgilentPNAServer(GPIBManagedServer):
 
         sweeptime, npoints = yield self.startSweep(dev, 'LIN')
         if sweeptime > 1:
+            #print 'sweeptime: %g' % sweeptime
             sweeptime *= self.sweepFactor(c)
+            #print 'waiting for %g seconds' % sweeptime
             yield util.wakeupCall(sweeptime)
+            #print 'moving on.'
 
         sparams = yield self.getSweepData(dev, c['meas'])
 
