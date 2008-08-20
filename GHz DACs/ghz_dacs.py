@@ -30,9 +30,7 @@ from math import sin, cos
 
 DEBUG = False
 
-if DEBUG:
-    import numpy
-
+import numpy
 
 NUMRETRIES = 2
 SRAM_LEN = 8192
@@ -71,30 +69,37 @@ class FPGADevice(DeviceWrapper):
         yield p.send(context=self.ctx)
 
     @inlineCallbacks
-    def sendRegisters(self, packet, asWords=True):
+    def sendRegisters(self, packet):
         """Send a register packet and readback answer."""
         # do we need to clear waiting packets first?
         packet[45] = 249 # Start on us boundary
+        if isinstance(packet, numpy.ndarray):
+            data = packet.tostring()
+        else:
+            data = words2str(packet)
         p = self.server.packet()
-        p.write(words2str(packet))
+        p.write(data)
         p.read()
         ans = yield p.send(context=self.ctx)
         src, dst, eth, data = ans.read
-        if asWords:
-            data = [ord(c) for c in data]
         returnValue(data)
 
     def sendRegistersNoReadback(self, packet):
         """Send a register packet but don't readback anything."""
         packet[45] = 249 # Start on us boundary
-        d = self.server.write(words2str(packet), context=self.ctx)
+        if isinstance(packet, numpy.ndarray):
+            data = packet.tostring()
+        else:
+            data = words2str(packet)
+        d = self.server.write(data, context=self.ctx)
         return d.addCallback(lambda r: True)
 
     @inlineCallbacks
     def runSequence(self, slave, delay, reps, getTimingData=True):
         server, ctx = self.server, self.ctx
 
-        pkt = [1, 3] + [0]*54
+        pkt = numpy.zeros(56, dtype='uint8')
+        pkt[0:2] = 1, 3
         pkt[13:15] = reps & 0xFF, (reps >> 8) & 0xFF
         pkt[43:45] = int(slave), int(delay)
         r = yield self.sendRegistersNoReadback(pkt)
@@ -109,22 +114,20 @@ class FPGADevice(DeviceWrapper):
         p.timeout(T.Value(totalTime * 1000, 'ms'))
         p.read(npackets)
         ans = yield p.send(context=ctx)
-        sdata = [ord(data[j*2+3]) + (ord(data[j*2+4]) << 8)
-                 for j in range(30)
-                 for src, dst, eth, data in ans.read]
+        def getTiming(s):
+            bytes = numpy.fromstring(s[3:63], dtype='uint8').astype('uint32')
+            return bytes[::2] + (bytes[1::2] << 8)
+        sdata = numpy.hstack(getTiming(data) for src, dst, eth, data in ans.read)
+        #sdata = numpy.fromiter((ord(data[j*2+3]) + (ord(data[j*2+4]) << 8)
+        #                        for j in range(30)
+        #                        for src, dst, eth, data in ans.read), dtype='uint32')
         returnValue(sdata)
 
-    @inlineCallbacks
-    def sendSRAM(self, data):
-        """Write SRAM data to the FPGA.
-
-        The data is written at the position specified by self.sramAddress.
-        Data is only written if it needs to be changed.
-        """
+    def makeSRAM(self, data, p):
+        """Update a packet for the ethernet server with SRAM commands."""
         totallen = len(data)
         adr = startadr = 0 #(self.sramAddress + 255) & SRAM_LEN
         endadr = startadr + totallen
-        p = self.server.packet()
         needToSend = False
         origdata = data
         if DEBUG:
@@ -146,19 +149,25 @@ class FPGADevice(DeviceWrapper):
                 p.write(pkt)
                 adr += 1024
                 needToSend = True
-        if needToSend:
-            yield p.send(context=self.ctx)
         self.sram=self.sram[0:startadr] + origdata + self.sram[endadr:]
         self.sramAddress = endadr
-        returnValue((startadr/4, endadr/4))
+        return needToSend, (startadr/4, endadr/4)
 
     @inlineCallbacks
-    def sendMemory(self, data):
-        """Write Memory data to the FPGA.
+    def sendSRAM(self, data):
+        """Write SRAM data to the FPGA.
 
-        At most one page of memory is written at address 0.
+        The data is written at the position specified by self.sramAddress.
         Data is only written if it needs to be changed.
         """
+        p = self.server.packet()
+        needToSend, result = self.makeSRAM(data)
+        if needToSend:
+            yield p.send(context=self.ctx)
+        returnValue(result)
+
+    def makeMemory(self, data, p):
+        """Update a packet for the ethernet server with Memory commands."""
         # try to estimate the time in seconds
         # to execute this memory sequence
         self.seqTime = sequenceTime(data)
@@ -168,8 +177,8 @@ class FPGADevice(DeviceWrapper):
         adr = startadr = 0
         endadr = startadr + totallen
         current = self.mem[startadr:endadr]
-        if data != current: # only send if the MEM is new
-            p = self.server.packet()
+        needToSend = (data != current)
+        if needToSend: # only send if the MEM is new
             while len(data) > 0:
                 page, data = data[:256], data[256:]
                 if len(page) < 256:
@@ -178,13 +187,37 @@ class FPGADevice(DeviceWrapper):
                       [(n >> j) & 255 for n in page for j in (0, 8, 16)]
                 p.write(words2str(pkt))
                 adr += 256
-            yield p.send(context=self.ctx)
             self.mem[startadr:endadr] = data
-        returnValue((startadr, endadr))
+        return needToSend, (startadr, endadr)
+
+    @inlineCallbacks
+    def sendMemory(self, data):
+        """Write Memory data to the FPGA.
+
+        At most one page of memory is written at address 0.
+        Data is only written if it needs to be changed.
+        """
+        p = self.server.packet()
+        needToSend, result = self.makeMemory(data, p)
+        if needToSend:
+            yield p.send(context=self.ctx)
+        returnValue(result)
+
+    @inlineCallbacks
+    def sendMemoryAndSRAM(self, mem, sram):
+        """Write both Memory and SRAM data to the FPGA."""
+        p = self.server.packet()
+        sendMem, resultMem = self.makeMemory(mem, p)
+        sendSRAM, resultSRAM = self.makeSRAM(sram, p)
+        if sendMem or sendSRAM:
+            yield p.send(context=self.ctx)
+        returnValue((resultMem, resultSRAM))
 
     @inlineCallbacks
     def runI2C(self, data):
-        pkt = [0, 2] + [0]*54
+        pkt = numpy.zeros(56, dtype='uint8')
+        pkt[0:2] = 0, 2
+        #pkt = [0, 2] + [0]*54
         answer = []
         while data[:1] == [258]:
             data = data[1:]
@@ -226,7 +259,9 @@ class FPGADevice(DeviceWrapper):
 
     @inlineCallbacks
     def runSerial(self, op, data):
-        pkt = [0, 1] + [0]*54
+        pkt = numpy.zeros(56, dtype='uint8')
+        pkt[0:2] = 0, 1
+        #pkt = [0, 1] + [0]*54
         pkt[46:48] = self.DACclocks, op
         answer = []
         for d in listify(data):
@@ -348,7 +383,7 @@ class FPGAServer(DeviceServer):
         dev = self.selectedDevice(c)
         d = c.setdefault(dev, {})
         addr = d.setdefault('sramAddress', 0)
-        if d.has_key('sram'):
+        if 'sram' in d:
             sram = d['sram']
         else:
             sram = '\x00' * (SRAM_LEN * 4)
@@ -370,21 +405,29 @@ class FPGAServer(DeviceServer):
         #return dev.sendMemory(data)
 
 
-    @setting(40, 'Run Sequence', reps=['w'], getTimingData=['b'],
+    @setting(40, 'Run Sequence', reps=['w'], getTimingData=['b', '*s'],
                                  setuppkts=['*((ww){context}, s{server}, ?{((s?)(s?)(s?)...)})'],
                                  returns=['*2w', ''])
     def run_sequence(self, c, reps=30, getTimingData=True, setuppkts=None):
-        """Executes a sequence on one or more boards."""
+        """Executes a sequence on one or more boards.
+
+        reps - specifies the number of repetitions ('stats') to perform (rounded
+               up to the nearest multiple of 30).
+        getTimingData - specifies which timing data should be returned.
+                        if a boolean is specified, this will cause all (or none)
+                        of the results to be returned.  if a list of strings
+                        is specified, the timing results from these boards
+                        only will be returned (in the order specified by the list)
+        setuppkts - specifies 
+        """
         # Round stats up to multiple of 30
         reps += 29
         reps -= reps % 30
 
-        #print 'hi2'
         if len(c['daisy_chain']) != len(c['start_delay']):
-            print 'bad.'
+            print 'daisy_chain and start_delay lengths do not match.'
             raise Exception('daisy_chain and start_delay must be same length.')
-        #print 'good'
-
+        
         if len(c['daisy_chain']):
             # run multiple boards, with first board as master
             devs = [self.getDevice(c, n) for n in c['daisy_chain']]
@@ -396,17 +439,17 @@ class FPGAServer(DeviceServer):
         slaves = [i != 0 for i in range(len(devs))]
         devices = zip(devs, delays, slaves)
 
-        # run boards in reverse order to ensure synchronization
-        #print 'starting to run sequence.'
-        #start = datetime.now()
         @inlineCallbacks
         def updateDev(dev):
             if dev in c:
-                if 'mem' in c[dev]:
-                    yield dev.sendMemory(c[dev]['mem'])
-                if 'sram' in c[dev]:
+                d = c[dev]
+                if 'mem' in d and 'sram' in d:
+                    yield dev.sendMemoryAndSRAM(d['mem'], d['sram'])
+                elif 'mem' in d:
+                    yield dev.sendMemory(d['mem'])
+                elif 'sram' in d:
                     #dev.sramAddress = 0
-                    yield dev.sendSRAM(c[dev]['sram'])
+                    yield dev.sendSRAM(d['sram'])
 
         setupReqs = []
         if setuppkts is not None:
@@ -418,7 +461,7 @@ class FPGAServer(DeviceServer):
                     p[spSetting](spData)
                 setupReqs.append(p)
 
-                    
+        
         ## begin critical section
         try:
             yield self.lock.acquire()
@@ -444,22 +487,38 @@ class FPGAServer(DeviceServer):
         finally:
             # release lock at end, even (especially!) if an error happened
             self.lock.release()
+        d = defer.Deferred()
+        reactor.callLater(0.00000001, d.callback, True)
+        yield d
         ## end critical section
 
-        okay = True
-        switches = []
-        failures = []
-        for dev, (success, result) in zip(devs, results):
-            if success:
-                switches.append(result)
-            else:
-                print 'Board %d timed out.' % dev.board
-                failures.append(dev.board)
-                okay = False
-        if not okay:
-            raise Exception('Boards %s timed out.' % failures)
-        if getTimingData: # send data back in daisy chain order
-            returnValue(list(reversed(switches)))
+        if not all(s for (s, r) in results):
+            failures = [d.board for d, (s, r) in zip(devs, results) if not s]
+            for s, r in results:
+                if not s:
+                    print r
+            msg = 'Boards %s timed out.' % failures
+            print msg
+            raise Exception(msg)
+
+        if getTimingData:
+            switches = numpy.vstack(r for (s, r) in reversed(results))
+            returnValue(switches)
+
+##        okay = True
+##        switches = []
+##        failures = []
+##        for dev, (success, result) in zip(devs, results):
+##            if success:
+##                switches.append(result)
+##            else:
+##                print 'Board %d timed out.' % dev.board
+##                failures.append(dev.board)
+##                okay = False
+##        if not okay:
+##            raise Exception('Boards %s timed out.' % failures)
+##        if getTimingData: # send data back in daisy chain order
+##            returnValue(list(reversed(switches)))
 
 ##    @setting(41, 'Retry Stats', returns=['*w'])
 ##	def retry_stats(self, c):
@@ -706,7 +765,6 @@ class FPGAServer(DeviceServer):
         """
         dev = self.selectedDevice(c)
         pkt = [0,1] + [0]*54
-
         r = yield dev.sendRegisters(pkt)
 
         returnValue((r[58] & 0x80)>0)
