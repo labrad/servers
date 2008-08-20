@@ -170,6 +170,7 @@ class AgilentPNAServer(GPIBManagedServer):
 
         sweeptime, npoints = yield self.startSweep(dev, 'LIN')
         if sweeptime > 1:
+            sweeptime *= self.sweepFactor(c)
             yield util.wakeupCall(sweeptime)
 
         sparams = yield self.getSweepData(dev, c['meas'])
@@ -191,6 +192,7 @@ class AgilentPNAServer(GPIBManagedServer):
 
         sweeptime, npoints = yield self.startSweep(dev, 'POW')
         if sweeptime > 1:
+            sweeptime *= self.sweepFactor(c)
             yield util.wakeupCall(sweeptime)
 
         sparams = yield self.getSweepData(dev, c['meas'])
@@ -217,6 +219,7 @@ class AgilentPNAServer(GPIBManagedServer):
 
         sweeptime, npoints = yield self.startSweep(dev, 'POW')
         if sweeptime > 1:
+            sweeptime *= self.sweepFactor(c)
             yield util.wakeupCall(sweeptime)
 
         sparams = yield self.getSweepData(dev, c['meas'])
@@ -264,6 +267,7 @@ class AgilentPNAServer(GPIBManagedServer):
 
         sweeptime, npoints = yield self.startSweep(dev, 'LIN')
         if sweeptime > 1:
+            sweeptime *= self.sweepFactor(c)
             yield util.wakeupCall(sweeptime)
 
         sparams = yield self.getSweepData(dev, c['meas'])
@@ -341,6 +345,13 @@ class AgilentPNAServer(GPIBManagedServer):
     def getSParams(self, dev, measurements):
         sdata = [(yield self.getData(dev, m)) for m in measurements]
         returnValue(sdata)
+
+    def sweepFactor(self, c):
+        """Multiply the sweeptime by this factor, which
+        counts the number of ports that send power.
+        """
+        ports = set(int(p[-1]) for p in c['meas'])
+        return len(ports)
 
     @inlineCallbacks
     def getData(self, dev, meas):
