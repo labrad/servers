@@ -32,10 +32,25 @@ DEBUG = False
 
 import numpy
 
-NUMRETRIES = 2
 SRAM_LEN = 8192
 MEM_LEN = 256
 TIMEOUT_FACTOR = 10
+
+# start mode for FPGA
+#REG_START_NONE = 0
+#REG_START_MEM = 1
+#REG_START_TEST = 2
+#REG_START_CONT = 3
+#REG_START_SINGLE = 4
+
+# readback mode
+#REG_READBACK_NONE = 0
+#REG_READBACK_SER = 1
+#REG_READBACK_I2C = 2
+#REG_READBACK_TIMING = 3
+
+#def registerPacket(start=REG_START_NONE, readback=REG_READBACK_NONE):
+    #pass
 
 class FPGADevice(DeviceWrapper):
     @inlineCallbacks
@@ -69,7 +84,7 @@ class FPGADevice(DeviceWrapper):
         yield p.send(context=self.ctx)
 
     @inlineCallbacks
-    def sendRegisters(self, packet):
+    def sendRegisters(self, packet, asWords=False):
         """Send a register packet and readback answer."""
         # do we need to clear waiting packets first?
         packet[45] = 249 # Start on us boundary
@@ -82,6 +97,8 @@ class FPGADevice(DeviceWrapper):
         p.read()
         ans = yield p.send(context=self.ctx)
         src, dst, eth, data = ans.read
+        if asWords:
+            data = [ord(c) for c in data]
         returnValue(data)
 
     def sendRegistersNoReadback(self, packet):
@@ -105,7 +122,7 @@ class FPGADevice(DeviceWrapper):
         r = yield self.sendRegistersNoReadback(pkt)
 
         if not getTimingData:
-            returnValue(r)
+            return
 
         # TODO: handle multiple timers per cycle
         npackets = reps/30
@@ -249,7 +266,7 @@ class FPGADevice(DeviceWrapper):
 
             for i in range(cnt):
                 if data[i] in [256, 257]:
-                    answer += [r[61+cnt-i]]
+                    answer += [ord(r[61+cnt-i])]
 
             data = data[cnt:]
             while data[:1] == [258]:
@@ -267,7 +284,7 @@ class FPGADevice(DeviceWrapper):
         for d in listify(data):
             pkt[48:51] =  d & 255, (d>>8) & 255, (d>>16) & 255
             r = yield self.sendRegisters(pkt)
-            answer.append(r[56])
+            answer.append(ord(r[56]))
             # print ['PLL: ', 'DAC A: ', 'DAC B: '][op-1] + hex(d) + ' = ' + hex(r[56])
         returnValue(answer)
 
@@ -275,8 +292,6 @@ class FPGADevice(DeviceWrapper):
 class FPGAServer(DeviceServer):
     name = 'GHz DACs'
     deviceWrapper = FPGADevice
-
-    retryStats = [0] * NUMRETRIES
 
     # possible links: name, server, port
     possibleLinks = [('DR Lab', 'direct_ethernet', 1),
@@ -369,11 +384,6 @@ class FPGAServer(DeviceServer):
         d = c.setdefault(dev, {})
         d['sramAddress'] = addr*4
         return addr
-##        if addr is None:
-##            addr = dev.sramAddress
-##        else:
-##            dev.sramAddress = addr
-##        return long(addr)
 
 
     @setting(21, 'SRAM', data=['*w: SRAM Words to be written', 's: Raw SRAM data'],
@@ -731,7 +741,8 @@ class FPGAServer(DeviceServer):
         """
         cmds = self.getCommand({'A': (0x10, 0x11), 'B': (0x20, 0x22)}, chan)
         dev = self.selectedDevice(c)
-        pkt = [0, 1] + [0]*54
+        pkt = numpy.zeros(56, dtype='uint8')
+        pkt[:2] = 0, 1
         pkt[46] = cmds[invert]
         yield dev.sendRegisters(pkt)
         returnValue(invert)
@@ -744,7 +755,8 @@ class FPGAServer(DeviceServer):
         The sequence is [0x1FC093, 0x1FC092, 0x100004, 0x000C11]."""
         dev = self.selectedDevice(c)
         yield dev.runSerial(1, [0x1fc093, 0x1fc092, 0x100004, 0x000c11])
-        pkt = [4, 0] + [0]*54
+        pkt = numpy.zeros(56, dtype='uint8')
+        pkt[0] = 4
         yield dev.sendRegistersNoReadback(pkt)
 
 
@@ -767,7 +779,7 @@ class FPGAServer(DeviceServer):
         pkt = [0,1] + [0]*54
         r = yield dev.sendRegisters(pkt)
 
-        returnValue((r[58] & 0x80)>0)
+        returnValue((ord(r[58]) & 0x80)>0)
 
 
     @setting(220, 'DAC Init', chan=['s'], signed=['b'], returns=['b'])
