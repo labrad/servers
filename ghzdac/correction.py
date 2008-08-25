@@ -21,7 +21,7 @@ alen, clip, sqrt, log, arange, linspace, zeros, ones, reshape, outer, \
 compress, sum, shape, cos, pi, exp, Inf, size, real, imag, uint32, int32, \
 argmin, resize, argwhere, append
 from numpy.fft import fft, rfft, irfft
-        
+from pylab import iterable        
 
 def cosinefilter(n, width=0.4):
     """cosinefilter(n,width) cosine lowpass filter
@@ -707,17 +707,6 @@ class DACcorrection:
         faster. The return value always has the same length as i, however.
         """
 
-        n=alen(signal)
-
-        if loop:
-            nfft=n
-        else:
-            nfft=fastfftlen(n)
-
-        nrfft=nfft/2+1
-
-        #FT the input
-        signal=rfft(signal, n=nfft)
         for correction in self.correction:
             l=alen(correction)
             freqs = arange(0,nrfft) * 2.0 * (l - 1.0) / nfft
@@ -729,11 +718,15 @@ class DACcorrection:
 
 
 
+
     def DACify(self, signal, loop=False, rescale=False, fitRange=True, zerocor=True, deconv=True, volts=True):
 
         """
-        Computes a SRAM sequence from one DAC channel. If volts is True,
-        the input is expected in volts. Otherwise inputs of -1 and 1 correspond to the DAC range divided by self.dynamicReserve (default 2). In the latter case, clipping may occur beyond -1 and 1.
+        Computes a SRAM sequence for one DAC channel. If volts is
+        True, the input is expected in volts. Otherwise inputs of -1
+        and 1 correspond to the DAC range divided by
+        self.dynamicReserve (default 2). In the latter case, clipping
+        may occur beyond -1 and 1.
         DACify corrects for
           - zero offsets (if zerocor is True)
           - gain (if volts is True)
@@ -742,10 +735,14 @@ class DACcorrection:
 
 
         If you use deconvolution and unless you have a periodic signal
-        (i.e. the signal given to DACify is looped without any dead time),
-        you should have at least 5ns before and 20ns after your pulse where
-        the signal is 0 (or very small). Otherwise your signal will be deformed
-        because the correction for the DAC pulse response will either be clipped        or wrapped around and appear at the beginning of your signal!
+        (i.e. the signal given to DACify is looped without any dead
+        time), you should have at least 5ns before and 200ns (or
+        however long the longest pulse calibration trace is) after
+        your pulse where the signal is constant with the same value at
+        the beginning and the end of the sequence. Otherwise your
+        signal will be deformed because the correction for the DAC
+        pulse response will either be clipped or wrapped around and
+        appear at the beginning of your signal!
 
 
         Keyword arguments:
@@ -753,9 +750,11 @@ class DACcorrection:
         loop=True: Does the the FFT on exactly the length of the input
             signal.  You need this if you have a periodic signal that
             is non-zero at the borders of the signal (like a continous
-            sinewave). Otherwise DACify pads the input with 0 to
-            optain a signal length for which fft is fast (fft is
-            fastest for numbers that factorize into small numbers)
+            sinewave). Otherwise DACify pads the input with the
+            average of the first and the last datapoint to optain a
+            signal length for which fft is fast (fft is fastest for
+            numbers that factorize into small numbers and extremly
+            slow for large prime numbers)
 
         rescale=True: If the corrected signal exceeds the DAC range,
             it is rescale to fit. Usefull to drive as hard as possible
@@ -764,6 +763,7 @@ class DACcorrection:
             DACcorrection.last_rescale_factor contains the rescale factor
             actually used. DACcorrection.min_rescale_factor contains the
             smallest rescale factor used so far.
+            
         fitRange=False: Do not clip data to fit into 14 bits. Only effective
             without rescaling.
 
@@ -771,15 +771,45 @@ class DACcorrection:
 
         deconv=False: Do not perform deconvolution.
 
-        volts=False: Do not correct the gain. 1 corresponds to
-            DACrange/dynamicReserve
+        volts=False: Do not correct the gain. A input signal of
+             amplitude 1 will then result in an output signal with
+             amplitude DACrange/dynamicReserve
 
-         """
+        """
 
         signal = asarray(signal)
 
         if (alen(signal)==0):
             return zeros(0)
+
+        n=alen(signal)
+
+        if loop:
+            nfft=n
+        else:
+            nfft=fastfftlen(n)
+
+        nrfft=nfft/2+1
+        background = 0.5*(signal[0] + signal[-1])
+        
+        #FT the input
+        signal=rfft(signal-background, n=nfft)
+        signal[0] += nfft*background
+        return self.DACifyFT(signal, t0=0, n=nfft, loop=loop,
+                             rescale=rescale, fitRange=fitRange, deconv=deconv,
+                             zerocor=zerocor, volts=volts)
+
+        
+
+    def DACifyFT(self, signal, t0=0, n=8192, loop=False, rescale=False, fitRange=True, deconv=True, zerocor=True, volts=True):
+        """Works like DACify but takes the Fourier transform of the signal as
+        input instead of the signal. n gives the number of points (or
+        the length in ns), t0 the start time.  Signal can either be an
+        array of length n/2 + 1 giving the frequency components from 0
+        to 500 MHz. or a function which will be evaluated between 0
+        and 0.5 (GHz). For the rest of the arguments see DACify
+        """
+
 
         #read DAC zeros
         if zerocor:
@@ -787,12 +817,38 @@ class DACcorrection:
         else:
             zero = 0
 
-        if deconv and (self.correction != None) and (alen(signal) > 1):
-            #apply convolution and iq correction
-            signal = self._deconvolve(signal,loop=loop)
+
+        #evaluate the Fourier transform 'signal'
+        if iterable(signal):
+            signal = asarray(signal)
+            nfft = n
+            nrfft = nfft/2+1
+            if (nrfft != len(signal)):
+                nrfft = len(signal)
+                nfft = 2*(nrfft-1)
+        else:
+            if loop:
+                nfft=n
+            else:
+                nfft=fastfftlen(n)
+            nrfft=nfft/2+1
+            signal=signal(linspace(0, float(nrfft)/nfft, nrfft, endpoint=False))
+
+        if t0 != 0:
+            signal *= exp(linspace(0, 2j*pi*t0*nrfft/nfft, nrfft, endpoint=False))
+        if deconv:
+            for correction in self.correction:
+                l=alen(correction)
+                freqs = linspace(0, nrfft * 2.0 * (l - 1.0) / nfft, nrfft,
+                               endpoint=False)
+                correction = interpol(correction, freqs, extrapolate=True)
+                signal*=correction 
+        #do the actual deconvolution and transform back to time space
+        signal=irfft(signal*self.lowpass(nrfft, self.bandwidth), n=nfft)
+        signal = signal[0:n]
 
         # for testing uncomment this
-        # return signal
+        return signal
         if volts and self.clicsPerVolt:
             fullscale = 0x1FFF / self.clicsPerVolt
         else:
@@ -817,7 +873,6 @@ class DACcorrection:
 
                 signal = clip(signal,-0x2000,0x1FFF)
         return (signal & 0x3FFF).astype(uint32)
-
 
 
 
