@@ -1052,6 +1052,8 @@ class QubitServer(LabradServer):
 
         cxn = self.client
 
+        setupState=[]
+
         if len(c['Experiment']['Anritsus'])>0:
             pkt = []
             for anritsu, settings in c['Experiment']['Anritsus'].items():
@@ -1060,11 +1062,15 @@ class QubitServer(LabradServer):
                     pkt.append(('Output', True))
                     pkt.append(('Frequency', settings[0]))
                     pkt.append(('Amplitude', settings[1]))
+                    setupState.append(anritsu+': '+str(settings[0])+'@'+str(settings[1]))
                 else:
                     pkt.append(('Output', False))
+                    setupState.append(anritsu+': off')
             if setuppkts is None:
                 setuppkts=[]
             setuppkts.append(((long(cxn._cxn.ID), 1L), 'Anritsu Server', tuple(pkt)))
+        else:
+            setupState=['don''t care']
 
         for value in c['Experiment']['Memory'].values():
             value.append(0xF00000)
@@ -1084,13 +1090,14 @@ class QubitServer(LabradServer):
         if setuppkts is None:
             p.run_sequence(stats)
         else:
-            p.run_sequence(stats, True, setuppkts)
-        timing = (yield p.send()).run_sequence
-        result = []
+            p.run_sequence(stats, True, setuppkts, setupState)
+        timing = (yield p.send()).run_sequence.asarray
+        indices = []
         for qname in self.Setups[c['Experiment']['Setup']]['Qubits']:
             qubit = self.getQubit(qname)
             fpga = qubit['Timing'][1]
-            result.append(timing[fpgas.index(fpga)])
+            indices.append(fpgas.index(fpga))
+        result = timing[indices,:]
 
         returnValue(result)
 
