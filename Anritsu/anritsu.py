@@ -25,28 +25,37 @@ class AnritsuWrapper(GPIBDeviceWrapper):
     def initialize(self):
         self.frequency = yield self.getFrequency()
         self.amplitude = yield self.getAmplitude()
+        self.outputStateKnown = False # there is not way to query for the output state
         self.output = True
 
+    @inlineCallbacks
     def getFrequency(self):
-        return self.query('OF 1').addCallback(float)
+        self.frequency = yield self.query('OF 1').addCallback(float)
+        returnValue(self.frequency)
 
+    @inlineCallbacks
     def getAmplitude(self):
-        return self.query('OL 1').addCallback(float)
+        self.amplitude = yield self.query('OL 1').addCallback(float)
+        returnValue(self.amplitude)
 
     @inlineCallbacks
     def setFrequency(self, f):
-        yield self.write('F1 %fMH' % f)
-        self.frequency = f
+        if self.frequency != f:
+            yield self.write('F1 %fMH' % f)
+            self.frequency = f
     
     @inlineCallbacks
     def setAmplitude(self, a):
-        yield self.write('L1 %fDM' % a)
-        self.amplitude = a
+        if self.amplitude != a:
+            yield self.write('L1 %fDM' % a)
+            self.amplitude = a
 
     @inlineCallbacks
     def setOutput(self, out):
-        yield self.write('RF %d' % int(out))
-        self.output = out
+        if self.output != out or not self.outputStateKnown:
+            yield self.write('RF %d' % int(out))
+            self.output = out
+            self.outputStateKnown = True
 
 class AnritsuServer(GPIBManagedServer):
     name = 'Anritsu Server'
