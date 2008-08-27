@@ -24,6 +24,7 @@ from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 from math import log
+import numpy
 
 GLOBALPARS = [ "Stats" ];
 
@@ -71,26 +72,38 @@ class NeedTwoQubitsError(T.Error):
 
 
 def analyzeData(cutoffs, data):
+    nQubits = len(cutoffs)
     states = 2**len(cutoffs)
-    counts = [0.0]*states
-    total  = len(data[0])
-    for pid in range(total):
-        n = 0
-        for qid in range(len(data)):
-            if (data[qid][pid]/25.0>abs(cutoffs[qid][1])) ^ (cutoffs[qid][1]<0):
-                n+=2**qid
-        counts[n]+=1.0
+    data = data.asarray.T # indexed by [rep#, qubit#]
+    total = data.shape[0]
+    cutoffNums = numpy.array([c[1] for c in cutoffs])
+    isOne = (data/25.0 > abs(cutoffNums)) ^ (cutoffNums < 0)
+    state = sum(2**qid * isOne[:,qid] for qid in range(nQubits))
+    counts = [sum(state==s) for s in range(states)]
+    #total  = len(data[0])
+    #for pid in range(total):
+    #    n = 0
+    #    for qid in range(len(data)):
+    #        if (data[qid][pid]/25.0>abs(cutoffs[qid][1])) ^ (cutoffs[qid][1]<0):
+    #            n+=2**qid
+    #    counts[n]+=1.0
     return [c*100.0/float(total) for c in counts[1:]]
 
 
 def analyzeDataSeparate(cutoffs, data):
-    counts = [0.0]*len(cutoffs)
-    total  = len(data[0])
-    for pid in range(total):
-        n = 0
-        for qid in range(len(data)):
-            if (data[qid][pid]/25.0>abs(cutoffs[qid][1])) ^ (cutoffs[qid][1]<0):
-                counts[qid]+=1.0
+    nQubits = len(cutoffs)
+    data = data.asarray.T # indexed by [rep#, qubit#]
+    total = data.shape[0]
+    cutoffNums = numpy.array([c[1] for c in cutoffs])
+    isOne = (data/25.0 > abs(cutoffNums)) ^ (cutoffNums < 0)
+    counts = sum(isOne)
+    #counts = [0.0]*len(cutoffs)
+    #total  = len(data[0])
+    #for pid in range(total):
+    #    n = 0
+    #    for qid in range(len(data)):
+    #        if (data[qid][pid]/25.0>abs(cutoffs[qid][1])) ^ (cutoffs[qid][1]<0):
+    #            counts[qid]+=1.0
     return [c*100.0/float(total) for c in counts]
 
 
