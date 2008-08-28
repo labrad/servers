@@ -25,7 +25,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 
 from math import floor
 
-PIPELINE_DEPTH = 5
+PIPELINE_DEPTH = 8
 
 class ContextBusyError(T.Error):
     """The context is currently busy"""
@@ -94,8 +94,7 @@ class SweepServer(LabradServer):
                 c['Exception']=e
                 if 'Errors' in c:
                     for tgt, msg in c['Errors']:
-                        self.client._cxn.sendPacket(tgt, c.ID, 0, [(msg, repr(e))]) 
-
+                        self.client._cxn.sendPacket(tgt, c.ID, 0, [(msg, str(e))]) 
 
     @inlineCallbacks
     def runSweep(self, c, sweeper, setting):
