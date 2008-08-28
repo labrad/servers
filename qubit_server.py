@@ -98,7 +98,7 @@ class QubitTimerStoppedError(T.Error):
         self.msg="The timer has already been stopped on qubit '%d'" % qubit
 
 class QubitTimerNotStoppedError(T.Error):
-    """The timer needs to be started and stopped on all qubits"""
+    """The timer needs to be started and stopped on all qubits at least once"""
     code = 13
 
 class SetupExistsError(T.Error):
@@ -488,8 +488,8 @@ class QubitServer(LabradServer):
                          'SRAM':          dict([(board, '')
                                                 for board in Setup['Devices'].keys()]),
                          'InSRAM':        False,
-                         'TimerStarted':  [],
-                         'TimerStopped':  [],
+                         'TimerStarted':  {},
+                         'TimerStopped':  {},
                          'NonTimerFPGAs': supportfpgas,
                          'Anritsus':      dict([(anritsu, None)
                                                 for anritsu in Setup['Anritsus']]),
@@ -676,7 +676,7 @@ class QubitServer(LabradServer):
             raise NoExperimentError()
 
         Setup = self.Setups[c['Experiment']['Setup']]
-        if c['Experiment']['TimerStarted']==[]:
+        if c['Experiment']['TimerStarted']=={}:
             fpgas = [fpga for fpga in c['Experiment']['NonTimerFPGAs']]
         else:
             fpgas = []
@@ -686,11 +686,18 @@ class QubitServer(LabradServer):
             qubit = self.getQubit(Setup['Qubits'][q-1])
             fpga = qubit['Timing'][1]
             if fpga in c['Experiment']['TimerStarted']:
-                raise QubitTimerStartedError(q)
+                if fpga in c['Experiment']['TimerStopped']:
+                    if c['Experiment']['TimerStopped'][fpga]<c['Experiment']['TimerStarted'][fpga]:
+                        raise QubitTimerStartedError(q)
+                else:
+                    raise QubitTimerStartedError(q)
             fpgas.append(fpga)
             
         for fpga in fpgas:
-            c['Experiment']['TimerStarted'].append(fpga)
+            if not fpga in c['Experiment']['TimerStarted']:
+                c['Experiment']['TimerStarted'][fpga]=1
+            else:
+                c['Experiment']['TimerStarted'][fpga]+=1
 
         # add start command into memories
         for key, value in c['Experiment']['Memory'].items():
@@ -709,7 +716,7 @@ class QubitServer(LabradServer):
             raise NoExperimentError()
 
         Setup = self.Setups[c['Experiment']['Setup']]
-        if c['Experiment']['TimerStopped']==[]:
+        if c['Experiment']['TimerStopped']=={}:
             fpgas = [fpga for fpga in c['Experiment']['NonTimerFPGAs']]
         else:
             fpgas = []
@@ -721,11 +728,15 @@ class QubitServer(LabradServer):
             if not (fpga in c['Experiment']['TimerStarted']):
                 raise QubitTimerNotStartedError(q)
             if fpga in c['Experiment']['TimerStopped']:
-                raise QubitTimerStoppedError(q)
+                if c['Experiment']['TimerStopped'][fpga]==c['Experiment']['TimerStarted'][fpga]:
+                    raise QubitTimerNotStartedError(q)
             fpgas.append(fpga)
 
         for fpga in fpgas:
-            c['Experiment']['TimerStopped'].append(fpga)
+            if not fpga in c['Experiment']['TimerStopped']:
+                c['Experiment']['TimerStopped'][fpga]=1
+            else:
+                c['Experiment']['TimerStopped'][fpga]+=1
             
         # add stop command into memories
         for key, value in c['Experiment']['Memory'].items():
@@ -1047,8 +1058,15 @@ class QubitServer(LabradServer):
             raise NoExperimentError()
 
         fpgas = [fpga for fpga in c['Experiment']['FPGAs']]
-        if len(c['Experiment']['TimerStopped'])<len(fpgas):
-            raise QubitTimerNotStoppedError()
+        for fpga in fpgas:
+            if fpga in c['Experiment']['TimerStarted']:
+                if fpga in c['Experiment']['TimerStopped']:
+                    if c['Experiment']['TimerStopped'][fpga]<c['Experiment']['TimerStarted'][fpga]:
+                        raise QubitTimerNotStoppedError(q)
+                else:
+                    raise QubitTimerNotStoppedError(q)
+            else:
+                QubitTimerNotStoppedError(q)
 
         cxn = self.client
 
