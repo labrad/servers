@@ -171,57 +171,43 @@ class BEServer(LabradServer):
             raise NeedOneQubitError()
         # Get name of qubit
         qubit = qubits[0]
+        
+        # Set up qubit experiment
+        yield self.client.qubits.duplicate_context(ctxt, context=c.ID)
 
-        # Grab one context for each run for pipelining
-        ctxtneg = self.getContext()
-        ctxtpos = self.getContext()
-
-        # Set up qubit reset parameters for negative and positive reset
-        p = self.client.registry.packet(context=ctxtneg)
-        p.duplicate_context(c.ID)
+        # Set up qubit reset for negative reset
+        p = self.client.registry.packet(context=c.ID)
         p.get     ('Stats')
         p.cd      (qubit)
         p.override('Operating Bias', -2.5*V)
         p.cd      (1)
-        rn = p.send()
-        qn = self.client.qubits.duplicate_context(ctxt, context=ctxtneg)
+        ans = yield p.send()
+        stats = ans.get
 
-        p = self.client.registry.packet(context=ctxtpos)
-        p.duplicate_context(c.ID)
+        # Add sequence for negative reset
+        p = self.client.qubit_bias.packet(context=c.ID)
+        p.initialize_qubits()
+        p.readout_qubits()
+        yield p.send()
+
+        # Set up qubit reset for positive reset
+        p = self.client.registry.packet(context=c.ID)
         p.cd      (qubit)
         p.override('Operating Bias', 2.5*V)
         p.cd      (1)
-        rp = p.send()
-        qp = self.client.qubits.duplicate_context(ctxt, context=ctxtpos)
+        yield p.send()
 
-        # Add Squid Steps sequence to Qubit Server using Qubit Bias Server
-        ans = yield rn
-        yield qn
-        p = self.client.qubit_bias.packet(context = ctxtneg)
+        # Add sequence for positive reset
+        p = self.client.qubit_bias.packet(context=c.ID)
         p.initialize_qubits()
         p.readout_qubits()
-        bn = p.send()
-        stats = ans.get
-        
-        yield rp
-        yield qp
-        p = self.client.qubit_bias.packet(context = ctxtpos)
-        p.initialize_qubits()
-        p.readout_qubits()
-        bp = p.send()
+        yield p.send()
 
         # Run Qubits
-        yield bn
-        dn = self.client.qubits.run(stats, context = ctxtneg)
+        data = yield self.client.qubits.run(stats, context=c.ID)
 
-        yield bp
-        dp = self.client.qubits.run(stats, context = ctxtpos)
-
-        # Get switching data
-        datan = (yield dn)[0]
-        datap = (yield dp)[0]
-
-        data = [[n/25.0, p/25.0] for n, p in zip(datan, datap)]
+        # Process switching data
+        data = data.asarray[0].reshape(stats,2) / 25.0
 
         returnValue(data)
 
