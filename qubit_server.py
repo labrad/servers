@@ -1104,20 +1104,15 @@ class QubitServer(LabradServer):
         fpgas.remove(c['Experiment']['Master'])
         fpgas = [c['Experiment']['Master']] + fpgas
         p.daisy_chain(fpgas)
+        p.timing_order([self.getQubit(qname)['Timing'][1] for qname in self.Setups[c['Experiment']['Setup']]['Qubits']])
         p.start_delay([0]*len(fpgas))
         if setuppkts is None:
             p.run_sequence(stats)
         else:
             p.run_sequence(stats, True, setuppkts, setupState)
-        timing = (yield p.send()).run_sequence.asarray
-        indices = []
-        for qname in self.Setups[c['Experiment']['Setup']]['Qubits']:
-            qubit = self.getQubit(qname)
-            fpga = qubit['Timing'][1]
-            indices.append(fpgas.index(fpga))
-        result = timing[indices,:]
-
-        returnValue(result)
+        answer = yield p.send()
+        timing_data = answer.run_sequence
+        returnValue(timing_data)
 
 __server__ = QubitServer()
 
