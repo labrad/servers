@@ -38,6 +38,7 @@ READ_PARAMETERS = [('Readout Bias',            'mV'),
                    ('Squid Ramp End',          'mV'),
                    ('Squid Ramp Time',         'us'),
                    ('Squid Zero Bias',         'mV'),
+                   ('Idle Time',               'us'),
                    ('|1>-State Cutoff',        'us')]
 
 def DAC0(V):
@@ -157,6 +158,7 @@ class QubitBiasServer(LabradServer):
             setreadout.append( (('Flux',  qid+1), DAC1fast(pars[(qname, 'Readout Bias')])))
             setzero.extend   ([(('Flux',  qid+1), DAC1fast(0)),
                                (('Squid', qid+1), DAC1fast(0))])
+            
         # Find maximum Readout Settling Time
         maxsettling  = max(4.3, max(pars[(qubit, 'Readout Settling Time')] for qubit in qubits))
 
@@ -194,7 +196,12 @@ class QubitBiasServer(LabradServer):
             p.memory_bias_commands(srzeros,   4.3*us)
             p.memory_stop_timer   (timers)
             curdelay += 4.68 + maxramp
-        p.memory_bias_commands(setzero, 4.3*us)
+
+        # Find maximum Idle Time
+        maxidle  = max(4.3, max(pars[(qubit, 'Idle Time')] for qubit in qubits))
+        
+        # Go to 0V on all lines
+        p.memory_bias_commands(setzero, maxidle*us)
         yield p.send()
         
         returnValue([(qubit, pars[(qubit, '|1>-State Cutoff')]) for qubit in qubits])
