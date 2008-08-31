@@ -23,6 +23,8 @@ from twisted.python import log
 from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 
+import numpy
+
 GLOBALPARS = [ "Stats" ];
 
 QUBITPARAMETERS = [("Microwave Offset",          "ns" ),
@@ -55,15 +57,21 @@ BELLPARAMETERS  = [ "Pi Pulse Amplitude",
 
 
 def analyzeData(cutoffs, data):
+    nQubits = len(cutoffs)
     states = 2**len(cutoffs)
-    counts = [0.0]*states
-    total  = len(data[0])
-    for pid in range(total):
-        n = 0
-        for qid in range(len(data)):
-            if (data[qid][pid]/25.0>abs(cutoffs[qid][1])) ^ (cutoffs[qid][1]<0):
-                n+=2**qid
-        counts[n]+=1.0
+    data = data.T # indexed by [rep#, qubit#]
+    total = data.shape[0]
+    cutoffNums = numpy.array([c[1] for c in cutoffs])
+    isOne = (data/25.0 > abs(cutoffNums)) ^ (cutoffNums < 0)
+    state = sum(2**qid * isOne[:,qid] for qid in range(nQubits))
+    counts = [sum(state==s) for s in range(states)]
+    #total  = len(data[0])
+    #for pid in range(total):
+    #    n = 0
+    #    for qid in range(len(data)):
+    #        if (data[qid][pid]/25.0>abs(cutoffs[qid][1])) ^ (cutoffs[qid][1]<0):
+    #            n+=2**qid
+    #    counts[n]+=1.0
     return [c/float(total) for c in counts]
 
 
@@ -131,40 +139,29 @@ class VoBIServer(LabradServer):
 
     @inlineCallbacks
     def run(self, c, cctxt, ops):
+        # Get list of qubits and make sure it contains exactly 2 qubits
         qubits = yield self.getQubits(cctxt)
         if len(qubits)!=2:
             raise NeedTwoQubitsError()
-        
+
+        # Read experimental parameters
         pars   = yield self.readParameters(c, GLOBALPARS, qubits, QUBITPARAMETERS, BELLPARAMETERS)
-        
-        cxn = self.client
-        if 'Contexts' not in c:
-            c['Contexts'] = (cxn.context(), cxn.context(), cxn.context(),
-                             cxn.context(), cxn.context(), cxn.context())
-            
-        qs = cxn.qubits
-        rg = cxn.registry
-        qb = cxn.qubit_bias
-        
-        waits = []
-        cutoffs = []
+
+        # Grab reference to servers
+        qs = self.client.qubits
+        qb = self.client.qubit_bias
+
+        # Initialize Qubit Server
+        qs.duplicate_context(cctxt, context=c.ID)
+
+        # Run all measurement combinations as one sequence
         for op in range(ops):
-            ctxt = c['Contexts'][op]
-            # Setup Qubit Server
-            qsw = qs.duplicate_context(cctxt, context=ctxt)
-
-            # Setup Registry Server
-            rsw = rg.duplicate_context(c.ID, context=ctxt)
-
-            # Wait for Servers to complete Request
-            yield qsw
-            yield rsw
 
             # Reset Qubits
-            yield qb.initialize_qubits(context=ctxt)
+            yield qb.initialize_qubits(context=c.ID)
 
-            # Add SRAM Sequence
-            p = qs.packet(context=ctxt)
+            # Add SRAM sequence
+            p = qs.packet(context=c.ID)
             for qid, qname in enumerate(qubits):
                 # Add a trigger
                 p.sram_trigger_pulse    (('Trigger', qid+1), 20*ns)
@@ -236,20 +233,22 @@ class VoBIServer(LabradServer):
                 measamp  = float(pars[(qname, "Measure Pulse Amplitude"  )])/1000.0
                 measpuls = [measamp]*meastop + [(meastail - t - 1)*measamp/meastail for t in range(meastail)]
                 p.sram_analog_data  (('Measure', qid+1), measpuls)
-                
+
+            # Insert SRAM call into memory
             p.memory_call_sram()
             yield p.send()
 
             # Readout Qubits
-            cutoffs.append((yield qb.readout_qubits(context=ctxt)))
+            cutoffs = yield qb.readout_qubits(context=c.ID)
 
-            # Request Data Run
-            waits.append(qs.run(pars["Stats"], context=ctxt))
+        # Run experiment
+        data = yield qs.run(pars["Stats"], context=c.ID)
 
-        results =  []
-        for wait, coinfos in zip(waits, cutoffs):
-            switches = yield wait
-            results.append(analyzeData(coinfos, switches))
+        # Deinterlace data
+        data = data.asarray.reshape(2, pars["Stats"], ops)
+
+        # Turn switching data into probabilities
+        results = [analyzeData(cutoffs, data[:,:,op]) for op in range(ops)]
 
         returnValue(results)
 
