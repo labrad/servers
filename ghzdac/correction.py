@@ -21,7 +21,7 @@ alen, clip, sqrt, log, arange, linspace, zeros, ones, reshape, outer, \
 compress, sum, shape, cos, pi, exp, Inf, size, real, imag, uint32, int32, \
 argmin, resize, argwhere, append
 from numpy.fft import fft, rfft, irfft
-from pylab import iterable        
+from numpy import iterable        
 
 def cosinefilter(n, width=0.4):
     """cosinefilter(n,width) cosine lowpass filter
