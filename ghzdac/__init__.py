@@ -24,9 +24,10 @@
 
 
 
-
+from __future__ import with_statement
 from correction import DACcorrection, IQcorrection, \
      cosinefilter, gaussfilter, flatfilter
+
 from twisted.python import log
 from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -165,7 +166,7 @@ def DACcorrectorAsync(fpganame, channel, connection = None, \
 
     yield ds.cd(['',keys.SESSIONNAME,fpganame], True, context=ctx)
 
-    corrector = DACcorrection(fpganame, lowpass, bandwidth)
+    corrector = DACcorrection(fpganame, channel, lowpass, bandwidth)
 
     if not isinstance(channel, str):
         channel = keys.CHANNELNAMES[channel]
@@ -283,3 +284,17 @@ def recalibrate(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
     block(recalibrateAsync, boardname, carrierMin, carrierMax,
           zeroCarrierStep, sidebandCarrierStep, sidebandMax,
                 sidebandStep, corrector)
+
+
+def runsequence(sram, cor):
+    with labrad.connection() as cxn:
+        fpga = cxn.ghz_dacs
+        fpga.select_device(cor.board)
+        if hasattr(cor,'channel') and cor.channel == 1:
+            sram = sram << 14
+        sram[0:4] |= 0xF<<28
+        fpga.run_sram(sram, True)
+        
+        
+    
+
