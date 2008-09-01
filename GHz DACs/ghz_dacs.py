@@ -26,6 +26,7 @@ import struct
 from array import array as py_array
 from datetime import datetime, timedelta
 from math import sin, cos
+import time
 
 import numpy
 
@@ -47,6 +48,61 @@ TIMEOUT_FACTOR = 10
 # TODO: factor out register packet creation into separate functions
 # TODO: store memory and SRAM as numpy arrays, rather than lists and strings, respectively
 # TODO: update stored versions of memory and SRAM only when a write happens (not when write is requested)
+     
+class TimedLock(defer.DeferredLock):
+    """
+    A lock that times how long it takes to acquire.
+    """
+
+    TIMES_TO_KEEP = 100
+
+    @property
+    def times(self):
+        if not hasattr(self, '_times'):
+            self._times = []
+        return self._times
+
+    def addTime(self, dt):
+        times = self.times
+        times.append(dt)
+        if len(times) > self.TIMES_TO_KEEP:
+            times.pop(0)
+
+    def meanTime(self):
+        if not len(self.times):
+            return 0
+        return sum(self.times) / len(self.times)
+
+    def acquire(self):
+        """Attempt to acquire the lock.
+
+        @return: a Deferred which fires on lock acquisition.
+        """
+        d = Deferred()
+        if self.locked:
+            t = time.time()
+            self.waiting.append((d, t))
+        else:
+            self.locked = 1
+            self.addTime(0)
+            d.callback(0)
+        return d
+
+    def release(self):
+        """Release the lock.
+
+        Should be called by whomever did the acquire() when the shared
+        resource is free.
+        """
+        assert self.locked, "Tried to release an unlocked lock"
+        self.locked = 0
+        if self.waiting:
+            # someone is waiting to acquire lock
+            self.locked = 1
+            d, t = self.waiting.pop(0)
+            dt = time.time() - t
+            self.addTime(dt)
+            d.callback(dt)
 
 class FPGADevice(DeviceWrapper):
     """Manages communication with a single GHz DAC board.
@@ -57,7 +113,7 @@ class FPGADevice(DeviceWrapper):
     
     @inlineCallbacks
     def connect(self, de, port, board, build, name):
-        """Establich a connection to the board."""
+        """Establish a connection to the board."""
         print 'connecting to: %s (build #%d)' % (boardMAC(board), build)
 
         self.server = de
@@ -305,14 +361,14 @@ class BoardGroup(object):
     """
     def __init__(self, server, port):
         self._nextPage = 0
-        self.pageLocks = [defer.DeferredLock() for _ in range(NUM_PAGES)]
-        self.runLock = defer.DeferredLock()
-        self.readLock = defer.DeferredLock()
+        self.pageLocks = [TimedLock() for _ in range(NUM_PAGES)]
+        self.runLock = TimedLock()
+        self.readLock = TimedLock()
         self.server = server
         self.port = port
         self.ctx = server.context()
         self.setupState = set()
-        self.emptyCount = 0
+        self.runWaitTimes = []
         self.prevTriggers = 0
     
     @inlineCallbacks
@@ -504,7 +560,7 @@ class BoardGroup(object):
                 bothPkt['nTriggers'] = self.prevTriggers
                 self.prevTriggers = len(devs) # set the number of triggers for the next point to wait for
                 if needSetup:
-                    yield waitPkt.send() # if this fails, something BAD happened!
+                    r = yield waitPkt.send() # if this fails, something BAD happened!
                     try:
                         yield sendAll(setupPkts, "Setup")
                         self.setupState = setupState
@@ -514,16 +570,18 @@ class BoardGroup(object):
                         raise
                     yield runPkt.send()
                 else:
-                    yield bothPkt.send() # if this fails, something BAD happened!
+                    r = yield bothPkt.send() # if this fails, something BAD happened!
+                
+                # keep track of how long the packet waited before being able to run
+                self.runWaitTimes.append(float(r['nTriggers']))
+                if len(self.runWaitTimes) > 100:
+                    self.runWaitTimes.pop(0)
                     
                 yield readLock.acquire() # make sure we are next in line to read
                
                 # send our collect packets and then release the run lock
                 collectAll = defer.DeferredList([p.send() for p in collectPkts])
             finally:
-                if not len(runLock.waiting):
-                    self.emptyCount += 1
-                    print 'pipe empty (%d)' % self.emptyCount
                 runLock.release()
             
             # wait for the collect packet
@@ -809,6 +867,33 @@ class FPGAServer(DeviceServer):
         else:
             c['master_sync'] = sync
         return sync
+
+    @setting(49, 'Performance Data', returns='*((sw)(*v, v, v, v))')
+    def performance_data(self, c):
+        """Get data about the pipeline performance.
+        
+        For each board group (defined by direct ethernet server and port),
+        this returns times for:
+            page locks
+            run lock
+            run packet (on the direct ethernet server)
+            read lock
+        If the packet runs dry, the first time that will go to zero should
+        be the run packet wait time. 
+        """
+        ans = []
+        for server, port in sorted(self.boardGroups.keys()):
+            group = self.boardGroups[server, port]
+            pageTimes = [T.Value(lock.meanTime(), 's') for lock in group.pageLocks]
+            runTime = T.Value(group.runLock.meanTime(), 's')
+            readTime = T.Value(group.readLock.meanTime(), 's')
+            if len(group.runWaitTimes):
+                runWaitTime = sum(group.runWaitTimes) / len(group.runWaitTimes)
+            else:
+                runWaitTime = 0
+            runWaitTime = T.Value(runWaitTime, 's')
+            ans.append(((server, port), (pageTimes, runTime, runWaitTime, readTime)))
+        return ans
 
 
     # TODO: make sure that low-level commands are compatible with board group operations.
