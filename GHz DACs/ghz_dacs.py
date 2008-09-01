@@ -49,12 +49,16 @@ TIMEOUT_FACTOR = 10
 # TODO: store memory and SRAM as numpy arrays, rather than lists and strings, respectively
 # TODO: update stored versions of memory and SRAM only when a write happens (not when write is requested)
      
-class TimedLock(defer.DeferredLock):
+class TimedLock(object):
     """
     A lock that times how long it takes to acquire.
     """
 
     TIMES_TO_KEEP = 100
+    locked = 0
+
+    def __init__(self):
+        self.waiting = []
 
     @property
     def times(self):
@@ -69,16 +73,17 @@ class TimedLock(defer.DeferredLock):
             times.pop(0)
 
     def meanTime(self):
-        if not len(self.times):
+        times = self.times
+        if not len(times):
             return 0
-        return sum(self.times) / len(self.times)
+        return sum(times) / len(times)
 
     def acquire(self):
         """Attempt to acquire the lock.
 
         @return: a Deferred which fires on lock acquisition.
         """
-        d = Deferred()
+        d = defer.Deferred()
         if self.locked:
             t = time.time()
             self.waiting.append((d, t))
@@ -361,9 +366,10 @@ class BoardGroup(object):
     """
     def __init__(self, server, port):
         self._nextPage = 0
-        self.pageLocks = [TimedLock() for _ in range(NUM_PAGES)]
-        self.runLock = TimedLock()
-        self.readLock = TimedLock()
+        Lock = TimedLock #defer.DeferredLock
+        self.pageLocks = [Lock() for _ in range(NUM_PAGES)]
+        self.runLock = Lock()
+        self.readLock = Lock()
         self.server = server
         self.port = port
         self.ctx = server.context()
