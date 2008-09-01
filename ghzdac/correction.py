@@ -19,33 +19,38 @@
 from numpy import conjugate, array, asarray, floor, ceil, round, min, max, \
 alen, clip, sqrt, log, arange, linspace, zeros, ones, reshape, outer, \
 compress, sum, shape, cos, pi, exp, Inf, size, real, imag, uint32, int32, \
-argmin, resize, argwhere, append
+argmin, resize, argwhere, append, iterable
 from numpy.fft import fft, rfft, irfft
-from numpy import iterable        
+
 
 def cosinefilter(n, width=0.4):
     """cosinefilter(n,width) cosine lowpass filter
-    n samples from 0 to 0.5 GHz
+    n samples from 0 to 1 GHz
     1 from 0 GHz to width GHz
     rolls of from width GHz to 0.5 GHz like a quater cosine wave"""
-    result = ones(n,dtype=float)
-    width = int(round((0.5-width)*n*2.0))
-    if width > 0:
-        result[n-width:] = 0.5+0.5*cos(linspace(0,pi,width,endpoint=False))
+    nr = n/2 + 1
+    result = ones(nr,dtype=float)
+    start = int(ceil(width*n))
+    width = (0.5-width)*n
+    if start < nr:
+        result[start:] = 0.5+0.5*cos(linspace(pi*(start-0.5*n+width)/width,
+                                                  pi+pi/width*(nr-0.5*n),
+                                                  nr-start,endpoint=False))
     return result
 
 
 
 def gaussfilter(n, width=0.13):
     """ lowpassfilter(n,width) gaussian lowpass filter.
-    n samples from 0 to 0.5 GHz
+    n samples from 0 to 1 GHz
     -3dB frequency at width GHz
     """
-    x=0.5 / width * sqrt(log(2.0)/2.0)
-    gauss=exp(-linspace(0,x,n,endpoint=False)**2)
-    x=gauss[n-1]
-    gauss -= x
-    gauss /= (1.0 - x)
+    nr = n/2 + 1
+    x= 1.0  / width * sqrt(log(2.0)/2.0)
+    gauss=exp(-linspace(0, x*nr/n, nr, endpoint=False)**2)
+    x=exp(-(0.5*x)**2)
+    #gauss -= x
+    #gauss /= (1.0 - x)
     return gauss
 
 def flatfilter(n, width=0):
@@ -462,7 +467,7 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         correctionI = interpol(self.correctionI, freqs, extrapolate=True)
         correctionQ = interpol(self.correctionQ, freqs, extrapolate=True)
         #do the actual deconvolution and transform back to time space
-        lp = self.lowpass(nrfft, self.bandwidth)
+        lp = self.lowpass(nfft, self.bandwidth)
         i=irfft(i*correctionI*lp, n=nfft)
         q=irfft(q*correctionQ*lp, n=nfft)
 
@@ -619,7 +624,7 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
 class DACcorrection:
 
 
-    def __init__(self, board, lowpass = gaussfilter, bandwidth = 0.13):
+    def __init__(self, board, channel, lowpass = gaussfilter, bandwidth = 0.13):
 
         """
         Returns a DACcorrection object for the given DAC board.
@@ -641,6 +646,7 @@ class DACcorrection:
         """
 
         self.board = board
+        self.channel = channel
         #Set dynamic reserve
         self.dynamicReserve=2.0
 
@@ -656,7 +662,7 @@ class DACcorrection:
             lowpass = flatfilter
 
         self.lowpass = lowpass
-        self.bandwidth = 0.13
+        self.bandwidth = bandwidth
 
         self.correction = []
 
@@ -693,29 +699,8 @@ class DACcorrection:
         dataPoints=rfft(dataPoints,n=n)
         self.zero = zero
         self.clicsPerVolt = clicsPerVolt
-        self.correction += [lowpass(finalLength/2+1,bandwidth) * \
+        self.correction += [lowpass(finalLength,bandwidth) * \
                             abs(dataPoints[0]) / dataPoints[0:finalLength/2+1]]
-
-
-
-    def _deconvolve(self, signal, loop=False):
-
-        """
-        Deconvolves the signal i with the stored response function.
-        If loop=True the fft is performed directly on the signal, otherwise the
-        signal is padded with 0 to obtain a signal length for which fft is
-        faster. The return value always has the same length as i, however.
-        """
-
-        for correction in self.correction:
-            l=alen(correction)
-            freqs = arange(0,nrfft) * 2.0 * (l - 1.0) / nfft
-            correction = interpol(correction, freqs, extrapolate=True)
-            signal*=correction 
-        #do the actual deconvolution and transform back to time space
-        signal=irfft(signal*self.lowpass(nrfft, self.bandwidth), n=nfft)
-        return signal[0:n]
-
 
 
 
@@ -801,7 +786,8 @@ class DACcorrection:
 
         
 
-    def DACifyFT(self, signal, t0=0, n=8192, loop=False, rescale=False, fitRange=True, deconv=True, zerocor=True, volts=True):
+    def DACifyFT(self, signal, t0=0, n=8192, loop=False, rescale=False,
+                 fitRange=True, deconv=True, zerocor=True, volts=True):
         """Works like DACify but takes the Fourier transform of the signal as
         input instead of the signal. n gives the number of points (or
         the length in ns), t0 the start time.  Signal can either be an
@@ -832,10 +818,10 @@ class DACcorrection:
             else:
                 nfft=fastfftlen(n)
             nrfft=nfft/2+1
-            signal=signal(linspace(0, float(nrfft)/nfft, nrfft, endpoint=False))
+            signal=signal(linspace(0.0, float(nrfft)/nfft, nrfft, endpoint=False)).astype(complex)
 
         if t0 != 0:
-            signal *= exp(linspace(0, 2j*pi*t0*nrfft/nfft, nrfft, endpoint=False))
+            signal *= exp(linspace(0.0, 2.0j*pi*t0*nrfft/nfft, nrfft, endpoint=False))
         if deconv:
             for correction in self.correction:
                 l=alen(correction)
@@ -844,11 +830,9 @@ class DACcorrection:
                 correction = interpol(correction, freqs, extrapolate=True)
                 signal*=correction 
         #do the actual deconvolution and transform back to time space
-        signal=irfft(signal*self.lowpass(nrfft, self.bandwidth), n=nfft)
+        signal=irfft(signal*self.lowpass(nfft, self.bandwidth), n=nfft)
         signal = signal[0:n]
 
-        # for testing uncomment this
-        return signal
         if volts and self.clicsPerVolt:
             fullscale = 0x1FFF / self.clicsPerVolt
         else:
@@ -866,11 +850,11 @@ class DACcorrection:
             fullscale *= rescale
 
         signal = round(signal * fullscale + zero).astype(int32)
-
-        if fitRange and not rescale :
+        if not fitRange:
+            return signal
+        if not rescale:
             if (max(signal) > 0x1FFF) or (min(signal) < -0x2000):
                 print 'Corrected signal beyond DAC range, clipping.'
-
                 signal = clip(signal,-0x2000,0x1FFF)
         return (signal & 0x3FFF).astype(uint32)
 
