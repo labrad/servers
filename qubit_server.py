@@ -1111,7 +1111,7 @@ class QubitServer(LabradServer):
         else:
             p.run_sequence(stats, True, setuppkts, setupState)
         answer = yield p.send()
-        timing_data = answer.run_sequence
+        timing_data = answer.run_sequence.asarray
         returnValue(timing_data)
 
 __server__ = QubitServer()
