@@ -780,13 +780,13 @@ class DACcorrection:
         #FT the input
         signal=rfft(signal-background, n=nfft)
         signal[0] += nfft*background
-        return self.DACifyFT(signal, t0=0, n=nfft, loop=loop,
+        return self.DACifyFT(signal, t0=0, n=n, nfft=nfft, loop=loop,
                              rescale=rescale, fitRange=fitRange, deconv=deconv,
                              zerocor=zerocor, volts=volts)
 
         
 
-    def DACifyFT(self, signal, t0=0, n=8192, loop=False, rescale=False,
+    def DACifyFT(self, signal, t0=0, n=8192, nfft=None, loop=False, rescale=False,
                  fitRange=True, deconv=True, zerocor=True, volts=True):
         """Works like DACify but takes the Fourier transform of the signal as
         input instead of the signal. n gives the number of points (or
@@ -807,10 +807,8 @@ class DACcorrection:
         #evaluate the Fourier transform 'signal'
         if iterable(signal):
             signal = asarray(signal)
-            nfft = n
-            nrfft = nfft/2+1
-            if (nrfft != len(signal)):
-                nrfft = len(signal)
+            nrfft = len(signal)
+            if nfft is None or nfft/2 + 1 != nrfft:
                 nfft = 2*(nrfft-1)
         else:
             if loop:
