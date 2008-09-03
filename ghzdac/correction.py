@@ -532,8 +532,6 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         if callable(signal):
             signal=signal(f).astype(complex)
         if t0 != 0:
-            print shape(signal)
-            print shape(exp(2.0j*pi*t0*f))
             signal *= exp(2.0j*pi*t0*f)
         
         if (n>1):
