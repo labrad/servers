@@ -19,7 +19,7 @@
 from numpy import conjugate, array, asarray, floor, ceil, round, min, max, \
 alen, clip, sqrt, log, arange, linspace, zeros, ones, reshape, outer, \
 compress, sum, shape, cos, pi, exp, Inf, size, real, imag, uint32, int32, \
-argmin, resize, argwhere, append, iterable
+argmin, resize, argwhere, append, iterable, hstack
 from numpy.fft import fft, rfft, irfft
 
 
@@ -425,54 +425,7 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
             (freqs + maxfreq + self.sidebandStep[i]) / self.sidebandStep[i], \
             extrapolate=True)
 
-
-
-    def _deconvolve(self, carrierfreq, i, loop=False, iqcor=True):
-
-        """
-        Deconvolves the signal i with the stored response function and
-        if iqcor=True, perform IQ mixer compensation at given carrier frequency.
-
-        If loop=True the fft is performed directly on the signal, otherwise the
-        signal is padded with 0 to obtain a signal length for which fft is
-        faster. The return value always has the same length as i, however.
-        """
-
-        n=alen(i)
-        if loop:
-            nfft=n
-        else:
-            nfft=fastfftlen(n)
-        nrfft=nfft/2+1
-
-        #FT the input
-        signal=zeros(nfft+1,dtype=complex)
-        signal[0:nfft]=fft(i,n=nfft)
-        #add the first point at the end so that the elements of signal and
-        #signal[::-1] are the Fourier components at opposite frequencies
-        signal[nfft]=signal[0]
-
-        #correct for the non-orthoganality of the IQ channels
-        if iqcor:
-            signal += signal[::-1].conjugate() * \
-                      self._IQcompensation(carrierfreq, nfft)
-
-        #separate I (FT of a real signal) and Q (FT of an imaginary signal)
-        i =  0.5  * (signal[0:nrfft] + signal[nfft:nfft-nrfft:-1].conjugate())
-        q = -0.5j * (signal[0:nrfft] - signal[nfft:nfft-nrfft:-1].conjugate())
-
-        #resample the FT of the response function at intervals 1 ns / nfft
-        l=alen(self.correctionI)
-        freqs = arange(0,nrfft) * 2.0 * (l - 1.0) / nfft
-        correctionI = interpol(self.correctionI, freqs, extrapolate=True)
-        correctionQ = interpol(self.correctionQ, freqs, extrapolate=True)
-        #do the actual deconvolution and transform back to time space
-        lp = self.lowpass(nfft, self.bandwidth)
-        i=irfft(i*correctionI*lp, n=nfft)
-        q=irfft(q*correctionQ*lp, n=nfft)
-
-        return [i[0:n],q[0:n]]
-
+        
 
 
     def DACify(self, carrierFreq, i, q=None, loop=False, rescale=False, \
@@ -544,31 +497,94 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
             i = i.astype(complex)
         else:
             i= i + 1.0j * q
+        n = alen(i)
+        if loop:
+            nfft=n
+        else:
+            nfft=fastfftlen(n)
+        if n > 1:
+            # treat offset properly even when n != nfft
+            background = 0.5*(i[0]+i[-1])
+            i = fft(i-background,n=nfft)
+            i[0] += background * nfft
+        return self.DACifyFT(carrierFreq, i, n=n, loop=loop, rescale=False, \
+               zerocor=zerocor, deconv=deconv, iqcor=iqcor, zipSRAM=zipSRAM)
 
-        #read DAC zeros
+
+
+    
+    def DACifyFT(self, carrierFreq, signal, t0=0, n=8192, loop=False,
+                 rescale=False, zerocor=True, deconv=True, iqcor=True,
+                 zipSRAM=True):
+
+        if (n==0):
+            return zeros(0)
+        if callable(signal):
+            if loop:
+                nfft=n
+            else:
+                nfft=fastfftlen(n)
+        else:
+            signal = asarray(signal)
+            nfft = alen(signal)
+        nrfft=nfft/2+1
+        f = linspace(0.5,1.5, nfft, endpoint=False) % 1 - 0.5
+        if callable(signal):
+            signal=signal(f).astype(complex)
+        if t0 != 0:
+            signal *= exp(2.0j*pi*t0*f)
+        
+        if (n>1):
+            #apply convolution and iq correction
+            if loop:
+                nfft=n
+            else:
+                nfft=fastfftlen(n)
+            nrfft=nfft/2+1
+            
+
+            #FT the input
+            #add the first point at the end so that the elements of signal and
+            #signal[::-1] are the Fourier components at opposite frequencies
+            signal = hstack((signal, signal[0]))
+
+            #correct for the non-orthoganality of the IQ channels
+            if iqcor:
+                signal += signal[::-1].conjugate() * \
+                          self._IQcompensation(carrierFreq, nfft)
+            
+
+            #separate I (FT of a real signal) and Q (FT of an imaginary signal)
+            i =  0.5  * (signal[0:nrfft] + signal[nfft:nfft-nrfft:-1].conjugate())
+            q = -0.5j * (signal[0:nrfft] - signal[nfft:nfft-nrfft:-1].conjugate())
+
+            #resample the FT of the response function at intervals 1 ns / nfft
+            if deconv and (self.correctionI != None):
+                l=alen(self.correctionI)
+                freqs = arange(0,nrfft) * 2.0 * (l - 1.0) / nfft
+                correctionI = interpol(self.correctionI, freqs, extrapolate=True)
+                correctionQ = interpol(self.correctionQ, freqs, extrapolate=True)
+                lp = self.lowpass(nfft, self.bandwidth)
+                i *= correctionI * lp
+                q *= correctionQ * lp
+            #do the actual deconvolution and transform back to time space
+            i=irfft(i*correctionI*lp, n=nfft)[:n]
+            q=irfft(q*correctionQ*lp, n=nfft)[:n]
+        else:
+            #only apply iq correction for sideband frequency 0
+            if iqcor:
+                signal += conjugate(signal) * self._IQcompensation(carrierFreq,1)[0]
+            i=signal.real
+            q=signal.imag
+            
+        # rescale or clip data to fit the DAC range
+        fullscale = 0x1FFF / self.dynamicReserve
+
         if zerocor:
             [zeroI,zeroQ]=self.DACzeros(carrierFreq)
         else:
             zeroI = zeroQ = 0.0
-
-        if (alen(i)==0):
-            return zeros(0)
-
-        if deconv and (self.correctionI != None) and (alen(i) > 1):
-            #apply convolution and iq correction
-            [i,q]=self._deconvolve(carrierFreq,i,loop=loop,iqcor=iqcor)
-        else:
-            #only apply iq correction for sideband frequency 0
-            if iqcor:
-                i += conjugate(i) * self._IQcompensation(carrierFreq,1)[0]
-            q=i.imag
-            i=i.real
-
-        # for testing uncomment this
-        # return [i,q]
-
-        fullscale = 0x1FFF / self.dynamicReserve
-
+        
         if rescale:
             rescale = min([1.0, \
                            ( 0x1FFF - zeroI) / fullscale / max(i), \
@@ -779,14 +795,14 @@ class DACcorrection:
         
         #FT the input
         signal=rfft(signal-background, n=nfft)
-        signal[0] += nfft*background
-        return self.DACifyFT(signal, t0=0, n=n, nfft=nfft, loop=loop,
+        return self.DACifyFT(signal, t0=0, n=n, nfft=nfft, offset=background,
+                             loop=loop,
                              rescale=rescale, fitRange=fitRange, deconv=deconv,
                              zerocor=zerocor, volts=volts)
 
         
 
-    def DACifyFT(self, signal, t0=0, n=8192, nfft=None, loop=False, rescale=False,
+    def DACifyFT(self, signal, t0=0, n=8192, offset=0, nfft=None, loop=False, rescale=False,
                  fitRange=True, deconv=True, zerocor=True, volts=True):
         """Works like DACify but takes the Fourier transform of the signal as
         input instead of the signal. n gives the number of points (or
@@ -805,21 +821,23 @@ class DACcorrection:
 
 
         #evaluate the Fourier transform 'signal'
-        if iterable(signal):
+        if callable(signal):
+            if loop:
+                nfft=n
+            elif nfft is None:
+                nfft=fastfftlen(n)
+            nrfft=nfft/2+1
+            signal=signal(linspace(0.0, float(nrfft)/nfft, nrfft, endpoint=False)).astype(complex)
+        else:
             signal = asarray(signal)
             nrfft = len(signal)
             if nfft is None or nfft/2 + 1 != nrfft:
                 nfft = 2*(nrfft-1)
-        else:
-            if loop:
-                nfft=n
-            else:
-                nfft=fastfftlen(n)
-            nrfft=nfft/2+1
-            signal=signal(linspace(0.0, float(nrfft)/nfft, nrfft, endpoint=False)).astype(complex)
 
+            
         if t0 != 0:
             signal *= exp(linspace(0.0, 2.0j*pi*t0*nrfft/nfft, nrfft, endpoint=False))
+        signal[0] += nfft*offset
         if deconv:
             for correction in self.correction:
                 l=alen(correction)
