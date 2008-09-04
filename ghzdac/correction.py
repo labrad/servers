@@ -530,7 +530,7 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         nrfft=nfft/2+1
         f = linspace(0.5,1.5, nfft, endpoint=False) % 1 - 0.5
         if callable(signal):
-            signal=signal(f).astype(complex)
+            signal=asarray(signal(f)).astype(complex)
         if t0 != 0:
             signal *= exp(2.0j*pi*t0*f)
         
@@ -827,7 +827,7 @@ class DACcorrection:
             elif nfft is None:
                 nfft=fastfftlen(n)
             nrfft=nfft/2+1
-            signal=signal(linspace(0.0, float(nrfft)/nfft, nrfft, endpoint=False)).astype(complex)
+            signal=asarray(signal(linspace(0.0, float(nrfft)/nfft, nrfft, endpoint=False))).astype(complex)
         else:
             signal = asarray(signal)
             nrfft = len(signal)
