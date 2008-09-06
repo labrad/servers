@@ -506,7 +506,7 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
             background = 0.5*(i[0]+i[-1])
             i = fft(i-background,n=nfft)
             i[0] += background * nfft
-        return self.DACifyFT(carrierFreq, i, n=n, loop=loop, rescale=False, \
+        return self.DACifyFT(carrierFreq, i, n=n, loop=loop, rescale=rescale,
                zerocor=zerocor, deconv=deconv, iqcor=iqcor, zipSRAM=zipSRAM)
 
 
