@@ -39,17 +39,20 @@ SBFREQUNIT = 1.0/PERIOD
 
 @inlineCallbacks
 def spectInit(spec):
-    yield spec.gpib_write(':POW:RF:ATT 0dB\n:AVER:STAT OFF\n:BAND 300Hz\n:FREQ:SPAN 100Hz\n:INIT:CONT OFF\n')
+    yield spec.gpib_write(':POW:RF:ATT 0dB;:AVER:STAT OFF;:FREQ:SPAN 100Hz;:BAND 300Hz;:INIT:CONT OFF;:SYST:PORT:IFVS:ENAB OFF;:SENS:SWE:POIN 101')
 
+def spectDeInit(spec):
+    yield spec.gpib_write(':INIT:CONT ON')
+    
 @inlineCallbacks     
 def spectFreq(spec,freq):
-    yield spec.gpib_write(':FREQ:CENT %gGHz\n' % freq)
+    yield spec.gpib_write(':FREQ:CENT %gGHz' % freq)
 
 @inlineCallbacks     
 def signalPower(spec):
     """returns the mean power in mW read by the spectrum analyzer"""
-    dBs = yield spec.gpib_query('*TRG\n*OPC?\n:TRAC:MATH:MEAN? TRACE1\n')
-    returnValue(10.0**(0.1*float(dBs[2:])))
+    dBs = yield spec.gpib_query('*TRG;*OPC?;:TRAC:MATH:MEAN? TRACE1')
+    returnValue(10.0**(0.1*float(dBs[3:])))
 
 
 def makeSample(a,b):
@@ -146,6 +149,7 @@ def zeroFixedCarrier(cxn, boardname):
     daczeros = yield zero(anr,spec,fpga,frequency)
 
     yield anr.output(False)
+    yield spectDeInit(spec)
     yield cxn.microwave_switch.switch(0)
     returnValue(daczeros)
     
@@ -187,6 +191,7 @@ def zeroScanCarrier(cxn, scanparams, boardname):
         yield ds.add([freq]+(yield zero(anr,spec,fpga,freq)))
         freq+=scanparams['carrierStep']
     yield anr.output(False)
+    yield spectDeInit(spec)
     yield cxn.microwave_switch.switch(0)
     returnValue(int(dataset[1][:5]))
                 
@@ -464,5 +469,6 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
         yield ds.add(datapoint)
         freq+=scanparams['sidebandCarrierStep']
     yield anr.output(False)
+    yield spectDeInit(spec)
     yield cxn.microwave_switch.switch(0)
     returnValue(datasetNumber(dataset))

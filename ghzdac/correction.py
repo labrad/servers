@@ -393,7 +393,6 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
                 interpol(self.zeroTableQ[i], carrierFreq)]
 
 
-
     def _IQcompensation(self, carrierFreq, n):
 
         """
@@ -527,6 +526,8 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         else:
             signal = asarray(signal)
             nfft = alen(signal)
+        if n > nfft:
+            n = nfft
         nrfft=nfft/2+1
         f = linspace(0.5,1.5, nfft, endpoint=False) % 1 - 0.5
         if callable(signal):
@@ -568,8 +569,8 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
                 i *= correctionI * lp
                 q *= correctionQ * lp
             #do the actual deconvolution and transform back to time space
-            i=irfft(i*correctionI*lp, n=nfft)[:n]
-            q=irfft(q*correctionQ*lp, n=nfft)[:n]
+            i=irfft(i, n=nfft)[:n]
+            q=irfft(q, n=nfft)[:n]
         else:
             #only apply iq correction for sideband frequency 0
             if iqcor:
