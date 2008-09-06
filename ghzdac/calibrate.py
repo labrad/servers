@@ -383,7 +383,10 @@ def sideband(anr,spect,fpga,corrector,carrierfreq,sidebandfreq):
     carrierfreq+sidebandfreq but also at carrierfreq-sidebandfreq.
     This routine determines amplitude and phase of the sideband signal
     for carrierfreq-sidebandfreq that cancels the undesired sideband at
-    carrierfreq-sidebandfreq.""" 
+    carrierfreq-sidebandfreq."""
+    reserveBuffer = corrector.dynamicReserve
+    corrector.dynamicReserve = 4.0
+
     if abs(sidebandfreq) < 3e-5:
         returnValue(0.0j)
     yield anr.frequency(Value(carrierfreq,'GHz'))
@@ -412,6 +415,7 @@ def sideband(anr,spect,fpga,corrector,carrierfreq,sidebandfreq):
         precision=min([2.0 * max([abs(corrR),abs(corrI)]), precision / 2.0])
         print '      compensation: %.4f%+.4fj +- %.4f, opposite sb: %6.1f dBm' % \
             (real(comp), imag(comp), precision, 10.0 * log(cI) / log(10.0))
+    corrector.dynamicReserve = reserveBuffer
     returnValue(comp)
 
 @inlineCallbacks
