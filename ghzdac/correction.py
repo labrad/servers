@@ -57,13 +57,7 @@ def flatfilter(n, width=0):
     return 1.0
 
 
-def fastfftlen(n):
-
-    """
-    Computes smallest multiple of 2 3 and 5 above n.
-    FFT is fastest for sizes that factorize in small numbers.
-    """
-
+def _fastfftlen(n):
     logn=log(n)
     n5 = 5L ** arange(long(logn/log(5.) + 1. + 1.e-6))
     n3 = 3L ** arange(long(logn/log(3.) + 1. + 1.e-6))
@@ -73,6 +67,16 @@ def fastfftlen(n):
     n235 = n235.astype(int)
     n235 = 2**((-log(n35)+logn)/log(2.) + 0.999999).astype(int) * n35
     return min(n235)
+    
+
+def fastfftlen(n):
+    """
+    Computes smallest multiple of 2 3 and 5 above n.
+    FFT is fastest for sizes that factorize in small numbers.
+    """
+    if n < alen(savedfftlens):
+        return savedfftlens[n]
+    return _fastfftlen(n)
 
 
 
@@ -84,10 +88,10 @@ def interpol(signal, x, extrapolate=False):
     last element is returned. If extrapolate=True, the linear extrapolation of
     the first/last two points is returned instead.
     """
-    if len(signal) == 1:
+    n = alen(signal)
+    if n == 1:
         return signal[0]
     i = floor(x).astype(int)
-    n = alen(signal)
     i = clip(i, 0, n-2)
     p = x - i
     if not extrapolate:
@@ -537,13 +541,6 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         
         if (n>1):
             #apply convolution and iq correction
-            if loop:
-                nfft=n
-            else:
-                nfft=fastfftlen(n)
-            nrfft=nfft/2+1
-            
-
             #FT the input
             #add the first point at the end so that the elements of signal and
             #signal[::-1] are the Fourier components at opposite frequencies
@@ -877,4 +874,7 @@ class DACcorrection:
 
 
 
+savedfftlens=zeros(8193,dtype=int)
+for n in arange(1,alen(savedfftlens)):
+    savedfftlens[n] = _fastfftlen(n)
         
