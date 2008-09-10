@@ -1,3 +1,5 @@
+#!C:\python25\python.exe
+
 from __future__ import with_statement
 
 import time
@@ -85,7 +87,7 @@ class CircuitSimulator(LabradServer):
             else:
                 c['T'] = T.asarray
     
-    @setting(101, 'Delta', d0='*v[s]', returns=['', '*v[s]'])
+    @setting(101, 'Delta', d0='*v[]', returns=['', '*v[]'])
     def delta(self, c, d0=None):
         """Set or get the initial node phases for the circuit simulation."""
         if d0 is None:
@@ -93,7 +95,7 @@ class CircuitSimulator(LabradServer):
         else:
             c['d0'] = d0.asarray
     
-    @setting(102, 'Delta Dot', dd0='*v[s]', returns=['', '*v[s]'])
+    @setting(102, 'Delta Dot', dd0='*v[s^-1]', returns=['', '*v[s^-1]'])
     def delta_dot(self, c, dd0=None):
         """Set or get the initial node phase derivs for the circuit simulation.
         
@@ -127,10 +129,6 @@ class CircuitSimulator(LabradServer):
     def simulate(self, c):
         """Run the circuit simulation.
         
-        'd0' specifies the initial phase for each node.
-        'dd0' specifies the initial time-derivative of phase for each node,
-        which is assumed to be zero if nothing is passed in.
-        
         Returns the time it took to run the simulation.
         """
         start = time.time()
@@ -146,6 +144,9 @@ class CircuitSimulator(LabradServer):
         Retrieve the value of a parameter for a particular circuit component,
         as a function of time.  For all components, you can get 'energy', for
         most the 'phase' is also available, as is 'current'.
+
+        In addition, you can get circuit parameters which are not functions
+        of time, such as inductance ('L'), capacitance ('C'), etc. 
         """
         circuit = c['circuit']
         p = getattr(circuit[component], parameter)
@@ -155,6 +156,11 @@ class CircuitSimulator(LabradServer):
     
     @setting(301, 'Energy', returns='*v[J]')
     def energy(self, c):
+        """Get the total energy as a function of time.
+
+        Returns the energy as a function of time for the
+        last simulation run.
+        """
         return c['circuit'].energy()
     
 
