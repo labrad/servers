@@ -1048,7 +1048,6 @@ class QubitServer(LabradServer):
 
         returnValue(srams.keys())
     
-
     @setting(1000, 'Run', stats=['w'],
                           setuppkts=['*((ww){context}, s{server}, ?{((s?)(s?)(s?)...)})'],
                           returns=['*2w'])
@@ -1089,6 +1088,52 @@ class QubitServer(LabradServer):
             setuppkts.append(((long(cxn._cxn.ID), 1L), 'Anritsu Server', tuple(pkt)))
         else:
             setupState=['don''t care']
+
+        for value in c['Experiment']['Memory'].values():
+            value.append(0xF00000)
+
+        p = cxn.ghz_dacs.packet(context = c.ID)
+        for index, fpga in enumerate(fpgas):
+            p.select_device(fpga)
+            if len(c['Experiment']['SRAM'][fpga])>0:
+                p.sram_address(0)
+                p.sram(c['Experiment']['SRAM'][fpga])
+            p.memory(c['Experiment']['Memory'][fpga])
+
+        fpgas.remove(c['Experiment']['Master'])
+        fpgas = [c['Experiment']['Master']] + fpgas
+        p.daisy_chain(fpgas)
+        p.timing_order([self.getQubit(qname)['Timing'][1] for qname in self.Setups[c['Experiment']['Setup']]['Qubits']])
+        p.start_delay([0]*len(fpgas))
+        if setuppkts is None:
+            p.run_sequence(stats)
+        else:
+            p.run_sequence(stats, True, setuppkts, setupState)
+        answer = yield p.send()
+        timing_data = answer.run_sequence.asarray
+        returnValue(timing_data)
+        
+    @setting(1001, 'Run Without Anritsu', stats=['w'],
+                          setuppkts=['*((ww){context}, s{server}, ?{((s?)(s?)(s?)...)})'],
+                          setupState=['*s'],
+                          returns=['*2w'])
+    def run_experiment_without_anritsu(self, c, stats, setuppkts=None, setupState=[]):
+        """Runs the experiment and returns the raw switching data"""
+        if 'Experiment' not in c:
+            raise NoExperimentError()
+
+        fpgas = [fpga for fpga in c['Experiment']['FPGAs']]
+        for fpga in fpgas:
+            if fpga in c['Experiment']['TimerStarted']:
+                if fpga in c['Experiment']['TimerStopped']:
+                    if c['Experiment']['TimerStopped'][fpga]<c['Experiment']['TimerStarted'][fpga]:
+                        raise QubitTimerNotStoppedError(q)
+                else:
+                    raise QubitTimerNotStoppedError(q)
+            else:
+                QubitTimerNotStoppedError(q)
+
+        cxn = self.client
 
         for value in c['Experiment']['Memory'].values():
             value.append(0xF00000)
