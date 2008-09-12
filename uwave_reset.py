@@ -1,3 +1,5 @@
+#!C:\python25\python.exe
+
 from labrad        import util, types as T
 from labrad.server import LabradServer, setting
 from labrad.units  import Unit, mV, ns, deg, MHz
