@@ -49,8 +49,8 @@ def gaussfilter(n, width=0.13):
     x= 1.0  / width * sqrt(log(2.0)/2.0)
     gauss=exp(-linspace(0, x*nr/n, nr, endpoint=False)**2)
     x=exp(-(0.5*x)**2)
-    #gauss -= x
-    #gauss /= (1.0 - x)
+    gauss -= x
+    gauss /= (1.0 - x)
     return gauss
 
 def flatfilter(n, width=0):
