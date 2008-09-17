@@ -1,6 +1,6 @@
 #!c:\python25\python.exe
 
-# Copyright (C) 2007  Matthew Neeley
+# Copyright (C) 2007  Matthew Neeley, Isaac Storch
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@ from labrad.gpib import GPIBManagedServer
 from labrad.server import setting
 from labrad import types as T
 from twisted.internet.defer import inlineCallbacks, returnValue
+from numpy import floor
 
 class XYAttenuatorServer(GPIBManagedServer):
     name = 'XY Attenuator Server'
@@ -73,7 +74,7 @@ class XYAttenuatorServer(GPIBManagedServer):
         """
         val = int(data.value)
         x = yield self.setAtten(c, val%10, XattnDict)
-        y = yield self.setAtten(c, (val/10)*10, YattnDict)
+        y = yield self.setAtten(c, floor(val/10)*10, YattnDict)
         returnValue((x,y))
 
 # commands for X attenuation
