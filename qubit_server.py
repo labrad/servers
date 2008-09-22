@@ -202,7 +202,8 @@ class QubitServer(LabradServer):
 
     @setting(10000, 'Duplicate Context', prototype=['(ww)'])
     def dupe_ctxt(self, c, prototype):
-        if prototype[0]==0:
+        """Duplicate the settings of the specified context in this context."""
+        if prototype[0] == 0:
             prototype = (c.ID[0], prototype[1])
         if prototype not in self.contexts:
             raise ContextNotFoundError(prototype)
