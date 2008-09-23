@@ -1,5 +1,3 @@
-#!C:\python25\python.exe
-
 from labrad        import util, types as T
 from labrad.server import LabradServer, setting
 from labrad.units  import Unit, mV, ns, deg, MHz
@@ -21,7 +19,9 @@ PARAMETERS = [ "Chirp End DAC",
               ("Gate Open Offset",          "ns"),
               ("Gate Closed Offset",        "ns"),
                "Attenuator Device",
-               "Attenuation"]
+               "Attenuation",
+               ("Chirp Delay",              "ns"),
+               "Chirp Number"]
 
 class ResetServer(LabradServer):
     name = 'uWave Reset'
@@ -101,27 +101,36 @@ class ResetServer(LabradServer):
             setupState.append(state)
             
             # get params
-            start = float(pars[(qname, 'Chirp Start DAC')])
-            end = float(pars[(qname, 'Chirp End DAC')])
-            duration = int(pars[(qname, 'Chirp Time')])
-            wait = int(pars[(qname, 'Chirp Wait')])
-            openoff = int(pars[(qname, 'Gate Open Offset')])
-            closedoff = int(pars[(qname, 'Gate Closed Offset')])
+            start = float(pars[qname, 'Chirp Start DAC'])
+            end = float(pars[qname, 'Chirp End DAC'])
+            duration = int(pars[qname, 'Chirp Time'])
+            wait = int(pars[qname, 'Chirp Wait'])
+            openoff = int(pars[qname, 'Gate Open Offset'])
+            closedoff = int(pars[qname, 'Gate Closed Offset'])
+            delay = int(pars[qname, 'Chirp Delay'])
 
-            # build the chirp
+            # build the chirp sequence
             timeArray = array(range(duration))
             dacArray = ((end-start)/duration)*timeArray + start
-            p.sram_analog_data(('Chirp', qid+1), [start]*wait)
-            p.sram_analog_data(('Chirp', qid+1), dacArray)
-            p.sram_analog_data(('Chirp', qid+1), [end]*wait)
 
-            # set up gate
-            p.sram_trigger_delay(('Gate', qid+1), wait + openoff)
-            p.sram_trigger_pulse(('Gate', qid+1), duration + closedoff - openoff)
+            for pulse in range(int(pars[qname, 'Chirp Number'])):
+                # chirp data
+                p.sram_analog_data(('Chirp', qid+1), [start]*wait)
+                p.sram_analog_data(('Chirp', qid+1), dacArray)
+                p.sram_analog_data(('Chirp', qid+1), [end]*wait)
 
-            # trigger
-            p.sram_trigger_delay(('Trigger', qid+1), wait - 40)
-            p.sram_trigger_pulse(('Trigger', qid+1), 20)
+                # set up gate
+                p.sram_trigger_delay(('Gate', qid+1), wait + openoff)
+                p.sram_trigger_pulse(('Gate', qid+1), duration + closedoff - openoff)
+
+                # trigger
+                p.sram_trigger_delay(('Trigger', qid+1), wait - 40)
+                p.sram_trigger_pulse(('Trigger', qid+1), 20)
+
+                # delay for next chirp
+                p.sram_analog_delay(('Chirp', qid+1), delay)
+                p.sram_trigger_delay(('Gate', qid+1), delay)
+                p.sram_trigger_delay(('Trigger', qid+1), delay)
 
         p.memory_call_sram()
         yield p.send()
