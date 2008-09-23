@@ -885,7 +885,7 @@ class FPGAServer(DeviceServer):
             run packet (on the direct ethernet server)
             read lock
         If the packet runs dry, the first time that will go to zero should
-        be the run packet wait time. 
+        be the run packet wait time.
         """
         ans = []
         for server, port in sorted(self.boardGroups.keys()):

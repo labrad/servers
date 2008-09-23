@@ -62,6 +62,11 @@ def getCMD(DAC, value):
 
 
 class QubitBiasServer(LabradServer):
+    """Creates basic sequences for controlling qubit bias.
+
+    These are standard sequences for any qubit experiment, such as
+    resetting and reading out by ramping the measurement squid.
+    """
     name = 'Qubit Bias'
     sendTracebacks = False
                   

@@ -80,13 +80,6 @@ def analyzeData(cutoffs, data):
     isOne = (data/25.0 > abs(cutoffNums)) ^ (cutoffNums < 0)
     state = sum(2**qid * isOne[:,qid] for qid in range(nQubits))
     counts = [sum(state==s) for s in range(states)]
-    #total  = len(data[0])
-    #for pid in range(total):
-    #    n = 0
-    #    for qid in range(len(data)):
-    #        if (data[qid][pid]/25.0>abs(cutoffs[qid][1])) ^ (cutoffs[qid][1]<0):
-    #            n+=2**qid
-    #    counts[n]+=1.0
     return [c*100.0/float(total) for c in counts[1:]]
 
 
@@ -97,30 +90,12 @@ def analyzeDataSeparate(cutoffs, data):
     cutoffNums = numpy.array([c[1] for c in cutoffs])
     isOne = (data/25.0 > abs(cutoffNums)) ^ (cutoffNums < 0)
     counts = sum(isOne)
-    #counts = [0.0]*len(cutoffs)
-    #total  = len(data[0])
-    #for pid in range(total):
-    #    n = 0
-    #    for qid in range(len(data)):
-    #        if (data[qid][pid]/25.0>abs(cutoffs[qid][1])) ^ (cutoffs[qid][1]<0):
-    #            counts[qid]+=1.0
     return [c*100.0/float(total) for c in counts]
 
 
 class BEServer(LabradServer):
+    """Provides basic experiments for bringing up a qubit."""
     name = 'Basic Experiments'
-
-    def initServer(self):
-        self.Contexts=[]
-
-    def getContext(self):
-        if len(self.Contexts):
-            return self.Contexts.pop()
-        else:
-            return self.client.context()
-
-    def returnContext(self, ctxt):
-        self.Contexts.append(ctxt)
                   
     def getQubits(self, ctxt):
         return self.client.qubits.experiment_involved_qubits(context=ctxt)
@@ -128,7 +103,7 @@ class BEServer(LabradServer):
     @inlineCallbacks
     def readParameters(self, c, globalpars, qubits, qubitpars):
         # Make a new packet for the registry
-        p = self.client.registry.packet(context = c.ID)
+        p = self.client.registry.packet(context=c.ID)
         # Load global parameters
         for parameter in globalpars:
             if isinstance(parameter, tuple):
@@ -157,8 +132,8 @@ class BEServer(LabradServer):
         # Build and return parameter dictionary
         result = {}
         for key in ans.settings.keys():
-            if key!="cd":
-                result[key]=ans[key]
+            if key != "cd":
+                result[key] = ans[key]
         returnValue(result)
 
 
@@ -167,7 +142,7 @@ class BEServer(LabradServer):
         """Runs a Squid Steps Sequence for a single Readout Bias"""
         # Make sure we have a single qubit experiment selected
         qubits = yield self.getQubits(ctxt)
-        if len(qubits)!=1:
+        if len(qubits) != 1:
             raise NeedOneQubitError()
         # Get name of qubit
         qubit = qubits[0]
@@ -207,30 +182,32 @@ class BEServer(LabradServer):
         data = yield self.client.qubits.run(stats, context=c.ID)
 
         # Process switching data
-        data = data.asarray[0].reshape(stats,2) / 25.0
+        data = data.asarray[0].reshape(stats, 2) / 25.0
 
         returnValue(data)
 
 
     @inlineCallbacks
     def run_step_edge(self, c, ctxt):
+        cxn = self.client
+        
         # Get statistics
-        stats = yield self.client.registry.get('Stats', context=c.ID)
+        stats = yield cxn.registry.get('Stats', context=c.ID)
 
         # Set up qubit experiment
-        yield self.client.qubits.duplicate_context(ctxt, context=c.ID)
+        yield cxn.qubits.duplicate_context(ctxt, context=c.ID)
 
         # Initialize qubits
-        yield self.client.qubit_bias.initialize_qubits(context = c.ID)
+        yield cxn.qubit_bias.initialize_qubits(context=c.ID)
 
         # Run SRAM to sync up boards
-        yield self.client.qubits.memory_call_sram(context=c.ID)
+        yield cxn.qubits.memory_call_sram(context=c.ID)
         
         # Readout qubits
-        cutoffs = yield self.client.qubit_bias.readout_qubits(context = c.ID)
+        cutoffs = yield cxn.qubit_bias.readout_qubits(context=c.ID)
 
         # Run experiment
-        data = yield self.client.qubits.run(stats, context = c.ID)
+        data = yield cxn.qubits.run(stats, context=c.ID)
 
         returnValue((cutoffs, data))
 
@@ -243,6 +220,7 @@ class BEServer(LabradServer):
         cutoffs, data = yield self.run_step_edge(c, ctxt)
 
         # Convert to us
+        # TODO: use numpy arrays here
         dat = []
         for pid in range(len(data[0])):
             d = []
@@ -283,11 +261,11 @@ class BEServer(LabradServer):
         # Get experiment parameters
         pars = yield self.readParameters(c, globalpars, qubits, qubitpars)
         
-        # Set up qubit experianalyzeDataSeparatement
+        # Set up qubit experiment
         yield self.client.qubits.duplicate_context(ctxt, context=c.ID)
 
         # Initialize qubits
-        yield self.client.qubit_bias.initialize_qubits(context = c.ID)
+        yield self.client.qubit_bias.initialize_qubits(context=c.ID)
 
         # Begin SRAM packet
         p = self.client.qubits.packet(context=c.ID)
@@ -305,10 +283,10 @@ class BEServer(LabradServer):
         yield p.send()
         
         # Readout qubits
-        cutoffs = yield self.client.qubit_bias.readout_qubits(context = c.ID)
+        cutoffs = yield self.client.qubit_bias.readout_qubits(context=c.ID)
 
         # Run experiment
-        data = yield self.client.qubits.run(stats, context = c.ID)
+        data = yield self.client.qubits.run(stats, context=c.ID)
 
         returnValue(analyzeData(cutoffs, data))
 
@@ -320,10 +298,10 @@ class BEServer(LabradServer):
         yield p.send()
         
         # Readout qubits
-        cutoffs = yield self.client.qubit_bias.readout_qubits(context = c.ID)
+        cutoffs = yield self.client.qubit_bias.readout_qubits(context=c.ID)
 
         # Run experiment
-        data = yield self.client.qubits.run(stats, context = c.ID)
+        data = yield self.client.qubits.run(stats, context=c.ID)
 
         returnValue(analyzeDataSeparate(cutoffs, data))
 
