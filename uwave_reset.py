@@ -126,13 +126,13 @@ class ResetServer(LabradServer):
                 p.sram_trigger_pulse(('Gate', qid+1), duration + closedoff - openoff)
 
                 # trigger
-                p.sram_trigger_delay(('Trigger', qid+1), wait - 40)
+                #p.sram_trigger_delay(('Trigger', qid+1), wait - 40)
                 p.sram_trigger_pulse(('Trigger', qid+1), 20)
 
                 # delay for next chirp
                 p.sram_analog_delay(('Chirp', qid+1), delay)
-                p.sram_trigger_delay(('Gate', qid+1), delay)
-                p.sram_trigger_delay(('Trigger', qid+1), delay)
+                p.sram_trigger_delay(('Gate', qid+1), wait - closedoff + delay)
+                p.sram_trigger_delay(('Trigger', qid+1), 2*wait - 20 + duration + delay)
 
         p.memory_call_sram()
         yield p.send()
