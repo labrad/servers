@@ -874,7 +874,7 @@ class FPGAServer(DeviceServer):
             c['master_sync'] = sync
         return sync
 
-    @setting(49, 'Performance Data', returns='*((sw)(*v, v, v, v))')
+    @setting(49, 'Performance Data', returns='*((sw)(*v, *v, *v, *v, *v))')
     def performance_data(self, c):
         """Get data about the pipeline performance.
         
@@ -890,15 +890,11 @@ class FPGAServer(DeviceServer):
         ans = []
         for server, port in sorted(self.boardGroups.keys()):
             group = self.boardGroups[server, port]
-            pageTimes = [T.Value(lock.meanTime(), 's') for lock in group.pageLocks]
-            runTime = T.Value(group.runLock.meanTime(), 's')
-            readTime = T.Value(group.readLock.meanTime(), 's')
-            if len(group.runWaitTimes):
-                runWaitTime = sum(group.runWaitTimes) / len(group.runWaitTimes)
-            else:
-                runWaitTime = 0
-            runWaitTime = T.Value(runWaitTime, 's')
-            ans.append(((server, port), (pageTimes, runTime, runWaitTime, readTime)))
+            pageTimes = [lock.times for lock in group.pageLocks]
+            runTime = group.runLock.times
+            readTime = group.readLock.times
+            runWaitTime = group.runWaitTimes
+            ans.append(((server, port), (pageTimes[0], pageTimes[1], runTime, runWaitTime, readTime)))
         return ans
 
 
