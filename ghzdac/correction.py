@@ -527,6 +527,16 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
                 nfft=n
             else:
                 nfft=fastfftlen(n)
+        elif signal is None:
+            if zerocor:
+                i,q = self.DACzeros(carrierFreq)
+                signal = uint32((int(round(i)) & 0x3FFF) \
+                                << (14 * self.flipChannels) | \
+                                (int(round(q)) & 0x3FFF) \
+                                << (14 * (not self.flipChannels)))
+            else:
+                signal=uint32(0)
+            return resize(signal,n)
         else:
             signal = asarray(signal)
             nfft = alen(signal)
@@ -816,6 +826,10 @@ class DACcorrection:
             zero = self.zero
         else:
             zero = 0
+        if volts and self.clicsPerVolt:
+            fullscale = 0x1FFF / self.clicsPerVolt
+        else:
+            fullscale = 0x1FFF / self.dynamicReserve
 
 
         #evaluate the Fourier transform 'signal'
@@ -826,6 +840,12 @@ class DACcorrection:
                 nfft=fastfftlen(n)
             nrfft=nfft/2+1
             signal=asarray(signal(linspace(0.0, float(nrfft)/nfft, nrfft, endpoint=False))).astype(complex)
+        elif signal is None:
+            signal = int32(round(fullscale*offset+zero))
+            if fitRange:
+                signal = clip(signal,-0x2000,0x1FFF)
+                signal = uint32(signal & 0x3FFF)
+            return signal
         else:
             signal = asarray(signal)
             nrfft = len(signal)
@@ -847,10 +867,6 @@ class DACcorrection:
         signal=irfft(signal*self.lowpass(nfft, self.bandwidth), n=nfft)
         signal = signal[0:n]
 
-        if volts and self.clicsPerVolt:
-            fullscale = 0x1FFF / self.clicsPerVolt
-        else:
-            fullscale = 0x1FFF / self.dynamicReserve
         if rescale:
             rescale = min([1.0, \
                            ( 0x1FFF - zero) / fullscale / max(signal), \
