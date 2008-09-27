@@ -34,6 +34,7 @@ trigger = 0xFL << 28
 DACMAX= 1 << 13 - 1
 DACMIN= 1 << 13
 PERIOD = 2000
+SCOPECHANNEL = 2
 
 def validSBstep(f):
     return round(0.5*numpy.clip(f,2.0/PERIOD,1.0)*PERIOD)*2.0/PERIOD
@@ -252,7 +253,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     yield scope.select_device(scopeID)
     p = scope.packet().\
     reset().\
-    channel(1).\
+    channel(SCOPECHANNEL).\
     trace(1).\
     record_length(5120).\
     average(128).\
@@ -329,7 +330,7 @@ def calibrateDCPulse(cxn,boardname,channel):
     p = scope.packet().\
     select_device(scopeID).\
     reset().\
-    channel(1).\
+    channel(SCOPECHANNEL).\
     trace(1).\
     record_length(5120).\
     average(128).\
