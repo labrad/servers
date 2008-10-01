@@ -108,6 +108,16 @@ class QubitServer(LabradServer):
         self.FOchannels   = [ 'FO 0',  'FO 1']
         self.FOcommands   = [0x100000, 0x200000]
         self.Trigchannels = ['S 0', 'S 1', 'S 2', 'S 3']
+        # autoload all qubits and setups
+        qubits = yield self.list_saved_qubits(None)
+        for qubit in qubits:
+            print 'loading qubit "%s"...' % qubit
+            yield self.load_qubit(None, qubit)
+        setups = yield self.list_saved_setups(None)
+        for setup in setups:
+            print 'loading setup "%s"...' % setup
+            yield self.load_setup(None, setup)
+
 
 
 
