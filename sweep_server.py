@@ -24,20 +24,22 @@ from twisted.internet       import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 from math import floor
-from collections import defaultdict
+import operator
+import numpy
 
-PIPELINE_DEPTH = 8
+REGISTRY_PATH = ['', 'Servers', 'Sweep Server']
+DEFAULT_PIPE_DEPTH = 8
 
 class ContextBusyError(T.Error):
     """The context is currently busy"""
     code = 1
-
+    
 def rangeND(limits):
-    """Return an N-D iterator over a set of limits."""
+    """Iterate over an N-dimensional set of limits."""
     if len(limits):
         cur = [0] * len(limits)
         while cur[0] < limits[0]:
-            yield [c for c in cur]
+            yield list(cur)
             a = len(limits) - 1
             cur[a] += 1
             while (a > 0) and (cur[a] == limits[a]):
@@ -45,22 +47,12 @@ def rangeND(limits):
                 a -= 1
                 cur[a] += 1
 
-def countND(limits):
-    """Return the count of points in an N-D iterator over limits."""
-    if len(limits):
-        c = 1
-        for l in limits:
-            c *= l
-        return c
-    else:
-        return 0
-
-def sweepND(starts, steps, counts, pars):
-    """Return an N-D iterator where each axis goes from start up by step."""
+def sweepND(starts, steps, counts, keys):
+    """An N-dimensional iterator where each axis goes from start up by step."""
     for cur in rangeND(counts):
-        pos = [start+step*count for start,step,count in zip(starts,steps,cur)]
-        yield zip(pos, pars)
-
+        values = [start + step * count for start, step, count in zip(starts, steps, cur)]
+        yield zip(values, keys)
+            
 class SweepServer(LabradServer):
     """Allows the user to run sweeps by calling a server setting repeatedly
     while changing the values of parameters stored in the Registry.  The
@@ -71,71 +63,95 @@ class SweepServer(LabradServer):
     name = 'Sweep Server'
     sendTracebacks = False
 
+    @inlineCallbacks
     def initServer(self):
-        self.contextPool = []
-
+        self.contextPool = set()
+        # load settings and listen for changes
+        self._regCtx = self.client.context()
+        yield self.loadSettings()
+        def registryChanged(c, msg):
+            return self.loadSettings()
+        self.client._addListener(registryChanged, ID=234, context=self._regCtx)
+        self.client.registry.notify_on_change(234, True, context=self._regCtx)
+        
+    @inlineCallbacks
+    def loadSettings(self):
+        """Load settings from the registry."""
+        reg = self.client.registry
+        p = reg.packet(context=self._regCtx)
+        p.cd(REGISTRY_PATH, True)
+        p.dir()
+        ans = yield p.send()
+        dirs, keys = ans.dir
+        if 'Pipe Depth' not in keys:
+            yield reg.set('Pipe Depth', DEFAULT_PIPE_DEPTH, context=self._regCtx)
+        self.pipeDepth = yield reg.get('Pipe Depth', context=self._regCtx)
+        print 'Default Pipe Depth =', self.pipeDepth
+        
     def initContext(self, c):
-        # report message listeners
         c['Progress'] = []
         c['Completion'] = []
         c['Errors'] = []
-
+        c['Data'] = []
+        
     @inlineCallbacks
-    def runPoint(self, c, regpkt, setting, semaphore, sweepvars):
+    def runPoint(self, c, setting, semaphore, regPkt, sweepVars, sendToDataVault=True):
         """Run a single point in a sweep."""
         try:
-            if len(self.contextPool):
-                ctxt = self.contextPool.pop()
-            else:
-                ctxt = self.client.context()
             try:
-                yield regpkt.send(context=ctxt)
+                if len(self.contextPool):
+                    ctxt = self.contextPool.pop()
+                else:
+                    ctxt = self.client.context()
+                yield regPkt.send(context=ctxt)
                 result = yield setting(c.ID, context=ctxt)
             finally:
-                self.contextPool.append(ctxt)
+                self.contextPool.add(ctxt)
                 semaphore.release()
             c['Pos'] += 1
-            for tgt, msg in c['Progress']:
-                self.client._cxn.sendPacket(tgt, c.ID, 0, [(msg, long(c['Pos']))])
-            # TODO: use numpy arrays here if possible
-            # TODO: make data vault saving optional
-            result = result.aslist
-            if len(result) > 0:
-                if isinstance(result[0], list):
-                    result = [sweepvars+res for res in result]
-                else:
-                    result = sweepvars+result
-                yield self.client.data_vault.add(result, context=c.ID)
+            self.notifyAll(c, 'Progress', long(c['Pos']))
+            result = result.asarray
+            if len(result):
+                if len(result.shape) != 1:
+                    sweepVars = numpy.tile([sweepVars], (result.shape[0], 1))
+                result = numpy.hstack((sweepVars, result))
+                if sendToDataVault:
+                    yield self.client.data_vault.add(result, context=c.ID)
+                self.notifyAll(c, 'Data', result)
         except Exception, e:
             if 'Exception' not in c:
                 c['Exception'] = e
-                for tgt, msg in c['Errors']:
-                    self.client._cxn.sendPacket(tgt, c.ID, 0, [(msg, str(e))]) 
+                self.notifyAll(c, 'Errors', str(e))
 
+    def buildRegistryPacket(self, c, sweep):
+        """Build a packet to update registry keys for a sweep point."""
+        p = self.client.registry.packet()
+        p.duplicate_context(c.ID)
+        for value, keys in sweep:
+            for path, key in keys:
+                if len(path):
+                    p.cd(path)
+                    p.override(key, value)
+                    p.cd(len(path))
+                else:
+                    p.override(key, value)
+        return p
+                
     @inlineCallbacks
-    def runSweep(self, c, sweeper, setting):
+    def runSweep(self, c, sweeper, setting, sendToDataVault=True):
         """Run a sweep."""
-        semaphore = defer.DeferredSemaphore(PIPELINE_DEPTH)
+        depth = self.pipeDepth
+        semaphore = defer.DeferredSemaphore(depth)
         for sweep in sweeper:
             if ('Abort' in c) or ('Exception' in c):
                 break
+            regPkt = self.buildRegistryPacket(c, sweep)
+            values = [value for value, keys in sweep]
             yield semaphore.acquire()
-            p = self.client.registry.packet()
-            p.duplicate_context(c.ID)
-            for var in sweep:
-                for reg in var[1]:
-                    if len(reg[0]):
-                        p.cd      (reg[0])
-                        p.override(reg[1], var[0])
-                        p.cd      (len(reg[0]))
-                    else:
-                        p.override(reg[1], var[0])
-            self.runPoint(c, p, setting, semaphore, [v[0] for v in sweep])
+            self.runPoint(c, setting, semaphore, regPkt, values, sendToDataVault)
         # make sure the sweep is done by acquiring every stage
-        for a in range(PIPELINE_DEPTH):
+        for a in range(depth):
             yield semaphore.acquire()
-        for a in range(PIPELINE_DEPTH):
-            semaphore.release()
         if 'Abort' in c:
             c['Abort'].callback(None)
             del c['Abort']
@@ -147,28 +163,13 @@ class SweepServer(LabradServer):
             del c['Busy']
         # send completion notices
         b = ('Abort' not in c) and ('Exception' not in c)
-        for tgt, msg in c['Completion']:
-            self.client._cxn.sendPacket(tgt, c.ID, 0, [(msg, b)]) 
+        self.notifyAll(c, 'Completion', b)
         
-
-    @setting(1, 'Repeat', server=['s'], setting=['s'], count=['w'])
-    def repeat(self, c, server, setting, count):
-        """Call a server setting repeatedly."""
-        if 'Busy' in c:
-            raise ContextBusyError()
-        c['Busy'] = defer.Deferred()
-        if 'Exception' in c:
-            del c['Exception']
-        c['Pos'] = 0
-        yield self.client.refresh()
-        self.runSweep(c, NDsweeper([[1,count,1]]), self.client[server].settings[setting])
-        print 'done'
-        
-
-    @setting(10, 'Simple Sweep', server=['s'], setting=['s'],
-                                 sweeprangesandkeys=['*((vvvs)*(*ss))'],
-                                 returns=['w'])
-    def simple_sweep(self, c, server, setting, sweeprangesandkeys):
+    @setting(10, 'Simple Sweep', server='s', setting='s',
+                                 sweepRangesAndKeys='*((vvvs)*(*ss))',
+                                 sendToDataVault='b',
+                                 returns='w')
+    def simple_sweep(self, c, server, setting, sweepRangesAndKeys, sendToDataVault=True):
         """Run a simple sweep.
 
         The specified setting on the specified server will be called for
@@ -176,30 +177,29 @@ class SweepServer(LabradServer):
         """
         if 'Busy' in c:
             raise ContextBusyError()
-        if len(sweeprangesandkeys):
-            c['Busy'] = defer.Deferred()
-            if 'Exception' in c:
-                del c['Exception']
-            starts = []
-            steps  = []
-            counts = []
-            others = []
-            for rng, keys in sweeprangesandkeys:
-                starts.append(float(rng[0])*Unit(rng[3]))
-                d = rng[1]-rng[0]
-                if d < 0:
-                    s = -abs(rng[2])
-                else:
-                    s = abs(rng[2])
-                steps.append(float(s)*Unit(rng[3]))
-                counts.append(int(floor(d/s+0.000000001))+1)
-                others.append(keys)
-            c['Pos'] = 0
-            yield self.client.refresh()
-            self.runSweep(c, sweepND(starts, steps, counts, others), self.client[server].settings[setting])
-            returnValue(countND(counts))
-        else:
+        if 'Exception' in c:
+            del c['Exception']
+        if not len(sweepRangesAndKeys):
             returnValue(0)
+        c['Busy'] = defer.Deferred()
+        c['Pos'] = 0
+        starts, steps, counts, others = [], [], [], []
+        for (start, stop, step, unit), keys in sweepRangesAndKeys:
+            d = stop - start
+            s = abs(step) if d >= 0 else -abs(step)
+            u = Unit(unit)
+            starts.append(float(start) * u)
+            steps.append(float(s) * u)
+            counts.append(int(floor(d / s + 0.000000001))+1)
+            others.append(keys)
+        # TODO: remove this next line as soon as we have auto-refreshing clients
+        yield self.client.refresh()
+        sweeper = sweepND(starts, steps, counts, others)
+        func = self.client[server].settings[setting]
+        self.runSweep(c, sweeper, func, sendToDataVault)
+        # number of points is the product of the counts
+        total = reduce(operator.mul, counts)
+        returnValue(total)
 
     @setting(50, 'Abort')
     def abort(self, c):
@@ -218,15 +218,20 @@ class SweepServer(LabradServer):
 
     def signupForReport(self, c, name, messageID, active):
         """Add or remove a signup for a particular report message."""
-        l = (c.source, messageID)
+        target = (c.source, messageID)
         if active:
-            if l not in c[name]:
-                c[name].append(l)
+            if target not in c[name]:
+                c[name].append(target)
         else:
-            if l in c[name]:
-                c[name].remove(l)
+            if target in c[name]:
+                c[name].remove(target)
+                
+    def notifyAll(self, c, name, data):
+        """Send a message to everyone listening on a particular message."""
+        for tgt, msg in c[name]:
+            self.client._cxn.sendPacket(tgt, c.ID, 0, [(msg, data)])
 
-    @setting(200, 'Report Progress', messageID=['w'], report=['b'])
+    @setting(200, 'Report Progress', messageID='w', report='b')
     def report_progress(self, c, messageID, report=True):
         """Sign up for message notifications about sweep progress.
 
@@ -235,7 +240,7 @@ class SweepServer(LabradServer):
         """
         self.signupForReport(c, 'Progress', messageID, report)
 
-    @setting(201, 'Report Completion', messageID=['w'], report=['b'])
+    @setting(201, 'Report Completion', messageID='w', report='b')
     def report_completion(self, c, messageID, report=True):
         """Sign up for message notifications about sweep completion.
 
@@ -244,7 +249,7 @@ class SweepServer(LabradServer):
         """
         self.signupForReport(c, 'Completion', messageID, report)
 
-    @setting(202, 'Report Errors', messageID=['w'], report=['b'])
+    @setting(202, 'Report Errors', messageID='w', report='b')
     def report_errors(self, c, messageID, report=True):
         """Sign up for message notifications about sweep errors.
 
@@ -252,6 +257,16 @@ class SweepServer(LabradServer):
         that occurred.
         """
         self.signupForReport(c, 'Errors', messageID, report)
+        
+    @setting(203, 'Report Data', messageID='w', report='b')
+    def report_data(self, c, messageID, report=True):
+        """Sign up for messages containing sweep data.
+        
+        The message will contain data as it would be sent to the
+        data vault, with sweep variables followed by results
+        from the setting called.
+        """
+        self.signupForReport(c, 'Data', messageID, report)
 
     # misc
 
