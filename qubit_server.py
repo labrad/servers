@@ -704,7 +704,7 @@ class QubitServer(LabradServer):
         """Turns the given envelope data into IQ data with the specified Phase and
         Sideband Mixing. The resulting data is added to the specified Channel"""
         chinfo = self.getChannel(c, channel, 'IQs')        
-        tofs = max(len(chinfo['Data'])-SRAMPOSTPAD, 0)
+        tofs = len(chinfo['Data']) - SRAMPREPAD
         t = numpy.arange(len(data)) + tofs
         df = mixfreq.value / 1000.0
         phi = phaseshift.value
@@ -720,7 +720,7 @@ class QubitServer(LabradServer):
         length = int(length)
         data = float(amplitude)*slepian(length, 10.0/length)
         chinfo = self.getChannel(c, channel, 'IQs')        
-        tofs = max(len(chinfo['Data'])-SRAMPOSTPAD, 0)
+        tofs = len(chinfo['Data']) - SRAMPREPAD
         t = numpy.arange(len(data)) + tofs
         df = mixfreq.value / 1000.0
         phi = phaseshift.value
