@@ -19,8 +19,9 @@ from labrad import types as T, util
 from labrad.server import LabradServer, setting
 
 from twisted.python import log
-from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.reactor import callLater
+from twisted.internet.task import LoopingCall
 
 from datetime import datetime
 
@@ -81,10 +82,44 @@ replacements = [('%%%02X' % i, chr(i)) for i in range(32)+range(127,256)] + [('%
 class IBCLGPIBServer(LabradServer):
     name = '%LABRADNODE% IBCL GPIB Bus'
 
-    @inlineCallbacks
+    refreshInterval = 60
+    timelist = [.00001, .00003, .0001, .0003, .001, .003, .01, .03,\
+                .1, .3, 1, 3, 10, 30, 100, 300, 1000]
+    refreshTimeout = 0.3
+
+    def IBCLtimeoutIndex(self, time):
+        found = False
+        for ind, t in enumerate(self.timelist):
+            if time <= t:
+                index = ind+1
+                found = True
+                break
+        if not found:
+            index = 0   # this means no timeout is in effect
+        return index
+    
     def initServer(self):
-        # select first controller
-        name = (yield self.client.ibcl.controllers())[0]
+        # start refreshing only after we have started serving
+        # this ensures that we are added to the list of available
+        # servers before we start sending messages
+        self.devices = {}
+        self.ctrls = {}
+        self.keepRefreshing = True
+        def startLater(self):
+            self.refreshLoop = self.startRefreshLoop()
+        callLater(0.1, startLater, self)
+
+    @inlineCallbacks
+    def stopServer(self):
+        if hasattr(self, 'refreshLoop'):
+            self.keepRefreshing = False
+            yield self.refreshLoop
+
+    def initContext(self, c):
+        c['timeout'] = T.Value(0.3, 's')
+
+    @inlineCallbacks
+    def initController(self, name):
         p = self.client.ibcl.packet()\
                             .select(name)\
                             .command('cold')
@@ -99,35 +134,27 @@ class IBCLGPIBServer(LabradServer):
         print (yield self.client.ibcl.debug())
         if 'addr' in res.settings:
             self.buffer = int(res['addr'][0][0])
-        yield self.refresh_devices()
-
-    def initContext(self, c):
-        c['timeout'] = 10
-        c['address'] = 6
     
-    @setting(0, 'Address', addr=['s', 'w'], returns=['w'])
+    @setting(0, 'Address', addr=['s'], returns=['s'])
     def address(self, c, addr=None):
         """Get or set the GPIB address."""
         if addr is not None:
-            c['address'] = int(addr)
-        return c['address']
-    
-    @setting(1, 'Mode', data=['w'], returns=['w'])
-    def mode(self, c, data=None):
-        """Get or set the GPIB read/write mode.
-        NOTES:
-        Right now, setting the mode does nothing in this server."""
-        if data is not None:
-            c['mode'] = mode
-        return c['mode']
+            c['addr'] = addr
+        return c['addr']
+
+    @setting(1, 'Refresh Timeout', time=['v[s]'])
+    def refresh_timeout(self, c, time=None):
+        """Get or set the GPIB timeout used by this server for refreshing devices."""
+        if time is not None:
+            self.refreshTimeout = time
+        return self.refreshTimeout
         
-    @setting(2, 'Timeout', time=['v[ms]','w'], returns=['v[s]'])
+    @setting(2, 'Timeout', time=['v[s]'], returns=['v[s]'])
     def timeout(self, c, time=None):
         """Get or set the GPIB timeout.
 
         NOTES:
         Only the following timeouts are allowed:
-        0 s,
         10 us,
         30 us,
         100 us,
@@ -144,77 +171,116 @@ class IBCLGPIBServer(LabradServer):
         30 s,
         100 s,
         300 s,
-        1000 s. 
+        1000 s,
+        infinite s.
         Function rounds up."""
-        timelist = [0, .00001, .00003, .0001, .0003, .001, .003, .01, .03,\
-                    .1, .3, 1, 3, 10, 30, 100, 300, 1000]
+
         if time is not None:
-            for ind, t in enumerate(timelist):
-                if time*1000 <= t:
-                    c['timeout'] = ind
-                    break
-        return timelist[c['timeout']]
-
-    @setting(3, 'Write', data=['s'], returns=['*b'])
-    def write(self, c, data):
-        """Send GPIB data"""
-        if not ('address' in c):
-            raise Exception("No address selected!")
-        if not ('timeout' in c):
-            raise Exception("No timeout selected!")
-        res = yield self.writeGPIB(c['address'], c['timeout'], data)
-        returnValue(res)
-
-    @setting(4, 'Read', count=['w'], returns=['s*b'])
-    def read(self, c, count=10000):
-        """Reads GPIB data"""
-        if count>10000:
-            count=10000
-        if not ('address' in c):
-            raise Exception("No address selected!")
-        if not ('timeout' in c):
-            raise Exception("No timeout selected!")
-        res = yield self.readGPIB(c['address'], c['timeout'], count)
-        returnValue(res)
+            c['timeout'] = time
+        return c['timeout']
     
     @setting(5, 'Controllers', returns=['*s: Controllers'])
     def controllers(self, c):
         """Request a list of available IBCL controllers."""
-        res = yield self.client.ibcl.controllers()
-        returnValue(res)
+        returnValue(self.ctrls)
 
-    @setting(20, 'List Devices', bytes=['w'], returns=['*(w{GPIB ID}, s{device name})'])
-    def list_devices(self, c, bytes=None):
+    @setting(20, 'List Devices', returns=['*s'])
+    def list_devices(self, c):
         """Get a list of devices."""
-        return self.devicelist
+        return sorted(self.devices.keys())
+
+    @inlineCallbacks
+    def startRefreshLoop(self):
+        while self.keepRefreshing:# & 'IBCL' in self.client.servers:
+            try:
+                yield self.refresh_devices()
+            except:
+                import traceback
+                print "An error occured while refreshing devices:"
+                traceback.print_exc()
+            if self.keepRefreshing:
+                yield util.wakeupCall(self.refreshInterval)
     
-    @setting(30, 'Refresh Devices')
-    def refresh_devices(self, c=None):
+    @inlineCallbacks
+    def refresh_devices(self):
         """Refresh the device list.
         NOTES:
         This setting uses the timeout set for this context (0.3 s by default)"""
-        self.devicelist = []
-        print "Scanning for devices..."
-        if c is None:
-            tmo = 10    # 0.3 s
+        
+        # refresh controllers
+        oldCont = self.ctrls
+        yield self.client.refresh()
+        self.ctrls = yield self.client.ibcl.controllers()
+        newCont = set(self.ctrls) - set(oldCont)
+        for cont in newCont:
+            self.initController(cont)
+            
+        # look for devices at every possible address
+        if not len(self.ctrls):
+            print "There are no controllers connected."
         else:
-            tmo = c['timeout']
-        for addr in range(0,32):
-            result = yield self.writeGPIB(addr, tmo, '*IDN?')
-            if not result[15]:
-                idnstr = (yield self.readGPIB(addr, tmo))[0]
-                if idnstr is not '':
-                    mfr, model = [s.strip() for s in idnstr.split(',')][:2]
-                    self.devicelist.append((addr, mfr + ' ' + model))
-                    print "%2d - %s" % (addr, mfr[0:10] + ' ' + model[0:10])
-                else:    
-                    print "%2d - " % addr
-            else:
-                print "%2d - " % addr
+            newdevices = {}
+            for cont in self.ctrls:
+                print cont + " scanning for devices..."
+                for gpibaddr in range(0,32):
+                    addr = cont + '::' + str(gpibaddr)
+                    if addr not in self.devices.keys():     # ignores devices already connected (cannot disconnect)
+                        result = yield self.writeGPIB(addr, self.refreshTimeout, '*IDN?')
+                        if not result[15]:
+                            idnstr = (yield self.readGPIB(addr, self.refreshTimeout))[0]
+                            if idnstr is not '':
+                                mfr, model = [s.strip() for s in idnstr.split(',')][:2]
+                                newdevices[addr] = mfr + ' ' + model
+                                print "%2d - %s" % (gpibaddr, mfr[0:10] + ' ' + model[0:10])
+                            else:
+                                newdevices[addr] = ''
+                                print "%2d - something" % gpibaddr
+                        else:
+                            print "%2d - " % gpibaddr
+                    else:
+                        print "%2d - device already connected" % gpibaddr
+            # tell the Device Manager about new additions
+            for addr in newdevices.keys():
+                self.devices[addr] = newdevices[addr]
+                self.sendDeviceMessage('GPIB Device Connect', addr)
+            
+    def sendDeviceMessage(self, msg, addr):
+        print msg + ': ' + addr
+        self.client.manager.send_named_message(msg, (self.name, addr))
+        
+    @setting(3, 'Write', data=['s'], returns=[''])
+    def write(self, c, data):
+        """Send GPIB data"""
+        if not ('addr' in c):
+            raise Exception("No address selected!")
+        if not ('timeout' in c):
+            raise Exception("No timeout selected!")
+        state = yield self.writeGPIB(c['addr'], c['timeout'], data, c.ID)
 
+    @setting(4, 'Read', bytes=['w'], returns=['s'])
+    def read(self, c, bytes=None):
+        """Reads GPIB data"""
+        if not ('addr' in c):
+            raise Exception("No address selected!")
+        if not ('timeout' in c):
+            raise Exception("No timeout selected!")
+        totalres = ""
+##        if bytes is None or bytes == 0:
+            # read until carriage return
+        for block in range(bytes/10000):
+            res, state = yield self.readGPIB(c['addr'], c['timeout'], 10000, c.ID)
+            totalres += res
+        if bytes%10000 > 0:
+            res, state = yield self.readGPIB(c['addr'], c['timeout'], bytes%10000, c.ID)
+            totalres += res
+        returnValue(totalres)
+        
     @inlineCallbacks
-    def readGPIB(self, addr, timeout, count=1000):
-        res = yield self.client.ibcl.command('%X %X %X %X read' % (addr, self.buffer, count, timeout))
+    def readGPIB(self, addr, timeout, bytes=1000, ctxt=(0,0)):
+        cont, gpibaddr = addr.split('::')
+        yield self.client.ibcl.select(cont, context=ctxt)   # select controller
+        tmo = self.IBCLtimeoutIndex(timeout)
+        res = yield self.client.ibcl.command('%X %X %X %X read' % (int(gpibaddr), self.buffer, bytes, tmo), timeout+0.1, context=ctxt)
         state = int(res[0][0],16)
         state = [(state & 2**b)>0 for b in range(16)]
         res = res[0][1]
@@ -224,9 +290,12 @@ class IBCLGPIBServer(LabradServer):
         returnValue((res, state))
 
     @inlineCallbacks
-    def writeGPIB(self, addr, timeout, data):
-        res = yield self.client.ibcl.command('%X " %s" %X write' % (addr, data, timeout))
-        state = int(res[0][0],16)
+    def writeGPIB(self, addr, timeout, data, ctxt=(0,0)):
+        cont, gpibaddr = addr.split('::')
+        yield self.client.ibcl.select(cont, context=ctxt)   # select controller
+        tmo = self.IBCLtimeoutIndex(timeout)
+        res = yield self.client.ibcl.command('%X " %s" %X write' % (int(gpibaddr), data, tmo), timeout+0.1, context=ctxt)
+        state = int(res[0][0], 16)
         state = [(state & 2**b)>0 for b in range(16)]
         returnValue(state)
     

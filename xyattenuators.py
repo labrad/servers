@@ -27,15 +27,14 @@ class XYAttenuatorServer(GPIBManagedServer):
     deviceIdentFunc = 'identify_device'
 
     @inlineCallbacks
-    def setAtten(self, c, data, commands):
+    def setAtten(self, c, val, commands):
         """Helper method to set either the X or Y attenuation.
 
         This method looks up the desired attenuation and gpib
         command in the provided dictionary.
         """
         dev = self.selectedDevice(c)
-        val = int(data.value)
-        if val not in dictionary:
+        if val not in commands.keys():
             raise Exception('Invalid attenuation value.')
 
         yield dev.write(commands[val])
@@ -46,7 +45,9 @@ class XYAttenuatorServer(GPIBManagedServer):
     @setting(1000, server='s', address='s', idn='s')
     def identify_device(self, c, server, address, idn=None):
         devices = [('ADR GPIB Bus', 'GPIB0::28'),
-                   ('DR GPIB Bus', 'GPIB0::28')]
+                   ('DR GPIB Bus', 'GPIB0::28'),
+                   ('Twins IBCL GPIB Bus', 'ProbeStation GPIB-422CT::28'),
+                   ('T1000 IBCL GPIB Bus', 'T1000 GPIB-422CT::28')]
         if (server, address) in devices:
             return self.deviceName
 
@@ -56,7 +57,8 @@ class XYAttenuatorServer(GPIBManagedServer):
 
         Allowed values of are 0, 1, 2, ... 11 dB.
         """
-        return self.setAtten(c, data, XattnDict)
+        val = int(data.value)
+        return self.setAtten(c, val, XattnDict)
 
     @setting(10001, "Y Atten", data=['v[dB]'], returns=['v[dB]'])
     def y_atten(self, c, data):
@@ -64,13 +66,15 @@ class XYAttenuatorServer(GPIBManagedServer):
 
         Allowed values are 0, 10, 20, ... 70 dB.
         """
-        return self.setAtten(c, data, YattnDict)
+        val = int(data.value)
+        return self.setAtten(c, val, YattnDict)
 
     @setting(10002, "Total Atten", data=['v[dB]'], returns=['v[dB]v[dB]'])
     def total_atten(self, c, data):
         """Set the total attenuation on X and Y channels (connected in series).
 
-        Allowed values of are 0, 1, 2, ... 81 dB.
+        Allowed values of are 0, 1, 2, ... 79 dB.
+        Note: use x_atten and y_atten to go to 80 and 81 dB
         """
         val = int(data.value)
         x = yield self.setAtten(c, val%10, XattnDict)
