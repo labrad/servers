@@ -15,14 +15,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from labrad import types, util
+from labrad.types import Value
 from labrad.server import LabradServer, setting
 from labrad.errors import Error
-from twisted.python import log
-from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
-
-import re
 
 class NoConnectionError(Error):
     """You need to connect first."""
@@ -31,22 +27,6 @@ class NoConnectionError(Error):
 class PreampServer(LabradServer):
     name = 'DC Rack'
 
-    PossibleLinks = [{'Server': 'governator_serial_server',
-                      'Port':   'COM3',
-                      'Name':   'Gov Loopback'},
-                     {'Server': 'electronicsroom_serial_server',
-                      'Port':   'COM1',
-                      'Name':   'Electronics Room'},
-                     {'Server': 'dr_serial_server',
-                      'Port':   'COM8',
-                      'Name':   'DR Lab'},
-                     {'Server': 't1000_serial_server',
-                      'Port':   'COM1',
-                      'Name':   'T1000 Lab'},
-                     {'Server': 'adr_serial_server',
-                      'Port':   'COM1',
-                      'Name':   'ADR Lab'}]
-
     @inlineCallbacks
     def initServer(self):
         self.Links = []
@@ -54,29 +34,42 @@ class PreampServer(LabradServer):
 
     @inlineCallbacks
     def findLinks(self):
+        # load from the registry
+        reg = self.client.registry()
+        yield reg.cd(['', 'Servers', 'DC Rack', 'Links'], True)
+        dirs, keys = yield reg.dir()
+        p = reg.packet()
+        for k in keys:
+            p.get(k, key=k)
+        ans = yield p.send()
+        possibleLinks = dict((k, ans[k]) for k in keys)
+        
+        # try to connect
         cxn = self.client
-        for S in self.PossibleLinks:
-            if S['Server'] in cxn.servers:
-                print 'Checking %s...' % S['Name']
-                ser = cxn.servers[S['Server']]
-                ports = (yield ser.list_serial_ports())
-                if S['Port'] in ports:
-                    print '  Found %s on %s' % (S['Port'], S['Server'])
-                    self.Links += [{'Server': ser,
-                                    'ServerName': S['Server'],
-                                    'Port': S['Port'],
-                                    'Name': S['Name']}]
+        for name, (server, port) in possibleLinks.items():
+            if server in cxn.servers:
+                print 'Checking %s...' % name
+                ser = cxn.servers[server]
+                ports = yield ser.list_serial_ports()
+                if port in ports:
+                    print '  Found %s on %s' % (port, server)
+                    self.Links.append({
+                        'Server': ser,
+                        'ServerName': server,
+                        'Port': port,
+                        'Name': name
+                    })
         print 'Server ready'
 
 
-    @setting(10, 'Get Link List', returns=['*s'])
+    @setting(10, 'Get Link List', returns='*s')
     def list_links(self, c):
         """Requests a list of available serial links (COM ports on servers) to talk to preamps
         """
         return [L['Name'] for L in self.Links]
 
 
-    @setting(11, 'Connect', name=['s'], returns=['s'])
+    @setting(11, 'Connect', name='s', returns='s')
     def connect(self, c, name):
         """Opens the link to talk to preamp."""
         allLinks = [L['Name'] for L in self.Links]
@@ -88,8 +81,7 @@ class PreampServer(LabradServer):
             c['Link'] = ''
 
         if c['Name'] == name:
-            yield c['Link']
-            return
+            returnValue(c['Link'])
 
         for L in self.Links:
             if L['Name'] == name:
@@ -110,7 +102,7 @@ class PreampServer(LabradServer):
         returnValue(c['Link'])
 
 
-    @setting(12, 'Disconnect', returns=[''])
+    @setting(12, 'Disconnect', returns='')
     def disconnect(self, c):
         """Closes the link to talk to preamp."""
         if 'Server' in c:
@@ -119,7 +111,7 @@ class PreampServer(LabradServer):
             c['Name'] = ''
 
 
-    @setting(20, 'Select Card', data=['w'], returns=['w'])
+    @setting(20, 'Select Card', data='w', returns='w')
     def select_card(self, c, data):
         """Sends a select card command."""
         server = self.getServer(c)
@@ -142,7 +134,7 @@ class PreampServer(LabradServer):
             keys = sorted(settings.keys())
 
         if data is None:
-            returnValue(keys)
+            return keys
 
         if data not in settings:
             raise Error('Allowed commands: %s.' % ', '.join(keys))
@@ -151,7 +143,7 @@ class PreampServer(LabradServer):
         return d.addCallback(lambda r: data)
 
 
-    @setting(30, 'Analog Bus', ID=['w'], channel=['s'],
+    @setting(30, 'Analog Bus', ID='w', channel='s',
                  returns=['s', '*s'])
     def abus(self, c, ID, channel=None):
         """Select channel for output to analog bus.
@@ -163,7 +155,7 @@ class PreampServer(LabradServer):
         return self.doBusCmd(c, channel, settings)
 
 
-    @setting(35, 'Digital Bus', ID=['w'], channel=['s'],
+    @setting(35, 'Digital Bus', ID='w', channel='s',
                  returns=['s', '*s'])
     def dbus(self, c, ID, channel=None):
         """Select channel for output to digital bus.
@@ -192,10 +184,10 @@ class PreampServer(LabradServer):
                 (data[3] & 0xFFFF)
 
     @setting(40, 'Register',
-                 channel=['s'],
+                 channel='s',
                  data=['w: Lowest 24 bits: Register content',
                        '(wwww): High Pass, Low Pass, Polarity, DAC'],
-                 returns=['w'])
+                 returns='w')
     def register(self, c, channel, data):
         """Sends a command to the specified register."""
         server = self.getServer(c)
@@ -211,8 +203,8 @@ class PreampServer(LabradServer):
     @setting(50, 'Ident',
                  timeout=[': Use a read timeout of 1s',
                           'v[s]: Use this read timeout'],
-                 returns=['s'])
-    def ident(self, c, timeout=types.Value(1, 's')):
+                 returns='s')
+    def ident(self, c, timeout=Value(1, 's')):
         """Sends an identification command."""
         server = self.getServer(c)
         p = server.packet()
@@ -233,7 +225,7 @@ class PreampServer(LabradServer):
     @setting(60, 'LEDs',
                  data=['w: Lowest 3 bits: LED flags',
                        '(bbb): Status of BP LED, FP FOout flash, FP Reg. Load Flash'],
-                 returns=['w'])
+                 returns='w')
     def LEDs(self, c, data):
         """Sets LED status."""
         server = self.getServer(c)
@@ -245,7 +237,7 @@ class PreampServer(LabradServer):
         returnValue(data & 7)
 
 
-    @setting(70, 'Init DACs', returns=['w'])
+    @setting(70, 'Init DACs', returns='w')
     def InitDACs(self, c):
         """Initialize the DACs."""
         server = self.getServer(c)
