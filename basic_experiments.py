@@ -153,9 +153,9 @@ class BEServer(LabradServer):
         # Set up qubit reset for negative reset
         p = self.client.registry.packet(context=c.ID)
         p.get     ('Stats')
-        p.cd      (qubit)
+        p.cd      ([qubit, 'Bias'])
         p.override('Operating Bias', -2.5*V)
-        p.cd      (1)
+        p.cd      (2)
         ans = yield p.send()
         stats = ans.get
 
@@ -167,9 +167,9 @@ class BEServer(LabradServer):
 
         # Set up qubit reset for positive reset
         p = self.client.registry.packet(context=c.ID)
-        p.cd      (qubit)
+        p.cd      ([qubit, 'Bias'])
         p.override('Operating Bias', 2.5*V)
-        p.cd      (1)
+        p.cd      (2)
         yield p.send()
 
         # Add sequence for positive reset
