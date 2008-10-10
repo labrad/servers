@@ -23,23 +23,23 @@ from twisted.python         import log
 from twisted.internet       import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 
-INIT_PARAMETERS = [('Reset Bias Low',          'mV'),
-                   ('Reset Bias High',         'mV'),
-                   ('Reset Settling Time',     'us'),
-                    'Reset Cycles',
-                   ('Operating Bias',          'mV'),
-                   ('Operating Settling Time', 'us'),
-                   ('Squid Zero Bias',         'mV')]
+INIT_PARAMETERS = [('Reset Bias Low',          'v[mV]', -1000.0*mV),
+                   ('Reset Bias High',         'v[mV]', -1000.0*mV),
+                   ('Reset Settling Time',     'v[us]',     4.3*us),
+                   ('Reset Cycles',            'w',      long(0)  ),
+                   ('Operating Bias',          'v[mV]',    50.0*mV),
+                   ('Operating Settling Time', 'v[us]',    40.0*us), 
+                   ('Squid Zero Bias',         'v[mV]',    40.0*us)]
 
-READ_PARAMETERS = [('Readout Bias',            'mV'),
-                   ('Readout Settling Time',   'us'),
-                   ('Squid Ramp Delay',        'us'),
-                   ('Squid Ramp Start',        'mV'),
-                   ('Squid Ramp End',          'mV'),
-                   ('Squid Ramp Time',         'us'),
-                   ('Squid Zero Bias',         'mV'),
-                   ('Idle Time',               'us'),
-                   ('|1>-State Cutoff',        'us')]
+READ_PARAMETERS = [('Readout Bias',            'v[mV]',  -500.0*mV),
+                   ('Readout Settling Time',   'v[us]',    10.0*us),
+                   ('Squid Ramp Delay',        'v[us]',     0.0*us),
+                   ('Squid Ramp Start',        'v[mV]',   500.0*mV),
+                   ('Squid Ramp End',          'v[mV]',  1500.0*mV),
+                   ('Squid Ramp Time',         'v[us]',    15.0*us),
+                   ('Squid Zero Bias',         'v[mV]',     0.0*mV),
+                   ('Idle Time',               'v[us]',     4.3*us),
+                   ('|1>-State Cutoff',        'v[us]',    10.0*us)]
 
 def DAC0(V):
     V = int(V*65535.0/2500.0) & 0xFFFF
@@ -81,17 +81,13 @@ class QubitBiasServer(LabradServer):
         p.duplicate_context(c.ID)
         for qubit in qubits:
             # Change into qubit directory
-            p.cd(qubit)
+            p.cd([qubit, 'bias'], True)
             for parameter in parameters:
-                if isinstance(parameter, tuple):
-                    name, units = parameter
-                    # Load setting with units
-                    p.get(name, 'v[%s]' % units, key=(qubit, name))
-                else:
-                    # Load setting without units
-                    p.get(parameter, key=(qubit, parameter))
+                # Load setting
+                name, typ, default = parameter
+                p.get(name, typ, True, default, key=(qubit, name))
             # Change back to root directory
-            p.cd(1)
+            p.cd(2)
         # Get parameters
         ans = yield p.send()
         # Build and return parameter dictionary
