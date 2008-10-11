@@ -40,6 +40,15 @@ SPECTROSCOPYPARS = SCURVEPARS + \
                     ("Resonance Frequency",       "Spectroscopy",  "Frequency",           "v[GHz]",   6.5*GHz),
                     ("Spectroscopy Power",        "Spectroscopy",  "Power",               "v[dBm]", -30.0*dBm)]
 
+SPEC2DPARS =       SCURVEPARS + \
+                   [("Microwave Offset",          "Timing",        "Microwave Offset",    "v[ns]",   50.0*ns ),
+                    ("Spectroscopy Pulse Length", "Spectroscopy",  "Pulse Length",        "v[ns]",   2000*ns ),
+                    ("Operating Bias",            "Bias",          "Operating Bias",      "v[V]",    0.05*V  ),
+                    ("Frequency Shift",           "Spectroscopy",  "dFrequency",          "v[GHz]",   6.5*GHz),
+                    ("Measure Calibration",       "Measure Pulse", "Calibration",         "vv",     (1.0,1.0)),
+                    ("Frequency Calibration",     "Spectroscopy",  "Calibration",         "vvv",(1.0,1.0,1.0)),
+                    ("Spectroscopy Power",        "Spectroscopy",  "Power",               "v[dBm]", -30.0*dBm)]
+
 TOPHATPARS =       SCURVEPARS + \
                    [("Microwave Offset",          "Timing",        "Microwave Offset",    "v[ns]",   50.0*ns ),
                     ("Carrier Power",             "Microwaves",    "Carrier Power",       "v[dBm]",   2.7*dBm), 
@@ -375,6 +384,51 @@ class BEServer(LabradServer):
         # Run experiment and return result
         data = yield self.run_qubits(c, p, pars['Stats'])
         returnValue(data)
+
+
+    @setting(31, '2D Spectroscopy', ctxt=['ww'], returns=['*v'])
+    def spec2D(self, c, ctxt):
+        """Runs a Spectroscopy Sequence using the Operating Bias to calculate the
+        Measure Pulse Amplitude and Resonance Frequency. Returns the frequency of
+        each data point."""
+        # Initialize experiment
+        qubits, pars, p = yield self.init_qubits(c, ctxt, GLOBALPARS, SPEC2DPARS)
+
+        frqs = []
+
+        # Build SRAM
+        for qid, qname in enumerate(qubits):
+            # Caluclate frequency and measure pulse amplitude
+            bias = float(pars[(qname, 'Operating Bias'       )])
+            fcal =       pars[(qname, 'Frequency Calibration')]
+            mcal =       pars[(qname, 'Measure Calibration'  )]
+            
+            frq =  (float(fcal[0])*bias*bias + float(fcal[1])*bias + float(fcal[2]))**4 + float(pars[(qname, 'Frequency Shift')])
+            mpa =                              float(mcal[0])*bias + float(mcal[1])
+            
+            # Add Microwave Pulse
+            p.experiment_turn_off_deconvolution(('uWaves', qid+1))
+            p.experiment_set_anritsu(('uWaves', qid+1), frq,
+                                                        pars[(qname, 'Spectroscopy Power' )])
+            p.sram_iq_delay         (('uWaves', qid+1), pars[(qname, 'Microwave Offset')]+50*ns)
+            p.sram_iq_envelope      (('uWaves', qid+1), [1.0]*int(pars[(qname, 'Spectroscopy Pulse Length')]), 0.0, 0.0)
+            
+            # Add Measure Delay
+            p.sram_analog_delay (('Measure', qid+1), 50*ns+pars[(qname, 'Measure Offset')]+ \
+                                                           pars[(qname, 'Spectroscopy Pulse Length')])
+            
+            # Measure Pulse
+            meastop  = int  (pars[(qname, "Measure Pulse Top Length" )])
+            meastail = int  (pars[(qname, "Measure Pulse Tail Length")])
+            measamp  = mpa
+            measpuls = [measamp]*meastop + [(meastail - t - 1)*measamp/meastail for t in range(meastail)]
+            p.sram_analog_data  (('Measure', qid+1), measpuls)
+
+            frqs.append(frq)
+
+        # Run experiment and return result
+        data = yield self.run_qubits(c, p, pars['Stats'])
+        returnValue(frqs+data)
         
 
     @setting(40, 'TopHat Pulse', ctxt=['ww'], returns=['*v'])
