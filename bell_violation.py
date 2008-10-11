@@ -25,7 +25,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 
 import numpy
 
-GLOBALPARS = [ "Stats" ];
+GLOBALPARS = [ "Stats", "Sequence" ];
 
 QUBITPARAMETERS = [("Microwave Offset",          "ns" ),
                    ("Resonance Frequency",       "GHz"),
@@ -46,7 +46,9 @@ BELLPARAMETERS  = [ "Pi Pulse Amplitude",
                    ("Coupling Time",             "ns" ),
 
                    ("Bell Pulse Length",         "ns" ),
-              
+                    "Bell Pulse Bias Shift",
+                   ("Bell Pulse Frequency Shift","GHz"),
+
                     "Bell Pulse Amplitude",
                    ("Bell Pulse Phase",          "rad"),
               
@@ -155,7 +157,11 @@ class VoBIServer(LabradServer):
         qs.duplicate_context(cctxt, context=c.ID)
 
         # Run all measurement combinations as one sequence
-        for op in range(ops):
+        for o in range(ops):
+            if ops==1:
+                op = pars["Sequence"]
+            else:
+                op = o
 
             # Reset Qubits
             yield qb.initialize_qubits(context=c.ID)
@@ -186,53 +192,71 @@ class VoBIServer(LabradServer):
                 if op==0:
                     p.sram_iq_slepian   (('uWaves',  qid+1), pars[(qname, "Bell Pulse Amplitude"     )],
                                                              pars[(qname, "Bell Pulse Length"        )],
-                                                       float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
+                                                       float(pars[(qname, 'Sideband Frequency'       )]+
+                                                             pars[(qname, 'Bell Pulse Frequency Shift')])*1000.0,
                                                              pars[(qname, "Bell Pulse Phase"         )])
                 # A', B or B', A
                 if op in [1,2]:
                   if ((op+qid) % 2)==0:
                     p.sram_iq_slepian   (('uWaves',  qid+1), pars[(qname, "Bell Pulse Amplitude"     )],
                                                              pars[(qname, "Bell Pulse Length"        )],
-                                                       float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
+                                                       float(pars[(qname, 'Sideband Frequency'       )]+
+                                                             pars[(qname, 'Bell Pulse Frequency Shift')])*1000.0,
                                                              pars[(qname, "Bell Pulse Phase"         )])
                   else:
                     p.sram_iq_slepian   (('uWaves',  qid+1), pars[(qname, "Bell Pulse Amplitude'"    )],
                                                              pars[(qname, "Bell Pulse Length"        )],
-                                                       float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
+                                                       float(pars[(qname, 'Sideband Frequency'       )]+
+                                                             pars[(qname, 'Bell Pulse Frequency Shift')])*1000.0,
                                                              pars[(qname, "Bell Pulse Phase'"        )])
                 # A', B'
                 if op==3:
                     p.sram_iq_slepian   (('uWaves',  qid+1), pars[(qname, "Bell Pulse Amplitude'"    )],
                                                              pars[(qname, "Bell Pulse Length"        )],
-                                                       float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
+                                                       float(pars[(qname, 'Sideband Frequency'       )]+
+                                                             pars[(qname, 'Bell Pulse Frequency Shift')])*1000.0,
                                                              pars[(qname, "Bell Pulse Phase'"        )])
                 # A'
                 if (op==4) and (qid==0):
                     p.sram_iq_slepian   (('uWaves',  qid+1), pars[(qname, "Bell Pulse Amplitude'"    )],
                                                              pars[(qname, "Bell Pulse Length"        )],
-                                                       float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
+                                                       float(pars[(qname, 'Sideband Frequency'       )]+
+                                                             pars[(qname, 'Bell Pulse Frequency Shift')])*1000.0,
                                                              pars[(qname, "Bell Pulse Phase'"        )])
                 # B
                 if (op==5) and (qid==1):
                     p.sram_iq_slepian   (('uWaves',  qid+1), pars[(qname, "Bell Pulse Amplitude"     )],
                                                              pars[(qname, "Bell Pulse Length"        )],
-                                                       float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
+                                                       float(pars[(qname, 'Sideband Frequency'       )]+
+                                                             pars[(qname, 'Bell Pulse Frequency Shift')])*1000.0,
                                                              pars[(qname, "Bell Pulse Phase"         )])
 
-                # Measure Delay
-                measofs = 50 +                           int(pars[(qname, "Measure Offset"           )]) + \
+                # Add measure delay, allowing for negative numbers
+                totmeasdel = 50 +                        int(pars[(qname, "Measure Offset"           )]) + \
                                                          int(pars[(qname, "Pi Pulse Length"          )]) + \
                                                          int(pars[(qname, "Coupling Time"            )]) + \
                                                          int(pars[(qname, "Bell Pulse Length"        )]) + \
                                                          int(pars[(qname, "Measure Pulse Delay"      )])
-                p.sram_analog_data (('Measure', qid+1), [float(pars[(qname, "Operating Bias Shift")])]*measofs)
+                    
+                # Wait until Coupling is done
+                measofs = max(min(totmeasdel, 50 +       int(pars[(qname, "Measure Offset"           )]) + \
+                                                         int(pars[(qname, "Pi Pulse Length"          )]) + \
+                                                         int(pars[(qname, "Coupling Time"            )])), 0)
+                if measofs>0:
+                    p.sram_analog_data (('Measure', qid+1), [float(pars[(qname, "Operating Bias Shift"   )])]*measofs)
 
-                # Measure Pulse
-                meastop  = int  (pars[(qname, "Measure Pulse Top Length" )])
-                meastail = int  (pars[(qname, "Measure Pulse Tail Length")])
-                measamp  = float(pars[(qname, "Measure Pulse Amplitude"  )])/1000.0
-                measpuls = [measamp]*meastop + [(meastail - t - 1)*measamp/meastail for t in range(meastail)]
-                p.sram_analog_data  (('Measure', qid+1), measpuls)
+                # Bell and Measure Delay
+                measofs = max(totmeasdel-measofs, 0)
+                if measofs>0:
+                    p.sram_analog_data (('Measure', qid+1), [float(pars[(qname, "Bell Pulse Bias Shift"  )])]*measofs)
+
+                if (op<4) or ((op==4) and (qid==0)) or ((op==5) and (qid==1)):
+                    # Measure Pulse
+                    meastop  = int  (pars[(qname, "Measure Pulse Top Length" )])
+                    meastail = int  (pars[(qname, "Measure Pulse Tail Length")])
+                    measamp  = float(pars[(qname, "Measure Pulse Amplitude"  )])/1000.0
+                    measpuls = [measamp]*meastop + [(meastail - t - 1)*measamp/meastail for t in range(meastail)]
+                    p.sram_analog_data  (('Measure', qid+1), measpuls)
 
             # Insert SRAM call into memory
             p.memory_call_sram()
