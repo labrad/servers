@@ -17,7 +17,7 @@
 
 from labrad        import util, types as T
 from labrad.server import LabradServer, setting
-from labrad.units  import Unit, mV, ns, deg, MHz, V
+from labrad.units  import Unit, mV, ns, deg, MHz, V, GHz, rad
 
 from twisted.python import log
 from twisted.internet import defer, reactor
@@ -26,38 +26,38 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from math import log
 import numpy
 
-GLOBALPARS = [ "Stats" ];
+GLOBALPARS = [("Stats", "w", long(300))];
 
-SCURVEPARS =       [("Measure Offset",            "ns" ),
-              
-                     "Measure Pulse Amplitude",
-                    ("Measure Pulse Top Length",  "ns" ),
-                    ("Measure Pulse Tail Length", "ns" )]
+dBm = Unit('dBm')
+SCURVEPARS =       [("Measure Offset",            "Timing",        "Measure Offset",      "v[ns]",   50.0*ns ),
+                    ("Measure Pulse Amplitude",   "Measure Pulse", "Amplitude",           "v[mV]",  500.0*mV ),
+                    ("Measure Pulse Top Length",  "Measure Pulse", "Top Length",          "v[ns]",    5.0*ns ),
+                    ("Measure Pulse Tail Length", "Measure Pulse", "Tail Length",         "v[ns]",   15.0*ns )]
 
 SPECTROSCOPYPARS = SCURVEPARS + \
-                   [("Microwave Offset",          "ns" ),
-                    ("Resonance Frequency",       "GHz"),
-                    ("Spectroscopy Pulse Length", "ns" ),
-                    ("Spectroscopy Power",        "dBm")]
+                   [("Microwave Offset",          "Timing",        "Microwave Offset",    "v[ns]",   50.0*ns ),
+                    ("Spectroscopy Pulse Length", "Spectroscopy",  "Pulse Length",        "v[ns]",   2000*ns ),
+                    ("Resonance Frequency",       "Spectroscopy",  "Frequency",           "v[GHz]",   6.5*GHz),
+                    ("Spectroscopy Power",        "Spectroscopy",  "Power",               "v[dBm]", -30.0*dBm)]
 
 TOPHATPARS =       SCURVEPARS + \
-                   [("Microwave Offset",          "ns" ),
-                    ("Resonance Frequency",       "GHz"),
-                    ("Sideband Frequency",        "GHz"),
-                    ("Carrier Power",             "dBm"), 
-                    ("Microwave Pulse Length",    "ns" ),
-                     "Microwave Pulse Amplitude",
-                    ("Measure Pulse Delay",       "ns" )]
+                   [("Microwave Offset",          "Timing",        "Microwave Offset",    "v[ns]",   50.0*ns ),
+                    ("Carrier Power",             "Microwaves",    "Carrier Power",       "v[dBm]",   2.7*dBm), 
+                    ("Sideband Frequency",        "Microwaves",    "Sideband Frequency",  "v[GHz]",-150.0*MHz),
+                    ("Microwave Pulse Length",    "Pulse 1",       "Length",              "v[ns]",   16.0*ns ),
+                    ("Microwave Pulse Amplitude", "Pulse 1",       "Amplitude",           "v[mV]",  100.0*mV ),
+                    ("Resonance Frequency",       "Pulse 1",       "Frequency",           "v[GHz]",   6.5*GHz),
+                    ("Measure Pulse Delay",       "Measure Pulse", "Delay",               "v[ns]",    5.0*ns )]
 
 SLEPIANPARS =      TOPHATPARS + \
-                   [("Microwave Pulse Phase",     "rad")]
+                   [("Microwave Pulse Phase",     "Pulse 1",       "Phase",               "v[rad]",   0.0*rad)]
 
 TWOSLEPIANPARS =   SLEPIANPARS + \
-                   [("Second Pulse Length",       "ns" ),
-                    ("Second Pulse Delay",        "ns" ),
-                     "Second Pulse Amplitude",
-                    ("Second Pulse Phase",        "rad"),
-                    ("Second Sideband Frequency", "GHz")]
+                   [("Second Pulse Length",       "Pulse 2",       "Length",              "v[ns]",   16.0*ns ),
+                    ("Second Pulse Delay",        "Pulse 2",       "Delay",               "v[ns]",   10.0*ns ),
+                    ("Second Pulse Amplitude",    "Pulse 2",       "Amplitude",           "v[mV]",  100.0*mV ),
+                    ("Second Pulse Phase",        "Pulse 2",       "Phase",               "v[rad]", 180.0*rad),
+                    ("Second Frequency",          "Pulse 2",       "Frequency",           "v[GHz]", 200.0*MHz)]
 
 
 
@@ -106,25 +106,19 @@ class BEServer(LabradServer):
         p = self.client.registry.packet(context=c.ID)
         # Load global parameters
         for parameter in globalpars:
-            if isinstance(parameter, tuple):
-                name, units = parameter
-                # Load setting with units
-                p.get(name, 'v[%s]' % units, key=name)
-            else:
-                # Load setting without units
-                p.get(parameter, key=parameter)
+            # Load setting
+            name, typ, default = parameter
+            p.get(name, typ, True, default, key=name)
         # Load qubit specific parameters
         for qubit in qubits:
             # Change into qubit directory
-            p.cd(qubit, key=False)
+            p.cd(qubit, True, key=False)
             for parameter in qubitpars:
-                if isinstance(parameter, tuple):
-                    name, units = parameter
-                    # Load setting with units
-                    p.get(name, 'v[%s]' % units, key=(qubit, name))
-                else:
-                    # Load setting without units
-                    p.get(parameter, key=(qubit, parameter))
+                # Load setting
+                name, path, key, typ, default = parameter
+                p.cd(path, True, key=False)
+                p.get(key, typ, True, default, key=(qubit, name))
+                p.cd(1, key=False)
             # Change back to analyzeDataSeparateroot directory
             p.cd(1, key=False)
         # Get parameters
@@ -396,7 +390,7 @@ class BEServer(LabradServer):
                                                         pars[(qname, 'Sideband Frequency')],
                                                         pars[(qname, 'Carrier Power' )])
             p.sram_iq_delay         (('uWaves', qid+1), pars[(qname, 'Microwave Offset')]+50*ns)
-            pulse = [pars[(qname, 'Microwave Pulse Amplitude')]]*int(pars[(qname, 'Microwave Pulse Length')])
+            pulse = [float(pars[(qname, 'Microwave Pulse Amplitude')])/1000.0]*int(pars[(qname, 'Microwave Pulse Length')])
             p.sram_iq_envelope      (('uWaves', qid+1), pulse, float(pars[(qname, 'Sideband Frequency')])*1000.0, 0.0)
             
             # Add Measure Delay
@@ -429,7 +423,7 @@ class BEServer(LabradServer):
                                                          pars[(qname, 'Sideband Frequency'       )],
                                                          pars[(qname, 'Carrier Power'            )])
             p.sram_iq_delay         (('uWaves',  qid+1), pars[(qname, 'Microwave Offset'         )]+50*ns)
-            p.sram_iq_slepian       (('uWaves',  qid+1), pars[(qname, 'Microwave Pulse Amplitude')],
+            p.sram_iq_slepian       (('uWaves',  qid+1), float(pars[(qname, 'Microwave Pulse Amplitude')])/1000.0,
                                                          pars[(qname, 'Microwave Pulse Length'   )],
                                                    float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
                                                          pars[(qname, 'Microwave Pulse Phase'    )])
@@ -462,14 +456,16 @@ class BEServer(LabradServer):
                                                          pars[(qname, 'Sideband Frequency'       )],
                                                          pars[(qname, 'Carrier Power'            )])
             p.sram_iq_delay         (('uWaves',  qid+1), pars[(qname, 'Microwave Offset'         )]+50*ns)
-            p.sram_iq_slepian       (('uWaves',  qid+1), pars[(qname, 'Microwave Pulse Amplitude')],
+            p.sram_iq_slepian       (('uWaves',  qid+1), float(pars[(qname, 'Microwave Pulse Amplitude')])/1000.0,
                                                          pars[(qname, 'Microwave Pulse Length'   )],
                                                    float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
                                                          pars[(qname, 'Microwave Pulse Phase'    )])
             p.sram_iq_delay         (('uWaves',  qid+1), pars[(qname, 'Second Pulse Delay'       )])
-            p.sram_iq_slepian       (('uWaves',  qid+1), pars[(qname, 'Second Pulse Amplitude'   )],
+            p.sram_iq_slepian       (('uWaves',  qid+1), float(pars[(qname, 'Second Pulse Amplitude'   )])/1000.0,
                                                          pars[(qname, 'Second Pulse Length'      )],
-                                                   float(pars[(qname, 'Second Sideband Frequency')])*1000.0,
+                                                  (float(pars[(qname, 'Second Frequency'         )])- \
+                                                   float(pars[(qname, 'Resonance Frequency'      )])+ \
+                                                   float(pars[(qname, 'Sideband Frequency'       )]))*1000.0,
                                                          pars[(qname, 'Second Pulse Phase'       )])
             # Add Measure Delay
             p.sram_analog_delay     (('Measure', qid+1), pars[(qname, 'Measure Offset'           )]+ \
