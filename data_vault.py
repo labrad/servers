@@ -32,9 +32,8 @@ try:
 except ImportError:
     useNumpy = False
 
-# look for a configuration file in this directory
-cf = ConfigFile('data_vault', os.path.split(__file__)[0])
-DATADIR = cf.get('config', 'repository')
+# location of repository will get loaded from the registry
+DATADIR = None
 
 PRECISION = 6
 FILE_TIMEOUT = 60 # how long to keep datafiles open if not accessed
@@ -156,7 +155,7 @@ class Session(object):
     file, and manages the datasets in this directory.
     """
     
-    # feep a dictionary of all created session objects
+    # keep a dictionary of all created session objects
     _sessions = {}
 
     @classmethod
@@ -657,8 +656,32 @@ if useNumpy:
 class DataVault(LabradServer):
     name = 'Data Vault'
     
+    @inlineCallbacks
     def initServer(self):
-        root = Session([''], self) # create root session
+        # load configuration info from registry
+        global DATADIR
+        try:
+            path = ['', 'Servers', self.name, 'Repository']
+            nodename = util.getNodeName()
+            reg = self.client.registry
+            try:
+                # try to load for this node
+                p = reg.packet()
+                p.cd(path)
+                p.get(nodename, 's')
+                DATADIR = yield p.send()
+            except:
+                # try to load default
+                p = reg.packet()
+                p.cd(path)
+                p.get('__default__', 's')
+                DATADIR = yield p.send()
+        except:
+            print 'Could not load repository location from registry.'
+            print 'Please set key "%s" or "__default__" in %s.' % (nodename, path)
+            raise
+        # create root session
+        root = Session([''], self)
 
     def initContext(self, c):
         # start in the root session
