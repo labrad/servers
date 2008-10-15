@@ -669,13 +669,14 @@ class DataVault(LabradServer):
                 p = reg.packet()
                 p.cd(path)
                 p.get(nodename, 's')
-                DATADIR = yield p.send()
+                ans = yield p.send()
             except:
                 # try to load default
                 p = reg.packet()
                 p.cd(path)
                 p.get('__default__', 's')
-                DATADIR = yield p.send()
+                ans = yield p.send()
+            DATADIR = ans.get
         except:
             print 'Could not load repository location from registry.'
             print 'Please set key "%s" or "__default__" in %s.' % (nodename, path)
