@@ -1,5 +1,3 @@
-#!C:\python25\python.exe
-
 from __future__ import with_statement
 
 import time

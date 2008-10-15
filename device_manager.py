@@ -1,5 +1,3 @@
-#!C:\python25\python.exe
-
 from twisted.internet.defer import DeferredList, DeferredLock
 from twisted.internet.reactor import callLater
 

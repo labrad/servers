@@ -1,5 +1,3 @@
-#!c:\Python25\python.exe
-
 # Copyright (C) 2008  Matthew Neeley
 #
 # This program is free software: you can redistribute it and/or modify

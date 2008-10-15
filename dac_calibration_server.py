@@ -1,5 +1,3 @@
-#!c:\python25\python.exe
-
 # Copyright (C) 2007  Markus Ansmann, Max Hofheinz 
 #
 # This program is free software: you can redistribute it and/or modify

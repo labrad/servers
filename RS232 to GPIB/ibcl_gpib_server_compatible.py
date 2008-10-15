@@ -1,5 +1,3 @@
-#!c:\python25\python.exe
-
 # Copyright (C) 2008  Isaac Storch, Markus Ansmann
 #
 # This program is free software: you can redistribute it and/or modify
