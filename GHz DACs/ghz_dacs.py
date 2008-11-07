@@ -131,8 +131,8 @@ class FPGADevice(DeviceWrapper):
         self.devName = name
         self.serverName = de._labrad_name
 
-        self.sram = '\x00' * (SRAM_LEN*4)
-        self.mem = [0L] * MEM_LEN
+        #self.sram = '\x00' * (SRAM_LEN*4)
+        #self.mem = [0L] * MEM_LEN
         self.DACclocks = 0
         self.timeout = T.Value(1, 's')
 
@@ -155,12 +155,13 @@ class FPGADevice(DeviceWrapper):
         totallen = len(data)
         adr = startadr = page * SRAM_PAGE_LEN * 4
         endadr = startadr + totallen
-        needToSend = False
-        origdata = data
+        #needToSend = False
+        #origdata = data
         #print 'writing SRAM...'
+        
         while len(data) > 0:
             page, data = data[:1024], data[1024:]
-            curpage = self.sram[adr:adr+len(page)]
+            #curpage = self.sram[adr:adr+len(page)]
             #if page != curpage: # only upload changes
             if True: # upload entire SRAM to ensure pipeline correctness
                 if len(page) < 1024:
@@ -173,8 +174,46 @@ class FPGADevice(DeviceWrapper):
                 adr += 1024
                 needToSend = True
                 #print 'writing page at address %d...' % (adr/4)
+        
+        # out-of-order write
+        #block0 = []
+        #block1 = []
+        #while len(data) > 0:
+        #    page, data = data[:1024], data[1024:]
+        #    #curpage = self.sram[adr:adr+len(page)]
+        #    #if page != curpage: # only upload changes
+        #    if True: # upload entire SRAM to ensure pipeline correctness
+        #        if len(page) < 1024:
+        #            #newpage = numpy.zeros(256, dtype='uint32')
+        #            #newpage[:len(page)] = page
+        #            #page = newpage
+        #            page += '\x00' * (1024-len(page))
+        #        pkt = chr(((adr/4) >> 8) & 63) + '\x00' + page
+        #        if (adr / 4) < SRAM_BLOCK0_LEN:
+        #            block0.append(pkt)
+        #        else:
+        #            block1.append(pkt)
+        #        adr += 1024
+        #        needToSend = True
+        #        #print 'writing page at address %d...' % (adr/4)        
+        
+        #if inOrderWrite:
+        #    for pkt in block0:
+        #        print hex(ord(pkt[0]))
+        #        p.write(pkt)
+        #    for pkt in block1:
+        #        print hex(ord(pkt[0]))
+        #        p.write(pkt)
+        #else:
+        #    for pkt in block1:
+        #        print hex(ord(pkt[0]))
+        #        p.write(pkt)
+        #    for pkt in block0:
+        #        print hex(ord(pkt[0]))
+        #        p.write(pkt)
+        
         #print ''
-        self.sram = self.sram[:startadr] + origdata + self.sram[endadr:]
+        #self.sram = self.sram[:startadr] + origdata + self.sram[endadr:]
         return needToSend, (startadr/4, endadr/4)
 
     def makeMemory(self, data, p, page=0):
@@ -190,8 +229,8 @@ class FPGADevice(DeviceWrapper):
         totallen = len(data)
         adr = startadr = page * MEM_PAGE_LEN
         endadr = startadr + totallen
-        current = self.mem[startadr:endadr]
-        needToSend = (data != current)
+        #current = self.mem[startadr:endadr]
+        #needToSend = (data != current)
         #if needToSend: # only send if the MEM is new
         if True: # always send mem to ensure pipeline correctness
             while len(data) > 0:
@@ -203,7 +242,7 @@ class FPGADevice(DeviceWrapper):
                       [(n >> j) & 255 for n in page for j in (0, 8, 16)]
                 p.write(words2str(pkt))
                 adr += MEM_PAGE_LEN
-            self.mem[startadr:endadr] = data
+            #self.mem[startadr:endadr] = data
         return needToSend, (startadr, endadr)
 
     def load(self, mem=None, sram=None, page=0):
@@ -477,7 +516,7 @@ class BoardGroup(object):
             regs[43:45] = int(slave), int(delay)
             # add delay for boards running multi-block sequences
             if dev in multiBlockBoards:
-                regs[15] = dev['block_delay']
+                regs[19] = dev['block_delay']
             data.append((dev.MAC, regs.tostring()))
         runPkts = self.makeRunPackets(data)
         
@@ -539,7 +578,7 @@ class BoardGroup(object):
             print 'Multi-block SRAM sequence'
             # update sram calls in memory sequences to the correct addresses
             for dev, mem, sram, slave, delay in devs:
-                fixSRAMaddresses(mem, sram)
+                fixSRAMaddresses(mem, sram, dev)
             # pad sram blocks to take up full space (this will disable paging)
             def padSRAM(dev):
                 dev, mem, sram, slave, delay = dev
@@ -961,13 +1000,15 @@ class FPGAServer(DeviceServer):
         yield dev.sendRegisters(pkt)
 
 
-    @setting(51, 'Run SRAM', data='*w', loop='b', returns='(ww)')
-    def run_sram(self, c, data, loop=False):
+    @setting(51, 'Run SRAM', data='*w', loop='b', blockDelay='w', returns='(ww)')
+    def run_sram(self, c, data, loop=False, blockDelay=0):
         """Loads data into the SRAM and executes.
 
         If loop is True, the sequence will be repeated forever,
         otherwise it will be executed just once.  Sending
-        an empty list of data will clear the SRAM.
+        an empty list of data will clear the SRAM.  The blockDelay
+        parameters specifies the number of microseconds to delay
+        for a multiblock sequence.
         """
         dev = self.selectedDevice(c)
 
@@ -986,12 +1027,18 @@ class FPGAServer(DeviceServer):
             data += [data[0]] * (20-len(data))
             hdr = 4
 
+        #global inOrderWrite
+        #inOrderWrite = inOrder
+            
         data = numpy.array(data, dtype='uint32').tostring()
         #data = struct.pack('I'*len(data), *data)
         r = yield dev.sendSRAM(data)
 
         encode = lambda a: [a & 0xFF, (a>>8) & 0xFF, (a>>16) & 0xFF]
-        pkt = [hdr, 0] + [0]*11 + encode(r[0]) + encode(r[1]-1) + [0]*37
+        pkt = [hdr, 0] + [0]*11 + encode(r[0]) + encode(r[1]-1 + 1024*blockDelay) + [0]*37
+        pkt[19] = blockDelay
+        #for i, m in enumerate(pkt):
+        #    print '%02d  %02x' % (i+1, m)
         yield dev.sendRegisters(pkt, readback=False)
         returnValue(r)
 
@@ -1394,7 +1441,7 @@ def shiftSRAM(cmds, page):
             address += page * SRAM_PAGE_LEN
             cmds[i] = (opcode << 20) + address
 
-def fixSRAMaddresses(mem, sram):
+def fixSRAMaddresses(mem, sram, dev):
     """Set the addresses of SRAM calls for multiblock sequences.
 
     Takes a list of memory commands and an sram sequence (which
@@ -1412,7 +1459,7 @@ def fixSRAMaddresses(mem, sram):
             address = SRAM_BLOCK0_LEN - len(sram[0])/4
             cmds[i] = (opcode << 20) + address
         elif opcode == 0xA: 
-            address = SRAM_BLOCK0_LEN + len(sram[1])/4
+            address = SRAM_BLOCK0_LEN + len(sram[1])/4 + 256 * dev['block_delay']
             cmds[i] = (opcode << 20) + address
 
 def maxSRAM(cmds):
