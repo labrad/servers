@@ -157,6 +157,7 @@ class FPGADevice(DeviceWrapper):
         endadr = startadr + totallen
         needToSend = False
         origdata = data
+        #print 'writing SRAM...'
         while len(data) > 0:
             page, data = data[:1024], data[1024:]
             curpage = self.sram[adr:adr+len(page)]
@@ -171,6 +172,8 @@ class FPGADevice(DeviceWrapper):
                 p.write(pkt)
                 adr += 1024
                 needToSend = True
+                #print 'writing page at address %d...' % (adr/4)
+        #print ''
         self.sram = self.sram[:startadr] + origdata + self.sram[endadr:]
         return needToSend, (startadr/4, endadr/4)
 
@@ -540,9 +543,8 @@ class BoardGroup(object):
             # pad sram blocks to take up full space (this will disable paging)
             def padSRAM(dev):
                 dev, mem, sram, slave, delay = dev
-                if not isinstance(sram, tuple):
-                    continue
-                sram = '\x00' * (SRAM_BLOCK0_LEN*4 - len(sram[0])) + sram[0] + sram[1]
+                if isinstance(sram, tuple):
+                    sram = '\x00' * (SRAM_BLOCK0_LEN*4 - len(sram[0])) + sram[0] + sram[1]
                 return dev, mem, sram, slave, delay
             devs = [padSRAM(dev) for dev in devs]
             
