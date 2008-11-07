@@ -32,8 +32,11 @@ DEBUG = False
 
 NUM_PAGES = 2
 
-SRAM_LEN = 8192
-SRAM_PAGE_LEN = 4096
+SRAM_LEN = 10240 #8192
+SRAM_PAGE_LEN = 5120 #4096
+SRAM_DELAY_LEN = 1024
+SRAM_BLOCK0_LEN = 8192
+SRAM_BLOCK1_LEN = 2048
 
 MEM_LEN = 512
 MEM_PAGE_LEN = 256
@@ -430,7 +433,7 @@ class BoardGroup(object):
                 msg += ': timeout!\n' + r.getBriefTraceback() + '\n\n'
         return clearPkts, msg
 
-    def makePackets(self, devs, timingOrder, page, reps, sync=249):
+    def makePackets(self, devs, timingOrder, page, reps, sync=249, multiBlockBoards=[]):
         """Make packets to run a sequence on this board group.
 
         Running a sequence has 4 stages:
@@ -469,6 +472,9 @@ class BoardGroup(object):
         data = []
         for dev, mem, sram, slave, delay in reversed(devs): # run master last
             regs[43:45] = int(slave), int(delay)
+            # add delay for boards running multi-block sequences
+            if dev in multiBlockBoards:
+                regs[15] = dev['block_delay']
             data.append((dev.MAC, regs.tostring()))
         runPkts = self.makeRunPackets(data)
         
@@ -522,7 +528,24 @@ class BoardGroup(object):
                    (d[0].port == self.port) for d in devs):
             raise Exception('All boards must belong to the same board group!')
         boardOrder = [d[0].devName for d in devs]
-        
+
+        # check whether this is a multiblock sequence
+        multiBlockBoards = [dev for dev, mem, sram, slave, delay in devs
+                                if isinstance(sram, tuple)]
+        if len(multiBlockBoards):
+            print 'Multi-block SRAM sequence'
+            # update sram calls in memory sequences to the correct addresses
+            for dev, mem, sram, slave, delay in devs:
+                fixSRAMaddresses(mem, sram)
+            # pad sram blocks to take up full space (this will disable paging)
+            def padSRAM(dev):
+                dev, mem, sram, slave, delay = dev
+                if not isinstance(sram, tuple):
+                    continue
+                sram = '\x00' * (SRAM_BLOCK0_LEN*4 - len(sram[0])) + sram[0] + sram[1]
+                return dev, mem, sram, slave, delay
+            devs = [padSRAM(dev) for dev in devs]
+            
         # check whether this sequence will fit in just one page
         pageable = all(maxSRAM(mem) <= SRAM_PAGE_LEN
                        for dev, mem, sram, slave, delay in devs)
@@ -544,14 +567,14 @@ class BoardGroup(object):
         
         # prepare packets
         loadPkts, runPkts, collectPkts, readPkts = \
-                  self.makePackets(devs, timingOrder, page, reps, sync)
+                  self.makePackets(devs, timingOrder, page, reps, sync, multiBlockBoards=multiBlockBoards)
         
         try:
             for pageLock in pageLocks:
                 yield pageLock.acquire()
 
             # stage 1: load
-            sendDone = sendAll(loadPkts, "Load", boardOrder)
+            sendDone = sendAll(loadPkts, 'Load', boardOrder)
             runNow = runLock.acquire() # get in line for the runlock
             
             # stage 2: run
@@ -566,7 +589,7 @@ class BoardGroup(object):
                 if needSetup:
                     r = yield waitPkt.send() # if this fails, something BAD happened!
                     try:
-                        yield sendAll(setupPkts, "Setup")
+                        yield sendAll(setupPkts, 'Setup')
                         self.setupState = setupState
                     except:
                         # if there was an error, clear setup state
@@ -596,13 +619,13 @@ class BoardGroup(object):
                 
         #yield readNow # wait until all previous reads have been sent
         if all(s for s, r in results):
-            readAll = sendAll(readPkts, "Read", boardOrder)
+            readAll = sendAll(readPkts, 'Read', boardOrder)
             readLock.release()
         else:
             # recover from timeout
             clearPkts, msg = self.makeClearPackets(devs, results)
             try:
-                yield sendAll(clearPkts, "Timeout Recovery", boardOrder)
+                yield sendAll(clearPkts, 'Timeout Recovery', boardOrder)
             finally:
                 # if an error happens here, we are in trouble
                 # but make sure to release read lock anyway
@@ -735,11 +758,35 @@ class FPGAServer(DeviceServer):
             sram = '\x00' * addr
         if not isinstance(data, str):
             data = data.asarray.tostring()
-        #if isinstance(data, list):
-        #    data = struct.pack('I'*len(data), *data)
         d['sram'] = sram[0:addr] + data + sram[addr+len(data):]
         d['sramAddress'] += len(data)
         return addr/4, len(data)/4
+
+
+    @setting(22, 'SRAM dual block',
+             block1=['*w: SRAM Words to be written', 's: Raw SRAM data'],
+             block2=['*w: SRAM Words for second block', 's: Raw SRAM for second block'],
+             delay='w: nanoseconds to delay',
+             returns='')
+    def sram2(self, c, block1, block2, delay):
+        """Writes a dual-block SRAM sequence with a delay between the two blocks."""
+        dev = self.selectedDevice(c)
+        d = c.setdefault(dev, {})
+        sram = d.get('sram', '')
+        if not isinstance(block1, str):
+            block1 = block1.asarray.tostring()
+        if not isinstance(block2, str):
+            block2 = block2.asarray.tostring()
+        delayPad = delay % SRAM_DELAY_LEN
+        delayBlocks = delay / SRAM_DELAY_LEN
+        # add padding to beginning of block2 to get delay right
+        block2 = block1[-4:] * delayPad + block2
+        # add padding to end of block2 to ensure that we have a multiple of 4
+        endPad = 4 - (len(block2) / 4) % 4
+        if endPad != 4:
+            block2 = block2 + block2[-4:] * endPad
+        d['sram'] = (block1, block2)
+        d['block_delay'] = delayBlocks
 
 
     @setting(31, 'Memory', data='*w: Memory Words to be written',
@@ -882,7 +929,7 @@ class FPGAServer(DeviceServer):
             run lock
             run packet (on the direct ethernet server)
             read lock
-        If the packet runs dry, the first time that will go to zero should
+        If the pipe runs dry, the first time that will go to zero should
         be the run packet wait time.
         """
         ans = []
@@ -1304,15 +1351,22 @@ def words2str(list):
 
 # commands for analyzing and manipulating FPGA memory sequences
 
+# TODO: need to incorporate SRAMoffset when calculating sequence time 
 def sequenceTime(cmds):
     """Conservative estimate of the length of a sequence in seconds."""
     cycles = sum(cmdTime(c) for c in cmds)
     return cycles * 40e-9 # assume 25 MHz clock -> 40 ns per cycle
-    
+
+def getOpcode(cmd):
+    return (cmd & 0xF00000) >> 20
+
+def getAddress(cmd):
+    return (cmd & 0x0FFFFF)
+
 def cmdTime(cmd):
     """A conservative estimate of the number of cycles a given command takes."""
-    opcode = (cmd & 0xF00000) >> 20
-    abcde  = (cmd & 0x0FFFFF)
+    opcode = getOpcode(cmd)
+    abcde  = getAddress(cmd)
     xy     = (cmd & 0x00FF00) >> 8
     ab     = (cmd & 0x0000FF)
 
@@ -1323,7 +1377,7 @@ def cmdTime(cmd):
     if opcode == 0x3:
         return abcde + 1 # delay
     if opcode == 0xC:
-        return 250*8 # maximum SRAM length is 8us
+        return 250*12 # maximum SRAM length is 12us
 
 def shiftSRAM(cmds, page):
     """Shift the addresses of SRAM calls for different pages.
@@ -1333,9 +1387,30 @@ def shiftSRAM(cmds, page):
     appropriate page.
     """
     for i, cmd in enumerate(cmds):
-        opcode, address = (cmd >> 20) & 0xF, cmd & 0xFFFFF
+        opcode, address = getOpcode(cmd), getAddress(cmd)
         if opcode in [0x8, 0xA]: 
             address += page * SRAM_PAGE_LEN
+            cmds[i] = (opcode << 20) + address
+
+def fixSRAMaddresses(mem, sram):
+    """Set the addresses of SRAM calls for multiblock sequences.
+
+    Takes a list of memory commands and an sram sequence (which
+    will be a tuple of blocks for a multiblock sequence) and updates
+    the call SRAM commands to the correct addresses. 
+    """
+    if not isinstance(sram, tuple):
+        return
+    sramCalls = sum(getOpcode(cmd) == 0xC for cmd in mem)
+    if sramCalls > 1:
+        raise Exception('Does not support multiple SRAM calls in multi-block sequences.')
+    for i, cmd in enumerate(cmds):
+        opcode, address = getOpcode(cmd), getAddress(cmd)
+        if opcode == 0x8:
+            address = SRAM_BLOCK0_LEN - len(sram[0])/4
+            cmds[i] = (opcode << 20) + address
+        elif opcode == 0xA: 
+            address = SRAM_BLOCK0_LEN + len(sram[1])/4
             cmds[i] = (opcode << 20) + address
 
 def maxSRAM(cmds):
