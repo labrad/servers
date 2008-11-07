@@ -169,7 +169,7 @@ class FPGADevice(DeviceWrapper):
                     #newpage[:len(page)] = page
                     #page = newpage
                     page += '\x00' * (1024-len(page))
-                pkt = chr((adr >> 10) & 31) + '\x00' + page
+                pkt = chr((adr >> 10) & 63) + '\x00' + page
                 p.write(pkt)
                 adr += 1024
                 needToSend = True
@@ -229,6 +229,7 @@ class FPGADevice(DeviceWrapper):
         totallen = len(data)
         adr = startadr = page * MEM_PAGE_LEN
         endadr = startadr + totallen
+        needToSend = True
         #current = self.mem[startadr:endadr]
         #needToSend = (data != current)
         #if needToSend: # only send if the MEM is new
@@ -513,10 +514,12 @@ class BoardGroup(object):
         regs[45] = sync # start on us boundary
         data = []
         for dev, mem, sram, slave, delay in reversed(devs): # run master last
+            if isinstance(delay, tuple):
+                delay, blockDelay = delay
             regs[43:45] = int(slave), int(delay)
             # add delay for boards running multi-block sequences
             if dev in multiBlockBoards:
-                regs[19] = dev['block_delay']
+                regs[19] = blockDelay
             data.append((dev.MAC, regs.tostring()))
         runPkts = self.makeRunPackets(data)
         
@@ -583,6 +586,7 @@ class BoardGroup(object):
             def padSRAM(dev):
                 dev, mem, sram, slave, delay = dev
                 if isinstance(sram, tuple):
+                    delay = (delay, sram[2])
                     sram = '\x00' * (SRAM_BLOCK0_LEN*4 - len(sram[0])) + sram[0] + sram[1]
                 return dev, mem, sram, slave, delay
             devs = [padSRAM(dev) for dev in devs]
@@ -826,8 +830,7 @@ class FPGAServer(DeviceServer):
         endPad = 4 - (len(block2) / 4) % 4
         if endPad != 4:
             block2 = block2 + block2[-4:] * endPad
-        d['sram'] = (block1, block2)
-        d['block_delay'] = delayBlocks
+        d['sram'] = (block1, block2, delayBlocks)
 
 
     @setting(31, 'Memory', data='*w: Memory Words to be written',
@@ -1035,7 +1038,7 @@ class FPGAServer(DeviceServer):
         r = yield dev.sendSRAM(data)
 
         encode = lambda a: [a & 0xFF, (a>>8) & 0xFF, (a>>16) & 0xFF]
-        pkt = [hdr, 0] + [0]*11 + encode(r[0]) + encode(r[1]-1 + 1024*blockDelay) + [0]*37
+        pkt = [hdr, 0] + [0]*11 + encode(r[0]) + encode(r[1]-1 + SRAM_DELAY_LEN * blockDelay) + [0]*37
         pkt[19] = blockDelay
         #for i, m in enumerate(pkt):
         #    print '%02d  %02x' % (i+1, m)
@@ -1453,14 +1456,16 @@ def fixSRAMaddresses(mem, sram, dev):
     sramCalls = sum(getOpcode(cmd) == 0xC for cmd in mem)
     if sramCalls > 1:
         raise Exception('Does not support multiple SRAM calls in multi-block sequences.')
-    for i, cmd in enumerate(cmds):
+    for i, cmd in enumerate(mem):
         opcode, address = getOpcode(cmd), getAddress(cmd)
         if opcode == 0x8:
+            # SRAM start address
             address = SRAM_BLOCK0_LEN - len(sram[0])/4
-            cmds[i] = (opcode << 20) + address
-        elif opcode == 0xA: 
-            address = SRAM_BLOCK0_LEN + len(sram[1])/4 + 256 * dev['block_delay']
-            cmds[i] = (opcode << 20) + address
+            mem[i] = (opcode << 20) + address
+        elif opcode == 0xA:
+            # SRAM end address
+            address = SRAM_BLOCK0_LEN + len(sram[1])/4 + SRAM_DELAY_LEN * sram[2]
+            mem[i] = (opcode << 20) + address
 
 def maxSRAM(cmds):
     """Determines the maximum SRAM address used in a memory sequence.
