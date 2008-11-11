@@ -13,69 +13,42 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from labrad.server import LabradServer, setting, inlineCallbacks, returnValue
+from labrad.devices import DeviceServer, DeviceWrapper
+from labrad.server import setting, inlineCallbacks, returnValue
 from labrad.units import degC, K, psi, torr, min as minutes, A
 
 # registry (for info about where to connect)
 # Servers -> CP2800 Compressor
-# -> Serial Link = server, port
-# -> log -> YYYY -> MM -> DD ->
+# -> Serial Links = [(server, port),...]
+# -> Logs -> <deviceName> -> YYYY -> MM -> DD ->
 
 # data vault (for logging of numerical data)
-# Logs -> CP2800 Compressor -> {YYYY} -> {MM} -> {DD} ->
+# Logs -> CP2800 Compressor -> <deviceName> -> {YYYY} -> {MM} -> {DD} ->
 #      -> Vince -> {YYYY} -> {MM} -> {DD} ->
 #      -> Jules -> {YYYY} -> {MM} -> {DD} ->
 
-class CompressorServer(LabradServer):
-    name = 'CP2800 Compressor'
-
+class CompressorDevice(DeviceWrapper):
     @inlineCallbacks
-    def initServer(self):
-        print 'loading config info...',
-        yield self.loadConfigInfo()
-        print 'done.'
-        self.serialConnected = False
-        if self.serialName in self.client.servers:
-            yield self.connectSerial()
-
-    @inlineCallbacks
-    def loadConfigInfo(self):
-        """Load configuration information from the registry."""
-        reg = self.client.registry
-        p = reg.packet()
-        p.cd(['', 'Servers', 'CP2800 Compressor'], True)
-        p.get('Serial Link', key='link')
-        ans = yield p.send()
-        self.serialName, self.serialPort = ans['link']
-
-    @inlineCallbacks
-    def connectSerial(self):
-        """Connect to/disconnect from the serial port."""
-        print 'connecting to "%s" on port "%s"...' % (self.serialName, self.serialPort),
-        self.serialServer = self.client[self.serialName]
-        p = self.serialServer.packet()
-        p.open(self.serialPort)
+    def connect(self, server, port):
+        """Connect to a compressor device."""
+        print 'connecting to "%s" on port "%s"...' % (server.name, port),
+        self.server = server
+        self.ctx = server.context()
+        self.port = port
+        p = self.packet()
+        p.open(port)
         p.baudrate(115200)
         p.read() # clear out the read buffer
         p.timeout(TIMEOUT)
         yield p.send()
-        self.serialConnected = True
         print 'done.'
 
-    def disconnectSerial(self):
-        """Disconnect from the serial port."""
-
-    @inlineCallbacks
-    def serverConnected(self, ID, name):
-        """Called when a server connects to LabRAD."""
-        if name == self.serialName:
-            yield self.connectSerial()
-
-    @inlineCallbacks
-    def serverDisconnected(self, ID, name):
-        """Called when a server disconnect from LabRAD."""
-        if name == self.serialName:
-            self.serialConnected = False
+    def packet(self):
+        """Create a packet in our private context."""
+        return self.server.packet(context=self.ctx)
+    
+    def shutdown(self):
+        return self.packet().close().send()
 
     @inlineCallbacks
     def write(self, key, value, index=0):
@@ -83,39 +56,34 @@ class CompressorServer(LabradServer):
         if key not in WRITEABLE:
             raise Exception('Cannot write to key "%s".' % (key,))
         pkt = write(key, int(value), index=index)
-        yield self.serialServer.write(pkt)
+        yield self.packet().write(pkt).send()
 
     @inlineCallbacks
     def read(self, key, index=0):
         """Read a data value from the compressor."""
         if key not in READABLE:
             raise Exception('Cannot read key "%s".' % (key,))
-        p = self.serialServer.packet()
+        p = self.packet()
         p.write(read(key, index=index))
         p.read_line('\r')
         ans = yield p.send()
         returnValue(getValue(ans.read_line))
-    
-    @setting(1, 'Start', returns='')
-    def start_compressor(self, c):
-        """Start the compressor."""
-        yield self.write('EV_START_COMP_REM', 1)
 
-    @setting(2, 'Stop', returns='')
-    def stop_compressor(self, c):
-        """Stop the compressor."""
-        yield self.write('EV_STOP_COMP_REM', 1)
-    
-    @setting(3, 'Status', returns='b')
-    def compresssor_status(self, c):
-        """Get the on/off status of the compressor."""
+    def startCompressor(self):
+        return self.write('EV_START_COMP_REM', 1)
+
+    def stopCompressor(self):
+        return self.write('EV_STOP_COMP_REM', 1)
+
+    @inlineCallbacks
+    def compressorStatus(self):
         ans = yield self.read('COMP_ON')
         returnValue(bool(ans))
 
     @inlineCallbacks
     def readArrays(self, keys, length, processFunc):
         """Read arrays from the compressor, returning processed results."""
-        p = self.serialServer.packet()
+        p = self.packet()
         for i in range(length):
             for key in keys:
                 p.write(read(key, i))
@@ -126,7 +94,78 @@ class CompressorServer(LabradServer):
                 for i in range(length)]
         returnValue(vals)
 
-    @setting(10, 'Temperatures',
+    @inlineCallbacks
+    def temperatures(self):
+        keys = 'TEMP_TNTH_DEG', 'TEMP_TNTH_DEG_MINS', 'TEMP_TNTH_DEG_MAXES'
+        vals = yield self.readArrays(keys, 4, toTemp)
+        returnValue(vals)
+
+    @inlineCallbacks
+    def pressures(self):
+        keys = 'PRES_TNTH_PSI', 'PRES_TNTH_PSI_MINS', 'PRES_TNTH_PSI_MAXES'
+        vals = yield self.readArrays(keys, 2, toPress)
+        returnValue(vals)
+
+    def clearMarkers(self, c):
+        """Clear Min/Max temperature and pressure markers."""
+        return self.write('CLR_TEMP_PRES_MMMARKERS', 1)
+
+
+class CompressorServer(DeviceServer):
+    name = 'CP2800 Compressor'
+    deviceWrapper = CompressorDevice
+
+    @inlineCallbacks
+    def initServer(self):
+        print 'loading config info...',
+        yield self.loadConfigInfo()
+        print 'done.'
+        yield DeviceServer.initServer(self)
+
+    @inlineCallbacks
+    def loadConfigInfo(self):
+        """Load configuration information from the registry."""
+        reg = self.client.registry
+        p = reg.packet()
+        p.cd(['', 'Servers', 'CP2800 Compressor'], True)
+        p.get('Serial Links', '*(ss)', key='links')
+        ans = yield p.send()
+        self.serialLinks = ans['links']
+
+    @inlineCallbacks
+    def findDevices(self):
+        """Find available devices from list stored in the registry."""
+        devs = []
+        for name, port in self.serialLinks:
+            if name not in self.client.servers:
+                continue
+            server = self.client[name]
+            ports = yield server.list_serial_ports()
+            if port not in ports:
+                continue
+            devName = '%s - %s' % (name, port)
+            devs += [(devName, (server, port))]
+        returnValue(devs)
+    
+    @setting(100, 'Start', returns='')
+    def start_compressor(self, c):
+        """Start the compressor."""
+        dev = self.selectedDevice(c)
+        yield dev.startCompressor()
+
+    @setting(200, 'Stop', returns='')
+    def stop_compressor(self, c):
+        """Stop the compressor."""
+        dev = self.selectedDevice(c)
+        yield dev.stopCompressor()
+    
+    @setting(300, 'Status', returns='b')
+    def compresssor_status(self, c):
+        """Get the on/off status of the compressor."""
+        dev = self.selectedDevice(c)
+        return dev.compressorStatus()
+
+    @setting(1000, 'Temperatures',
              returns='*(v[K]{curr}, v[K]{min}, v[K]{max})')
     def temperatures(self, c):
         """Get temperatures.
@@ -135,11 +174,10 @@ class CompressorServer(LabradServer):
         4 channels: water in, water out, helium, and oil.  The Min and Max
         markers can be reset by calling 'Clear Markers'.
         """
-        keys = 'TEMP_TNTH_DEG', 'TEMP_TNTH_DEG_MINS', 'TEMP_TNTH_DEG_MAXES'
-        vals = yield self.readArrays(keys, 4, toTemp)
-        returnValue(vals)
-    
-    @setting(11, 'Pressures', minmax='s',
+        dev = self.selectedDevice(c)
+        return dev.temperatures()
+        
+    @setting(1100, 'Pressures', minmax='s',
              returns='*(v[torr]{curr}, v[torr]{min}, v[torr]{max})')
     def pressures(self, c, minmax='CURR'):
         """Get pressures.
@@ -148,31 +186,34 @@ class CompressorServer(LabradServer):
         recorded values of the pressures, respectively.  These min and
         max values can be reset by calling 'Clear Markers'.
         """
-        keys = 'PRES_TNTH_PSI', 'PRES_TNTH_PSI_MINS', 'PRES_TNTH_PSI_MAXES'
-        vals = yield self.readArrays(keys, 2, toPress)
-        returnValue(vals)
+        dev = self.selectedDevice(c)
+        return dev.pressures()
 
-    @setting(12, 'Clear Markers')
+    @setting(1200, 'Clear Markers')
     def clear_markers(self, c):
         """Clear Min/Max temperature and pressure markers."""
-        yield self.write('CLR_TEMP_PRES_MMMARKERS', 1)
+        dev = self.selectedDevice(c)
+        yield dev.clearMarkers()
 
-    @setting(20, 'CPU Temp', returns='v[K]')
+    @setting(2000, 'CPU Temp', returns='v[K]')
     def cpu_temp(self, c):
         """Get the CPU temperature."""
-        ans = yield self.read('CPU_TEMP')
+        dev = self.selectedDevice(c)
+        ans = yield dev.read('CPU_TEMP')
         returnValue(toTemp(ans))
 
-    @setting(21, 'Elapsed Time', returns='v[min]')
+    @setting(2100, 'Elapsed Time', returns='v[min]')
     def elapsed_time(self, c):
         """Get the elapsed running time of the compressor."""
-        ans = yield self.read('COMP_MINUTES')
+        dev = self.selectedDevice(c)
+        ans = yield dev.read('COMP_MINUTES')
         returnValue(float(ans) * minutes)
         
-    @setting(22, 'Motor Current', returns='v[A]')
+    @setting(2200, 'Motor Current', returns='v[A]')
     def motor_current(self, c):
         """Get the motor current draw."""
-        ans = yield self.read('MOTOR_CURR_A')
+        dev = self.selectedDevice(c)
+        ans = yield dev.read('MOTOR_CURR_A')
         returnValue(float(ans) * A)
     
 
