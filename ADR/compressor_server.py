@@ -14,7 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from labrad.server import LabradServer, setting, inlineCallbacks, returnValue
-from labrad.units import degC, K, psi, torr
+from labrad.units import degC, K, psi, torr, min as minutes, A
 
 # registry (for info about where to connect)
 # Servers -> CP2800 Compressor
@@ -56,12 +56,11 @@ class CompressorServer(LabradServer):
         p = self.serialServer.packet()
         p.open(self.serialPort)
         p.baudrate(115200)
-        p.read()
+        p.read() # clear out the read buffer
         p.timeout(TIMEOUT)
         yield p.send()
         self.serialConnected = True
         print 'done.'
-        
 
     def disconnectSerial(self):
         """Disconnect from the serial port."""
@@ -77,51 +76,71 @@ class CompressorServer(LabradServer):
         """Called when a server disconnect from LabRAD."""
         if name == self.serialName:
             self.serialConnected = False
+
+    @inlineCallbacks
+    def write(self, key, value, index=0):
+        """Write a data value to the compressor."""
+        if key not in WRITEABLE:
+            raise Exception('Cannot write to key "%s".' % (key,))
+        pkt = write(key, int(value), index=index)
+        yield self.serialServer.write(pkt)
+
+    @inlineCallbacks
+    def read(self, key, index=0):
+        """Read a data value from the compressor."""
+        if key not in READABLE:
+            raise Exception('Cannot read key "%s".' % (key,))
+        p = self.serialServer.packet()
+        p.write(read(key, index=index))
+        p.read_line('\r')
+        ans = yield p.send()
+        returnValue(getValue(ans.read_line))
     
-    @setting(1, 'Start')
+    @setting(1, 'Start', returns='')
     def start_compressor(self, c):
         """Start the compressor."""
-        yield self.serialServer.write(write('EV_START_COMP_REM', 1))
+        yield self.write('EV_START_COMP_REM', 1)
 
-    @setting(2, 'Stop')
+    @setting(2, 'Stop', returns='')
     def stop_compressor(self, c):
         """Stop the compressor."""
-        yield self.serialServer.write(write('EV_STOP_COMP_REM', 1))
-
+        yield self.write('EV_STOP_COMP_REM', 1)
+    
     @setting(3, 'Status', returns='b')
     def compresssor_status(self, c):
         """Get the on/off status of the compressor."""
-        p = self.serialServer.packet()
-        p.write(read('COMP_ON'))
-        p.read_as_words(RESP_LEN, key='COMP_ON')
-        ans = yield p.send()
-        returnValue(bool(getValue(ans['COMP_ON'])))
+        ans = yield self.read('COMP_ON')
+        returnValue(bool(ans))
 
-    @setting(10, 'Temperatures', minmax='s',
-             returns='v[K] {water in}, v[K] {water out}, v[K] {He}, v[K] {oil}')
-    def temperatures(self, c, minmax='CURR'):
+    @inlineCallbacks
+    def readArrays(self, keys, length, processFunc):
+        """Read arrays from the compressor, returning processed results."""
+        p = self.serialServer.packet()
+        for i in range(length):
+            for key in keys:
+                p.write(read(key, i))
+                p.read_line('\r', key=(i, key))
+        ans = yield p.send()
+        vals = [[processFunc(getValue(ans[i, key]))
+                 for key in keys]
+                for i in range(length)]
+        returnValue(vals)
+
+    @setting(10, 'Temperatures',
+             returns='*(v[K]{curr}, v[K]{min}, v[K]{max})')
+    def temperatures(self, c):
         """Get temperatures.
 
-        If called with 'MIN' or 'MAX', will return the minimum or maximum
-        recorded values of the temperatures, respectively.  These min and
-        max values can be reset by calling 'Clear Markers'.
+        Returns the current, min and max temperatures for the following
+        4 channels: water in, water out, helium, and oil.  The Min and Max
+        markers can be reset by calling 'Clear Markers'.
         """
-        key = 'TEMP_TNTH_DEG'
-        if minmax.upper() == 'MIN':
-            key = 'TEMP_TNTH_DEG_MINS'
-        elif minmax.upper() == 'MAX':
-            key = 'TEMP_TNTH_DEG_MAXES'
-        p = self.serialServer.packet()
-        for i in range(4):
-            p.write(read(key, i))
-            p.read_as_words(RESP_LEN, key=i)
-        ans = yield p.send()
-        for i in range(4):
-            print ans[i]
-        returnValue(tuple(((getValue(ans[i])/10.0)*degC)[K] for i in range(4)))
+        keys = 'TEMP_TNTH_DEG', 'TEMP_TNTH_DEG_MINS', 'TEMP_TNTH_DEG_MAXES'
+        vals = yield self.readArrays(keys, 4, toTemp)
+        returnValue(vals)
     
     @setting(11, 'Pressures', minmax='s',
-             returns='v[torr] {high side}, v[torr] {low side}')
+             returns='*(v[torr]{curr}, v[torr]{min}, v[torr]{max})')
     def pressures(self, c, minmax='CURR'):
         """Get pressures.
 
@@ -129,55 +148,42 @@ class CompressorServer(LabradServer):
         recorded values of the pressures, respectively.  These min and
         max values can be reset by calling 'Clear Markers'.
         """
-        key = 'PRES_TNTH_PSI'
-        if minmax.upper() == 'MIN':
-            key = 'PRES_TNTH_PSI_MINS'
-        elif minmax.upper() == 'MAX':
-            key = 'PRES_TNTH_PSI_MAXES'
-        p = self.serialServer.packet()
-        for i in range(2):
-            p.write(read(key))
-            p.read_as_words(RESP_LEN, key=i)
-        ans = yield p.send()
-        returnValue(tuple(((getValue(ans[i])/10.0)*psi)[torr] for i in range(2)))
+        keys = 'PRES_TNTH_PSI', 'PRES_TNTH_PSI_MINS', 'PRES_TNTH_PSI_MAXES'
+        vals = yield self.readArrays(keys, 2, toPress)
+        returnValue(vals)
 
     @setting(12, 'Clear Markers')
     def clear_markers(self, c):
         """Clear Min/Max temperature and pressure markers."""
-        yield self.serialServer.write(write('CLR_TEMP_PRES_MMMARKERS', 1))
+        yield self.write('CLR_TEMP_PRES_MMMARKERS', 1)
 
+    @setting(20, 'CPU Temp', returns='v[K]')
+    def cpu_temp(self, c):
+        """Get the CPU temperature."""
+        ans = yield self.read('CPU_TEMP')
+        returnValue(toTemp(ans))
+
+    @setting(21, 'Elapsed Time', returns='v[min]')
+    def elapsed_time(self, c):
+        """Get the elapsed running time of the compressor."""
+        ans = yield self.read('COMP_MINUTES')
+        returnValue(float(ans) * minutes)
+        
+    @setting(22, 'Motor Current', returns='v[A]')
+    def motor_current(self, c):
+        """Get the motor current draw."""
+        ans = yield self.read('MOTOR_CURR_A')
+        returnValue(float(ans) * A)
     
 
 # compressor control protocol
 STX = 0x02
+ESC = 0x07
 ADDR = 0x10
 CR = ord('\r')
 CMD_RSP = 0x80
-RESP_LEN = 17 # 3 bytes SMDP header, 11 bytes data, 2 bytes checksum, CR
-TIMEOUT = 10 # serial read timeout
-
-def checksum(data):
-    """Compute checksum for Sycon Multi Drop Protocol."""
-    ck = sum(data) % 256
-    cksum1 = (ck >> 4) + 0x30
-    cksum2 = (ck & 0xF) + 0x30
-    return [cksum1, cksum2]
-
-def pack(data):
-    """Make a packet to send data to the compressor.
-    
-    We use the Sycon Multi Drop Protocol (see docs on skynet).
-    """
-    pkt = [ADDR, CMD_RSP] + data
-    return [STX] + pkt + checksum(pkt) + [CR]
-
-def unpack(response):
-    """pull binary data out of SMDP response packet"""
-    print response
-    rsp = response[2] & 0xF # response code (see SMDP docs)
-    data = response[3:-3]
-    return data
-
+RESP_LEN = 14 # 3 bytes SMDP header, 8 bytes data, 2 bytes checksum, CR
+TIMEOUT = 1 # serial read timeout
 
 # codes for compressor variables
 HASHCODES = {
@@ -214,6 +220,86 @@ HASHCODES = {
     'COMP_ON': 0x5F95, # TRUE if compressor is on
     'ERR_CODE_STATUS': 0x65A4, # non-zero value indicates an error code
     }
+
+READABLE = [
+    'CPU_TEMP',
+    'TEMP_TNTH_DEG',
+    'TEMP_TNTH_DEG_MINS',
+    'TEMP_TNTH_DEG_MAXES',
+    'PRES_TNTH_PSI',
+    'PRES_TNTH_PSI_MINS',
+    'PRES_TNTH_PSI_MAXES',
+    'H_ALP',
+    'H_AHP',
+    'H_ADP',
+    'COMP_ON',
+    'COMP_MINUTES',
+    'MOTOR_CURR_A',
+    ]
+
+WRITEABLE = [
+    'EV_START_COMP_REM',
+    'EV_STOP_COMP_REM',
+    'CLR_TEMP_PRES_MMMARKERS',
+    ]
+
+#####
+# SMDP functions (Sycon Multi-Drop Protocol)
+
+def checksum(data):
+    """Compute checksum for Sycon Multi Drop Protocol."""
+    ck = sum(data) % 256
+    cksum1 = (ck >> 4) + 0x30
+    cksum2 = (ck & 0xF) + 0x30
+    return [cksum1, cksum2]
+
+def stuff(data):
+    """Escape the data to be sent to compressor."""
+    XLATE = {0x02: 0x30, 0x0D: 0x31, 0x07: 0x32}
+    out = []
+    for c in data:
+        if c in XLATE:
+            out.extend([ESC, XLATE[c]])
+        else:
+            out.append(c)
+    return out
+
+def unstuff(data):
+    """Unescape data coming back from the compressor."""
+    XLATE = {0x30: 0x02, 0x31: 0x0D, 0x32: 0x07}
+    out = []
+    escape = False
+    for c in data:
+        if escape:
+            out.append(XLATE[c])
+            escape = False
+        elif c == ESC:
+            escape == True
+        else:
+            out.append(c)
+    return out
+
+def pack(data):
+    """Make a packet to send data to the compressor.
+    
+    We use the Sycon Multi Drop Protocol (see docs on skynet).
+    """
+    chk = checksum([ADDR, CMD_RSP] + data)
+    pkt = [ADDR, CMD_RSP] + stuff(data)
+    return [STX] + pkt + chk + [CR]
+
+def unpack(response):
+    """pull binary data out of SMDP response packet"""
+    if isinstance(response, str):
+        response = [ord(c) for c in response]
+    if response[-1] == CR:
+        response = response[:-1]
+    rsp = response[2] & 0xF # response code (see SMDP docs)
+    data = unstuff(response[3:-2])
+    return data
+
+#####
+# Data Dictionary for CP2800 Compressor
     
 def read(key, index=0):
     """Make a packet to read a variable."""
@@ -235,8 +321,18 @@ def toBytes(n, count=4):
 def fromBytes(b, count=4):
     """Turn a list of bytes into an int."""
     return sum(d << (8*i) for d, i in zip(b, reversed(range(count))))
-        
 
+def toTemp(v, units=K):
+    """Convert temp reading to a LabRAD temperature."""
+    return ((v / 10.0) * degC).inUnitsOf(units)
+
+def toPress(v, units=torr):
+    """Convert a pressure reading to a LabRAD pressure."""
+    return ((v / 10.0) * psi).inUnitsOf(units)
+
+
+#####
+# Create a server instance and run it
 
 __server__ = CompressorServer()
 
