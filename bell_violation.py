@@ -15,7 +15,7 @@
 
 from labrad        import util, types as T
 from labrad.server import LabradServer, setting
-from labrad.units  import Unit, mV, ns, deg, MHz
+from labrad.units  import Unit, mV, ns, deg, rad, MHz, GHz
 
 from twisted.python import log
 from twisted.internet import defer, reactor
@@ -23,37 +23,38 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 
 import numpy
 
+dBm = Unit('dBm')
+
 GLOBALPARS = [ "Stats", "Sequence" ];
 
-QUBITPARAMETERS = [("Microwave Offset",          "ns" ),
-                   ("Resonance Frequency",       "GHz"),
-                   ("Sideband Frequency",        "GHz"),
-                   ("Carrier Power",             "dBm"), 
+QUBITPARAMETERS = [("Microwave Offset",          "Timing",        "Microwave Offset",    "ns",   50.0*ns ),
+                   ("Resonance Frequency",       "Spectroscopy",  "Frequency",           "GHz",   6.5*GHz),
+                   ("Sideband Frequency",        "Microwaves",    "Sideband Frequency",  "GHz",-150.0*MHz),
+                   ("Carrier Power",             "Microwaves",    "Carrier Power",       "dBm",   2.7*dBm), 
+
+                   ("Measure Offset",            "Timing",        "Measure Offset",      "ns",   50.0*ns ),
+                   ("Measure Pulse Delay",       "Measure Pulse", "Delay",               "ns",    5.0*ns ),
+                   ("Measure Pulse Amplitude",   "Measure Pulse", "Amplitude",           "mV",  500.0*mV ),
+                   ("Measure Pulse Top Length",  "Measure Pulse", "Top Length",          "ns",    5.0*ns ),
+                   ("Measure Pulse Tail Length", "Measure Pulse", "Tail Length",         "ns",   15.0*ns )]
+
+BELLPARAMETERS  = [("Pi Pulse Amplitude",        "mV",  500.0*mV ),
+                   ("Pi Pulse Phase",            "rad",   0.0*rad),
+                   ("Pi Pulse Length",           "ns",   16.0*ns ),
+
+                   ("Coupling Time",             "ns",   20.0*ns ),
+
+                   ("Bell Pulse Length",         "ns",   10.0*ns ),
+                   ("Bell Pulse Bias Shift",     "mV",    0.0*mV ),
+                   ("Bell Pulse Frequency Shift","GHz",   0.0*GHz),
+
+                   ("Bell Pulse Amplitude",      "mV",  100.0*mV ),
+                   ("Bell Pulse Phase",          "rad",   0.0*rad),
               
-                   ("Measure Offset",            "ns" ),
+                   ("Bell Pulse Amplitude'",     "mV",  200.0*mV ),   
+                   ("Bell Pulse Phase'",         "rad",   0.0*rad),
 
-                   ("Measure Pulse Delay",       "ns" ),
-                    "Measure Pulse Amplitude",
-                   ("Measure Pulse Top Length",  "ns" ),
-                   ("Measure Pulse Tail Length", "ns" )]
-
-BELLPARAMETERS  = [ "Pi Pulse Amplitude",
-                   ("Pi Pulse Phase",            "rad"),
-                   ("Pi Pulse Length",           "ns" ),
-
-                   ("Coupling Time",             "ns" ),
-
-                   ("Bell Pulse Length",         "ns" ),
-                    "Bell Pulse Bias Shift",
-                   ("Bell Pulse Frequency Shift","GHz"),
-
-                    "Bell Pulse Amplitude",
-                   ("Bell Pulse Phase",          "rad"),
-              
-                    "Bell Pulse Amplitude'",          
-                   ("Bell Pulse Phase'",         "rad"),
-
-                    "Operating Bias Shift"             ]
+                   ("Operating Bias Shift",      "mV",    0.0*mV )]
 
 
 def analyzeData(cutoffs, data):
@@ -108,23 +109,17 @@ class VoBIServer(LabradServer):
             # Change into qubit directory
             p.cd(qubit, key=False)
             for parameter in qubitpars:
-                if isinstance(parameter, tuple):
-                    name, units = parameter
-                    # Load setting with units
-                    p.get(name, 'v[%s]' % units, key=(qubit, name))
-                else:
-                    # Load setting without units
-                    p.get(parameter, key=(qubit, parameter))
+                name, path, key, units, default = parameter
+                # Load setting with units
+                p.cd(path, True, key=False)
+                p.get(key, 'v[%s]' % units, True, default, key=(qubit, name))
+                p.cd(1, key=False)
             # Change into bell directory
-            p.cd('Bell Violation', key=False)
+            p.cd('Bell Violation', True, key=False)
             for parameter in bellpars:
-                if isinstance(parameter, tuple):
-                    name, units = parameter
-                    # Load setting with units
-                    p.get(name, 'v[%s]' % units, key=(qubit, name))
-                else:
-                    # Load setting without units
-                    p.get(parameter, key=(qubit, parameter))
+                name, units, default = parameter
+                # Load setting with units
+                p.get(name, 'v[%s]' % units, True, default, key=(qubit, name))
             # Change back to root directory
             p.cd(2, key=False)
         # Get parameters
