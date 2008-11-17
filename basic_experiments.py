@@ -99,6 +99,15 @@ def analyzeDataSeparate(cutoffs, data):
     counts = sum(isOne)
     return [c*100.0/float(total) for c in counts]
 
+def analyzeDataSeparate2(cutoffs, data):
+    nQubits = len(cutoffs)
+    data = data.T # indexed by [rep#, qubit#]
+    total = data.shape[0]
+    cutoffNums = numpy.array([c[1] for c in cutoffs])
+    isOne = (data/25.0 > abs(cutoffNums)) ^ (cutoffNums < 0)
+    counts = sum(isOne)
+    return [c*100.0/float(total) for c in counts]
+
 
 class BEServer(LabradServer):
     """Provides basic experiments for bringing up a qubit."""
@@ -276,6 +285,27 @@ class BEServer(LabradServer):
 
         returnValue((qubits, pars, p))
 
+    @inlineCallbacks
+    def reinit_qubits(self, c, p, qubits):
+        # Setup SRAM
+        p.memory_call_sram()
+        yield p.send()
+        
+        # Readout qubits
+        p = self.client.qubit_bias.packet(context=c.ID)
+        p.readout_qubits()
+
+        # Initialize qubits
+        p.initialize_qubits()
+        yield p.send()
+
+        # Begin SRAM packet
+        p = self.client.qubits.packet(context=c.ID)
+        # Add Trigger
+        for qid, qname in enumerate(qubits):
+            p.sram_trigger_pulse(('Trigger', qid+1), 20*ns)
+
+        returnValue(p)                      
 
     @inlineCallbacks
     def run_qubits(self, c, p, stats):
@@ -293,7 +323,7 @@ class BEServer(LabradServer):
 
 
     @inlineCallbacks
-    def run_qubits_separate(self, c, p, stats):
+    def run_qubits_separate(self, c, p, stats, n=1):
         # Setup SRAM
         p.memory_call_sram()
         yield p.send()
@@ -304,7 +334,22 @@ class BEServer(LabradServer):
         # Run experiment
         data = yield self.client.qubits.run(stats, context=c.ID)
 
-        returnValue(analyzeDataSeparate(cutoffs, data))
+        if n==1:
+            returnValue(analyzeDataSeparate(cutoffs, data))
+
+        data = data.asarray
+
+        l = 1
+        for s in data.shape:
+            l *= s
+        
+        # Deinterlace data
+        data = data.reshape(l/stats/n, stats, n)
+
+        # Turn switching data into probabilities
+        results = [analyzeDataSeparate2(cutoffs, data[:,:,i]) for i in range(n)]
+
+        returnValue(results)        
 
 
     @setting(20, 'S-Curve', ctxt=['ww'], returns=['*v'])
@@ -543,36 +588,50 @@ class BEServer(LabradServer):
 
         data = []
 
-        for pt in [False, True]:
-        
-            # Initialize experiment
-            qubits, pars, p = yield self.init_qubits(c, ctxt, GLOBALPARS, SLEPIANPARS)
+        # Initialize experiment
+        qubits, pars, p = yield self.init_qubits(c, ctxt, GLOBALPARS, SLEPIANPARS)
 
-            # Build SRAM
-            for qid, qname in enumerate(qubits):
-                # Add Microwave Pulse
-                p.experiment_set_anritsu(('uWaves',  qid+1), pars[(qname, 'Resonance Frequency'      )]- \
-                                                             pars[(qname, 'Sideband Frequency'       )],
-                                                             pars[(qname, 'Carrier Power'            )])
-                if pt:
-                    p.sram_iq_delay         (('uWaves',  qid+1), pars[(qname, 'Microwave Offset'         )]+50*ns)
-                    p.sram_iq_slepian       (('uWaves',  qid+1), pars[(qname, 'Microwave Pulse Amplitude')],
-                                                                 pars[(qname, 'Microwave Pulse Length'   )],
-                                                           float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
-                                                                 pars[(qname, 'Microwave Pulse Phase'    )])
-                # Add Measure Delay
-                p.sram_analog_delay     (('Measure', qid+1), pars[(qname, 'Measure Offset'           )]+ \
-                                                             pars[(qname, 'Microwave Pulse Length'   )]+ \
-                                                             pars[(qname, 'Measure Pulse Delay'      )]+50*ns)
-                # Measure Pulse
-                meastop  = int  (pars[(qname, "Measure Pulse Top Length" )])
-                meastail = int  (pars[(qname, "Measure Pulse Tail Length")])
-                measamp  = float(pars[(qname, "Measure Pulse Amplitude"  )])/1000.0
-                measpuls = [measamp]*meastop + [(meastail - t - 1)*measamp/meastail for t in range(meastail)]
-                p.sram_analog_data  (('Measure', qid+1), measpuls)
+        # Build SRAM for |0>-state
+        for qid, qname in enumerate(qubits):
+            # Add Measure Delay
+            p.sram_analog_delay     (('Measure', qid+1), pars[(qname, 'Measure Offset'           )]+ \
+                                                         pars[(qname, 'Microwave Pulse Length'   )]+ \
+                                                         pars[(qname, 'Measure Pulse Delay'      )]+50*ns)
+            # Measure Pulse
+            meastop  = int  (pars[(qname, "Measure Pulse Top Length" )])
+            meastail = int  (pars[(qname, "Measure Pulse Tail Length")])
+            measamp  = float(pars[(qname, "Measure Pulse Amplitude"  )])/1000.0
+            measpuls = [measamp]*meastop + [(meastail - t - 1)*measamp/meastail for t in range(meastail)]
+            p.sram_analog_data  (('Measure', qid+1), measpuls)
 
-            # Run experiment and return result
-            data.append((yield self.run_qubits_separate(c, p, pars['Stats'])))
+        # Reinitialize for second data point
+        p = yield self.reinit_qubits(c, p, qubits)
+
+        # Build SRAM for |1>-state
+        for qid, qname in enumerate(qubits):
+            # Add Microwave Pulse
+            p.experiment_set_anritsu(('uWaves',  qid+1), pars[(qname, 'Resonance Frequency'      )]- \
+                                                         pars[(qname, 'Sideband Frequency'       )],
+                                                         pars[(qname, 'Carrier Power'            )])
+
+            p.sram_iq_delay         (('uWaves',  qid+1), pars[(qname, 'Microwave Offset'         )]+50*ns)
+            p.sram_iq_slepian       (('uWaves',  qid+1), pars[(qname, 'Microwave Pulse Amplitude')],
+                                                         pars[(qname, 'Microwave Pulse Length'   )],
+                                                   float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
+                                                         pars[(qname, 'Microwave Pulse Phase'    )])
+            # Add Measure Delay
+            p.sram_analog_delay     (('Measure', qid+1), pars[(qname, 'Measure Offset'           )]+ \
+                                                         pars[(qname, 'Microwave Pulse Length'   )]+ \
+                                                         pars[(qname, 'Measure Pulse Delay'      )]+50*ns)
+            # Measure Pulse
+            meastop  = int  (pars[(qname, "Measure Pulse Top Length" )])
+            meastail = int  (pars[(qname, "Measure Pulse Tail Length")])
+            measamp  = float(pars[(qname, "Measure Pulse Amplitude"  )])/1000.0
+            measpuls = [measamp]*meastop + [(meastail - t - 1)*measamp/meastail for t in range(meastail)]
+            p.sram_analog_data  (('Measure', qid+1), measpuls)
+
+        # Run experiment and return result
+        data = yield self.run_qubits_separate(c, p, pars['Stats'], 2)
 
         ans = []
         for off, on in zip(data[0], data[1]):
