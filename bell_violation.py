@@ -28,7 +28,7 @@ dBm = Unit('dBm')
 GLOBALPARS = [ "Stats", "Sequence" ];
 
 QUBITPARAMETERS = [("Microwave Offset",          "Timing",        "Microwave Offset",    "ns",   50.0*ns ),
-                   ("Resonance Frequency",       "Spectroscopy",  "Frequency",           "GHz",   6.5*GHz),
+                   ("Resonance Frequency",       "Pulse 1",       "Frequency",           "GHz",   6.5*GHz),
                    ("Sideband Frequency",        "Microwaves",    "Sideband Frequency",  "GHz",-150.0*MHz),
                    ("Carrier Power",             "Microwaves",    "Carrier Power",       "dBm",   2.7*dBm), 
 
@@ -170,11 +170,9 @@ class VoBIServer(LabradServer):
                                                              pars[(qname, 'Sideband Frequency'       )],
                                                              pars[(qname, 'Carrier Power'            )])
                 
-                # Initial Delay
                 p.sram_iq_delay         (('uWaves',  qid+1), pars[(qname, 'Microwave Offset'         )]+50*ns)
-
                 # Pi Pulse
-                p.sram_iq_slepian       (('uWaves',  qid+1), pars[(qname, 'Pi Pulse Amplitude'       )],
+                p.sram_iq_slepian       (('uWaves',  qid+1), float(pars[(qname, 'Pi Pulse Amplitude'       )])/1000.0,
                                                              pars[(qname, 'Pi Pulse Length'          )],
                                                        float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
                                                              pars[(qname, 'Pi Pulse Phase'           )])
@@ -183,7 +181,7 @@ class VoBIServer(LabradServer):
                 # Bell Pulses
                 # A, B
                 if op==0:
-                    p.sram_iq_slepian   (('uWaves',  qid+1), pars[(qname, "Bell Pulse Amplitude"     )],
+                    p.sram_iq_slepian   (('uWaves',  qid+1), float(pars[(qname, "Bell Pulse Amplitude"     )])/1000.0,
                                                              pars[(qname, "Bell Pulse Length"        )],
                                                        float(pars[(qname, 'Sideband Frequency'       )]+
                                                              pars[(qname, 'Bell Pulse Frequency Shift')])*1000.0,
@@ -191,34 +189,34 @@ class VoBIServer(LabradServer):
                 # A', B or B', A
                 if op in [1,2]:
                   if ((op+qid) % 2)==0:
-                    p.sram_iq_slepian   (('uWaves',  qid+1), pars[(qname, "Bell Pulse Amplitude"     )],
+                    p.sram_iq_slepian   (('uWaves',  qid+1), float(pars[(qname, "Bell Pulse Amplitude"     )])/1000.0,
                                                              pars[(qname, "Bell Pulse Length"        )],
                                                        float(pars[(qname, 'Sideband Frequency'       )]+
                                                              pars[(qname, 'Bell Pulse Frequency Shift')])*1000.0,
                                                              pars[(qname, "Bell Pulse Phase"         )])
                   else:
-                    p.sram_iq_slepian   (('uWaves',  qid+1), pars[(qname, "Bell Pulse Amplitude'"    )],
+                    p.sram_iq_slepian   (('uWaves',  qid+1), float(pars[(qname, "Bell Pulse Amplitude'"    )])/1000.0,
                                                              pars[(qname, "Bell Pulse Length"        )],
                                                        float(pars[(qname, 'Sideband Frequency'       )]+
                                                              pars[(qname, 'Bell Pulse Frequency Shift')])*1000.0,
                                                              pars[(qname, "Bell Pulse Phase'"        )])
                 # A', B'
                 if op==3:
-                    p.sram_iq_slepian   (('uWaves',  qid+1), pars[(qname, "Bell Pulse Amplitude'"    )],
+                    p.sram_iq_slepian   (('uWaves',  qid+1), float(pars[(qname, "Bell Pulse Amplitude'"    )])/1000.0,
                                                              pars[(qname, "Bell Pulse Length"        )],
                                                        float(pars[(qname, 'Sideband Frequency'       )]+
                                                              pars[(qname, 'Bell Pulse Frequency Shift')])*1000.0,
                                                              pars[(qname, "Bell Pulse Phase'"        )])
                 # A'
                 if (op==4) and (qid==0):
-                    p.sram_iq_slepian   (('uWaves',  qid+1), pars[(qname, "Bell Pulse Amplitude'"    )],
+                    p.sram_iq_slepian   (('uWaves',  qid+1), float(pars[(qname, "Bell Pulse Amplitude'"    )])/1000.0,
                                                              pars[(qname, "Bell Pulse Length"        )],
                                                        float(pars[(qname, 'Sideband Frequency'       )]+
                                                              pars[(qname, 'Bell Pulse Frequency Shift')])*1000.0,
                                                              pars[(qname, "Bell Pulse Phase'"        )])
                 # B
                 if (op==5) and (qid==1):
-                    p.sram_iq_slepian   (('uWaves',  qid+1), pars[(qname, "Bell Pulse Amplitude"     )],
+                    p.sram_iq_slepian   (('uWaves',  qid+1), float(pars[(qname, "Bell Pulse Amplitude"     )])/1000.0,
                                                              pars[(qname, "Bell Pulse Length"        )],
                                                        float(pars[(qname, 'Sideband Frequency'       )]+
                                                              pars[(qname, 'Bell Pulse Frequency Shift')])*1000.0,
