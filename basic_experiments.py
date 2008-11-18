@@ -614,13 +614,11 @@ class BEServer(LabradServer):
             p.experiment_set_anritsu(('uWaves',  qid+1), pars[(qname, 'Resonance Frequency'      )]- \
                                                          pars[(qname, 'Sideband Frequency'       )],
                                                          pars[(qname, 'Carrier Power'            )])
-            
             p.sram_iq_delay         (('uWaves',  qid+1), pars[(qname, 'Microwave Offset'         )]+50*ns)
             p.sram_iq_slepian       (('uWaves',  qid+1), float(pars[(qname, 'Microwave Pulse Amplitude')])/1000.0,
                                                          pars[(qname, 'Microwave Pulse Length'   )],
                                                    float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
                                                          pars[(qname, 'Microwave Pulse Phase'    )])
-
             # Add Measure Delay
             p.sram_analog_delay     (('Measure', qid+1), pars[(qname, 'Measure Offset'           )]+ \
                                                          pars[(qname, 'Microwave Pulse Length'   )]+ \
