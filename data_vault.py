@@ -145,8 +145,19 @@ def parseDependent(s):
     units = getMatch(re_units, s, '')
     return label, legend, units
     
-    
-    
+
+# TODO: tagging
+# - fire messages when tags are added or removed
+#     - new signal: 'signal: tags updated'
+#                   only fired to listeners in a particular session
+#
+# - search globally (or in some subtree of sessions) for matching tags
+#     - this is the least common case, and will be an expensive operation
+#     - don't worry too much about optimizing this
+#     - since we won't bother optimizing the global search case, we can store
+#       tag information in the session
+
+
 class Session(object):
     """Stores information about a directory on disk.
     
@@ -191,7 +202,6 @@ class Session(object):
         self.parent = parent
         self.dir = filedir(path)
         self.infofile = os.path.join(self.dir, 'session.ini')
-        self.listeners = []
         self.datasets = {}
 
         if not os.path.exists(self.dir):
@@ -206,6 +216,8 @@ class Session(object):
         else:
             self.counter = 1
             self.created = self.modified = datetime.now()
+            self.session_tags = {}
+            self.dataset_tags = {}
 
         self.access() # update current access time and save
         self.listeners = set()
@@ -223,6 +235,14 @@ class Session(object):
         self.accessed = timeFromStr(S.get(sec, 'Accessed'))
         self.modified = timeFromStr(S.get(sec, 'Modified'))
 
+        # get tags if they're there
+        if S.has_section('Tags'):
+            self.session_tags = eval(S.get('Tags', 'sessions', raw=True))
+            self.dataset_tags = eval(S.get('Tags', 'datasets', raw=True))
+        else:
+            self.session_tags = {}
+            self.dataset_tags = {}
+
     def save(self):
         """Save info to the session.ini file."""
         S = SafeConfigParser()
@@ -237,6 +257,11 @@ class Session(object):
         S.set(sec, 'Accessed', timeToStr(self.accessed))
         S.set(sec, 'Modified', timeToStr(self.modified))
 
+        sec = 'Tags'
+        S.add_section(sec)
+        S.set(sec, 'sessions', repr(self.session_tags))
+        S.set(sec, 'datasets', repr(self.dataset_tags))
+
         with open(self.infofile, 'w') as f:
             S.write(f)
 
@@ -245,11 +270,31 @@ class Session(object):
         self.accessed = datetime.now()
         self.save()
 
-    def listContents(self):
+    def listContents(self, tagFilters):
         """Get a list of directory names in this directory."""
         files = os.listdir(self.dir)
         dirs = [dsDecode(s[:-4]) for s in files if s.endswith('.dir')]
         datasets = [dsDecode(s[:-4]) for s in files if s.endswith('.csv')]
+        # apply tag filters
+        def include(entries, tag, tags):
+            """Include only entries that have the specified tag."""
+            return [e for e in entries
+                    if e in tags and tag in tags[e]]
+        def exclude(entries, tag, tags):
+            """Exclude all entries that have the specified tag."""
+            return [e for e in entries
+                    if e not in tags or tag not in tags[e]]
+        for tag in tagFilters:
+            if tag[:1] == '-':
+                filter = exclude
+                tag = tag[1:]
+            else:
+                filter = include
+            #print filter.__name__ + ':', tag
+            #print 'before:', dirs, datasets
+            dirs = filter(dirs, tag, self.session_tags)
+            datasets = filter(datasets, tag, self.dataset_tags)
+            #print 'after:', dirs, datasets
         return dirs, datasets
             
     def listDatasets(self):
@@ -301,6 +346,44 @@ class Session(object):
         self.access()
         
         return dataset
+
+    def updateTags(self, tags, sessions, datasets):
+        def updateTagDict(tags, entries, d):
+            updates = []
+            for entry in entries:
+                changed = False
+                if entry not in d:
+                    d[entry] = set()
+                entryTags = d[entry]
+                for tag in tags:
+                    if tag[:1] != '-':
+                        # add this tag
+                        if tag not in entryTags:
+                            entryTags.add(tag)
+                            changed = True
+                    else:
+                        # remove this tag
+                        tag = tag[1:]
+                        if tag in entryTags:
+                            entryTags.remove(tag)
+                            changed = True
+                if changed:
+                    updates.append((entry, sorted(entryTags)))
+            return updates
+
+        sessUpdates = updateTagDict(tags, sessions, self.session_tags)
+        dataUpdates = updateTagDict(tags, datasets, self.dataset_tags)
+
+        self.access()
+        if len(sessUpdates) + len(dataUpdates):
+            # fire a message about the new tags
+            msg = (sessUpdates, dataUpdates)
+            self.parent.onTagsUpdated(msg, self.listeners)
+
+    def getTags(self, sessions, datasets):
+        sessTags = [(s, sorted(self.session_tags.get(s, []))) for s in sessions]
+        dataTags = [(d, sorted(self.dataset_tags.get(d, []))) for d in datasets]
+        return sessTags, dataTags
 
 class Dataset:
     def __init__(self, session, name, title=None, num=None, create=False):
@@ -372,7 +455,6 @@ class Dataset:
             self.comments = [getComment(i) for i in range(count)]
         else:
             self.comments = []
-        
         
     def save(self):
         S = SafeConfigParser()
@@ -712,17 +794,24 @@ class DataVault(LabradServer):
             raise NoDatasetError()
         session = self.getSession(c)
         return session.datasets[c['dataset']]
-        
+
+    # session signals
     onNewDir = Signal(543617, 'signal: new dir', 's')
     onNewDataset = Signal(543618, 'signal: new dataset', 's')
+    onTagsUpdated = Signal(543622, 'signal: tags updated', '*(s*s)*(s*s)')
+
+    # dataset signals
     onDataAvailable = Signal(543619, 'signal: data available', '')
     onNewParameter = Signal(543620, 'signal: new parameter', '')
     onCommentsAvailable = Signal(543621, 'signal: comments available', '')
     
-    @setting(6, returns=['(*s{subdirectories}, *s{datasets})'])
-    def dir(self, c):
+    @setting(6, tagFilters=['s', '*s'],
+                returns=['(*s{subdirectories}, *s{datasets})'])
+    def dir(self, c, tagFilters=['-trash']):
         """Get subdirectories and datasets in the current directory."""
-        return self.getSession(c).listContents()
+        if isinstance(tagFilters, str):
+            tagFilters = [tagFilters]
+        return self.getSession(c).listContents(tagFilters)
     
     @setting(7, path=['{get current directory}',
                       's{change into this directory}',
@@ -979,7 +1068,41 @@ class DataVault(LabradServer):
         comments, c['commentpos'] = dataset.getComments(limit, c['commentpos'])
         dataset.keepStreamingComments(c.ID, c['commentpos'])
         return comments
-    
+
+    @setting(300, 'update tags', tags=['s', '*s'],
+                  dirs=['s', '*s'], datasets=['s', '*s'],
+                  returns='')
+    def update_tags(self, c, tags, dirs, datasets=None):
+        """Update the tags for the specified directories and datasets.
+
+        If a tag begins with a minus sign '-' then the tag (everything
+        after the minus sign) will be removed.  Otherwise it will be added.
+
+        The directories and datasets must be in the current directory.
+        """
+        if isinstance(tags, str):
+            tags = [tags]
+        if isinstance(dirs, str):
+            dirs = [dirs]
+        if datasets is None:
+            datasets = [self.getDataset(c)]
+        elif isinstance(datasets, str):
+            datasets = [datasets]
+        sess = self.getSession(c)
+        sess.updateTags(tags, dirs, datasets)
+
+    @setting(301, 'get tags',
+                  dirs=['s', '*s'], datasets=['s', '*s'],
+                  returns='*(s*s)*(s*s)')
+    def get_tags(self, c, dirs, datasets):
+        """Get tags for directories and datasets in the current dir."""
+        sess = self.getSession(c)
+        if isinstance(dirs, str):
+            dirs = [dirs]
+        if isinstance(datasets, str):
+            datasets = [datasets]
+        return sess.getTags(dirs, datasets)
+        
         
 __server__ = DataVault()
 

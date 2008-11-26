@@ -13,9 +13,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from labrad.gpib import GPIBDeviceServer
+from labrad.gpib import GPIBManagedServer
 
-class AgilentDMMServer(GPIBDeviceServer):
+class AgilentDMMServer(GPIBManagedServer):
     name = 'Agilent 34401A DMM'
     deviceName = 'HEWLETT-PACKARD 34401A'
 

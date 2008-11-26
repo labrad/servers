@@ -212,7 +212,9 @@ class DeviceManager(LabradServer):
 
     @setting(10)
     def dump_info(self, c):
-        return str(self.knownDevices), str(self.deviceServers)
+        return (str(self.knownDevices),
+                str(self.deviceServers),
+                str(self.identFunctions))
     
     def notifyServers(self, device, server, channel, isConnected):
         """Notify all registered servers about a device status change."""
