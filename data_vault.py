@@ -356,16 +356,24 @@ class Session(object):
                     d[entry] = set()
                 entryTags = d[entry]
                 for tag in tags:
-                    if tag[:1] != '-':
-                        # add this tag
-                        if tag not in entryTags:
-                            entryTags.add(tag)
-                            changed = True
-                    else:
+                    if tag[:1] == '-':
                         # remove this tag
                         tag = tag[1:]
                         if tag in entryTags:
                             entryTags.remove(tag)
+                            changed = True
+                    elif tag[:1] == '^':
+                        # toggle this tag
+                        tag = tag[1:]
+                        if tag in entryTags:
+                            entryTags.remove(tag)
+                        else:
+                            entryTags.add(tag)
+                        changed = True
+                    else:
+                        # add this tag
+                        if tag not in entryTags:
+                            entryTags.add(tag)
                             changed = True
                 if changed:
                     updates.append((entry, sorted(entryTags)))
@@ -805,13 +813,20 @@ class DataVault(LabradServer):
     onNewParameter = Signal(543620, 'signal: new parameter', '')
     onCommentsAvailable = Signal(543621, 'signal: comments available', '')
     
-    @setting(6, tagFilters=['s', '*s'],
-                returns=['(*s{subdirectories}, *s{datasets})'])
-    def dir(self, c, tagFilters=['-trash']):
+    @setting(6, tagFilters=['s', '*s'], includeTags='b',
+                returns=['*s{subdirs}, *s{datasets}',
+                         '*(s*s){subdirs}, *(s*s){datasets}'])
+    def dir(self, c, tagFilters=['-trash'], includeTags=None):
         """Get subdirectories and datasets in the current directory."""
+        #print 'dir:', tagFilters, includeTags
         if isinstance(tagFilters, str):
             tagFilters = [tagFilters]
-        return self.getSession(c).listContents(tagFilters)
+        sess = self.getSession(c)
+        dirs, datasets = sess.listContents(tagFilters)
+        if includeTags:
+            dirs, datasets = sess.getTags(dirs, datasets)
+        #print dirs, datasets
+        return dirs, datasets
     
     @setting(7, path=['{get current directory}',
                       's{change into this directory}',
@@ -1076,7 +1091,9 @@ class DataVault(LabradServer):
         """Update the tags for the specified directories and datasets.
 
         If a tag begins with a minus sign '-' then the tag (everything
-        after the minus sign) will be removed.  Otherwise it will be added.
+        after the minus sign) will be removed.  If a tag begins with '^'
+        then it will be toggled from its current state for each entry
+        in the list.  Otherwise it will be added.
 
         The directories and datasets must be in the current directory.
         """
