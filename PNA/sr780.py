@@ -19,6 +19,7 @@ from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 from struct import unpack
+import numpy
 
 class SR780Wrapper(GPIBDeviceWrapper):
     pass
@@ -308,12 +309,13 @@ class SR780Server(GPIBManagedServer):
         print "unpacking..."
 
         data = [unpack('<f', data[i*4:i*4+4])[0] for i in range(length)]
+        data = numpy.array(data)
         #Calculate frequencies from current span
         resp = yield dev.query('FSTR?0\n')
         fs = T.Value(float(resp), 'Hz')
         resp = yield dev.query('FEND?0\n')
         fe = T.Value(float(resp), 'Hz')
-        freq = util.linspace(fs, fe, length)
+        freq = numpy.linspace(fs, fe, length)
         
         
 
@@ -323,7 +325,7 @@ class SR780Server(GPIBManagedServer):
         dependents = [('Sv', 'PSD', 'Vrms/Hz^1/2')]
         p = dv.packet()
         p.new(name, independents, dependents)
-        p.add(zip(freq, data))
+        p.add(numpy.vstack((freq, data)).T)
         p.add_comment('Autosaved by SR780 server.')
         yield p.send(context=c.ID)
         
