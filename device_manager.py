@@ -44,9 +44,9 @@ class DeviceManager(LabradServer):
     @inlineCallbacks
     def refreshDeviceLists(self):
         """Ask all GPIB busses for their available GPIB devices."""
-        yield self.client.refresh()
+        #yield self.client.refresh()
         servers = [s for n, s in self.client.servers.items()
-                     if ('gpib_bus' in n) and ('list_devices' in s.settings)]
+                     if ('GPIB Bus' in n) and ('List Devices' in s.settings)]
         names = [s._labrad_name for s in servers]
         print 'pinging servers:', names
         resp = yield DeferredList([s.list_devices() for s in servers])
@@ -86,7 +86,7 @@ class DeviceManager(LabradServer):
     @inlineCallbacks
     def lookupDeviceName(self, server, channel):
         """Try to send a *IDN? query to lookup info about a device."""
-        yield self.client.refresh()
+        #yield self.client.refresh()
         p = self.client.servers[server].packet()
         p.address(channel).timeout(1).write('*IDN?').read()
         print 'sending *IDN? to', server, channel
@@ -115,7 +115,7 @@ class DeviceManager(LabradServer):
         """Try to identify all unknown devices with a new server."""
         @inlineCallbacks
         def _doServerIdentify(target):
-            yield self.client.refresh()
+            #yield self.client.refresh()
             for (server, channel), (device, idn) in list(self.knownDevices.items()):
                 if device != UNKNOWN:
                     continue
@@ -136,7 +136,7 @@ class DeviceManager(LabradServer):
         """
         setting, context = self.identFunctions[target]
         try:
-            yield self.client.refresh()
+            #yield self.client.refresh()
             s = self.client[target]
             print 'trying to identify device', server, channel,
             print 'on server', target,
