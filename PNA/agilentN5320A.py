@@ -158,32 +158,37 @@ class AgilentPNAServer(GPIBManagedServer):
         """Get or set the x/y attenuation (ignored...)."""
         dev = self.selectedDevice(c)
 
-    @setting(100, returns=['*v[Hz]*2c'])
-    def freq_sweep(self, c):
-        """Initiate a frequency sweep."""
+    @setting(100, log='b', returns='*v[Hz]*2c')
+    def freq_sweep(self, c, log=False):
+        """Initiate a frequency sweep.
+
+        If log is False (the default), this will perform a
+        linear sweep.  If log is True, the sweep will be logarithmic.
+        """
         dev = self.selectedDevice(c)
 
         resp = yield dev.query('SENS:FREQ:STAR?; STOP?')
         fstar, fstop = [float(f) for f in resp.split(';')]
 
-        sweeptime, npoints = yield self.startSweep(dev, 'LIN')
+        sweepType = 'LOG' if log else 'LIN'
+        sweeptime, npoints = yield self.startSweep(dev, sweepType)
         if sweeptime > 1:
-            #print 'sweeptime: %g' % sweeptime
             sweeptime *= self.sweepFactor(c)
-            #print 'waiting for %g seconds' % sweeptime
             yield util.wakeupCall(sweeptime)
-            #print 'moving on.'
 
+        if log:
+            ## hack: should use numpy.logspace, but it seems to be broken
+            ## for now, this works instead.
+            lim1, lim2 = numpy.log10(fstar), numpy.log10(fstop)
+            freq = 10**numpy.linspace(lim1, lim2, npoints)
+        else:
+            freq = numpy.linspace(fstar, fstop, npoints)
+            
+        # wait for sweep to finish
         sparams = yield self.getSweepData(dev, c['meas'])
-
-        freq = util.linspace(fstar, fstop, npoints)
-        freq = [T.Value(f, 'Hz') for f in freq]
-        for s in sparams:
-            for i, c in enumerate(s):
-                s[i] = T.Complex(c)
         returnValue((freq, sparams))
 
-    @setting(101, returns=['*v[Hz]*2c'])
+    @setting(101, returns='*v[Hz]*2c')
     def power_sweep(self, c):
         """Initiate a power sweep."""
         dev = self.selectedDevice(c)
