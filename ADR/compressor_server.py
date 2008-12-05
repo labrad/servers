@@ -48,6 +48,7 @@ class CompressorDevice(DeviceWrapper):
         return self.server.packet(context=self.ctx)
     
     def shutdown(self):
+        """Disconnect from the serial port when we shut down."""
         return self.packet().close().send()
 
     @inlineCallbacks
@@ -56,7 +57,7 @@ class CompressorDevice(DeviceWrapper):
         if key not in WRITEABLE:
             raise Exception('Cannot write to key "%s".' % (key,))
         pkt = write(key, int(value), index=index)
-        yield self.packet().write(pkt).send()
+        yield self.packet().write(pkt).read_line('\r').send()
 
     @inlineCallbacks
     def read(self, key, index=0):
@@ -106,7 +107,7 @@ class CompressorDevice(DeviceWrapper):
         vals = yield self.readArrays(keys, 2, toPress)
         returnValue(vals)
 
-    def clearMarkers(self, c):
+    def clearMarkers(self):
         """Clear Min/Max temperature and pressure markers."""
         return self.write('CLR_TEMP_PRES_MMMARKERS', 1)
 
@@ -177,14 +178,14 @@ class CompressorServer(DeviceServer):
         dev = self.selectedDevice(c)
         return dev.temperatures()
         
-    @setting(1100, 'Pressures', minmax='s',
+    @setting(1100, 'Pressures',
              returns='*(v[torr]{curr}, v[torr]{min}, v[torr]{max})')
-    def pressures(self, c, minmax='CURR'):
+    def pressures(self, c):
         """Get pressures.
 
-        If called with 'MIN' or 'MAX', will return the minimum or maximum
-        recorded values of the pressures, respectively.  These min and
-        max values can be reset by calling 'Clear Markers'.
+        Returns the current, min and max pressures for the following
+        2 channels: high side, low side.  The Min and Max
+        markers can be reset by calling 'Clear Markers'.
         """
         dev = self.selectedDevice(c)
         return dev.pressures()
@@ -336,6 +337,7 @@ def unpack(response):
     if response[-1] == CR:
         response = response[:-1]
     rsp = response[2] & 0xF # response code (see SMDP docs)
+    # drop 3 byte header (STX, ADDR, CMD_RSP) and 2 byte checksum
     data = unstuff(response[3:-2])
     return data
 

@@ -58,26 +58,31 @@ class DirectoryExistsError(T.Error):
     def __init__(self, name):
         self.msg = "Directory '%s' already exists!" % name
 
+class DirectoryNotFoundError(T.Error):
+    code = 5
+
 class EmptyNameError(T.Error):
     """Names of directories or keys cannot be empty"""
-    code = 5
+    code = 6
+    def __init__(self, path):
+        self.msg = "Directory %s does not exist!" % (path,)
         
 class ReadOnlyError(T.Error):
     """Points can only be added to datasets created with 'new'."""
-    code = 6
+    code = 7
 
 class BadDataError(T.Error):
-    code = 7
+    code = 8
     def __init__(self, varcount):
         self.msg = 'Dataset requires %d values per datapoint.' % varcount
 
 class BadParameterError(T.Error):
-    code = 8
+    code = 9
     def __init__(self, name):
         self.msg = "Parameter '%s' not found." % name
 
 class ParameterInUseError(T.Error):
-    code = 9
+    code = 10
     def __init__(self, name):
         self.msg = "Already a parameter called '%s'." % name
 
