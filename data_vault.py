@@ -73,8 +73,8 @@ class ReadOnlyError(T.Error):
 
 class BadDataError(T.Error):
     code = 8
-    def __init__(self, varcount):
-        self.msg = 'Dataset requires %d values per datapoint.' % varcount
+    def __init__(self, varcount, gotcount):
+        self.msg = 'Dataset requires %d values per datapoint not %d.' % (varcount, gotcount)
 
 class BadParameterError(T.Error):
     code = 9
@@ -614,7 +614,7 @@ class Dataset:
         if not len(data) or not isinstance(data[0], list):
             data = [data]
         if len(data[0]) != varcount:
-            raise BadDataError(varcount)
+            raise BadDataError(varcount, len(data[0]))
             
         # append the data to the file
         self._saveData(data)
@@ -705,7 +705,7 @@ class NumpyDataset(Dataset):
         
         # check row length
         if data.shape[-1] != varcount:
-            raise BadDataError(varcount)
+            raise BadDataError(varcount, data.shape[-1])
         
         # append data to in-memory data
         if self.data.size > 0:
