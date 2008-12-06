@@ -24,7 +24,9 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 INIT_PARAMETERS = [('Reset Bias Low',          'v[mV]', -1000.0*mV),
                    ('Reset Bias High',         'v[mV]', -1000.0*mV),
                    ('Reset Settling Time',     'v[us]',     4.3*us),
-                   ('Reset Cycles',            'w',      long(0)  ),
+                   ('Reset Cycles',            'w',    long(0)    ),
+                   ('Reset Delay',             'v[us]',     0.0*us),
+                   ('Idle Bias',               'v[mV]',     0.0*mV),
                    ('Operating Bias',          'v[mV]',    50.0*mV),
                    ('Operating Settling Time', 'v[us]',    40.0*us), 
                    ('Squid Zero Bias',         'v[mV]',    40.0*us)]
@@ -101,36 +103,60 @@ class QubitBiasServer(LabradServer):
         """Send qubit initialization commands to Qubit Server"""
         qubits = yield self.getQubits(c)
         pars   = yield self.readParameters(c, qubits, INIT_PARAMETERS)
-        
-        # Generate Memory Building Blocks
+
+        # Build TODO List based on requested Reset Delays
         initreset = []
-        reset1    = []
-        reset2    = []
         setop     = []
+        todo      = {}
         for qid, qname in enumerate(qubits):
-            # Set Flux to Reset Low and Squid to Zero Bias
-            initreset.extend([(('Flux',  qid+1), DAC1fast(pars[(qname, 'Reset Bias Low' )])),
+            delay = pars[(qname, 'Reset Delay')]
+            if delay in todo:
+                todo[delay].append((qid, qname))
+            else:
+                todo[delay]=      [(qid, qname)]
+            # Build Initialization Commands
+            initreset.extend([(('Flux',  qid+1), DAC1fast(pars[(qname, 'Idle Bias'      )])),
                               (('Squid', qid+1), DAC1fast(pars[(qname, 'Squid Zero Bias')]))])
-            # Set Flux to Reset High
-            reset1.append   ( (('Flux',  qid+1), DAC1fast(pars[(qname, 'Reset Bias High')])))
-            # Set Flux to Reset Low
-            reset2.append   ( (('Flux',  qid+1), DAC1fast(pars[(qname, 'Reset Bias Low' )])))
             # Set Flux to Operating Bias
             setop.append    ( (('Flux',  qid+1), DAC1fast(pars[(qname, 'Operating Bias' )])))
-            
-        # Find maximum number of reset cycles
-        maxcount         =          max(pars[(qubit, 'Reset Cycles'           )] for qubit in qubits)
-        # Find maximum Reset Settling Time
-        maxresetsettling = max(4.3, max(pars[(qubit, 'Reset Settling Time'    )] for qubit in qubits))
+
+        # Set all Squids and Qubits to Idle
+        p = self.client.qubits.packet(context=c.ID)
+        p.memory_bias_commands(initreset, 4.3*us)
+
+        curdelay = 0.0;
+        for key in sorted(todo.keys()):
+            # Add any necessary delays (initial delays get stripped)
+            if (curdelay>0) and (key>curdelay):
+                p.memory_delay(key-curdelay)
+            curdelay = key
+
+            # Generate Memory Building Blocks
+            reset1    = []
+            reset2    = []
+            for qid, qname in todo[key]:
+                # Set Flux to Reset High
+                reset1.append   ( (('Flux',  qid+1), DAC1fast(pars[(qname, 'Reset Bias High')])))
+                # Set Flux to Reset Low
+                reset2.append   ( (('Flux',  qid+1), DAC1fast(pars[(qname, 'Reset Bias Low' )])))
+                
+            # Find maximum number of reset cycles
+            maxcount         =          max(pars[(qname, 'Reset Cycles'           )] for qid, qname in todo[key])
+            # Find maximum Reset Settling Time
+            maxresetsettling = max(4.3, max(pars[(qname, 'Reset Settling Time'    )] for qid, qname in todo[key]))
+
+            # Upload Memory Commands
+            p.memory_bias_commands(reset2, maxresetsettling*us)
+            for a in range(int(maxcount)):
+                p.memory_bias_commands(reset1, maxresetsettling*us)
+                p.memory_bias_commands(reset2, maxresetsettling*us)
+            p.memory_bias_commands(initreset, 4.3*us)
+            curdelay += maxresetsettling*(1+2*int(maxcount))+4.3
+
         # Find maximum Bias Settling Time
         maxbiassettling  = max(4.3, max(pars[(qubit, 'Operating Settling Time')] for qubit in qubits))
 
-        # Upload Memory Commands
-        p = self.client.qubits.packet(context=c.ID)
-        p.memory_bias_commands(initreset, maxresetsettling*us)
-        for a in range(int(maxcount)):
-            p.memory_bias_commands(reset1, maxresetsettling*us)
-            p.memory_bias_commands(reset2, maxresetsettling*us)
+        # Go to operating bias on all Qubits
         p.memory_bias_commands(setop, maxbiassettling*us)
         yield p.send()
 
