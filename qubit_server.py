@@ -528,7 +528,7 @@ class QubitServer(LabradServer):
                                           delay='v[us]',
                                           returns='v[us]')
     def send_bias_commands(self, c, commands, delay=T.Value(10, 'us')):
-        """Adds bias box commands to the specified channels and delays to all other channels"""
+        """Adds bias box commands to the specified channels and NOOPs to all other channels"""
         expt = self.getExperiment(c)
 
         FOs = expt['FOs']
