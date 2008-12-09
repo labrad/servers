@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from labrad import types as T
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -56,6 +55,7 @@ class AnritsuWrapper(GPIBDeviceWrapper):
             self.outputStateKnown = True
 
 class AnritsuServer(GPIBManagedServer):
+    """Provides basic CW control for Anritsu 68367C Microwave Generators"""
     name = 'Anritsu Server'
     deviceName = 'ANRITSU 68367C'
     deviceWrapper = AnritsuWrapper
