@@ -13,6 +13,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+### BEGIN NODE INFO
+[info]
+name = Agilent N5230A PNA
+version = 1.2
+description = Talks to the Agilent PNA
+
+[startup]
+cmdline = %PYTHON% agilentN5320A.py
+timeout = 20
+
+[shutdown]
+message = 987654321
+timeout = 20
+### END NODE INFO
+"""
+
 from labrad import types as T, util
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper

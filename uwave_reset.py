@@ -1,3 +1,20 @@
+"""
+### BEGIN NODE INFO
+[info]
+name = uWave Reset
+version = 1.0
+description = 
+
+[startup]
+cmdline = %PYTHON% uwave_reset.py
+timeout = 20
+
+[shutdown]
+message = 987654321
+timeout = 5
+### END NODE INFO
+"""
+
 from labrad        import util, types as T
 from labrad.server import LabradServer, setting
 from labrad.units  import Unit, mV, ns, deg, MHz

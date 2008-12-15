@@ -13,6 +13,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+### BEGIN NODE INFO
+[info]
+name = GHz DACs
+version = 2.6.1
+description = Talks to GHz DAC boards
+
+[startup]
+cmdline = %PYTHON% ghz_dacs.py
+timeout = 20
+
+[shutdown]
+message = 987654321
+timeout = 20
+### END NODE INFO
+"""
+
 from labrad import types as T, util
 from labrad.devices import DeviceWrapper, DeviceServer
 from labrad.server import setting

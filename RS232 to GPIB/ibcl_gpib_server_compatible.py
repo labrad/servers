@@ -13,6 +13,24 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+### BEGIN NODE INFO
+[info]
+name = IBCL GPIB Bus
+version = 1.0
+description = 
+instancename = %LABRADNODE% IBCL GPIB Bus
+
+[startup]
+cmdline = %PYTHON% ibcl_gpib_server_compatible.py
+timeout = 60
+
+[shutdown]
+message = 987654321
+timeout = 20
+### END NODE INFO
+"""
+
 from labrad import types as T, util
 from labrad.server import LabradServer, setting
 

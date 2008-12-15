@@ -13,6 +13,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+### BEGIN NODE INFO
+[info]
+name = DC Rack
+version = 1.1
+description = Control Fastbias and Preamp boards.
+
+[startup]
+cmdline = %PYTHON% dc_rack_server.py
+timeout = 20
+
+[shutdown]
+message = 987654321
+timeout = 20
+### END NODE INFO
+"""
+
 from labrad.types import Value
 from labrad.server import LabradServer, setting
 from labrad.errors import Error

@@ -1,3 +1,20 @@
+"""
+### BEGIN NODE INFO
+[info]
+name = Circuit Simulator
+version = 1.0
+description = Simple time-domain simulations of superconducting circuits.
+
+[startup]
+cmdline = %PYTHON% circuit_simulator.py
+timeout = 20
+
+[shutdown]
+message = 987654321
+timeout = 5
+### END NODE INFO
+"""
+
 from __future__ import with_statement
 
 import time

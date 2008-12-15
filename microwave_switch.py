@@ -13,6 +13,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+### BEGIN NODE INFO
+[info]
+name = Microwave Switch
+version = 1.0
+description = Microwave switch connecting the GHz DACs to the spectrum analyzer
+
+[startup]
+cmdline = %PYTHON% microwave_switch.py
+timeout = 20
+
+[shutdown]
+message = 987654321
+timeout = 20
+### END NODE INFO
+"""
+
 from labrad import types as T, util
 from labrad.errors import Error
 from labrad.types import Value

@@ -13,6 +13,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+### BEGIN NODE INFO
+[info]
+name = Basic Experiments
+version = 1.1
+description = Standard qubit experiments (T1, Rabi, etc.)
+
+[startup]
+cmdline = %PYTHON% basic_experiments.py
+timeout = 20
+
+[shutdown]
+message = 987654321
+timeout = 5
+### END NODE INFO
+"""
+
 from labrad        import util, types as T
 from labrad.server import LabradServer, setting
 from labrad.units  import Unit, mV, ns, deg, MHz, V, GHz, rad

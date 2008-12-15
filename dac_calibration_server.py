@@ -13,6 +13,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+### BEGIN NODE INFO
+[info]
+name = DAC Calibration
+version = 1.0.1
+description = Calibrate sequences for the GHz DAC boards.
+
+[startup]
+cmdline = %PYTHON% dac_calibration_server.py
+timeout = 20
+
+[shutdown]
+message = 987654321
+timeout = 5
+### END NODE INFO
+"""
+
 from labrad import types as T, util
 from labrad.server import LabradServer, setting
 from ghzdac import IQcorrectorAsync, DACcorrectorAsync

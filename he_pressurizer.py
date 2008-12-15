@@ -13,6 +13,25 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+### BEGIN NODE INFO
+[info]
+name = He Pressurizing Server
+version = 1.2
+description = 
+
+
+[startup]
+cmdline = %PYTHON% he_pressurizer.py
+timeout = 20
+
+
+[shutdown]
+message = 987654321
+timeout = 20
+### END NODE INFO
+"""
+
 from labrad import types as T, util
 from labrad.server import LabradServer, setting
 

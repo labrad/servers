@@ -13,6 +13,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+### BEGIN NODE INFO
+[info]
+name = Qubit Bias
+version = 1.0
+description = 
+
+[startup]
+cmdline = %PYTHON% qubit_bias.py
+timeout = 20
+
+[shutdown]
+message = 987654321
+timeout = 20
+### END NODE INFO
+"""
+
 from labrad        import util, types as T
 from labrad.server import LabradServer, setting
 from labrad.units  import us, mV

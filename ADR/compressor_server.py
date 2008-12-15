@@ -13,6 +13,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+### BEGIN NODE INFO
+[info]
+name = CP2800 Compressor
+version = 2.0
+description = Compressor for the ADR pulse tube cooler.
+
+[startup]
+cmdline = %PYTHON% compressor_server.py
+timeout = 20
+
+[shutdown]
+message = 987654321
+timeout = 5
+### END NODE INFO
+"""
+
 from labrad.devices import DeviceServer, DeviceWrapper
 from labrad.server import setting, inlineCallbacks, returnValue
 from labrad.units import degC, K, psi, torr, min as minutes, A

@@ -13,6 +13,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+### BEGIN NODE INFO
+[info]
+name = Logger
+version = 1.0
+description = Manages log files with the data vault and registry.
+
+[startup]
+cmdline = %PYTHON% log_server.py
+timeout = 20
+
+[shutdown]
+message = 987654321
+timeout = 5
+### END NODE INFO
+"""
+
 from labrad.server import LabradServer, setting, inlineCallbacks, returnValue
 from labrad.units import degC, K, psi, torr, min as minutes, A
 

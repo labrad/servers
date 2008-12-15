@@ -13,6 +13,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+### BEGIN NODE INFO
+[info]
+name = XY Attenuator Server
+version = 1.0
+description = 
+
+[startup]
+cmdline = %PYTHON% xyattenuators.py
+timeout = 20
+
+[shutdown]
+message = 987654321
+timeout = 20
+### END NODE INFO
+"""
+
 from labrad.gpib import GPIBManagedServer
 from labrad.server import setting
 from labrad import types as T

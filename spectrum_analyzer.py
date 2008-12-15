@@ -13,6 +13,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+### BEGIN NODE INFO
+[info]
+name = Spectrum Analyzer Server
+version = 2.0
+description = 
+
+[startup]
+cmdline = %PYTHON% spectrum_analyzer.py
+timeout = 20
+
+[shutdown]
+message = 987654321
+timeout = 20
+### END NODE INFO
+"""
+
 from labrad import types as T, errors
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer

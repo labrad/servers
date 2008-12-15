@@ -13,6 +13,24 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+### BEGIN NODE INFO
+[info]
+name = Darlington Board
+version = 1.0
+description = USB Darlington board driving the microwave switch
+instancename = %LABRADNODE% Darlington Board
+
+[startup]
+cmdline = %PYTHON% darlington_board.py
+timeout = 20
+
+[shutdown]
+message = 987654321
+timeout = 20
+### END NODE INFO
+"""
+
 from labrad import types as T, util
 from labrad.errors import Error
 from labrad.server import LabradServer, setting

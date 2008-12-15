@@ -13,6 +13,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+### BEGIN NODE INFO
+[info]
+name = Fit Server
+version = 1.0.1
+description = 
+
+[startup]
+cmdline = %PYTHON% fit_server.py
+timeout = 20
+
+[shutdown]
+message = 987654321
+timeout = 20
+### END NODE INFO
+"""
+
 from labrad import types as T, util
 from labrad.server import LabradServer, setting, Signal
 from labrad.util import hydrant
