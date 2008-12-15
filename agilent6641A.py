@@ -13,6 +13,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+### BEGIN NODE INFO
+[info]
+name = Agilent 6641A PS
+version = 1.0
+description = Power supply for the ADR magnet.
+
+[startup]
+cmdline = %PYTHON% agilent6641A.py
+timeout = 20
+
+[shutdown]
+message = 987654321
+timeout = 5
+### END NODE INFO
+"""
+
 from labrad.gpib import GPIBManagedServer
 from labrad.server import setting, returnValue
 

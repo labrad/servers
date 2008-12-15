@@ -16,7 +16,6 @@
 from __future__ import with_statement
 
 from labrad import types as T, util
-from labrad.config import ConfigFile
 from labrad.server import LabradServer, Signal, setting
 
 from twisted.internet.reactor import callLater
@@ -28,18 +27,48 @@ from datetime import datetime
 
 try:
     import numpy
+    print "Numpy imported."
     useNumpy = True
-except ImportError:
+except ImportError, e:
+    print e
+    print "Numpy not imported.  The DataVault will operate, but will be slower."
     useNumpy = False
+
+"""
+### BEGIN NODE INFO
+[info]
+name = Data Vault
+version = 2.0
+description = Store and retrieve numeric data
+
+[startup]
+cmdline = %PYTHON% data_vault.py
+timeout = 20
+
+[shutdown]
+message = 987654321
+timeout = 5
+### END NODE INFO
+"""
+
+
+# TODO: tagging
+# - search globally (or in some subtree of sessions) for matching tags
+#     - this is the least common case, and will be an expensive operation
+#     - don't worry too much about optimizing this
+#     - since we won't bother optimizing the global search case, we can store
+#       tag information in the session
+
+
 
 # location of repository will get loaded from the registry
 DATADIR = None
 
-PRECISION = 6
+PRECISION = 6 # digits of precision to use when saving data
+DATA_FORMAT = '%%.%dG' % PRECISION
 FILE_TIMEOUT = 60 # how long to keep datafiles open if not accessed
 DATA_TIMEOUT = 300 # how long to keep data in memory if not accessed
 TIME_FORMAT = '%Y-%m-%d, %H:%M:%S'
-DATA_FORMAT = '%%.%dG' % PRECISION
 
 
 ## error messages
@@ -150,17 +179,6 @@ def parseDependent(s):
     units = getMatch(re_units, s, '')
     return label, legend, units
     
-
-# TODO: tagging
-# - fire messages when tags are added or removed
-#     - new signal: 'signal: tags updated'
-#                   only fired to listeners in a particular session
-#
-# - search globally (or in some subtree of sessions) for matching tags
-#     - this is the least common case, and will be an expensive operation
-#     - don't worry too much about optimizing this
-#     - since we won't bother optimizing the global search case, we can store
-#       tag information in the session
 
 
 class Session(object):
@@ -772,10 +790,34 @@ class DataVault(LabradServer):
                 p.get('__default__', 's')
                 ans = yield p.send()
             DATADIR = ans.get
+            gotLocation = True
         except:
-            print 'Could not load repository location from registry.'
-            print 'Please set key "%s" or "__default__" in %s.' % (nodename, path)
-            raise
+            try:
+                print 'Could not load repository location from registry.'
+                print 'Please enter data storage directory or hit enter to use the current directory:'
+                DATADIR = raw_input('>>>')
+                if DATADIR == '':
+                    DATADIR = os.path.join(os.path.split(__file__)[0], '__data__')
+                if not os.path.exists(DATADIR):
+                    os.makedirs(DATADIR)
+                # set as default and for this node
+                p = reg.packet()
+                p.cd(path, True)
+                p.set(nodename, DATADIR)
+                p.set('__default__', DATADIR)
+                yield p.send()
+                print DATADIR, "has been saved in the registry",
+                print "as the data location."
+                print "To change this, stop this server,"
+                print "edit the registry keys at", path,
+                print "and then restart."
+            except Exception, E:
+                print
+                print E
+                print
+                print "Press [Enter] to continue..."
+                raw_input()
+                sys.exit()
         # create root session
         root = Session([''], self)
 
@@ -837,8 +879,8 @@ class DataVault(LabradServer):
                       's{change into this directory}',
                       '*s{change into each directory in sequence}',
                       'w{go up by this many directories}'],
-                create=['b'],
-                returns=['*s'])
+                create='b',
+                returns='*s')
     def cd(self, c, path=None, create=False):
         """Change the current directory.
         
@@ -873,7 +915,7 @@ class DataVault(LabradServer):
             c['path'] = temp
         return c['path']
         
-    @setting(8, name=['s'], returns=['*s'])
+    @setting(8, name='s', returns='*s')
     def mkdir(self, c, name):
         """Make a new sub-directory in the current directory.
         
@@ -890,10 +932,10 @@ class DataVault(LabradServer):
         sess = Session(path, self) # make the new directory
         return path
     
-    @setting(9, name=['s'],
+    @setting(9, name='s',
                 independents=['*s', '*(ss)'],
                 dependents=['*s', '*(sss)'],
-                returns=['(*s{path}, s{name})'])
+                returns='(*s{path}, s{name})')
     def new(self, c, name, independents, dependents):
         """Create a new Dataset.
 
@@ -914,7 +956,7 @@ class DataVault(LabradServer):
         c['writing'] = True
         return c['path'], c['dataset']
     
-    @setting(10, name=['s', 'w'], returns=['(*s{path}, s{name})'])
+    @setting(10, name=['s', 'w'], returns='(*s{path}, s{name})')
     def open(self, c, name):
         """Open a Dataset for reading.
         
@@ -933,7 +975,7 @@ class DataVault(LabradServer):
     
     @setting(20, data=['*v: add one row of data',
                        '*2v: add multiple rows of data'],
-                 returns=[''])
+                 returns='')
     def add(self, c, data):
         """Add data to the current dataset.
         
@@ -946,8 +988,7 @@ class DataVault(LabradServer):
             raise ReadOnlyError()
         dataset.addData(data)
 
-    @setting(21, limit=['w'], startOver=['b'],
-                 returns=['*2v'])
+    @setting(21, limit='w', startOver='b', returns='*2v')
     def get(self, c, limit=None, startOver=False):
         """Get data from the current dataset.
         
@@ -963,7 +1004,7 @@ class DataVault(LabradServer):
         dataset.keepStreaming(c.ID, c['filepos'])
         return data
     
-    @setting(100, returns=['(*(ss){independents}, *(sss){dependents})'])
+    @setting(100, returns='(*(ss){independents}, *(sss){dependents})')
     def variables(self, c):
         """Get the independent and dependent variables for the current dataset.
         
@@ -977,20 +1018,20 @@ class DataVault(LabradServer):
         dep = [(d['category'], d['label'], d['units']) for d in ds.dependents]
         return ind, dep
 
-    @setting(120, returns=['*s'])
+    @setting(120, returns='*s')
     def parameters(self, c):
         """Get a list of parameter names."""
         dataset = self.getDataset(c)
         dataset.param_listeners.add(c.ID) # send a message when new parameters are added
         return [par['label'] for par in dataset.parameters]
 
-    @setting(121, 'add parameter', name=['s'], returns=[''])
+    @setting(121, 'add parameter', name='s', returns='')
     def add_parameter(self, c, name, data):
         """Add a new parameter to the current dataset."""
         dataset = self.getDataset(c)
         dataset.addParameter(name, data)
 
-    @setting(122, 'get parameter', name=['s'])
+    @setting(122, 'get parameter', name='s')
     def get_parameter(self, c, name, case_sensitive=True):
         """Get the value of a parameter."""
         dataset = self.getDataset(c)

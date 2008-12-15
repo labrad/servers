@@ -20,10 +20,30 @@ from twisted.internet.task import LoopingCall
 
 from pyvisa import visa, vpp43
 
+"""
+### BEGIN NODE INFO
+[info]
+name = GPIB Bus
+version = 1.0
+description = Gives access to GPIB devices via pyvisa.
+instancename = %LABRADNODE% GPIB Bus
+
+[startup]
+cmdline = %PYTHON% gpib_server.py
+timeout = 20
+
+[shutdown]
+message = 987654321
+timeout = 20
+### END NODE INFO
+"""
+
 class GPIBBusServer(LabradServer):
+    """Provides direct access to GPIB-enabled devices."""
     name = '%LABRADNODE% GPIB Bus'
 
     refreshInterval = 10
+    defaultTimeout = 1.0
 
     def initServer(self):
         self.devices = {}
@@ -33,17 +53,27 @@ class GPIBBusServer(LabradServer):
         callLater(0.1, self.startRefreshing)
 
     def startRefreshing(self):
-        l = LoopingCall(self.refreshDevices)
-        self.refresher = l, l.start(self.refreshInterval, now=True)
+        """Start periodically refreshing the list of devices.
 
+        The start call returns a deferred which we save for later.
+        When the refresh loop is shutdown, we will wait for this
+        deferred to fire to indicate that it has terminated.
+        """
+        self.refresher = LoopingCall(self.refreshDevices)
+        self.refresherDone = self.refresher.start(self.refreshInterval, now=True)
+        
     @inlineCallbacks
     def stopServer(self):
+        """Kill the device refresh loop and wait for it to terminate."""
         if hasattr(self, 'refresher'):
-            self.refresher[0].stop()
-            yield self.refresher[1]
+            self.refresher.stop()
+            yield self.refresherDone
         
     def refreshDevices(self):
-        """Refresh the list of known devices on this bus."""
+        """Refresh the list of known devices on this bus.
+
+        Currently supported are GPIB devices and GPIB over USB.
+        """
         try:
             addresses = visa.get_instruments_list()
             additions = set(addresses) - set(self.devices.keys())
@@ -61,19 +91,19 @@ class GPIBBusServer(LabradServer):
                     self.devices[addr] = instr
                     self.sendDeviceMessage('GPIB Device Connect', addr)
                 except Exception, e:
-                    print 'failed to add ' + addr + ':' + str(e)
+                    print 'Failed to add ' + addr + ':' + str(e)
             for addr in deletions:
                 del self.devices[addr]
                 self.sendDeviceMessage('GPIB Device Disconnect', addr)
         except Exception, e:
-            print 'problem while refreshing devices:', str(e)
+            print 'Problem while refreshing devices:', str(e)
             
     def sendDeviceMessage(self, msg, addr):
         print msg + ': ' + addr
         self.client.manager.send_named_message(msg, (self.name, addr))
             
     def initContext(self, c):
-        c['timeout'] = 1.0
+        c['timeout'] = defaultTimeout
 
     def getDevice(self, c):
         if c['addr'] not in self.devices:
@@ -82,28 +112,36 @@ class GPIBBusServer(LabradServer):
         instr.timeout = c['timeout']
         return instr
         
-    @setting(0, addr=['s'], returns=['s'])
+    @setting(0, addr='s', returns='s')
     def address(self, c, addr=None):
-        """Get or set the GPIB address."""
+        """Get or set the GPIB address for this context.
+
+        To get the addresses of available devices,
+        use the list_devices function.
+        """
         if addr is not None:
             c['addr'] = addr
         return c['addr']
 
-    @setting(2, time=['v[s]'], returns=['v[s]'])
+    @setting(2, time='v[s]', returns='v[s]')
     def timeout(self, c, time=None):
         """Get or set the GPIB timeout."""
         if time is not None:
             c['timeout'] = time
         return c['timeout'] 
 
-    @setting(3, data=['s'], returns=[''])
+    @setting(3, data='s', returns='')
     def write(self, c, data):
         """Write a string to the GPIB bus."""
         self.getDevice(c).write(data)
 
-    @setting(4, bytes=['w'], returns=['s'])
+    @setting(4, bytes='w', returns='s')
     def read(self, c, bytes=None):
-        """Read from the GPIB bus."""
+        """Read from the GPIB bus.
+
+        If specified, reads only the given number of bytes.
+        Otherwise, reads until the device stops sending.
+        """
         instr = self.getDevice(c)
         if bytes is None:
             ans = instr.read()
@@ -111,7 +149,19 @@ class GPIBBusServer(LabradServer):
             ans = vpp43.read(instr.vi, bytes)
         return ans
 
-    @setting(20, returns=['*s'])
+    @setting(5, data='s', returns='s')
+    def query(self, c, data):
+        """Make a GPIB query, a write followed by a read.
+
+        This query is atomic.  No other communication to the
+        device will occur while the query is in progress.
+        """
+        instr = self.getDevice(c)
+        instr.write(data)
+        ans = instr.read()
+        return ans
+
+    @setting(20, returns='*s')
     def list_devices(self, c):
         """Get a list of devices on this bus."""
         return sorted(self.devices.keys())

@@ -5,9 +5,10 @@ import time
 from numpy import arange, array, sin, cos, hstack, pi, sqrt, zeros
 from scipy.optimize import leastsq, fsolve
 
-from circuitsim import h, hbar, phi0bar, Circuit, Capacitor, Inductor, Mutual, Junction, Resistor, CurrentBias
 from labrad.server import LabradServer, setting
 
+from circuitsim import (h, hbar, phi0bar, Circuit, Capacitor, Inductor,
+                        Mutual, Junction, Resistor, CurrentBias)
 from processtools import new_priority
 
 class CircuitSimulator(LabradServer):
@@ -185,12 +186,23 @@ class CircuitSimulator(LabradServer):
     
     @setting(500, 'Qubit Extrema', I0='v[A]', L='v[H]', bias='v[]', C='v[F]')
     def qubit_extrema(self, c, I0, L, bias, C):
+        """Calculates the extrema in a qubit potential.
+
+        Returns the phases found by solving for dU/dphi = 0, starting
+        with initial guesses phi = 0, phi = pi and phi = 2*pi.
+        """
         I0, L, bias, C = float(I0), float(L), float(bias), float(C)
         dU = self.qubit_dU(c, I0, L, bias, C)
         return array([fsolve(dU, 0), fsolve(dU, pi), fsolve(dU, 2*pi)])
     
     @setting(501, 'Plasma Frequency', I0='v[A]', L='v[H]', bias='v[]', C='v[F]')
     def plasma_frequency(self, c, I0, L, bias, C):
+        """Calculates the plasma frequencies in the two qubit wells.
+
+        First solves for qubit extrema, interpreting these as left well,
+        barrier, and right well.  Then evaluates the plasma frequency
+        in the left and right wells.
+        """
         I0, L, bias, C = float(I0), float(L), float(bias), float(C)
         EC = phi0bar**2 * C / 2
         d2U = self.qubit_d2U(c, I0, L, bias, C)
@@ -199,6 +211,12 @@ class CircuitSimulator(LabradServer):
     
     @setting(502, 'Barrier Height', I0='v[A]', L='v[H]', bias='v[]', C='v[F]')
     def barrier_height(self, c, I0, L, bias, C):
+        """Calculates the barrier height in a qubit potential.
+
+        First solves for qubit extrema, interpreting these as left well,
+        barrier, and right well.  Then calculates U(barrier) - U(left) and
+        U(barrier) - U(right).
+        """
         I0, L, bias, C = float(I0), float(L), float(bias), float(C)
         U = self.qubit_U(c, I0, L, bias, C)
         left, barrier, right = self.qubit_extrema(c, I0, L, bias, C)
@@ -206,6 +224,11 @@ class CircuitSimulator(LabradServer):
     
     @setting(503, 'One Photon Offset', I0='v[A]', L='v[H]', bias='v[]', C='v[F]')
     def one_photon_offset(self, c, I0, L, bias, C):
+        """Calculates the phase displacement for one photon of energy.
+
+        This displacement can be used with perturb_initial_condition to
+        put one photon of energy into a qubit.
+        """
         I0, L, bias, C = float(I0), float(L), float(bias), float(C)
         d2U = self.qubit_d2U(c, I0, L, bias, C)
         left, barrier, right = self.qubit_extrema(c, I0, L, bias, C)

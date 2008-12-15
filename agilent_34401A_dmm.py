@@ -13,6 +13,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+### BEGIN NODE INFO
+[info]
+name = Agilent 34401A DMM
+version = 1.1
+description = 
+
+[startup]
+cmdline = %PYTHON% agilent_34401A_dmm.py
+timeout = 20
+
+[shutdown]
+message = 987654321
+timeout = 20
+### END NODE INFO
+"""
+
 from labrad.gpib import GPIBManagedServer
 
 class AgilentDMMServer(GPIBManagedServer):
