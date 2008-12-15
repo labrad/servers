@@ -21,7 +21,7 @@ version = 2.1
 description = 
 
 [startup]
-cmdline = %PYTHON% anritsu.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]
