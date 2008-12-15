@@ -21,7 +21,7 @@ version = 1.0
 description = Microwave switch connecting the GHz DACs to the spectrum analyzer
 
 [startup]
-cmdline = %PYTHON% microwave_switch.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]

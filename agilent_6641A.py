@@ -21,7 +21,7 @@ version = 1.0
 description = Power supply for the ADR magnet.
 
 [startup]
-cmdline = %PYTHON% agilent6641A.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]

@@ -21,7 +21,7 @@ version = 1.0
 description = Talks to old DAC sequencer board
 
 [startup]
-cmdline = %PYTHON% sequencer.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]

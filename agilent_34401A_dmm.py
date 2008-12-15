@@ -21,7 +21,7 @@ version = 1.1
 description = 
 
 [startup]
-cmdline = %PYTHON% agilent_34401A_dmm.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]

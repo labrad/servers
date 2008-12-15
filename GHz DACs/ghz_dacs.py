@@ -21,7 +21,7 @@ version = 2.6.1
 description = Talks to GHz DAC boards
 
 [startup]
-cmdline = %PYTHON% ghz_dacs.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]

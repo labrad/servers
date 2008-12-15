@@ -21,7 +21,7 @@ version = 1.1
 description = Standard qubit experiments (T1, Rabi, etc.)
 
 [startup]
-cmdline = %PYTHON% basic_experiments.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]

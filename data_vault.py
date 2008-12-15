@@ -13,6 +13,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+### BEGIN NODE INFO
+[info]
+name = Data Vault
+version = 2.0
+description = Store and retrieve numeric data
+
+[startup]
+cmdline = %PYTHON% %FILE%
+timeout = 20
+
+[shutdown]
+message = 987654321
+timeout = 5
+### END NODE INFO
+"""
+
 from __future__ import with_statement
 
 from labrad import types as T, util
@@ -34,23 +51,6 @@ except ImportError, e:
     print "Numpy not imported.  The DataVault will operate, but will be slower."
     useNumpy = False
 
-"""
-### BEGIN NODE INFO
-[info]
-name = Data Vault
-version = 2.0
-description = Store and retrieve numeric data
-
-[startup]
-cmdline = %PYTHON% data_vault.py
-timeout = 20
-
-[shutdown]
-message = 987654321
-timeout = 5
-### END NODE INFO
-"""
-
 
 # TODO: tagging
 # - search globally (or in some subtree of sessions) for matching tags
@@ -58,7 +58,6 @@ timeout = 5
 #     - don't worry too much about optimizing this
 #     - since we won't bother optimizing the global search case, we can store
 #       tag information in the session
-
 
 
 # location of repository will get loaded from the registry

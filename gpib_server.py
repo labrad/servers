@@ -29,7 +29,7 @@ description = Gives access to GPIB devices via pyvisa.
 instancename = %LABRADNODE% GPIB Bus
 
 [startup]
-cmdline = %PYTHON% gpib_server.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]

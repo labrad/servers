@@ -21,7 +21,7 @@ version = 1.1
 description = Control Fastbias and Preamp boards.
 
 [startup]
-cmdline = %PYTHON% dc_rack_server.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]

@@ -21,7 +21,7 @@ version = 1.1
 description = 
 
 [startup]
-cmdline = %PYTHON% mks_server.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]

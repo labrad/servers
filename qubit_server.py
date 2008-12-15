@@ -21,7 +21,7 @@ version = 1.4
 description = 
 
 [startup]
-cmdline = %PYTHON% qubit_server.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]

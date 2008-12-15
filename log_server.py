@@ -21,7 +21,7 @@ version = 1.0
 description = Manages log files with the data vault and registry.
 
 [startup]
-cmdline = %PYTHON% log_server.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]
@@ -80,7 +80,7 @@ class Logger(LabradServer):
         """
 
     @setting(2, 'describe', logPath=['s', '*s'],
-             returns='t{start} t{last} *(s{name} s{type} t{start} t{last})
+             returns='t{start} t{last} *(s{name} s{type} t{start} t{last}')
     def describe(self, c, logPath):
         """Get information about the specified log.
         """

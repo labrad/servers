@@ -27,7 +27,7 @@ version = 1.0
 description = Manages discovery and lookup of GPIB devices
 
 [startup]
-cmdline = %PYTHON% device_manager.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]

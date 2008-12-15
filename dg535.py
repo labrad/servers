@@ -21,7 +21,7 @@ version = 2.0
 description = Pulse sequencer box.
 
 [startup]
-cmdline = %PYTHON% dg535.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]

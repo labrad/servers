@@ -21,7 +21,7 @@ version = 1.0
 description = 
 
 [startup]
-cmdline = %PYTHON% ibcl_gpib_server.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]

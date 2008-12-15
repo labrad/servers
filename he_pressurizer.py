@@ -22,7 +22,7 @@ description =
 
 
 [startup]
-cmdline = %PYTHON% he_pressurizer.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 

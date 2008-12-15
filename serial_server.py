@@ -22,7 +22,7 @@ description =
 instancename = %LABRADNODE% Serial Server
 
 [startup]
-cmdline = %PYTHON% serial_server.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]

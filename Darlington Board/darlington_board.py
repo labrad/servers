@@ -22,7 +22,7 @@ description = USB Darlington board driving the microwave switch
 instancename = %LABRADNODE% Darlington Board
 
 [startup]
-cmdline = %PYTHON% darlington_board.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]

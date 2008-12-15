@@ -21,7 +21,7 @@ version = 1.3
 description = 
 
 [startup]
-cmdline = %PYTHON% sweep_server.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]

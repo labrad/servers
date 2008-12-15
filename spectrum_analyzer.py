@@ -21,7 +21,7 @@ version = 2.0
 description = 
 
 [startup]
-cmdline = %PYTHON% spectrum_analyzer.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]

@@ -21,7 +21,7 @@ version = 1.0
 description = 
 
 [startup]
-cmdline = %PYTHON% qubit_bias.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]

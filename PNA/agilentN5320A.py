@@ -21,7 +21,7 @@ version = 1.2
 description = Talks to the Agilent PNA
 
 [startup]
-cmdline = %PYTHON% agilentN5320A.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]

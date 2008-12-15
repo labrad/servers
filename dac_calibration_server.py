@@ -21,7 +21,7 @@ version = 1.0.1
 description = Calibrate sequences for the GHz DAC boards.
 
 [startup]
-cmdline = %PYTHON% dac_calibration_server.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]

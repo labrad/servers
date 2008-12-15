@@ -21,7 +21,7 @@ version = 1.0
 description = Controls the Agilent 3640A DC Power Supply.
 
 [startup]
-cmdline = %PYTHON% agilent_3640A_dc_source.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]

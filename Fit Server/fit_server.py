@@ -21,7 +21,7 @@ version = 1.0.1
 description = 
 
 [startup]
-cmdline = %PYTHON% fit_server.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]

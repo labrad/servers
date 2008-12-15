@@ -22,7 +22,7 @@ description =
 instancename = %LABRADNODE% IBCL GPIB Bus
 
 [startup]
-cmdline = %PYTHON% ibcl_gpib_server_compatible.py
+cmdline = %PYTHON% %FILE%
 timeout = 60
 
 [shutdown]

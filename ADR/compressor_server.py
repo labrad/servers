@@ -21,7 +21,7 @@ version = 2.0
 description = Compressor for the ADR pulse tube cooler.
 
 [startup]
-cmdline = %PYTHON% compressor_server.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]
