@@ -80,7 +80,9 @@ class GPIBDeviceManager(LabradServer):
     def refreshDeviceLists(self):
         """Ask all GPIB bus servers for their available GPIB devices."""
         servers = [s for n, s in self.client.servers.items()
-                     if ('GPIB Bus' in n) and ('List Devices' in s.settings)]
+                     if (('GPIB Bus' in n) or ('gpib_bus' in n)) and \
+                        (('List Devices' in s.settings) or \
+                         ('list_devices' in s.settings))]
         names = [s.name for s in servers]
         print 'Pinging servers:', names
         resp = yield DeferredList([s.list_devices() for s in servers])
