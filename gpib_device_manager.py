@@ -290,11 +290,6 @@ class GPIBDeviceManager(LabradServer):
         # ident functions
         deletions = []
         for src, idents in list(self.identFunctions.items()):
-            ## HACK: currently, only one identFunction per server is
-            ## supported, so idents is not actually a list, but we'll
-            ## treat it as such, to make this look like the device
-            ## servers thing above.
-            idents = [idents]
             # remove all registrations with this context
             idents = [i for i in idents if i[1] != c.ID]
             self.identFunctions[src] = idents
