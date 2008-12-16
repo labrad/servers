@@ -103,7 +103,7 @@ class GPIBBusServer(LabradServer):
         self.client.manager.send_named_message(msg, (self.name, addr))
             
     def initContext(self, c):
-        c['timeout'] = defaultTimeout
+        c['timeout'] = self.defaultTimeout
 
     def getDevice(self, c):
         if c['addr'] not in self.devices:
