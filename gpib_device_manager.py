@@ -23,7 +23,7 @@ from labrad.server import (LabradServer, setting,
 ### BEGIN NODE INFO
 [info]
 name = GPIB Device Manager
-version = 1.0
+version = 1.1
 description = Manages discovery and lookup of GPIB devices
 
 [startup]
