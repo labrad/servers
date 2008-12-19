@@ -21,7 +21,7 @@ version = 1.1
 description = Talks to the Stanford Research Systems Signal Analyzer
 
 [startup]
-cmdline = %PYTHON% sr780.py
+cmdline = %PYTHON% %FILE%
 timeout = 20
 
 [shutdown]
