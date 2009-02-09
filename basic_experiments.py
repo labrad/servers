@@ -463,7 +463,7 @@ class BEServer(LabradServer):
             fcal =       pars[(qname, 'Frequency Calibration')]
             mcal =       pars[(qname, 'Measure Calibration'  )]
             
-            frq =  (float(fcal[0])*bias*bias + float(fcal[1])*bias + float(fcal[2]))**4 + float(pars[(qname, 'Frequency Shift')])
+            frq =  ((float(fcal[0])*bias*bias + float(fcal[1])*bias + float(fcal[2]))*1000.0)**0.25 + float(pars[(qname, 'Frequency Shift')])
             mpa =                              float(mcal[0])*bias + float(mcal[1])
             
             # Add Microwave Pulse
