@@ -1,4 +1,4 @@
-# Copyright (C) 2007  Matthew Neeley
+# Copyright (C) 2009  Markus Ansmann
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -37,6 +37,17 @@ from labrad.errors import Error
 from numpy import diag, sign
 from numpy.linalg import eig
 
+def makePos(V):
+    m = max(max(V), -min(V))
+    
+    i=0
+    while (abs(V[i])<m/10.0):
+        i+=1
+    if (V[i]<0):
+        return -V
+    else:
+        return V
+
 class PreampServer(LabradServer):
     name = 'Eigenstates'
 
@@ -67,10 +78,35 @@ class PreampServer(LabradServer):
        
         U=U.transpose()
         
-        Result=[(E[ind[1]], U[ind[1]]*sign(U[ind[1],0]))  for ind in l]
+        Result=[(E[ind[1]], makePos(U[ind[1]]))  for ind in l]
         return Result
 
+    @setting(100, 'Extrema', potential=['*v'], returns=['(*w, *w): Indices (zero-based) of Minima, Maxima'])
+    def extrema(self, c, potential):
+        """Finds the extrema of a discretized potential
 
+        NOTE:
+        If the extremum extends over multiple entries in the potential that have the same value, the function returns the index of the first entry. E.g:
+        [2,1,0,0,0,0,1,2,2,1] will return ([2], [7])."""
+
+        potential = potential.asarray
+
+        # Differentiate potential and find all non-zero entries
+        diffs = sign(potential[1:] - potential[:-1])
+        nzdidx = diffs.nonzero()
+        nzdiffs = diffs[nzdidx]
+
+        # Find changes in slope
+        ddiffs = sign(nzdiffs[1:] - nzdiffs[:-1])
+        nzddidx = ddiffs.nonzero()
+
+        dirs = diffs[nzdidx[0][nzddidx]]
+        locs = nzdidx[0][nzddidx] + 1
+
+        mins = (dirs-1).nonzero()
+        maxs = (dirs+1).nonzero()
+
+        return locs[mins],locs[maxs]
 
 
 __server__ = PreampServer()
