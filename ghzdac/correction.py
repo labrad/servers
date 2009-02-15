@@ -1,4 +1,4 @@
-# Copyright (C) 2007, 2008  Max Hofheinz
+# Copyright (C) 2007-2009 Max Hofheinz
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,12 +15,7 @@
 
 
 
-
-from numpy import conjugate, array, asarray, floor, ceil, round, min, max, \
-alen, clip, sqrt, log, arange, linspace, zeros, ones, reshape, outer, \
-compress, sum, shape, cos, pi, exp, Inf, size, real, imag, uint32, int32, \
-argmin, resize, argwhere, append, iterable, hstack
-from numpy.fft import fft, rfft, irfft
+import numpy
 
 
 def cosinefilter(n, width=0.4):
@@ -29,26 +24,27 @@ def cosinefilter(n, width=0.4):
     1 from 0 GHz to width GHz
     rolls of from width GHz to 0.5 GHz like a quater cosine wave"""
     nr = n/2 + 1
-    result = ones(nr,dtype=float)
-    start = int(ceil(width*n))
+    result = numpy.ones(nr,dtype=float)
+    start = int(numpy.ceil(width*n))
     width = (0.5-width)*n
     if start < nr:
-        result[start:] = 0.5+0.5*cos(linspace(pi*(start-0.5*n+width)/width,
-                                                  pi+pi/width*(nr-0.5*n),
-                                                  nr-start,endpoint=False))
+        result[start:] = 0.5+0.5*numpy.cos(\
+            numpy.linspace(numpy.pi * (start-0.5*n+width) / width,
+                           numpy.pi + numpy.pi / width*(nr-0.5*n),
+                           nr-start, endpoint=False))
     return result
 
 
 
 def gaussfilter(n, width=0.13):
-    """ lowpassfilter(n,width) gaussian lowpass filter.
+    """lowpassfilter(n,width) gaussian lowpass filter.
     n samples from 0 to 1 GHz
     -3dB frequency at width GHz
     """
     nr = n/2 + 1
-    x= 1.0  / width * sqrt(log(2.0)/2.0)
-    gauss=exp(-linspace(0, x*nr/n, nr, endpoint=False)**2)
-    x=exp(-(0.5*x)**2)
+    x= 1.0  / width * numpy.sqrt(numpy.log(2.0)/2.0)
+    gauss=numpy.exp(-numpy.linspace(0, x*nr/n, nr, endpoint=False)**2)
+    x=numpy.exp(-(0.5*x)**2)
     gauss -= x
     gauss /= (1.0 - x)
     return gauss
@@ -57,26 +53,37 @@ def flatfilter(n, width=0):
     return 1.0
 
 
-def _fastfftlen(n):
-    logn=log(n)
-    n5 = 5L ** arange(long(logn/log(5.) + 1. + 1.e-6))
-    n3 = 3L ** arange(long(logn/log(3.) + 1. + 1.e-6))
-    n35 = outer(n3, n5).flat
-    n35 =compress(n35<=n,n35);
-    n235 = ((-log(n35)+logn)/log(2.) + 0.999999).astype(int)
-    n235 = n235.astype(int)
-    n235 = 2**((-log(n35)+logn)/log(2.) + 0.999999).astype(int) * n35
-    return min(n235)
+
+savedfftlens=numpy.zeros(8193,dtype=int)
     
 
 def fastfftlen(n):
     """
-    Computes smallest multiple of 2 3 and 5 above n.
+    Computes the smallest multiple of 2 3 and 5 larger or equal n.
     FFT is fastest for sizes that factorize in small numbers.
+    Sizes up to 8192 are only calculated once and later looked up.
     """
-    if n < alen(savedfftlens):
-        return savedfftlens[n]
-    return _fastfftlen(n)
+    def _fastfftlen(n):
+        logn=numpy.log(n)
+        n5 = 5L ** numpy.arange(long(logn/numpy.log(5.) + 2. + 1.e-6))
+        n3 = 3L ** numpy.arange(long(logn/numpy.log(3.) + 2. + 1.e-6))
+        n35 = numpy.outer(n3, n5).flat
+        n35 =numpy.compress(n35<2*n,n35);
+        n235 = ((-numpy.log(n35)+logn)/numpy.log(2.) + 0.999999).astype(int)
+        n235 *= (n235>0)
+        n235 = 2**n235 * n35
+        return numpy.min(n235)
+
+    
+    if n < numpy.alen(savedfftlens):
+        nfft = savedfftlens[n]
+        if nfft < n:
+            nfft = _fastfftlen(n)
+            savedfftlens[n] = nfft
+        return nfft
+    else:
+        return _fastfftlen(n)
+    
 
 
 
@@ -88,23 +95,24 @@ def interpol(signal, x, extrapolate=False):
     last element is returned. If extrapolate=True, the linear extrapolation of
     the first/last two points is returned instead.
     """
-    n = alen(signal)
+    n = numpy.alen(signal)
     if n == 1:
         return signal[0]
-    i = floor(x).astype(int)
-    i = clip(i, 0, n-2)
+    i = numpy.floor(x).astype(int)
+    i = numpy.clip(i, 0, n-2)
     p = x - i
     if not extrapolate:
-        p = clip(p,0.0,1.0)
+        p = numpy.clip(p,0.0,1.0)
     return signal[i] * (1.0 - p) + signal[i+1] * p
 
 
 def findRelevant(starts, ends):
-    n = size(starts)
-    relevant = resize(True, n)
-    for i in arange(n-1):
-        relevant[i] = not any((starts[i+1:] <= starts[i]) & (ends[i+1:] >= ends[i]))
-    return argwhere(relevant)[:,0]
+    n = numpy.size(starts)
+    relevant = numpy.resize(True, n)
+    for i in numpy.arange(n-1):
+        relevant[i] = not any((starts[i+1:] <= starts[i]) & \
+                              (ends[i+1:] >= ends[i]))
+    return numpy.argwhere(relevant)[:,0]
 
         
         
@@ -157,28 +165,28 @@ class IQcorrection:
         self.pulseCalFile=None
 
         # empty zero calibration
-        self.zeroTableStart = zeros(0,dtype=float)
-        self.zeroTableEnd = zeros(0,dtype=float)
-        self.zeroTableStep = zeros(0,dtype=float)
-        self.zeroCalFiles = zeros(0,dtype=int)
+        self.zeroTableStart = numpy.zeros(0,dtype=float)
+        self.zeroTableEnd = numpy.zeros(0,dtype=float)
+        self.zeroTableStep = numpy.zeros(0,dtype=float)
+        self.zeroCalFiles = numpy.zeros(0,dtype=int)
         self.zeroTableI = []
         self.zeroTableQ = []
 
         # empty sideband calibration
-        self.sidebandCarrierStart = zeros(0,dtype=float)
-        self.sidebandCarrierEnd = zeros(0,dtype=float)
-        self.sidebandCarrierStep = zeros(0,dtype=float)
-        self.sidebandStep = zeros(0,dtype=float)
-        self.sidebandCount = zeros(0)
+        self.sidebandCarrierStart = numpy.zeros(0,dtype=float)
+        self.sidebandCarrierEnd = numpy.zeros(0,dtype=float)
+        self.sidebandCarrierStep = numpy.zeros(0,dtype=float)
+        self.sidebandStep = numpy.zeros(0,dtype=float)
+        self.sidebandCount = numpy.zeros(0)
         self.sidebandCompensation = []
-        self.sidebandCalFiles = zeros(0,dtype=int)
+        self.sidebandCalFiles = numpy.zeros(0,dtype=int)
 
         self.selectCalAll()
         
         self.recalibrationRoutine=None
 
     def loadZeroCal(self, zeroData, calfile):
-        l = shape(zeroData)[0]
+        l = numpy.shape(zeroData)[0]
         self.zeroTableI.append(zeroData[:, (1 + self.flipChannels)])
         self.zeroTableQ.append(zeroData[:, (1 + (not self.flipChannels))])
         self.zeroTableStart=append(self.zeroTableStart, zeroData[0,0])
@@ -192,7 +200,7 @@ class IQcorrection:
                 self.zeroTableStep[-1]*1000.0)
 
         else:
-            self.zeroTableStep=append(self.zeroTableStep,1.0)
+            self.zeroTableStep=numpy.append(self.zeroTableStep,1.0)
             print '  carrier frequency: %g GHz' % zeroData[0,0]
 
 
@@ -220,27 +228,28 @@ class IQcorrection:
         Load IQ sideband mixing calibration
         """
         
-        self.sidebandStep = append(self.sidebandStep, sidebandStep)
+        self.sidebandStep = numpy.append(self.sidebandStep, sidebandStep)
         
-        l,sidebandCount = shape(sidebandData)
+        l,sidebandCount = numpy.shape(sidebandData)
         sidebandCount = (sidebandCount-1)/2
 
-        self.sidebandCarrierStart = append(self.sidebandCarrierStart,
+        self.sidebandCarrierStart = numpy.append(self.sidebandCarrierStart,
                                            sidebandData[0,0])
-        self.sidebandCarrierEnd = append(self.sidebandCarrierEnd,
+        self.sidebandCarrierEnd = numpy.append(self.sidebandCarrierEnd,
                                          sidebandData[-1,0])
         if l>1:
-            self.sidebandCarrierStep = append(self.sidebandCarrierStep, 
+            self.sidebandCarrierStep = numpy.append(self.sidebandCarrierStep, 
                 sidebandData[1,0] - sidebandData[0,0])
             print '  carrier frequencies: %g GHz to %g GHz in steps of %g MHz' % \
                   (sidebandData[0,0],
                    sidebandData[-1,0],
                    self.sidebandCarrierStep[-1]*1000.0)
         else:
-            self.sidebandCarrierStep = append(self.sidebandCarrierStep, 1.0)
+            self.sidebandCarrierStep = numpy.append(self.sidebandCarrierStep,
+                                                    1.0)
             print '  carrier frequency: %g GHz' % sidebandData[0,0]
 
-        sidebandData = reshape(sidebandData[:,1:],(l,sidebandCount, 2))
+        sidebandData = numpy.reshape(sidebandData[:,1:],(l,sidebandCount, 2))
         self.sidebandCompensation.append( \
             sidebandData[:,:,0] + 1.0j * sidebandData[:,:,1])
         self.sidebandCalFiles = append(self.sidebandCalFiles, calfile)
@@ -270,7 +279,8 @@ class IQcorrection:
 
         
 
-    def loadPulseCal(self, dataPoints, carrierfreq, calfile, flipChannels = False):
+    def loadPulseCal(self, dataPoints, carrierfreq, calfile,
+                     flipChannels = False):
 
         """
         Demodulates the IQ mixer output with the carrier frequency.
@@ -281,11 +291,11 @@ class IQcorrection:
 
         #read pulse calibration from data server
         self.flipChannels = flipChannels
-        dataPoints = asarray(dataPoints)
+        dataPoints = numpy.asarray(dataPoints)
         i=dataPoints[:,1 + self.flipChannels]
         q=dataPoints[:,1 + (not self.flipChannels)]
         length=len(i)
-        samplingfreq=int(round(1.0/(dataPoints[1,0]-dataPoints[0,0])))
+        samplingfreq=int(numpy.round(1.0/(dataPoints[1,0]-dataPoints[0,0])))
         dataPoints=None
 
         #length for fft, long because we want good frequency resolution
@@ -298,67 +308,79 @@ class IQcorrection:
 
         #if the carrier frequecy doesn't fall on a frequecy sampling point
         #we lose some precision
-        if floor(carrierfreqIndex) < ceil(carrierfreqIndex):
+        if numpy.floor(carrierfreqIndex) < numpy.ceil(carrierfreqIndex):
             print """Warning: carrier frequency of calibration is not
 a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
-        carrierfreqIndex=int(round(carrierfreqIndex))
+        carrierfreqIndex=int(numpy.round(carrierfreqIndex))
 
         #go to frequency space
-        i=rfft(i,n=n)
-        q=rfft(q,n=n)
+        i=numpy.fft.rfft(i,n=n)
+        q=numpy.fft.rfft(q,n=n)
 
         #demodulate
         low = i[carrierfreqIndex:carrierfreqIndex-finalLength/2-1:-1]
         high = i[carrierfreqIndex:carrierfreqIndex+finalLength/2+1:1]
         #calcualte the phase of the carrier
-        phase=sqrt(sum(low*high))
+        phase=numpy.sqrt(numpy.sum(low*high))
         phase/=abs(phase)
-        if (conjugate(phase)*low[0]).real < 0:
+        if (phase.conjugate()*low[0]).real < 0:
             phase*=-1
 
         self.correctionI = 1.0 / \
-            (0.5 / abs(low[0]) * (conjugate(low/phase) + high/phase))
+            (0.5 / abs(low[0]) * (numpy.conjugate(low/phase) + high/phase))
 
         low = q[carrierfreqIndex:carrierfreqIndex-finalLength/2-1:-1]
         high = q[carrierfreqIndex:carrierfreqIndex+finalLength/2+1:1]
         #calcualte the phase of the carrier
-        phase=sqrt(sum(low*high))
+        phase=numpy.sqrt(numpy.sum(low*high))
         phase/=abs(phase)
-        if (conjugate(phase)*low[0]).real < 0:
+        if (phase.conjugate()*low[0]).real < 0:
             phase*=-1
         self.correctionQ = 1.0 / \
-            (0.5 / abs(low[0]) * (conjugate(low/phase) + high/phase))
+            (0.5 / abs(low[0]) * (numpy.conjugate(low/phase) + high/phase))
         #Make sure the correction does not get too large
         #If correction goes above 3 * dynamicReserve,
         #scale to 3 * dynamicReserve but preserve phase
         self.correctionI /= \
-            clip(abs(self.correctionI)/3/self.dynamicReserve, 1.0, Inf)
+            numpy.clip(abs(self.correctionI) / 3 / self.dynamicReserve,
+                       1.0, numpy.Inf)
         self.correctionQ /= \
-            clip(abs(self.correctionQ)/3/self.dynamicReserve, 1.0, Inf)
+            numpy.clip(abs(self.correctionQ) / 3 /self.dynamicReserve,
+                       1.0, numpy.Inf)
         self.pulseCalFile = calfile
 
 
     def selectCalAll(self):
-        """For each frequency use the lastest calibration available. This is the default behaviour.""" 
+        """
+        For each frequency use the lastest calibration available. This
+        is the default behaviour.
+        """
         self.zeroCalIndex = None
         self.sidebandCalIndex = None
         print 'For each correction the best calfile will be chosen.'
 
     def selectCalLatest(self):
-        """Only use the latest calibration and extrapolate it if the carrier frequency lies outside the calibrated range"""
+        """
+        Only use the latest calibration and extrapolate it if the
+        carrier frequency lies outside the calibrated range
+        """
+
         self.zeroCalIndex = -1
         self.sidebandCalIndex = -1
-        print 'Zero     calibration:  selecting calset %d' % self.zeroCalFiles[-1]
-        print 'Sideband calibration:  selecting calset %d' % self.sidebandCalFiles[-1]
+        print 'Zero     calibration:  selecting calset %d' % \
+            self.zeroCalFiles[-1]
+        print 'Sideband calibration:  selecting calset %d' % \
+            self.sidebandCalFiles[-1]
 
 
 
     def findCalset(self, rangeStart, rangeEnd, calStarts, calEnds, calType):
         
-        badness = max([resize(self.exceedCalLimits,shape(calStarts)),
-                       calStarts-rangeStart,
-                       rangeEnd-calEnds], axis=0)
-        i = size(badness) - argmin(badness[::-1]) - 1
+        badness = numpy.max([numpy.resize(self.exceedCalLimits,
+                                          numpy.shape(calStarts)),
+                             calStarts-rangeStart,
+                             rangeEnd-calEnds], axis=0)
+        i = numpy.size(badness) - numpy.argmin(badness[::-1]) - 1
         if badness[i] > self.exceedCalLimits:
             print '\n  closest calset only covers %g GHz to %g GHz' \
                   % (calStarts[i], calEnds[i])
@@ -366,7 +388,11 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
 
 
     def selectCalByRange(self, start,end):
-        """Use only the latest calibration covering the given range. If there is no such calibration use the one that is closest to covering it."""
+        """
+        Use only the latest calibration covering the given range. If
+        there is no such calibration use the one that is closest to
+        covering it.
+        """
         print 'Zero     calibration:',        
         self.zeroCalIndex = self.findCalset(start, end, self.zeroTableStart,
                                        self.zeroTableEnd, 'zero')
@@ -374,17 +400,19 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
               self.zeroCalFiles[self.zeroCalIndex]
         print 'Sideband calibration:', 
         self.sidebandCalIndex = self.findCalset(start, end,
-                                           self.sidebandCarrierStart,
-                                           self.sidebandCarrierEnd,
-                                           'sideband')
+                                                self.sidebandCarrierStart,
+                                                self.sidebandCarrierEnd,
+                                                'sideband')
         print '  selecting calset %d' % \
               self.sidebandCalFiles[self.sidebandCalIndex]
         
 
 
     def DACzeros(self, carrierFreq):
-        """Returns the DAC values for which, at the given carrier frequency,
-        the IQmixer output power is smallest."""
+        """
+        Returns the DAC values for which, at the given carrier
+        frequency, the IQmixer output power is smallest.
+        """
         if self.zeroTableI == []:
             return [0,0]
         i = self.zeroCalIndex
@@ -405,7 +433,7 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         (0, 1, 2, ..., n/2, n/2+1-n, ..., -1, 0) * (1.0 / n) GHz
         """
         if self.sidebandCompensation == []:
-            return zeros(n+1, dtype = complex)
+            return numpy.zeros(n+1, dtype = complex)
         i = self.sidebandCalIndex
         if i is None:
             i = self.findCalset(carrierFreq, carrierFreq, 
@@ -413,14 +441,14 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
                            self.sidebandCarrierEnd, 'sideband')
         carrierFreq = (carrierFreq - self.sidebandCarrierStart[i]) / \
             self.sidebandCarrierStep[i]
-        w=shape(self.sidebandCompensation[i])[1]
+        w=numpy.shape(self.sidebandCompensation[i])[1]
         maxfreq= 0.5 * self.sidebandStep[i] * (w-1)
         p=self.sidebandStep[i]/(1-2*maxfreq)
-        freqs=zeros(n+1,dtype=float)
-        freqs[1:n/2+1]=arange(1,n/2+1)
-        freqs[n/2+1:n]=arange(n/2+1-n,0)
+        freqs=numpy.zeros(n+1,dtype=float)
+        freqs[1:n/2+1]=numpy.arange(1,n/2+1)
+        freqs[n/2+1:n]=numpy.arange(n/2+1-n,0)
         freqs/=n
-        compensation = zeros(w+2,complex)
+        compensation = numpy.zeros(w+2,complex)
         compensation[1:w+1] = interpol(self.sidebandCompensation[i],carrierFreq)
         compensation[0]   = (1 - p) * compensation[1] + p * compensation[w]
         compensation[w+1] = (1 - p) * compensation[w] + p * compensation[1]
@@ -435,8 +463,9 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
                zerocor=True, deconv=True, iqcor=True, zipSRAM=True):
 
         """
-        Computes a SRAM sequence from I and Q values in the range from -1 to 1
-        If Q is omitted, the imaginary part of I sets the Q value
+        Computes a SRAM sequence from I and Q values in the range from
+        -1 to 1 If Q is omitted, the imaginary part of I sets the Q
+        value
 
         Perfroms the following corrections at the given carrier frequency
         (in GHz):
@@ -445,33 +474,35 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
               (For length-1 i and q, this correction cannot be performed)
             - IQ mixer
 
-        DACify only sets the lowest 28 bits of the SRAM samples.
-        Add trigger signals to the highest 4 bits via bitwise or when needed.
+        DACify only sets the lowest 28 bits of the SRAM samples.  Add
+        trigger signals to the highest 4 bits via bitwise or when
+        needed.
 
         If you use deconvolution and unless you have a periodic signal
-        (i.e. the signal given to DACify is looped without any dead time),
-        you should have at least 5ns before and 20ns after your pulse where
-        the signal is 0 (or very small). Otherwise your signal will be deformed
-        because the correction for the DAC pulse response will either be clipped
-        or wrapped around and appear at the beginning of your signal!
+        (i.e. the signal given to DACify is looped without any dead
+        time), you should have at least 5ns before and 20ns after your
+        pulse where the signal is 0 (or very small). Otherwise your
+        signal will be deformed because the correction for the DAC
+        pulse response will either be clipped or wrapped around and
+        appear at the beginning of your signal!
 
 
         Keyword arguments:
 
         loop=True: Does the the FFT on exactly the length of i and q.
-            You need this if you have a periodic signal that is non-zero at
-            the borders of the signal (like a continous sinewave). Otherwise
-            DACify could do the fft on a larger array (padded with 0) in order
-            to have a faster fft (fft is fastest for numbers that factorize
-            into small numbers)
+            You need this if you have a periodic signal that is
+            non-zero at the borders of the signal (like a continous
+            sinewave). Otherwise DACify could do the fft on a larger
+            array (padded with 0) in order to have a faster fft (fft
+            is fastest for numbers that factorize into small numbers)
 
         rescale=True: If the corrected signal exceeds the DAC range,
             it is rescale to fit. Usefull to drive as hard as possible
             without signal distorsions (e.g. for spectroscopy).
             Otherwise the signal is clipped. After a DACify call
-            DACcorrection.last_rescale_factor contains the rescale factor
-            actually used. DACcorrection.min_rescale_factor contains the
-            smallest rescale factor used so far.
+            DACcorrection.last_rescale_factor contains the rescale
+            factor actually used. DACcorrection.min_rescale_factor
+            contains the smallest rescale factor used so far.
 
         zerocor=False: Do not perform zero correction.
 
@@ -495,12 +526,12 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
             signal[0] |= 0xF<<28
             fpga.loop_sram(signal)
         """
-        i = asarray(i)
+        i = numpy.asarray(i)
         if q == None:
             i = i.astype(complex)
         else:
             i= i + 1.0j * q
-        n = alen(i)
+        n = numpy.alen(i)
         if loop:
             nfft=n
         else:
@@ -508,7 +539,7 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         if n > 1:
             # treat offset properly even when n != nfft
             background = 0.5*(i[0]+i[-1])
-            i = fft(i-background,n=nfft)
+            i = numpy.fft.fft(i-background,n=nfft)
             i[0] += background * nfft
         return self.DACifyFT(carrierFreq, i, n=n, loop=loop, rescale=rescale,
                zerocor=zerocor, deconv=deconv, iqcor=iqcor, zipSRAM=zipSRAM)
@@ -521,7 +552,7 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
                  zipSRAM=True):
 
         if (n==0):
-            return zeros(0)
+            return numpy.zeros(0)
         if callable(signal):
             if loop:
                 nfft=n
@@ -530,31 +561,31 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         elif signal is None:
             if zerocor:
                 i,q = self.DACzeros(carrierFreq)
-                signal = uint32((int(round(i)) & 0x3FFF) \
+                signal = numpy.uint32((int(numpy.round(i)) & 0x3FFF) \
                                 << (14 * self.flipChannels) | \
-                                (int(round(q)) & 0x3FFF) \
+                                (int(numpy.round(q)) & 0x3FFF) \
                                 << (14 * (not self.flipChannels)))
             else:
-                signal=uint32(0)
-            return resize(signal,n)
+                signal=numpy.uint32(0)
+            return numpy.resize(signal,n)
         else:
-            signal = asarray(signal)
-            nfft = alen(signal)
+            signal = numpy.asarray(signal)
+            nfft = numpy.alen(signal)
         if n > nfft:
             n = nfft
         nrfft=nfft/2+1
-        f = linspace(0.5,1.5, nfft, endpoint=False) % 1 - 0.5
+        f = numpy.linspace(0.5,1.5, nfft, endpoint=False) % 1 - 0.5
         if callable(signal):
-            signal=asarray(signal(f)).astype(complex)
+            signal=numpy.asarray(signal(f)).astype(complex)
         if t0 != 0:
-            signal *= exp(2.0j*pi*t0*f)
+            signal *= numpy.exp(2.0j*numpy.pi*t0*f)
         
         if (n>1):
             #apply convolution and iq correction
             #FT the input
             #add the first point at the end so that the elements of signal and
             #signal[::-1] are the Fourier components at opposite frequencies
-            signal = hstack((signal, signal[0]))
+            signal = numpy.hstack((signal, signal[0]))
 
             #correct for the non-orthoganality of the IQ channels
             if iqcor:
@@ -563,25 +594,30 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
             
 
             #separate I (FT of a real signal) and Q (FT of an imaginary signal)
-            i =  0.5  * (signal[0:nrfft] + signal[nfft:nfft-nrfft:-1].conjugate())
-            q = -0.5j * (signal[0:nrfft] - signal[nfft:nfft-nrfft:-1].conjugate())
+            i =  0.5  * (signal[0:nrfft] + \
+                             signal[nfft:nfft-nrfft:-1].conjugate())
+            q = -0.5j * (signal[0:nrfft] - \
+                             signal[nfft:nfft-nrfft:-1].conjugate())
 
             #resample the FT of the response function at intervals 1 ns / nfft
             if deconv and (self.correctionI != None):
-                l=alen(self.correctionI)
-                freqs = arange(0,nrfft) * 2.0 * (l - 1.0) / nfft
-                correctionI = interpol(self.correctionI, freqs, extrapolate=True)
-                correctionQ = interpol(self.correctionQ, freqs, extrapolate=True)
+                l=numpy.alen(self.correctionI)
+                freqs = numpy.arange(0,nrfft) * 2.0 * (l - 1.0) / nfft
+                correctionI = interpol(self.correctionI, freqs,
+                                       extrapolate=True)
+                correctionQ = interpol(self.correctionQ, freqs,
+                                       extrapolate=True)
                 lp = self.lowpass(nfft, self.bandwidth)
                 i *= correctionI * lp
                 q *= correctionQ * lp
             #do the actual deconvolution and transform back to time space
-            i=irfft(i, n=nfft)[:n]
-            q=irfft(q, n=nfft)[:n]
+            i=numpy.fft.irfft(i, n=nfft)[:n]
+            q=numpy.fft.irfft(q, n=nfft)[:n]
         else:
             #only apply iq correction for sideband frequency 0
             if iqcor:
-                signal += conjugate(signal) * self._IQcompensation(carrierFreq,1)[0]
+                signal += signal.conjugate() * \
+                    self._IQcompensation(carrierFreq,1)[0]
             i=signal.real
             q=signal.imag
             
@@ -594,36 +630,39 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
             zeroI = zeroQ = 0.0
         
         if rescale:
-            rescale = min([1.0, \
-                           ( 0x1FFF - zeroI) / fullscale / max(i), \
-                           (-0x2000 - zeroI) / fullscale / min(i), \
-                           ( 0x1FFF - zeroQ) / fullscale / max(q), \
-                           (-0x2000 - zeroQ) / fullscale / min(q)])
+            rescale = numpy.min([1.0, \
+                           ( 0x1FFF - zeroI) / fullscale / numpy.max(i), \
+                           (-0x2000 - zeroI) / fullscale / numpy.min(i), \
+                           ( 0x1FFF - zeroQ) / fullscale / numpy.max(q), \
+                           (-0x2000 - zeroQ) / fullscale / numpy.min(q)])
             if rescale < 1.0:
-                print 'Corrected signal scaled by %g to fit DAC range.' % rescale
+                print 'Corrected signal scaled by %g to fit DAC range.' % \
+                    rescale
             # keep track of rescaling in the object data
             self.last_rescale_factor = rescale
-            if not isinstance(self.min_rescale_factor, float) or rescale < self.min_rescale_factor:
+            if not isinstance(self.min_rescale_factor, float) \
+               or rescale < self.min_rescale_factor:
                 self.min_rescale_factor = rescale
             fullscale *= rescale
 
 
-        i = round(i * fullscale + zeroI).astype(int32)
-        q = round(q * fullscale + zeroQ).astype(int32)
+        i = numpy.round(i * fullscale + zeroI).astype(numpy.int32)
+        q = numpy.round(q * fullscale + zeroQ).astype(numpy.int32)
 
         if not rescale:
-            if (max(i) > 0x1FFF) or (min(i) < -0x2000):
+            if (numpy.max(i) > 0x1FFF) or (numpy.min(i) < -0x2000):
                 print 'Corrected I signal beyond DAC range, clipping.'
-                i = clip(i,-0x2000,0x1FFF)
-            if (max(q) > 0x1FFF) or (min(q) < -0x2000):
-                print 'Corrected Q signal beyond DAC range, clipping.'
-                q = clip(q,-0x2000,0x1FFF)
+                i = numpy.clip(i,-0x2000,0x1FFF)
+            if (numpy.max(q) > 0x1FFF) or (numpy.min(q) < -0x2000):
+                print 'Corrected Q signal beyond DAC range, numpy.clipping.'
+                q = numpy.clip(q,-0x2000,0x1FFF)
 
         if not zipSRAM:
             return (i, q)
 
         return ((i & 0x3FFF) << (14 * self.flipChannels) | \
-                (q & 0x3FFF) << (14 * (not self.flipChannels))).astype(uint32)
+                (q & 0x3FFF) << (14 * (not self.flipChannels))).\
+                astype(numpy.uint32)
 
 
     def recalibrate(self, carrierMin, carrierMax, zeroCarrierStep=0.02,
@@ -648,24 +687,26 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
 class DACcorrection:
 
 
-    def __init__(self, board, channel, lowpass = gaussfilter, bandwidth = 0.13):
+    def __init__(self, board, channel, lowpass = gaussfilter, bandwidth = 0.15):
 
         """
         Returns a DACcorrection object for the given DAC board.
         keywords:
-            lowpass = func:
-                Sets the low pass filter function, i.e. the transfer
-                function we want after correction. It expects func of form
-                func(n, bandwidth). n is the number of samples between 0
-                frequency and the Nyquist frequency (half the sample freq).
-                bandwidth is all the other parameters the function needs,
-                they are passed to func just as specified by the bandwidth keyword
-                to DACcorrection. The return value is the transmission (between 0 and 1)
-                at f=0, 1/N, ... (n-1)/N where N is the Nyquist frequency.
-                Default: gaussfilter
-            bandwidth:
-                bandwidth are arguments passed to the lowpass filter function
-                (see above)
+       
+            lowpass: Sets the low pass filter function,
+                i.e. the transfer function we want after
+                correction. It expects func of form func(n,
+                bandwidth). n is the number of samples between 0
+                frequency and the Nyquist frequency (half the sample
+                freq).  bandwidth is all the other parameters the
+                function needs, they are passed to func just as
+                specified by the bandwidth keyword to
+                DACcorrection. The return value is the transmission
+                (between 0 and 1) at f=0, 1/N, ... (n-1)/N where N is
+                the Nyquist frequency.  Default: gaussfilter
+                
+            bandwidth: bandwidth are arguments passed to the lowpass
+                filter function (see above)
 
         """
 
@@ -694,23 +735,40 @@ class DACcorrection:
 
         self.clicsPerVolt = None
 
+        self.decayRates = numpy.array([])
+        self.decayAmplitudes = numpy.array([])
+        self.precalc = numpy.array([])
+
 
     def loadCal(self, dataPoints, zero = 0.0 , clicsPerVolt = None,
-                lowpass=flatfilter, bandwidth=0.13):
+                lowpass=flatfilter, bandwidth=0.15, replace=False):
         """
-        Reads a pulse calibration file from the data server.  The
-        result is inverted and multiplied with a lowpass filter, that
-        rolls off between 0.5-cufoffwidth GHz and 0.5 GHz.  It is
-        stored in self.correctionI and self.correctionQ.  If a lowpass
-        filter has been used to generate the signal give the
-        filterfunction with the 'lowpass' keyword arg and its
-        bandwidth with the 'bandwidth' keyword argument.
+        Adds a response function to the list of internal
+        calibrations. dataPoints contains a step response. It is a n x
+        2 array. dataPoints[:,0] contains the time in dacIntervals,
+        dataPoints[:,1] the amplitude (scale does not matter).
+
+        If you add a SECONDARY CALIBRATION (i.e. a calibration that
+        has been obtained with a input signal already numerically
+        corrected) then you have to PROVIDE THE OPTIONAL 'lowpass'
+        and 'bandwidth' ARGUMENTS to tell the deconvolution
+        about the numerical lowpass filter you used to generate the
+        input signal for the calibration. If you omit these
+        parameters, DACify will also correct for the numerical lowpass
+        filter: If you use the same numerical lowpass filter to
+        generate the calibration and when you call DACify, they will
+        cancel and you get no lowpass filter; If you use a narrower
+        filter to generate the calibration than when you call DACify,
+        you will end up with a band pass, certainly not what you want.
+
+        The optional 'zero' argument gives the DAC value, giving 0 output,
+        defaults to 0.
         """
 
         #read pulse calibration from data server
 
 
-        samplingfreq=int(round(1.0/(dataPoints[1,0]-dataPoints[0,0])))
+        samplingfreq=int(numpy.round(1.0/(dataPoints[1,0]-dataPoints[0,0])))
         dataPoints=dataPoints[:,1]
         #calculate impulse response from step response
         dataPoints=dataPoints[samplingfreq:]-dataPoints[:-samplingfreq]
@@ -718,17 +776,62 @@ class DACcorrection:
         #length for fft, long because we want good frequency resolution
         finalLength=10240
         n=finalLength*samplingfreq
-
         #go to frequency space
-        dataPoints=rfft(dataPoints,n=n)
+        dataPoints=numpy.fft.rfft(dataPoints,n=n)
         self.zero = zero
         self.clicsPerVolt = clicsPerVolt
         self.correction += [lowpass(finalLength,bandwidth) * \
                             abs(dataPoints[0]) / dataPoints[0:finalLength/2+1]]
+        self.precalc = numpy.array([])
 
 
+    def setSettling(self, rates, amplitudes):
+        """
+        If a calibration can be characterized by time constants, i.e.
+        the step response functiontion is
+          0                                             for t <  0
+          1 + sum(amplitudes[i]*exp(-decayrates[i]*t))  for t >= 0,
+        then you don't need to load the response function explicitly
+        but can just give the timeconstants and amplitudes.
+        All previously used time constants will be replaced.
+        """
+        if numpy.shape(rates) != numpy.shape(amplitudes):
+            raise Error('arguments to setSettling must have same shape.')
+        s = numpy.size(rates)
+        self.decayRates = numpy.reshape(numpy.asarray(rates),s)
+        self.decayAmplitudes = numpy.reshape(numpy.asarray(amplitudes),s)
+        self.precalc = numpy.array([])
+        
 
-    def DACify(self, signal, loop=False, rescale=False, fitRange=True, zerocor=True, deconv=True, volts=True):
+    def setFilter(self, lowpass = gaussfilter, bandwidth = 0.15):
+
+        """
+        Set the lowpass filter used for deconvolution.
+       
+        lowpass: Sets the low pass filter function, i.e. the transfer
+            function we want after correction. It expects func of form
+            func(n, bandwidth). n is the number of samples between 0
+            frequency and the Nyquist frequency (half the sample
+            freq).  bandwidth is all the other parameters the function
+            needs, they are passed to func just as specified by the
+            bandwidth keyword to DACcorrection. The return value is
+            the transmission (between 0 and 1) at f=0, 1/N,
+            ... (n-1)/N where N is the Nyquist frequency.  Default:
+            gaussfilter
+                
+        bandwidth: bandwidth are arguments passed to the lowpass
+            filter function (see above)
+        """
+        self.lowpass = lowpass
+        self.bandwidth = bandwidth
+        self.precalc = numpy.array([])
+
+        
+        
+        
+        
+    def DACify(self, signal, loop=False, rescale=False, fitRange=True,
+               zerocor=True, deconv=True, volts=True):
 
         """
         Computes a SRAM sequence for one DAC channel. If volts is
@@ -773,8 +876,8 @@ class DACcorrection:
             actually used. DACcorrection.min_rescale_factor contains the
             smallest rescale factor used so far.
             
-        fitRange=False: Do not clip data to fit into 14 bits. Only effective
-            without rescaling.
+        fitRange=False: Do not clip data to fit into 14 bits. Only
+            effective without rescaling.
 
         zerocor=False: Do not perform zero correction.
 
@@ -786,12 +889,12 @@ class DACcorrection:
 
         """
 
-        signal = asarray(signal)
+        signal = numpy.asarray(signal)
 
-        if (alen(signal)==0):
-            return zeros(0)
+        if (numpy.alen(signal)==0):
+            return numpy.zeros(0)
 
-        n=alen(signal)
+        n=numpy.alen(signal)
 
         if loop:
             nfft=n
@@ -802,7 +905,7 @@ class DACcorrection:
         background = 0.5*(signal[0] + signal[-1])
         
         #FT the input
-        signal=rfft(signal-background, n=nfft)
+        signal=numpy.fft.rfft(signal-background, n=nfft)
         return self.DACifyFT(signal, t0=0, n=n, nfft=nfft, offset=background,
                              loop=loop,
                              rescale=rescale, fitRange=fitRange, deconv=deconv,
@@ -810,16 +913,18 @@ class DACcorrection:
 
         
 
-    def DACifyFT(self, signal, t0=0, n=8192, offset=0, nfft=None, loop=False, rescale=False,
-                 fitRange=True, deconv=True, zerocor=True, volts=True):
-        """Works like DACify but takes the Fourier transform of the signal as
-        input instead of the signal. n gives the number of points (or
-        the length in ns), t0 the start time.  Signal can either be an
-        array of length n/2 + 1 giving the frequency components from 0
-        to 500 MHz. or a function which will be evaluated between 0
-        and 0.5 (GHz). For the rest of the arguments see DACify
+    def DACifyFT(self, signal, t0=0, n=8192, offset=0, nfft=None, loop=False,
+                 rescale=False, fitRange=True, deconv=True, zerocor=True,
+                 volts=True):
         """
-
+        Works like DACify but takes the Fourier transform of the
+        signal as input instead of the signal. n gives the number of
+        points (or the length in ns), t0 the start time.  Signal can
+        either be an array of length n/2 + 1 giving the frequency
+        components from 0 to 500 MHz. or a function which will be
+        evaluated between 0 and 0.5 (GHz). For the rest of the
+        arguments see DACify
+        """
 
         #read DAC zeros
         if zerocor:
@@ -839,58 +944,78 @@ class DACcorrection:
             elif nfft is None:
                 nfft=fastfftlen(n)
             nrfft=nfft/2+1
-            signal=asarray(signal(linspace(0.0, float(nrfft)/nfft, nrfft, endpoint=False))).astype(complex)
+            signal=numpy.asarray(signal(numpy.linspace(0.0, float(nrfft)/nfft, 
+                nrfft, endpoint=False))).astype(complex)
         elif signal is None:
-            signal = int32(round(fullscale*offset+zero))
+            signal = numpy.int32(numpy.round(fullscale*offset+zero))
             if fitRange:
-                signal = clip(signal,-0x2000,0x1FFF)
-                signal = uint32(signal & 0x3FFF)
+                signal = numpy.clip(signal,-0x2000,0x1FFF)
+                signal = numpy.uint32(signal & 0x3FFF)
             return signal
         else:
-            signal = asarray(signal)
+            signal = numpy.asarray(signal)
             nrfft = len(signal)
             if nfft is None or nfft/2 + 1 != nrfft:
                 nfft = 2*(nrfft-1)
 
             
         if t0 != 0:
-            signal *= exp(linspace(0.0, 2.0j*pi*t0*nrfft/nfft, nrfft, endpoint=False))
+            signal *= numpy.exp(numpy.linspace(0.0,
+                2.0j * numpy.pi * t0 * nrfft / nfft, nrfft, endpoint=False))
         signal[0] += nfft*offset
-        if deconv:
-            for correction in self.correction:
-                l=alen(correction)
-                freqs = linspace(0, nrfft * 2.0 * (l - 1.0) / nfft, nrfft,
-                               endpoint=False)
-                correction = interpol(correction, freqs, extrapolate=True)
-                signal*=correction 
         #do the actual deconvolution and transform back to time space
-        signal=irfft(signal*self.lowpass(nfft, self.bandwidth), n=nfft)
+        if deconv:
+            # check if the precalculated correction matches the
+            # length of the data, if not we have to recalculate
+            if numpy.alen(self.precalc) != nrfft:
+                # lowpass filter
+                precalc = self.lowpass(nfft, self.bandwidth).astype(complex)
+                freqs = numpy.linspace(0, nrfft * 1.0 / nfft,
+                                           nrfft, endpoint=False)
+                # pulse correction
+                for correction in self.correction:
+                    l=numpy.alen(correction)
+                    precalc *= interpol(correction, freqs*2.0*(l-1),
+                                        extrapolate=True)
+                # decay times
+                if numpy.alen(self.decayRates):
+                    freqs = 2j*numpy.pi*freqs
+                    precalc /= (1.0 + \
+                        numpy.sum(self.decayAmplitudes[:,None] *\
+                       freqs[None,:] / \
+                       (freqs[None,:] + self.decayRates[:,None]),axis=0))
+                self.precalc = precalc
+            signal *= self.precalc
+        else:
+            signal *= self.lowpass(nfft, self.bandwidth)
+                
+        # transform to real space    
+        signal=numpy.fft.irfft(signal, n=nfft)
         signal = signal[0:n]
 
         if rescale:
-            rescale = min([1.0, \
-                           ( 0x1FFF - zero) / fullscale / max(signal), \
-                           (-0x2000 - zero) / fullscale / min(signal)])
+            rescale = numpy.min([1.0, \
+                           ( 0x1FFF - zero) / fullscale / numpy.max(signal), \
+                           (-0x2000 - zero) / fullscale / numpy.min(signal)])
             if rescale < 1.0:
-                print 'Corrected signal scaled by %g to fit DAC range.' % rescale
+                print 'Corrected signal scaled by %g to fit DAC range.' % \
+                    rescale
             # keep track of rescaling in the object data
             self.last_rescale_factor = rescale
-            if not isinstance(self.min_rescale_factor, float) or rescale < self.min_rescale_factor:
+            if not isinstance(self.min_rescale_factor, float) \
+               or rescale < self.min_rescale_factor:
                 self.min_rescale_factor = rescale
             fullscale *= rescale
 
-        signal = round(signal * fullscale + zero).astype(int32)
+        signal = numpy.round(signal * fullscale + zero).astype(numpy.int32)
         if not fitRange:
             return signal
         if not rescale:
-            if (max(signal) > 0x1FFF) or (min(signal) < -0x2000):
+            if (numpy.max(signal) > 0x1FFF) or (numpy.min(signal) < -0x2000):
                 print 'Corrected signal beyond DAC range, clipping.'
-                signal = clip(signal,-0x2000,0x1FFF)
-        return (signal & 0x3FFF).astype(uint32)
+                signal = numpy.clip(signal,-0x2000,0x1FFF)
+        return (signal & 0x3FFF).astype(numpy.uint32)
 
 
 
-savedfftlens=zeros(8193,dtype=int)
-for n in arange(1,alen(savedfftlens)):
-    savedfftlens[n] = _fastfftlen(n)
         
