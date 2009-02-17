@@ -816,6 +816,11 @@ class FPGAServer(DeviceServer):
         addr = d.setdefault('sramAddress', 0)
         if 'sram' in d:
             sram = d['sram']
+            if isinstance(sram, tuple):
+                # last sequence was multiblock
+                # clear the sram
+                sram = ''
+                addr = d['sramAddress'] = 0
         else:
             sram = '\x00' * addr
         if not isinstance(data, str):
