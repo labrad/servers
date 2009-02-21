@@ -83,6 +83,11 @@ TWOSLEPIANPARS =   SLEPIANPARS + \
                     ("Second Pulse Phase",        "Pulse 2",       "Phase",               "v[rad]", 180.0*rad),
                     ("Second Frequency",          "Pulse 2",       "Frequency",           "v[GHz]", 200.0*MHz)]
 
+SLEPZSLEPPARS =    TWOSLEPIANPARS + \
+                   [("Z Pulse Length",            "Z Pulse",       "Length",              "v[ns]",   16.0*ns ),
+                    ("Z Pulse Delay",             "Z Pulse",       "Delay",               "v[ns]",   10.0*ns ),
+                    ("Z Pulse Amplitude",         "Z Pulse",       "Amplitude",           "v[mV]",  100.0*mV )]
+
 
 
 class NeedOneQubitError(T.Error):
@@ -587,6 +592,54 @@ class BEServer(LabradServer):
                                                          pars[(qname, 'Second Pulse Delay'       )]+ \
                                                          pars[(qname, 'Second Pulse Length'      )]+ \
                                                          pars[(qname, 'Measure Pulse Delay'      )]+50*ns)
+            # Measure Pulse
+            meastop  = int  (pars[(qname, "Measure Pulse Top Length" )])
+            meastail = int  (pars[(qname, "Measure Pulse Tail Length")])
+            measamp  = float(pars[(qname, "Measure Pulse Amplitude"  )])/1000.0
+            measpuls = [measamp]*meastop + [(meastail - t - 1)*measamp/meastail for t in range(meastail)]
+            p.sram_analog_data  (('Measure', qid+1), measpuls)
+
+        # Run experiment and return result
+        data = yield self.run_qubits(c, p, pars['Stats'])
+        returnValue(data)
+        
+
+    @setting(70, 'Slepian-Z-Slepian Pulses', ctxt=['ww'], returns=['*v'])
+    def slepzslep(self, c, ctxt):
+        """Runs a Sequence with two Slepian pulses"""
+        # Initialize experiment
+        qubits, pars, p = yield self.init_qubits(c, ctxt, GLOBALPARS, SLEPZSLEPPARS)
+
+        # Build SRAM
+        for qid, qname in enumerate(qubits):
+            # Add Microwave Pulse
+            p.experiment_set_anritsu(('uWaves',  qid+1), pars[(qname, 'Resonance Frequency'      )]- \
+                                                         pars[(qname, 'Sideband Frequency'       )],
+                                                         pars[(qname, 'Carrier Power'            )])
+            p.sram_iq_delay         (('uWaves',  qid+1), pars[(qname, 'Microwave Offset'         )]+50*ns)
+            p.sram_iq_slepian       (('uWaves',  qid+1), float(pars[(qname, 'Microwave Pulse Amplitude')])/1000.0,
+                                                         pars[(qname, 'Microwave Pulse Length'   )],
+                                                   float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
+                                                         pars[(qname, 'Microwave Pulse Phase'    )])
+            p.sram_iq_delay         (('uWaves',  qid+1), pars[(qname, 'Z Pulse Delay'            )]+ \
+                                                         pars[(qname, 'Z Pulse Length'           )]+ \
+                                                         pars[(qname, 'Second Pulse Delay'       )])
+            p.sram_iq_slepian       (('uWaves',  qid+1), float(pars[(qname, 'Second Pulse Amplitude'   )])/1000.0,
+                                                         pars[(qname, 'Second Pulse Length'      )],
+                                                  (float(pars[(qname, 'Second Frequency'         )])- \
+                                                   float(pars[(qname, 'Resonance Frequency'      )])+ \
+                                                   float(pars[(qname, 'Sideband Frequency'       )]))*1000.0,
+                                                         pars[(qname, 'Second Pulse Phase'       )])
+            # Wait for Z Pulse
+            p.sram_analog_delay     (('Measure', qid+1), pars[(qname, 'Measure Offset'           )]+ \
+                                                         pars[(qname, 'Microwave Pulse Length'   )]+ \
+                                                         pars[(qname, 'Z Pulse Delay'            )]+ 50*ns)
+            zpulse = [float(pars[(qname, 'Z Pulse Amplitude')])/1000.0]* \
+                        int(pars[(qname, 'Z Pulse Length'   )])
+            p.sram_analog_data      (('Measure', qid+1), zpulse)
+            p.sram_analog_delay     (('Measure', qid+1), pars[(qname, 'Second Pulse Delay'       )]+ \
+                                                         pars[(qname, 'Second Pulse Length'      )]+ \
+                                                         pars[(qname, 'Measure Pulse Delay'      )])
             # Measure Pulse
             meastop  = int  (pars[(qname, "Measure Pulse Top Length" )])
             meastail = int  (pars[(qname, "Measure Pulse Tail Length")])
