@@ -490,7 +490,7 @@ class QubitServer(LabradServer):
             anritsuinfo[anritsu] = newInfo
         else:
             if anritsuinfo[anritsu] != newInfo:
-                raise AnritsuConflictError()
+                raise AnritsuConflictError(anritsuinfo[anritsu], newInfo)
         return anritsuinfo!=False
 
 
@@ -1222,8 +1222,17 @@ class AnritsuSetupError(T.Error):
     code = 16
 
 class AnritsuConflictError(T.Error):
-    """Anritsu is already configured with conflicting parameters"""
     code = 17
+    def __init__(self, set1, set2):
+        if isinstance(set1, tuple):
+            s1 = "%gGHz at %gdBm" % (float(set1[0]), float(set1[1]))
+        else:
+            s1 = "'off'"
+        if isinstance(set2, tuple):
+            s2 = "%gGHz at %gdBm" % (float(set2[0]), float(set2[1]))
+        else:
+            s2 = "'off'"
+        self.msg="""Anritsu is already configured with conflicting parameters: %s vs. %s""" % (s1, s2)
 
 class QubitChannelNotDeconvolvedError(T.Error):
     code = 18
