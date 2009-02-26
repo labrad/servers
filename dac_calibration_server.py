@@ -54,7 +54,7 @@ class NoBoardSelectedError(T.Error):
     code = 3
 
 class NoDACSelectedError(T.Error):
-    """No DAC or frequency"""
+    """No DAC or frequency selected"""
     code = 4
 
 class DACrequiresRealError(T.Error):
@@ -105,6 +105,7 @@ class CalibrationServer(LabradServer):
         c['DAC'] = dac
         return dac
 
+           
     @setting(30, 'Correct', data=['*v: Single channel data', '*(v, v): I/Q data', '*c: I/Q data'],
              returns=['*i: Single channel DAC values', '(*i, *i): Dual channel DAC values'])
     def correct(self, c, data):
@@ -145,7 +146,28 @@ class CalibrationServer(LabradServer):
 
             corrected = self.DACcalsets[c['Board']][c['DAC']].DACify(data,loop=c['Loop'], fitRange=False)
             returnValue(corrected)
+    
+    
+    
+    
+    
+    @setting(40, 'Set Settling', rates=['*v[GHz]: settling rates'], amplitudes=['*v: settling amplitudes'])
+    def setsettling(self, c, rates, amplitudes):
+        if 'Board' not in c:
+            raise NoBoardSelectedError()
+        
+        if 'DAC' not in c:
+            raise NoDACSelectedError()
+        
 
+        if c['Board'] not in self.DACcalsets:
+            self.DACcalsets[c['Board']] = {}
+        if c['DAC'] not in self.DACcalsets[c['Board']]:
+            self.DACcalsets[c['Board']][c['DAC']] = \
+                yield DACcorrectorAsync(c['Board'], c['DAC'], self.client,
+                        errorClass = CalibrationNotFoundError)
+                        
+        self.DACcalsets[c['Board']][c['DAC']].setSettling(rates.asarray, amplitudes.asarray)
 
 
 __server__ = CalibrationServer()
