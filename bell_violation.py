@@ -42,7 +42,7 @@ import numpy
 
 dBm = Unit('dBm')
 
-GLOBALPARS = [ "Stats", "Sequence" ];
+GLOBALPARS = [ "Stats", "Sequence", "Resonator Coupling" ];
 
 QUBITPARAMETERS = [("Microwave Offset",          "Timing",        "Microwave Offset",    "ns",   50.0*ns ),
                    ("Resonance Frequency",       "Pulse 1",       "Frequency",           "GHz",   6.5*GHz),
@@ -54,6 +54,14 @@ QUBITPARAMETERS = [("Microwave Offset",          "Timing",        "Microwave Off
                    ("Measure Pulse Amplitude",   "Measure Pulse", "Amplitude",           "mV",  500.0*mV ),
                    ("Measure Pulse Top Length",  "Measure Pulse", "Top Length",          "ns",    5.0*ns ),
                    ("Measure Pulse Tail Length", "Measure Pulse", "Tail Length",         "ns",   15.0*ns )]
+
+RESCOUPLEPARS =   [("Z Pulse Length",            "Z Pulse 1",     "Length",              "ns",   16.0*ns ),
+                   ("Z Pulse Delay",             "Z Pulse 1",     "Delay",               "ns",   10.0*ns ),
+                   ("Z Pulse Amplitude",         "Z Pulse 1",     "Amplitude",           "V",   100.0*mV ),
+                   ("Second Z Pulse Length",     "Z Pulse 2",     "Length",              "ns",   16.0*ns ),
+                   ("Second Z Pulse Delay",      "Z Pulse 2",     "Delay",               "ns",   10.0*ns ),
+                   ("Second Z Pulse Amplitude",  "Z Pulse 2",     "Amplitude",           "V",   100.0*mV )]
+
 
 BELLPARAMETERS  = [("Pi Pulse Amplitude",        "mV",  500.0*mV ),
                    ("Pi Pulse Phase",            "rad",   0.0*rad),
@@ -157,7 +165,7 @@ class VoBIServer(LabradServer):
             raise NeedTwoQubitsError()
 
         # Read experimental parameters
-        pars   = yield self.readParameters(c, GLOBALPARS, qubits, QUBITPARAMETERS, BELLPARAMETERS)
+        pars   = yield self.readParameters(c, GLOBALPARS, qubits, QUBITPARAMETERS + RESCOUPLEPARS, BELLPARAMETERS)
 
         # Grab reference to servers
         qs = self.client.qubits
@@ -193,8 +201,19 @@ class VoBIServer(LabradServer):
                                                              pars[(qname, 'Pi Pulse Length'          )],
                                                        float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
                                                              pars[(qname, 'Pi Pulse Phase'           )])
-                # Coupling Delay
-                p.sram_iq_delay         (('uWaves',  qid+1), pars[(qname, 'Coupling Time'            )])
+
+                # Coupling
+                if pars["Resonator Coupling"]:
+                    # Resonator Coupling Delay
+                    p.sram_iq_delay         (('uWaves',  qid+1), pars[(qname, 'Z Pulse Delay'            )]+ \
+                                                                 pars[(qname, 'Z Pulse Length'           )]+ \
+                                                                 pars[(qname, 'Second Z Pulse Delay'     )]+ \
+                                                                 pars[(qname, 'Second Z Pulse Length'    )]+ \
+                                                                 pars[(qname, 'Coupling Time'            )])
+                else:
+                    # Simple Coupling Delay
+                    p.sram_iq_delay         (('uWaves',  qid+1), pars[(qname, 'Coupling Time'            )])
+                    
                 # Bell Pulses
                 # A, B
                 if op==0:
@@ -238,25 +257,58 @@ class VoBIServer(LabradServer):
                                                        float(pars[(qname, 'Sideband Frequency'       )]+
                                                              pars[(qname, 'Bell Pulse Frequency Shift')])*1000.0,
                                                              pars[(qname, "Bell Pulse Phase"         )])
-
-                # Add measure delay, allowing for negative numbers
-                totmeasdel = 50 +                        int(pars[(qname, "Measure Offset"           )]) + \
-                                                         int(pars[(qname, "Pi Pulse Length"          )]) + \
-                                                         int(pars[(qname, "Coupling Time"            )]) + \
-                                                         int(pars[(qname, "Bell Pulse Length"        )]) + \
-                                                         int(pars[(qname, "Measure Pulse Delay"      )])
+                # Coupling
+                if pars["Resonator Coupling"]:
+                    # Resonator Coupling Delay
+                    totmeasdel = 50 +                        int(pars[(qname, "Measure Offset"           )]) + \
+                                                             int(pars[(qname, "Pi Pulse Length"          )]) + \
+                                                             int(pars[(qname, 'Z Pulse Delay'            )]) + \
+                                                             int(pars[(qname, 'Z Pulse Length'           )]) + \
+                                                             int(pars[(qname, 'Second Z Pulse Delay'     )]) + \
+                                                             int(pars[(qname, 'Second Z Pulse Length'    )]) + \
+                                                             int(pars[(qname, "Coupling Time"            )]) + \
+                                                             int(pars[(qname, "Bell Pulse Length"        )]) + \
+                                                             int(pars[(qname, "Measure Pulse Delay"      )])
                     
-                # Wait until Coupling is done
-                measofs = max(min(totmeasdel, 50 +       int(pars[(qname, "Measure Offset"           )]) + \
-                                                         int(pars[(qname, "Pi Pulse Length"          )]) + \
-                                                         int(pars[(qname, "Coupling Time"            )])), 0)
-                if measofs>0:
-                    p.sram_analog_data (('Measure', qid+1), [float(pars[(qname, "Operating Bias Shift"   )])]*measofs)
+                    z1ofs = 50 +                             int(pars[(qname, "Measure Offset"           )]) + \
+                                                             int(pars[(qname, "Pi Pulse Length"          )]) + \
+                                                             int(pars[(qname, 'Z Pulse Delay'            )])
+                    z1len =                                  int(pars[(qname, 'Z Pulse Length'           )])
+                    
+                    z2ofs = 50 +                             int(pars[(qname, "Measure Offset"           )]) + \
+                                                             int(pars[(qname, "Pi Pulse Length"          )]) + \
+                                                             int(pars[(qname, 'Z Pulse Delay'            )]) + \
+                                                             int(pars[(qname, 'Z Pulse Length'           )]) + \
+                                                             int(pars[(qname, 'Second Z Pulse Delay'     )])
+                    z2len =                                  int(pars[(qname, 'Second Z Pulse Length'    )])
 
-                # Bell and Measure Delay
-                measofs = max(totmeasdel-measofs, 0)
-                if measofs>0:
-                    p.sram_analog_data (('Measure', qid+1), [float(pars[(qname, "Bell Pulse Bias Shift"  )])]*measofs)
+                    # Shift Operating Bias                                         
+                    measdata =                            [float(pars[(qname, "Operating Bias Shift"     )])]*totmeasdel
+                    # Insert First Z Pulse
+                    measdata[z1ofs:z1ofs+z1len] =         [float(pars[(qname, "Z Pulse Amplitude"        )])]*z1len
+                    # Insert Second Z Pulse
+                    measdata[z2ofs:z2ofs+z2len] =         [float(pars[(qname, "Second Z Pulse Amplitude" )])]*z2len
+                    measdata = measdata[0:totmeasdel]
+                    p.sram_analog_data  (('Measure', qid+1), measdata)
+                else:
+                    # Add measure delay, allowing for negative numbers
+                    totmeasdel = 50 +                        int(pars[(qname, "Measure Offset"           )]) + \
+                                                             int(pars[(qname, "Pi Pulse Length"          )]) + \
+                                                             int(pars[(qname, "Coupling Time"            )]) + \
+                                                             int(pars[(qname, "Bell Pulse Length"        )]) + \
+                                                             int(pars[(qname, "Measure Pulse Delay"      )])
+                        
+                    # Wait until Coupling is done
+                    measofs = max(min(totmeasdel, 50 +       int(pars[(qname, "Measure Offset"           )]) + \
+                                                             int(pars[(qname, "Pi Pulse Length"          )]) + \
+                                                             int(pars[(qname, "Coupling Time"            )])), 0)
+                    if measofs>0:
+                        p.sram_analog_data (('Measure', qid+1), [float(pars[(qname, "Operating Bias Shift"   )])]*measofs)
+
+                    # Bell and Measure Delay
+                    measofs = max(totmeasdel-measofs, 0)
+                    if measofs>0:
+                        p.sram_analog_data (('Measure', qid+1), [float(pars[(qname, "Bell Pulse Bias Shift"  )])]*measofs)
 
                 if (op<4) or ((op==4) and (qid==0)) or ((op==5) and (qid==1)):
                     # Measure Pulse
