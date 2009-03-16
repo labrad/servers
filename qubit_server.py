@@ -473,7 +473,7 @@ class QubitServer(LabradServer):
         """Specifies the Anritsu settings to be used for this experiment for the given channel."""
         if len(data) == 3:
             channel, frq, amp = data
-            data = (frq, amp)
+            data = (round(frq,5), amp)
         else:
             channel = data
             data = None
