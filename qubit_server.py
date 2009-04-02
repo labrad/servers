@@ -431,7 +431,8 @@ class QubitServer(LabradServer):
             'NonTimerFPGAs': supportfpgas,
             'Anritsus':      dict((anritsu, None)
                                   for anritsu in Setup['Anritsus']),
-            'NoDeconvolve':  []
+            'NoDeconvolve':  [],
+            'Settlings':     {}
             }
 
         for qindex, qname in enumerate(Setup['Qubits']):
@@ -462,7 +463,6 @@ class QubitServer(LabradServer):
                 result.append((ch, qindex, msg % (ch, qindex)))
                 
         return (Setup['Qubits'], result)
-
 
 
     @setting(101, 'Experiment Set Anritsu',
@@ -523,6 +523,18 @@ class QubitServer(LabradServer):
         expt = self.getExperiment(c)
         Setup = self.Setups[expt['Setup']]
         return Setup['Qubits']
+
+    @setting(104, 'Experiment Set Settling', channel=['(sw)'], rates=['*v[GHz]: settling rates'], amplitudes=['*v: settling amplitudes'])
+    def set_settle(self, c, channel, rates, amplitudes):
+        expt = self.getExperiment(c)
+        if (channel not in expt['IQs']) and (channel not in expt['Analogs']):
+            if (channel in expt['Triggers']) or (channel in expt['FOs']):
+                raise QubitChannelNotDeconvolvedError(channel[1], channel[0])
+            else:    
+                raise QubitChannelNotFoundError(channel[1], channel[0])
+        if channel not in expt['Settlings']:
+            expt['Settlings'][channel] = rates, amplitudes
+        return repr(expt['Settlings'])
 
     @setting(105, 'Memory Current', returns='*(s*w)')
     def get_mem(self, c):
@@ -823,6 +835,8 @@ class QubitServer(LabradServer):
                 else:
                     dac = expt[chname][ch]['Info']['DAC'][1]
                     p.dac(dac)
+                if ch in expt['Settlings']:
+                    p.set_settling(expt['Settlings'][ch])
                 p.correct(numpy.hstack((expt[chname][ch]['Data'], numpy.zeros(SRAMPOSTPAD))))
                 ans = yield p.send()
                 d = ans.correct
