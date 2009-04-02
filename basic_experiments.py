@@ -84,10 +84,10 @@ TWOSLEPIANPARS =   SLEPIANPARS + \
                     ("Second Frequency",          "Pulse 2",       "Frequency",           "v[GHz]", 200.0*MHz)]
 
 SLEPZSLEPPARS =    TWOSLEPIANPARS + \
-                   [("Settling Amplitude 1",      "Settling",      "Amplitude 1",         "v[mV]",  -0.02*mV ),
-                    ("Settling Rate 1",           "Settling",      "Rate 1",              "v[GHz]", 0.02*GHz ),
-                    ("Settling Amplitude 2",      "Settling",      "Amplitude 2",         "v[mV]",  -0.02*mV ),
-                    ("Settling Rate 2",           "Settling",      "Rate 2",              "v[GHz]",  0.2*GHz ),
+                   [("Settling Amplitude",        "Settling",      "Amplitude",           "v[mV]",  -0.02*mV ),
+                    ("Settling Rate",             "Settling",      "Rate",                "v[GHz]", 0.02*GHz ),
+#                    ("Settling Amplitude 2",      "Settling",      "Amplitude 2",         "v[mV]",  -0.02*mV ),
+#                    ("Settling Rate 2",           "Settling",      "Rate 2",              "v[GHz]",  0.2*GHz ),
                     ("Z Pulse Length",            "Z Pulse 1",     "Length",              "v[ns]",   16.0*ns ),
                     ("Z Pulse Delay",             "Z Pulse 1",     "Delay",               "v[ns]",   10.0*ns ),
                     ("Z Pulse Amplitude",         "Z Pulse 1",     "Amplitude",           "v[mV]",  100.0*mV )]
@@ -640,6 +640,10 @@ class BEServer(LabradServer):
                                                    float(pars[(qname, 'Sideband Frequency'       )]))*1000.0,
                                                          pars[(qname, 'Second Pulse Phase'       )])
             # Wait for Z Pulse
+            p.experiment_set_settling(('Measure', qid+1), [pars[(qname, 'Settling Rate')]],
+#                                                           pars[(qname, 'Settling Rate 2')]],
+                                                          [pars[(qname, 'Settling Amplitude')]])
+#                                                           pars[(qname, 'Settling Amplitude 2')]])
             p.sram_analog_delay     (('Measure', qid+1), pars[(qname, 'Measure Offset'           )]+ \
                                                          pars[(qname, 'Microwave Pulse Length'   )]+ \
                                                          pars[(qname, 'Z Pulse Delay'            )]+ 50*ns)
@@ -690,10 +694,10 @@ class BEServer(LabradServer):
                                                    float(pars[(qname, 'Sideband Frequency'       )]))*1000.0,
                                                          pars[(qname, 'Second Pulse Phase'       )])
             # Wait for Z Pulse
-            p.experiment_set_settling(('Measure', qid+1), [pars[(qname, 'Settling Rate 1')],
-                                                           pars[(qname, 'Settling Rate 2')]],
-                                                          [pars[(qname, 'Settling Amplitude 1')],
-                                                           pars[(qname, 'Settling Amplitude 2')]])
+            p.experiment_set_settling(('Measure', qid+1), [pars[(qname, 'Settling Rate')]],
+#                                                           pars[(qname, 'Settling Rate 2')]],
+                                                          [pars[(qname, 'Settling Amplitude')]])
+#                                                           pars[(qname, 'Settling Amplitude 2')]])
             p.sram_analog_delay     (('Measure', qid+1), pars[(qname, 'Measure Offset'           )]+ \
                                                          pars[(qname, 'Microwave Pulse Length'   )]+ \
                                                          pars[(qname, 'Z Pulse Delay'            )]+ 50*ns)

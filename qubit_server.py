@@ -836,6 +836,7 @@ class QubitServer(LabradServer):
                     dac = expt[chname][ch]['Info']['DAC'][1]
                     p.dac(dac)
                 if ch in expt['Settlings']:
+#                    print ch, ':', expt['Settlings'][ch]
                     p.set_settling(expt['Settlings'][ch])
                 p.correct(numpy.hstack((expt[chname][ch]['Data'], numpy.zeros(SRAMPOSTPAD))))
                 ans = yield p.send()
