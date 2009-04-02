@@ -456,7 +456,7 @@ class BEServer(LabradServer):
             p.sram_analog_data  (('Measure', qid+1), measpuls)
 
         # Run experiment and return result
-        data = yield self.run_qubits(c, p, pars['Stats'])
+        data = yield self.run_qubits_separate(c, p, pars['Stats'])
         returnValue(data)
 
 
