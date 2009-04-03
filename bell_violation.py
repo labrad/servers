@@ -55,7 +55,9 @@ QUBITPARAMETERS = [("Microwave Offset",          "Timing",        "Microwave Off
                    ("Measure Pulse Top Length",  "Measure Pulse", "Top Length",          "ns",    5.0*ns ),
                    ("Measure Pulse Tail Length", "Measure Pulse", "Tail Length",         "ns",   15.0*ns )]
 
-RESCOUPLEPARS =   [("Z Pulse Length",            "Z Pulse 1",     "Length",              "ns",   16.0*ns ),
+RESCOUPLEPARS =   [("Settling Amplitude",        "Settling",      "Amplitude",           "mV",  -0.02*mV ),
+                   ("Settling Rate",             "Settling",      "Rate",                "GHz", 0.02*GHz ),
+                   ("Z Pulse Length",            "Z Pulse 1",     "Length",              "ns",   16.0*ns ),
                    ("Z Pulse Delay",             "Z Pulse 1",     "Delay",               "ns",   10.0*ns ),
                    ("Z Pulse Amplitude",         "Z Pulse 1",     "Amplitude",           "V",   100.0*mV ),
                    ("Second Z Pulse Length",     "Z Pulse 2",     "Length",              "ns",   16.0*ns ),
@@ -258,6 +260,8 @@ class VoBIServer(LabradServer):
                                                              pars[(qname, 'Bell Pulse Frequency Shift')])*1000.0,
                                                              pars[(qname, "Bell Pulse Phase"         )])
                 # Coupling
+                p.experiment_set_settling(('Measure',qid+1),[pars[(qname, 'Settling Rate'            )]],
+                                                            [pars[(qname, 'Settling Amplitude'       )]])
                 if pars["Resonator Coupling"]:
                     # Resonator Coupling Delay
                     totmeasdel = 50 +                        int(pars[(qname, "Measure Offset"           )]) + \
