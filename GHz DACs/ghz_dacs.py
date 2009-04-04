@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = GHz DACs
-version = 2.6.1
+version = 2.6.2
 description = Talks to GHz DAC boards
 
 [startup]
@@ -770,6 +770,11 @@ class FPGAServer(DeviceServer):
             p.connect(port)
             p.require_length(70)
             p.timeout(T.Value(1, 's'))
+            
+            for i in skips:
+                # do not listen for packets from boards we want to skip
+                p.reject_source_mac(boardMAC(i))
+            
             p.listen()
 
             # ping all boards
@@ -796,6 +801,16 @@ class FPGAServer(DeviceServer):
             # expire this context to stop listening
             yield cxn.manager.expire_context(de.ID, context=ctx)
         returnValue(found)
+
+    ## only trigger a refresh if this is a direct ethernet server
+
+    def serverConnected(self, ID, name):
+        if "Direct Ethernet" in name:
+            self.refreshDeviceList()
+
+    def serverDisconnected(self, ID, name):
+        if "Direct Ethernet" in name:
+            self.refreshDeviceList()
 
 
     @setting(20, 'SRAM Address', addr='w', returns='w')
