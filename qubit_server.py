@@ -44,8 +44,9 @@ import struct
 import numpy
 from scipy.signal import slepian
 
-SRAMPREPAD  = 20
-SRAMPOSTPAD = 80
+SRAMPREPAD  = 50
+SRAMPOSTPAD = 400
+SRAMBLKSIZE = 200
 
 SRAMPAD = SRAMPREPAD + SRAMPOSTPAD
 
@@ -802,6 +803,7 @@ class QubitServer(LabradServer):
                 if l > longest:
                     longest = l
         # make sure SRAM length is divisible by 4
+        longest = longest - longest % SRAMBLKSIZE
         longest = (longest + 3) & 0xFFFFFC
         srams = dict([(board, numpy.zeros(longest).astype('int')) for board in expt['FPGAs']])
 
@@ -810,7 +812,7 @@ class QubitServer(LabradServer):
         for chname in ['IQs', 'Analogs']:
             for ch in expt[chname].keys():
                 if ch in expt['NoDeconvolve']:
-                    d = numpy.hstack((expt[chname][ch]['Data'], numpy.zeros(SRAMPOSTPAD)))
+                    d = numpy.hstack((expt[chname][ch]['Data'], numpy.zeros(longest - len(expt[chname][ch]['Data']))))
                     if chname == 'IQs':
                         d =  ((d.real*0x1FFF).astype('int') & 0x3FFF) + \
                             (((d.imag*0x1FFF).astype('int') & 0x3FFF) << 14)
@@ -825,7 +827,7 @@ class QubitServer(LabradServer):
                     anritsu = expt[chname][ch]['Info']['Anritsu'][1]
                     frq = expt['Anritsus'][anritsu]
                     if frq is None:
-                        d = numpy.hstack((expt[chname][ch]['Data'], numpy.zeros(SRAMPOSTPAD)))
+                        d = numpy.hstack((expt[chname][ch]['Data'], numpy.zeros(longest - len(expt[chname][ch]['Data']))))
                         d =  ((d.real*0x1FFF).astype('int') & 0x3FFF) + \
                             (((d.imag*0x1FFF).astype('int') & 0x3FFF) << 14)
                         deconvolved[(chname, ch)] = d
@@ -838,7 +840,10 @@ class QubitServer(LabradServer):
                 if ch in expt['Settlings']:
 #                    print ch, ':', expt['Settlings'][ch]
                     p.set_settling(expt['Settlings'][ch])
-                p.correct(numpy.hstack((expt[chname][ch]['Data'], numpy.zeros(SRAMPOSTPAD))))
+                cordata = numpy.hstack((expt[chname][ch]['Data'], numpy.zeros(longest - len(expt[chname][ch]['Data']))))
+                if (len(cordata) % SRAMBLKSIZE) > 0:
+                    cordata = cordata[0:-(len(cordata) % SRAMBLKSIZE)]
+                p.correct(cordata)
                 ans = yield p.send()
                 d = ans.correct
                 if isinstance(d, tuple):
