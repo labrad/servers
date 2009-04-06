@@ -545,6 +545,39 @@ class BEServer(LabradServer):
         returnValue(data)
         
 
+    @setting(41, 'TopHat Pulse Separate', ctxt=['ww'], returns=['*v'])
+    def tophatsep(self, c, ctxt):
+        """Runs a Sequence with a single TopHat pulse (good for Rabis) and returns probabilities for each qubit separately"""
+        # Initialize experiment
+        qubits, pars, p = yield self.init_qubits(c, ctxt, GLOBALPARS, TOPHATPARS)
+
+        # Build SRAM
+        for qid, qname in enumerate(qubits):
+            # Add Microwave Pulse
+            p.experiment_set_anritsu(('uWaves', qid+1), pars[(qname, 'Resonance Frequency')]- \
+                                                        pars[(qname, 'Sideband Frequency')],
+                                                        pars[(qname, 'Carrier Power' )])
+            p.sram_iq_delay         (('uWaves', qid+1), pars[(qname, 'Microwave Offset')]+50*ns)
+            pulse = [float(pars[(qname, 'Microwave Pulse Amplitude')])/1000.0]*int(pars[(qname, 'Microwave Pulse Length')])
+            p.sram_iq_envelope      (('uWaves', qid+1), pulse, float(pars[(qname, 'Sideband Frequency')])*1000.0, 0.0)
+            
+            # Add Measure Delay
+            p.sram_analog_delay (('Measure', qid+1), 50*ns+pars[(qname, 'Measure Offset')]+ \
+                                                           pars[(qname, 'Microwave Pulse Length')]+ \
+                                                           pars[(qname, 'Measure Pulse Delay')])
+            
+            # Measure Pulse
+            meastop  = int  (pars[(qname, "Measure Pulse Top Length" )])
+            meastail = int  (pars[(qname, "Measure Pulse Tail Length")])
+            measamp  = float(pars[(qname, "Measure Pulse Amplitude"  )])/1000.0
+            measpuls = [measamp]*meastop + [(meastail - t - 1)*measamp/meastail for t in range(meastail)]
+            p.sram_analog_data  (('Measure', qid+1), measpuls)
+
+        # Run experiment and return result
+        data = yield self.run_qubits_separate(c, p, pars['Stats'])
+        returnValue(data)
+        
+
     @setting(50, 'Slepian Pulse', ctxt=['ww'], returns=['*v'])
     def slepian(self, c, ctxt):
         """Runs a Sequence with a single Slepian pulse (good for Power Rabis, T1, 2 Qubit Coupling, etc.)"""
