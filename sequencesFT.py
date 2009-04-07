@@ -104,7 +104,6 @@ def rampPulse(start, ramptime, flattime, height):
     
 def rampPulse2(start, flattime, ramptime, height):
     """Hold and then ramp back down."""
-    start += ramptime
     return measureTrace(start+flattime, ramptime, height) \
          + zPulse(start, flattime, height)
 
