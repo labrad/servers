@@ -520,8 +520,8 @@ class QubitServer(LabradServer):
 
 
     @setting(107, 'Experiment Use Fourier Deconvolution',
-                  channels=["(sw) v[ns] {offset}: Use Fourier deconvolution for this channel",
-                            "*((sw) v[ns] {offset}): Use Fourier deconvolution for these channels"],
+                  channels=["(sw) v[ns] {t0}: Use Fourier deconvolution for this channel",
+                            "*((sw) v[ns] {t0}): Use Fourier deconvolution for these channels"],
                   returns='')
     def fourier_deconvolve(self, c, channels):
         """Use Fourier deconvolution for specified microwave or analog channels.
@@ -541,11 +541,11 @@ class QubitServer(LabradServer):
         upload the entire Fourier transformed sequence at once, since concatenating pulses
         will not work here, as it does in the time domain.
         
-        The time offset in nanoseconds determines where the start time of the final output.
+        The time offset in nanoseconds determines the start time of the final output.
         If you have created a sequence with pulses starting at t=0 but you would like 100ns
         of padding at the beginning in the output, then specify -100ns for the time offset.
         Note that you must ensure that the length nfft is long enough to contain your entire
-        sequence plus this initial padding.
+        sequence plus this initial padding (plus padding at the end for safety).
         """
         expt = self.getExperiment(c)
         if isinstance(channels, tuple):
