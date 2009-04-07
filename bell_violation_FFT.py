@@ -16,7 +16,7 @@
 """
 ### BEGIN NODE INFO
 [info]
-name = Bell Violation
+name = Bell Violation FFT
 version = 1.0
 description = 
 
