@@ -894,6 +894,7 @@ class QubitServer(LabradServer):
                 if 'FT' in expt[chname][ch]:
                     # do fourier deconvolution
                     p.time_offset(expt[chname][ch]['FT'])
+                    cordata = cordata[SRAMPREPAD:len(expt[chname][ch]['Data'])]
                     p.correct_ft(cordata, key='correct')
                 else:
                     # do standard deconvolution
