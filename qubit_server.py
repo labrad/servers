@@ -527,19 +527,25 @@ class QubitServer(LabradServer):
         """Use Fourier deconvolution for specified microwave or analog channels.
 
         If you use Fourier deconvolution, you should specify SRAM sequences in frequency space,
-        rather than in time.  The number of points in frequency will be the same as the length
-        in time.  As required by the deconvolution routine, you should use the following
-        python snippet to get the frequencies (in GHz) at which to evaluate the sequence:
+        rather than in time.  For IQ channels, the number of points in frequency will be the
+        same as the length in time.  As required by the deconvolution routine, you should use
+        the following python snippet to get the frequencies (in GHz) at which to evaluate the
+        sequence:
         
-            freqs = numpy.linspace(0.5, 1.5, nfft, endpoint=False) % 1 - 0.5
+            freqsIQ = numpy.linspace(0.5, 1.5, nfft, endpoint=False) % 1 - 0.5
             
         This gives an array starting at 0 and running up to 0.5, then wrapping to -0.5 and
         running up to 0.  Note that the number of points nfft can have an effect on the speed
         of the deconvolution.  In particular, if this number has large prime factors, the
         Fourier transform will be much slower.  A good choice is to use nfft = 2^k for some
-        sufficiently large k to contain your whole sequence.  Note that this means you must
-        upload the entire Fourier transformed sequence at once, since concatenating pulses
-        will not work here, as it does in the time domain.
+        sufficiently large k to contain your whole sequence.  For Analog channels, the Fourier
+        transform is symmetric, so you should only evaluate it at positive frequencies, and
+        only for half the length:
+        
+            freqsAnalog = numpy.linspace(0, 0.5, nfft/2, endpoint=False)
+        
+        Note that this means you must upload the entire Fourier transformed sequence at once,
+        since concatenating pulses will not work here, as it does in the time domain.
         
         The time offset in nanoseconds determines the start time of the final output.
         If you have created a sequence with pulses starting at t=0 but you would like 100ns
