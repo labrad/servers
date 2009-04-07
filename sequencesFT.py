@@ -1,6 +1,6 @@
 from numpy import exp, log, pi, sin, cos, sqrt, arange, sinc, linspace, real, imag
 from numpy.fft import ifft
-import pylab
+##import pylab
 
 # sequences and sequence creation functions in Fourier representation
 
@@ -109,11 +109,11 @@ def rampPulse2(start, flattime, ramptime, height):
          + zPulse(start, flattime, height)
 
 
-def plotSequence(func,t0=-200,n=1000):
-    f = linspace(0.5,1.5, n, endpoint=False) % 1 - 0.5
-    signal = func(f) * exp(2.0j*pi*t0*f)
-    signal = ifft(signal)
-    t = t0 + arange(n)
-    pylab.plot(t,real(signal))
-    pylab.plot(t,imag(signal))
-    
+##def plotSequence(func,t0=-200,n=1000):
+##    f = linspace(0.5,1.5, n, endpoint=False) % 1 - 0.5
+##    signal = func(f) * exp(2.0j*pi*t0*f)
+##    signal = ifft(signal)
+##    t = t0 + arange(n)
+##    pylab.plot(t,real(signal))
+##    pylab.plot(t,imag(signal))
+##    
