@@ -263,7 +263,7 @@ class VoBIServer(LabradServer):
                 if (op==5) and (qid==1):
                     uwSeq = uwSeq + SFT.gaussian_envelope(b_ofs, b_len/2.0, b_amp, b_frq, b_phs)
 
-                uwFrqs = numpy.linspace(0.5, 1.5, 1024, endpoint=False) % 1 - 0.5
+                uwFrqs = numpy.linspace(0.5, 1.5, 512, endpoint=False) % 1 - 0.5
                 uwData = uwSeq(uwFrqs)
 
                 # Build Bias Sequence
@@ -277,7 +277,7 @@ class VoBIServer(LabradServer):
                 z_ofs += z2len + b_del + b_len + mpdel
                 mpSeq = mpSeq + SFT.rampPulse2(z_ofs, mptop, mptal, mpamp)    # Measure
 
-                mpFrqs = numpy.linspace(0, 0.5, 1024/2, endpoint=False)
+                mpFrqs = numpy.linspace(0, 0.5, 512/2, endpoint=False)
                 mpData = mpSeq(mpFrqs)
 
                 # Upload Sequences
