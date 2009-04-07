@@ -21,9 +21,9 @@ SPECTID = 'Spectrum analyzer ID'
 SCOPEID = 'Sampling Scope ID'
 SWITCHPOSITION = 'Microwave switch position'
 TIMEOFFSET = 'DAC delay for pulse calibration'
-SETUPTYPES = ['no IQ mixer', \
-                    'DAC A -> mixer I, DAC B -> mixer Q',\
-                    'DAC A -> mixer Q, DAC B -> mixer I']
+SETUPTYPES = ['no IQ mixer',
+              'DAC A -> mixer I, DAC B -> mixer Q',
+              'DAC A -> mixer Q, DAC B -> mixer I']
 SESSIONNAME = 'GHzDAC Calibration'
 ZERONAME = 'zero'
 PULSENAME = 'pulse'

@@ -443,7 +443,7 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
                zerocor=True, deconv=True, iqcor=True, zipSRAM=True):
         """
         Computes a SRAM sequence from I and Q values in the range from
-        -1 to 1 If Q is omitted, the imaginary part of I sets the Q
+        -1 to 1.  If Q is omitted, the imaginary part of I sets the Q
         value
 
         Perfroms the following corrections at the given carrier frequency
@@ -475,8 +475,8 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
             is fastest for numbers that factorize into small numbers)
 
         rescale=True: If the corrected signal exceeds the DAC range,
-            it is rescale to fit. Usefull to drive as hard as possible
-            without signal distorsions (e.g. for spectroscopy).
+            it is rescaled to fit. Useful to drive as hard as possible
+            without signal distortions (e.g. for spectroscopy).
             Otherwise the signal is clipped. After a DACify call
             DACcorrection.last_rescale_factor contains the rescale
             factor actually used. DACcorrection.min_rescale_factor
@@ -489,8 +489,8 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
 
         iqcor=False: Do not perform IQ mixer correction.
 
-        zipSRAM=False: returns (I,Q) tupels instead of packed SRAM data,
-            tupels are not clipped to fit the DAC range.
+        zipSRAM=False: returns (I,Q) tuples instead of packed SRAM data,
+            tuples are not clipped to fit the DAC range.
 
         Example:
             cor = DACcorrection('DR Lab FPGA 0')
@@ -533,11 +533,11 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         n gives the number of points (or the length in ns),
         t0 the start time.  Signal can either be a function which will
         be evalutated between -0.5 and 0.5 GHz, or an array of length
-        nfft with complex samples at frequencies if GHz of
-           numpy.linspace(0.5,1.5, nfft, endpoint=False) % 1 - 0.5
+        nfft with complex samples at frequencies in GHz of
+           numpy.linspace(0.5, 1.5, nfft, endpoint=False) % 1 - 0.5
         If you want DACifyFT to be fast nfft should factorize in 2 3 and 5.
         If n < nfft, the result is truncated to n samples.
-        For the rest of the arguments see DACify
+        For the rest of the arguments see DACify.
         """
         if (n==0):
             return numpy.zeros(0)
@@ -562,7 +562,7 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         if n > nfft:
             n = nfft
         nrfft=nfft/2+1
-        f = numpy.linspace(0.5,1.5, nfft, endpoint=False) % 1 - 0.5
+        f = numpy.linspace(0.5, 1.5, nfft, endpoint=False) % 1 - 0.5
         if callable(signal):
             signal=numpy.asarray(signal(f)).astype(complex)
         if t0 != 0:
