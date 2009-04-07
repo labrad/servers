@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Qubits
-version = 1.4
+version = 1.5
 description = 
 
 [startup]
@@ -518,6 +518,48 @@ class QubitServer(LabradServer):
                 expt['NoDeconvolve'].append(channel)
         return expt['NoDeconvolve']
 
+
+    @setting(107, 'Experiment Use Fourier Deconvolution',
+                  channels=["(sw) v[ns] {offset}: Use Fourier deconvolution for this channel",
+                            "*((sw) v[ns] {offset}): Use Fourier deconvolution for these channels"],
+                  returns='')
+    def fourier_deconvolve(self, c, channels):
+        """Use Fourier deconvolution for specified microwave or analog channels.
+
+        If you use Fourier deconvolution, you should specify SRAM sequences in frequency space,
+        rather than in time.  The number of points in frequency will be the same as the length
+        in time.  As required by the deconvolution routine, you should use the following
+        python snippet to get the frequencies (in GHz) at which to evaluate the sequence:
+        
+            freqs = numpy.linspace(0.5, 1.5, nfft, endpoint=False) % 1 - 0.5
+            
+        This gives an array starting at 0 and running up to 0.5, then wrapping to -0.5 and
+        running up to 0.  Note that the number of points nfft can have an effect on the speed
+        of the deconvolution.  In particular, if this number has large prime factors, the
+        Fourier transform will be much slower.  A good choice is to use nfft = 2^k for some
+        sufficiently large k to contain your whole sequence.  Note that this means you must
+        upload the entire Fourier transformed sequence at once, since concatenating pulses
+        will not work here, as it does in the time domain.
+        
+        The time offset in nanoseconds determines where the start time of the final output.
+        If you have created a sequence with pulses starting at t=0 but you would like 100ns
+        of padding at the beginning in the output, then specify -100ns for the time offset.
+        Note that you must ensure that the length nfft is long enough to contain your entire
+        sequence plus this initial padding.
+        """
+        expt = self.getExperiment(c)
+        if isinstance(channels, tuple):
+            channels = [channels]
+        for channel, ofs in channels:
+            if channel in expt['IQs']:
+                expt['IQs'][channel]['FT'] = float(ofs)
+            elif channel in expt['Analogs']:
+                expt['Analogs'][channel]['FT'] = float(ofs)
+            elif (channel in expt['Triggers']) or (channel in expt['FOs']):
+                raise QubitChannelNotDeconvolvedError(channel[1], channel[0])
+            else:    
+                raise QubitChannelNotFoundError(channel[1], channel[0])
+
     @setting(103, 'Experiment Involved Qubits', returns='*s')
     def get_qubits(self, c):
         """Returns the list of qubits involved in the current experiment"""
@@ -843,9 +885,15 @@ class QubitServer(LabradServer):
                 cordata = numpy.hstack((expt[chname][ch]['Data'], numpy.zeros(longest - len(expt[chname][ch]['Data']))))
                 if (len(cordata) % SRAMBLKSIZE) > 0:
                     cordata = cordata[0:-(len(cordata) % SRAMBLKSIZE)]
-                p.correct(cordata)
+                if 'FT' in expt[chname][ch]:
+                    # do fourier deconvolution
+                    p.time_offset(expt[chname][ch]['FT'])
+                    p.correct_ft(cordata, key='correct')
+                else:
+                    # do standard deconvolution
+                    p.correct(cordata)
                 ans = yield p.send()
-                d = ans.correct
+                d = ans['correct']
                 if isinstance(d, tuple):
                     d = ((d[1].asarray & 0x3FFF) << 14) + (d[0].asarray & 0x3FFF)
                 else:

@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = DAC Calibration
-version = 1.0.1
+version = 1.1.0
 description = Calibrate sequences for the GHz DAC boards.
 
 [startup]
@@ -30,14 +30,11 @@ timeout = 5
 ### END NODE INFO
 """
 
-from labrad import types as T, util
+from labrad import types as T
 from labrad.server import LabradServer, setting
 from ghzdac import IQcorrectorAsync, DACcorrectorAsync
-from twisted.python import log
-from twisted.internet import defer, reactor
+from ghzdac.correction import fastfftlen
 from twisted.internet.defer import inlineCallbacks, returnValue
-
-from datetime import datetime
 
 
 class CalibrationNotFoundError(T.Error):
@@ -66,8 +63,44 @@ class CalibrationServer(LabradServer):
     name = 'DAC Calibration'
 
     def initServer(self):
-        self.IQcalsets={}
-        self.DACcalsets={}
+        self.IQcalsets = {}
+        self.DACcalsets = {}
+
+    def initContext(self, c):
+        c['Loop'] = False
+        c['t0'] = 0
+
+    @inlineCallbacks
+    def getIQcalset(self, c):
+        """Get an IQ calset for the board in the given context, creating it if needed."""
+        if 'Board' not in c:
+            raise NoBoardSelectedError()
+        board = c['Board']
+        
+        if board not in self.IQcalsets:
+            calset = yield IQcorrectorAsync(board, self.client,
+                                            errorClass=CalibrationNotFoundError)
+            self.IQcalsets[board] = calset
+        returnValue(self.IQcalsets[board])
+    
+    @inlineCallbacks
+    def getDACcalset(self, c):
+        """Get a DAC calset for the board and DAC in the given context, creating it if needed."""
+        if 'Board' not in c:
+            raise NoBoardSelectedError()
+        board = c['Board']
+        
+        if 'DAC' not in c:
+            raise NoDACSelectedError()
+        dac = c['DAC']
+        
+        if board not in self.DACcalsets:
+            self.DACcalsets[board] = {}
+        if dac not in self.DACcalsets[board]:
+            calset = yield DACcorrectorAsync(board, dac, self.client,
+                                             errorClass=CalibrationNotFoundError)
+            self.DACcalsets[board][dac] = calset
+        returnValue(self.DACcalsets[board][dac])
 
     @setting(1, 'Board', board=['s'], returns=['s'])
     def board(self, c, board):
@@ -78,7 +111,9 @@ class CalibrationServer(LabradServer):
     @setting(10, 'Frequency', frequency=['v[GHz]'], returns=['v[GHz]'])
     def frequency(self, c, frequency):
         """Sets the microwave driving frequency for which to correct the data.
-        Selects I/Q mode for the correction."""
+        
+        This also implicitly selects I/Q mode for the correction.
+        """
         c['Frequency'] = frequency.value
         c['DAC'] = None
         return frequency
@@ -88,13 +123,22 @@ class CalibrationServer(LabradServer):
         c['Loop'] = loopmode
         return loopmode
     
+    @setting(12, 'Time Offset', t0=['v[ns]'], returns=['v[ns]'])
+    def set_time_offset(self, c, t0):
+        c['t0'] = float(t0)
+        return t0
+    
     @setting(20, 'DAC', dac=['w: DAC channel 0 or 1', 's: DAC channel'], returns=['w'])
     def dac(self, c, dac):
         """Set the DAC for which to correct the data.
-        Selects single channel mode for the correction."""
+        
+        This also implicitly selects single channel mode for the correction.
+        If a string is passed in, the final character is used to select the DAC,
+        and must be either 'A' ('a') or 'B' ('b').
+        """
         if isinstance(dac, str):
             dac = dac[-1]
-        if dac in [0,'0','a','A']:
+        if dac in [0, '0', 'a', 'A']:
             dac = 0
         elif dac in [1, '1', 'b', 'B']:
             dac = 1
@@ -109,66 +153,65 @@ class CalibrationServer(LabradServer):
     @setting(30, 'Correct', data=['*v: Single channel data', '*(v, v): I/Q data', '*c: I/Q data'],
              returns=['*i: Single channel DAC values', '(*i, *i): Dual channel DAC values'])
     def correct(self, c, data):
-        """Corrects data"""
+        """Corrects data specified in the time domain."""
         # All settings there?
-        if 'Board' not in c:
-            raise NoBoardSelectedError()
-        
         if 'DAC' not in c:
             raise NoDACSelectedError()
-        if 'Loop' not in c:
-            c['Loop'] = False
         
-        # No data?
-        if len(data)==0:
-            returnValue([])
+        data = data.asarray # convert data to array
+        if len(data) == 0:
+            returnValue([]) # special case for empty data
 
         if c['DAC'] is None:
             # IQ mixer calibration
-            if c['Board'] not in self.IQcalsets:
-                self.IQcalsets[c['Board']]=\
-                  yield IQcorrectorAsync(c['Board'], self.client,
-                            errorClass = CalibrationNotFoundError)
-            if isinstance(data[0], tuple):
-                data = [re+im*1j for re,im in data]
-            # convert data from *v to numpy array if desired
-            corrected = self.IQcalsets[c['Board']].DACify(c['Frequency'], data, loop=c['Loop'], zipSRAM=False)
-            # convert corrected to *v
-            returnValue(corrected)
+            if len(data.shape) == 2:
+                data = data[:,0] + 1j * data[:,1]
+            calset = yield self.getIQcalset(c)
+            corrected = calset.DACify(c['Frequency'], data, loop=c['Loop'], zipSRAM=False)
         else:
             # Single Channel Calibration
-            if c['Board'] not in self.DACcalsets:
-                self.DACcalsets[c['Board']] = {}
-            if c['DAC'] not in self.DACcalsets[c['Board']]:
-                self.DACcalsets[c['Board']][c['DAC']] = \
-                    yield DACcorrectorAsync(c['Board'], c['DAC'], self.client,
-                            errorClass = CalibrationNotFoundError)
-
-            corrected = self.DACcalsets[c['Board']][c['DAC']].DACify(data,loop=c['Loop'], fitRange=False)
-            returnValue(corrected)
+            calset = yield self.getDACcalset(c)
+            corrected = calset.DACify(data, loop=c['Loop'], fitRange=False)
+        returnValue(corrected)
     
-    
-    
-    
-    
-    @setting(40, 'Set Settling', rates=['*v[GHz]: settling rates'], amplitudes=['*v: settling amplitudes'])
-    def setsettling(self, c, rates, amplitudes):
-        if 'Board' not in c:
-            raise NoBoardSelectedError()
+    @setting(31, 'Correct FT', data=['*v: Single channel data', '*(v, v): I/Q data', '*c: I/Q data'],
+             returns=['*i: Single channel DAC values', '(*i, *i): Dual channel DAC values'])
+    def correct_ft(self, c, data):
+        """Corrects data specified in the frequency domain.
         
+        This allows for sub-nanosecond timing resolution.
+        """
+        # All settings there?
         if 'DAC' not in c:
             raise NoDACSelectedError()
         
+        data = data.asarray # convert data to array
+        if len(data) == 0:
+            returnValue([]) # special case for empty data
 
-        if c['Board'] not in self.DACcalsets:
-            self.DACcalsets[c['Board']] = {}
-        if c['DAC'] not in self.DACcalsets[c['Board']]:
-            self.DACcalsets[c['Board']][c['DAC']] = \
-                yield DACcorrectorAsync(c['Board'], c['DAC'], self.client,
-                        errorClass = CalibrationNotFoundError)
-                        
-        self.DACcalsets[c['Board']][c['DAC']].setSettling(rates.asarray, amplitudes.asarray)
+        if c['DAC'] is None:
+            # IQ mixer calibration
+            if len(data.shape) == 2:
+                data = data[:,0] + 1.0j * data[:,1]
+            calset = yield self.getIQcalset(c)
+            corrected = calset.DACifyFT(c['Frequency'], data, n=len(data),
+                                        t0=c['t0'], loop=c['Loop'], zipSRAM=False)
+        else:
+            # Single Channel Calibration
+            calset = yield self.getDACcalset(c)
+            corrected = calset.DACifyFT(data, n=len(data),
+                                        t0=c['t0'], loop=c['Loop'], fitRange=False)
+        returnValue(corrected)
+    
+    @setting(40, 'Set Settling', rates=['*v[GHz]: settling rates'], amplitudes=['*v: settling amplitudes'])
+    def setsettling(self, c, rates, amplitudes):
+        calset = yield self.getDACcalset(c)
+        calset.setSettling(rates.asarray, amplitudes.asarray)
 
+    @setting(50, 'Fast FFT Len', n='w')
+    def fast_fft_len(self, c, n):
+        """Given a sequence length n, get a new length nfft >= n which is efficient for calculating fft."""
+        return fastfftlen(n)
 
 __server__ = CalibrationServer()
 
