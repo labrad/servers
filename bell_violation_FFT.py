@@ -250,15 +250,15 @@ class VoBIServer(LabradServer):
                   if ((op+qid) % 2)==0:
                     uwSeq = uwSeq + SFT.gaussian_envelope(b_ofs, b_len/2.0, b_amp, b_frq, b_phs)
                   else:
-                    uwSeq = uwSeq + SFT.gaussian_envelope(b_ofs, b_len/2.0, bpamp, b_frq, bp_phs)
+                    uwSeq = uwSeq + SFT.gaussian_envelope(b_ofs, b_len/2.0, bpamp, b_frq, bpphs)
                     
                 # A', B'
                 if op==3:
-                    uwSeq = uwSeq + SFT.gaussian_envelope(b_ofs, b_len/2.0, bpamp, b_frq, bp_phs)
+                    uwSeq = uwSeq + SFT.gaussian_envelope(b_ofs, b_len/2.0, bpamp, b_frq, bpphs)
 
                 # A'
                 if (op==4) and (qid==0):
-                    uwSeq = uwSeq + SFT.gaussian_envelope(b_ofs, b_len/2.0, bpamp, b_frq, bp_phs)
+                    uwSeq = uwSeq + SFT.gaussian_envelope(b_ofs, b_len/2.0, bpamp, b_frq, bpphs)
                 # B
                 if (op==5) and (qid==1):
                     uwSeq = uwSeq + SFT.gaussian_envelope(b_ofs, b_len/2.0, b_amp, b_frq, b_phs)
