@@ -804,7 +804,7 @@ class QubitServer(LabradServer):
         chinfo['Data'] = numpy.hstack((chinfo['Data'], data))
 
 
-    @setting(210, 'SRAM Analog Data', channel='sw', data='*v')
+    @setting(210, 'SRAM Analog Data', channel='sw', data=['*v','*c'])
     def add_analog_data(self, c, channel, data):
         """Adds analog data to the specified Channel"""
         chinfo = self.getChannel(c, channel, 'Analogs')        

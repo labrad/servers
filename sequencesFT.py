@@ -52,13 +52,14 @@ def measureTrace(start, length, amplitude):
 
 
 # gaussian pulse trace creation functions
-def gaussian_envelope(t0, w, amplitude=1.0, sbfreq=0.0):
+def gaussian_envelope(t0, w, amplitude=1.0, sbfreq=0.0, phase=0.0):
     """Create an envelope function for a gaussian pulse.
 
     The pulse is centered at t0, has a FWHM of w, and a specified phase.
     """
     w = 0.5*pi*w/sqrt(log(2))
     amplitude = nounits(amplitude)*w / sqrt(pi)
+    amplitude *= exp(-1j*phase) # Not sure about sign convention
     
     return pulseClass(lambda f: amplitude \
                                 * exp(-2j*pi*(f+sbfreq)*t0) \
@@ -99,6 +100,13 @@ def rampPulse(start, ramptime, flattime, height):
     return measureTrace(start, -ramptime, -height) \
         +  measureTrace(start+flattime, ramptime, height) \
         + zPulse(start, flattime, height)
+
+    
+def rampPulse2(start, flattime, ramptime, height):
+    """Hold and then ramp back down."""
+    start += ramptime
+    return measureTrace(start+flattime, ramptime, height) \
+         + zPulse(start, flattime, height)
 
 
 def plotSequence(func,t0=-200,n=1000):
