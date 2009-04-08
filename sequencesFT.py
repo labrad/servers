@@ -25,6 +25,7 @@ class pulseClass():
             return pulseClass(lambda x: self.pulsefunc(x) + other)
 
     __ladd__ = __radd__
+    __iadd__ = __radd__
 
     def __rmul__(self, other):
         if callable(other):
@@ -33,6 +34,7 @@ class pulseClass():
             return pulseClass(lambda x: self.pulsefunc(x) * other)
 
     __lmul__ = __rmul__
+    __imul__ = __rmul__
 
 
 NOTHING = pulseClass(lambda f: 0 * f)
@@ -65,11 +67,12 @@ def gaussian_envelope(t0, w, amplitude=1.0, sbfreq=0.0, phase=0.0):
                                 * exp(-2j*pi*(f+sbfreq)*t0) \
                                 * exp(-(w*(f+sbfreq))**2) )
 
+gaussian = gaussian_envelope
 
-def zPulse(start, length, amplitude, sbfreq=0.0,overshoot=0.0):
+def zPulse(start, length, amplitude, sbfreq=0.0, overshoot=0.0, phase=0.0):
     """Abrupt jumps from 0 to amplitude and back."""
     start = start + 0.5*length
-    amplitude = nounits(amplitude)
+    amplitude = nounits(amplitude) * exp(-1j*phase)
     overshoot = nounits(overshoot)
     return pulseClass(lambda f: exp(-2j*pi*(f+sbfreq)*start) \
         * amplitude * abs(length) * sinc(length*(f+sbfreq)) + \
