@@ -116,11 +116,11 @@ tCh = lambda i: ('Trigger', i+1)
 PADDING = 50.0
 
 def mpFreqs(seqTime=1024):
-    nfft = 2**(math.ceil(math.log(seqTime + 2*PADDING, 2)))
+    nfft = 2**(math.ceil(math.log(seqTime + 2*PADDING, 2))+1)
     return numpy.linspace(0, 0.5, nfft/2, endpoint=False)
 
 def uwFreqs(seqTime=1024):
-    nfft = 2**(math.ceil(math.log(seqTime + 2*PADDING, 2)))
+    nfft = 2**(math.ceil(math.log(seqTime + 2*PADDING, 2))+1)
     return numpy.linspace(0.5, 1.5, nfft, endpoint=False) % 1 - 0.5
 
 
@@ -361,7 +361,7 @@ class BEServer(LabradServer):
             p.sram_analog_data(mCh(i), mpSeq(mpFreqs(time)))
         if uwSeq is not None:
             p.experiment_use_fourier_deconvolution(uCh(i), -(PADDING + q['uwofs'])*ns)
-            p.sram_iq_data(uCh(i), uwSeq(uwFrews(time)))
+            p.sram_iq_data(uCh(i), uwSeq(uwFreqs(time)))
 
 
     @inlineCallbacks
@@ -408,7 +408,7 @@ class BEServer(LabradServer):
             
             # Add Microwave Pulse
             p.experiment_turn_off_deconvolution(uCh(i))
-            p.experiment_set_anritsu(uCh(i), q['pfrq1'], q['sppow'])
+            p.experiment_set_anritsu(uCh(i), q['uwfrq'], q['sppow'])
             p.sram_iq_delay         (uCh(i), q['uwofs'] + 50)
             p.sram_iq_envelope      (uCh(i), [1.0]*int(q['splen']), 0.0, 0.0)
                         
@@ -451,7 +451,7 @@ class BEServer(LabradServer):
             p.sram_iq_envelope      (uCh(i), [1.0]*int(q['splen']), 0.0, 0.0)
             
             # Build Sequence
-            mpSeq = SFT.rampPulse2(q['splen'], q['mptop'], q['mptal'], q['mpamp'])
+            mpSeq = SFT.rampPulse2(q['splen'], q['mptop'], q['mptal'], mpa)
             time = q['splen'] + q['mptop'] + q['mptal']
             self.uploadSram(p, q, i, mpSeq, time=time)
 
@@ -472,7 +472,7 @@ class BEServer(LabradServer):
         for i, qname in enumerate(qubits):
             q = pars[qname]
             
-            p.experiment_set_anritsu(uCh(i), q['uwfrq'] - q['sbfrq'], q['uwpow'])
+            p.experiment_set_anritsu(uCh(i), q['pfrq1'] - q['sbfrq'], q['uwpow'])
             
             uwSeq = SFT.zPulse(0, q['plen1'], q['pamp1'], q['sbfrq'])
             
@@ -507,9 +507,9 @@ class BEServer(LabradServer):
         for i, qname in enumerate(qubits):
             q = pars[qname]
 
-            p.experiment_set_anritsu(uCh(i), q['uwfrq'] - q['sbfrq'], q['uwpow'])
+            p.experiment_set_anritsu(uCh(i), q['pfrq1'] - q['sbfrq'], q['uwpow'])
             
-            uwSeq = SFT.gaussian_envelope(0, q['plen1']/2, q['uwamp'], q['sbfrq'], q['pphs1'])
+            uwSeq = SFT.gaussian_envelope(0, q['plen1']/2, q['pamp1'], q['sbfrq'], q['pphs1'])
             
             mpSeq = SFT.rampPulse2(q['plen1']/2 + q['mpdel'], q['mptop'], q['mptal'], q['mpamp'])
             
@@ -531,12 +531,12 @@ class BEServer(LabradServer):
         for i, qname in enumerate(qubits):
             q = pars[qname]
             
-            p.experiment_set_anritsu(uCh(i), q['uwfrq'] - q['sbfrq'], q['uwpow'])
+            p.experiment_set_anritsu(uCh(i), q['pfrq1'] - q['sbfrq'], q['uwpow'])
             
             uwSeq = SFT.gaussian(0, q['plen1']/2.0, q['pamp1'], q['sbfrq'], q['pphs1'])
             
             ptime2 = q['plen1']/2 + q['pdel2'] + q['plen2']/2
-            uwSeq += SFT.gaussian(ptime2, q['plen2']/2.0, q['pamp2'], s['pfrq2'] - q['uwfrq'] + q['sbfrq'], q['pphs2'])
+            uwSeq += SFT.gaussian(ptime2, q['plen2']/2.0, q['pamp2'], q['pfrq2'] - q['pfrq1'] + q['sbfrq'], q['pphs2'])
             
             mptime = ptime2 + q['plen2']/2 + q['mpdel']
             mpSeq = SFT.rampPulse2(mptime, q['mptop'], q['mptal'], q['mpamp'])
@@ -559,15 +559,15 @@ class BEServer(LabradServer):
         for i, qname in enumerate(qubits):
             q = pars[qname]
             
-            p.experiment_set_anritsu(uCh(i), q['uwfrq'] - q['sbfrq'], q['uwpow'])
+            p.experiment_set_anritsu(uCh(i), q['pfrq1'] - q['sbfrq'], q['uwpow'])
             
             uwSeq = SFT.gaussian(0, q['plen1']/2.0, q['pamp1'], q['sbfrq'], q['pphs1'])
             
             ptime2 = q['plen1']/2 + q['pdel2'] + q['plen2']/2
-            uwSeq += SFT.gaussian(ptime2, q['plen2']/2.0, q['pamp2'], s['pfrq2'] - q['uwfrq'] + q['sbfrq'], q['pphs2'])
+            uwSeq += SFT.gaussian(ptime2, q['plen2']/2.0, q['pamp2'], q['pfrq2'] - q['pfrq1'] + q['sbfrq'], q['pphs2'])
             
             ptime3 = ptime2 + q['plen2']/2 + q['pdel3'] + q['plen3']/2
-            uwSeq += SFT.gaussian(ptime3, q['plen3']/2.0, q['pamp3'], s['pfrq3'] - q['uwfrq'] + q['sbfrq'], q['pphs3'])
+            uwSeq += SFT.gaussian(ptime3, q['plen3']/2.0, q['pamp3'], q['pfrq3'] - q['pfrq1'] + q['sbfrq'], q['pphs3'])
             
             mptime = ptime3 + q['plen3']/2 + q['mpdel']
             mpSeq = SFT.rampPulse2(mptime, q['mptop'], q['mptal'], q['mpamp'])
@@ -590,18 +590,18 @@ class BEServer(LabradServer):
         for i, qname in enumerate(qubits):
             q = pars[qname]
 
-            p.experiment_set_anritsu(uCh(i), q['uwfrq'] - q['sbfrq'], q['uwpow'])
+            p.experiment_set_anritsu(uCh(i), q['pfrq1'] - q['sbfrq'], q['uwpow'])
             
             uwSeq = SFT.gaussian(0, q['plen1']/2.0, q['pamp1'], q['sbfrq'], q['pphs1'])
             
             ptime2 = q['plen1']/2 + q['zdel1'] + q['zlen1'] + q['pdel2'] + q['plen2']/2
-            uwSeq += SFT.gaussian(ptime2, q['plen2']/2.0, q['pamp2'], s['pfrq2'] - q['uwfrq'] + q['sbfrq'], q['pphs2'])
+            uwSeq += SFT.gaussian(ptime2, q['plen2']/2.0, q['pamp2'], q['pfrq2'] - q['pfrq1'] + q['sbfrq'], q['pphs2'])
             
             ztime = q['plen1']/2 + q['zdel1']
-            mpSeq = SFT.zPulse(ztime, q['zlen1'], q['zamp1'])
+            mpSeq = SFT.flattop(ztime, q['zlen1'], 2.0, q['zamp1'])
             
             mptime = ptime2 + q['plen2']/2 + q['mpdel']
-            mpSeq += SFT.rampPulse2(mptime, q['mptop'], q['mptal'], q['mpamp'])
+            mpSeq  = SFT.rampPulse2(mptime, q['mptop'], q['mptal'], q['mpamp'])
             
             time = mptime + q['mptop'] + q['mptal']
             self.uploadSram(p, q, i, mpSeq, uwSeq, time)
@@ -621,13 +621,15 @@ class BEServer(LabradServer):
         for i, qname in enumerate(qubits):
             q = pars[qname]
             
+            p.experiment_set_anritsu(uCh(i), q['pfrq1'] - q['sbfrq'], q['uwpow'])
+
             uwSeq = SFT.gaussian(0, q['plen1']/2.0, q['pamp1'], q['sbfrq'], q['pphs1'])
             
             ptime2 = q['plen1']/2 + q['zdel1'] + q['zlen1'] + q['pdel2'] + q['plen2']/2
-            uwSeq += SFT.gaussian(ptime2, q['plen2']/2.0, q['pamp2'], s['pfrq2'] - q['uwfrq'] + q['sbfrq'], q['pphs2'])
+            uwSeq += SFT.gaussian(ptime2, q['plen2']/2.0, q['pamp2'], s['pfrq2'] - q['pfrq1'] + q['sbfrq'], q['pphs2'])
             
             ptime3 = ptime2 + q['plen2']/2 + q['zdel2'] + q['zlen2'] + q['pdel3'] + q['plen3']/2
-            uwSeq += SFT.gaussian(ptime3, q['plen3']/2.0, q['pamp3'], s['pfrq3'] - q['uwfrq'] + q['sbfrq'], q['pphs3'])
+            uwSeq += SFT.gaussian(ptime3, q['plen3']/2.0, q['pamp3'], q['pfrq3'] - q['pfrq1'] + q['sbfrq'], q['pphs3'])
             
             ztime1 = q['plen1']/2 + q['zdel1']
             mpSeq = SFT.zPulse(ztime1, q['zlen1'], q['zamp1'])
@@ -671,9 +673,9 @@ class BEServer(LabradServer):
         for i, qname in enumerate(qubits):
             q = pars[qname]
 
-            p.experiment_set_anritsu(uCh(i), q['uwfrq'] - q['sbfrq'], q['uwpow'])
+            p.experiment_set_anritsu(uCh(i), q['pfrq1'] - q['sbfrq'], q['uwpow'])
             
-            uwSeq = SFT.gaussian_envelope(0, q['plen1']/2, q['uwamp'], q['sbfrq'], q['pphs1'])
+            uwSeq = SFT.gaussian_envelope(0, q['plen1']/2, q['pamp1'], q['sbfrq'], q['pphs1'])
             
             mpSeq = SFT.rampPulse2(q['plen1']/2 + q['mpdel'], q['mptop'], q['mptal'], q['mpamp'])
             
