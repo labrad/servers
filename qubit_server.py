@@ -26,7 +26,7 @@ timeout = 20
 
 [shutdown]
 message = 987654321
-timeout = 5
+timeout = 50
 ### END NODE INFO
 """
 
@@ -44,9 +44,9 @@ import struct
 import numpy
 from scipy.signal import slepian
 
-SRAMPREPAD  = 50
-SRAMPOSTPAD = 400
-SRAMBLKSIZE = 200
+SRAMPREPAD  = 20
+SRAMPOSTPAD = 200
+SRAMBLKSIZE = 100
 
 SRAMPAD = SRAMPREPAD + SRAMPOSTPAD
 
