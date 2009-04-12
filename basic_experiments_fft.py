@@ -100,11 +100,13 @@ SLEPZSLEPPARS =    TWOSLEPIANPARS + [
     ("srate", "Settling",      "Rate",               "v[GHz]", 0.02*GHz,  float),
     ("zlen1", "Z Pulse 1",     "Length",             "v[ns]",   16.0*ns,  float),
     ("zdel1", "Z Pulse 1",     "Delay",              "v[ns]",   10.0*ns,  float),
+    ("zovs1", "Z Pulse 1",     "Overshoot",          "v[mV]",    0.0*mV,  d1000),
     ("zamp1", "Z Pulse 1",     "Amplitude",          "v[mV]",  100.0*mV,  d1000)]
 
 SLEPZZSLEPPARS =   SLEPZSLEPPARS + [
     ("zlen2", "Z Pulse 2",     "Length",             "v[ns]",   16.0*ns,  float),
     ("zdel2", "Z Pulse 2",     "Delay",              "v[ns]",   10.0*ns,  float),
+    ("zovs2", "Z Pulse 2",     "Overshoot",          "v[mV]",    0.0*mV,  d1000),
     ("zamp2", "Z Pulse 2",     "Amplitude",          "v[mV]",  100.0*mV,  d1000)]
 
 
@@ -598,7 +600,7 @@ class BEServer(LabradServer):
             uwSeq += SFT.gaussian(ptime2, q['plen2']/2.0, q['pamp2'], q['pfrq2'] - q['pfrq1'] + q['sbfrq'], q['pphs2'])
             
             ztime = q['plen1']/2 + q['zdel1']
-            mpSeq = SFT.flattop(ztime, q['zlen1'], 2.0, q['zamp1'])
+            mpSeq = SFT.zPulse(ztime, q['zlen1'], q['zamp1'], overshoot=q['zovs1'])
             
             mptime = ptime2 + q['plen2']/2 + q['mpdel']
             mpSeq += SFT.rampPulse2(mptime, q['mptop'], q['mptal'], q['mpamp'])
@@ -629,11 +631,11 @@ class BEServer(LabradServer):
             uwSeq += SFT.gaussian(ptime2, q['plen2']/2.0, q['pamp2'], q['pfrq2'] - q['pfrq1'] + q['sbfrq'], q['pphs2'])
             
             ztime = q['plen1']/2 + q['zdel1']
-            mpSeq = SFT.flattop(ztime, q['zlen1'], 2.0, q['zamp1'])
+            mpSeq = SFT.zPulse(ztime, q['zlen1'], q['zamp1'], overshoot=q['zovs1'])
 
 
             ztim2 = ztime + q['zlen1'] + q['zdel2']
-            mpSeq += SFT.flattop(ztim2, q['zlen2'], 2.0, q['zamp2'])
+            mpSeq += SFT.zPulse(ztim2, q['zlen2'], q['zamp2'], overshoot=q['zovs2'])
             
             mptime = ptime2 + q['plen2']/2 + q['mpdel']
             mpSeq += SFT.rampPulse2(mptime, q['mptop'], q['mptal'], q['mpamp'])

@@ -62,9 +62,11 @@ RESCOUPLEPARS =   [("Settling Amplitude",        "Settling",      "Amplitude",  
                    ("Z Pulse Length",            "Z Pulse 1",     "Length",              "ns",   16.0*ns ),
                    ("Z Pulse Delay",             "Z Pulse 1",     "Delay",               "ns",   10.0*ns ),
                    ("Z Pulse Amplitude",         "Z Pulse 1",     "Amplitude",           "V",   100.0*mV ),
+                   ("Z Pulse Overshoot",         "Z Pulse 1",     "Overshoot",           "V",     0.0*mV ),
                    ("Second Z Pulse Length",     "Z Pulse 2",     "Length",              "ns",   16.0*ns ),
                    ("Second Z Pulse Delay",      "Z Pulse 2",     "Delay",               "ns",   10.0*ns ),
-                   ("Second Z Pulse Amplitude",  "Z Pulse 2",     "Amplitude",           "V",   100.0*mV )]
+                   ("Second Z Pulse Amplitude",  "Z Pulse 2",     "Amplitude",           "V",   100.0*mV ),
+                   ("Second Z Pulse Overshoot",  "Z Pulse 2",     "Overshoot",           "V",     0.0*mV )]
 
 
 BELLPARAMETERS  = [("Pi Pulse Amplitude",        "mV",  500.0*mV ),
@@ -212,10 +214,12 @@ class VoBIServer(LabradServer):
                 z1del  = float(pars[qname, "Z Pulse Delay"              ])
                 z1len  = float(pars[qname, "Z Pulse Length"             ])
                 z1amp  = float(pars[qname, "Z Pulse Amplitude"          ])
+                z1ovs  = float(pars[qname, "Z Pulse Overshoot"          ])
 
                 z2del  = float(pars[qname, "Second Z Pulse Delay"       ])
                 z2len  = float(pars[qname, "Second Z Pulse Length"      ])
                 z2amp  = float(pars[qname, "Second Z Pulse Amplitude"   ])
+                z2ovs  = float(pars[qname, "Second Z Pulse Overshoot"   ])
 
                 b_del  = float(pars[qname, "Coupling Time"              ])
                 b_amp  = float(pars[qname, "Bell Pulse Amplitude"       ])/1000.0
@@ -269,10 +273,10 @@ class VoBIServer(LabradServer):
                 # Build Bias Sequence
 
                 z_ofs = mpofs + pilen/2.0 + z1del
-                mpSeq = SFT.flattop(z_ofs, z1len, 2.0, z1amp)    # Z1
+                mpSeq = SFT.zPulse(z_ofs, z1len, z1amp, overshoot=z1ovs)    # Z1
 
                 z_ofs += z1len + z2del
-                mpSeq = mpSeq + SFT.flattop(z_ofs, z2len, 2.0, z2amp)    # Z2
+                mpSeq = mpSeq + SFT.zPulse(z_ofs, z2len, z2amp, overshoot=z2ovs)    # Z2
 
                 z_ofs += z2len + b_del + b_len + mpdel
                 mpSeq = mpSeq + SFT.rampPulse2(z_ofs, mptop, mptal, mpamp)    # Measure
