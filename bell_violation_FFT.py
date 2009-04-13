@@ -286,7 +286,7 @@ class VoBIServer(LabradServer):
 
                 # Upload Sequences
 
-                p.sram_iq_data     (('uWaves',  qid+1), uwData)
+                p.sram_iq_data     (('uWaves',  qid+1), uwData, tag='(sw)*c')
                 p.sram_analog_data (('Measure', qid+1), mpData)
 
             # Insert SRAM call into memory

@@ -366,7 +366,7 @@ class BEServer(LabradServer):
             p.sram_analog_data(mCh(i), mpSeq(mpFreqs(time)))
         if uwSeq is not None:
             p.experiment_use_fourier_deconvolution(uCh(i), -(PADDING + q['uwofs'])*ns)
-            p.sram_iq_data(uCh(i), uwSeq(uwFreqs(time)))
+            p.sram_iq_data(uCh(i), uwSeq(uwFreqs(time)), tag='(sw)*c')
 
 
     @inlineCallbacks
