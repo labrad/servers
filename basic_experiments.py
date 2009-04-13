@@ -609,6 +609,39 @@ class BEServer(LabradServer):
         returnValue(data)
         
 
+    @setting(51, 'Slepian Pulse Separate', ctxt=['ww'], returns=['*v'])
+    def slepiansep(self, c, ctxt):
+        """Runs a Sequence with a single Slepian pulse (good for Power Rabis, T1, 2 Qubit Coupling, etc.)"""
+        # Initialize experiment
+        qubits, pars, p = yield self.init_qubits(c, ctxt, GLOBALPARS, SLEPIANPARS)
+
+        # Build SRAM
+        for qid, qname in enumerate(qubits):
+            # Add Microwave Pulse
+            p.experiment_set_anritsu(('uWaves',  qid+1), pars[(qname, 'Resonance Frequency'      )]- \
+                                                         pars[(qname, 'Sideband Frequency'       )],
+                                                         pars[(qname, 'Carrier Power'            )])
+            p.sram_iq_delay         (('uWaves',  qid+1), pars[(qname, 'Microwave Offset'         )]+50*ns)
+            p.sram_iq_slepian       (('uWaves',  qid+1), float(pars[(qname, 'Microwave Pulse Amplitude')])/1000.0,
+                                                         pars[(qname, 'Microwave Pulse Length'   )],
+                                                   float(pars[(qname, 'Sideband Frequency'       )])*1000.0,
+                                                         pars[(qname, 'Microwave Pulse Phase'    )])
+            # Add Measure Delay
+            p.sram_analog_delay     (('Measure', qid+1), pars[(qname, 'Measure Offset'           )]+ \
+                                                         pars[(qname, 'Microwave Pulse Length'   )]+ \
+                                                         pars[(qname, 'Measure Pulse Delay'      )]+50*ns)
+            # Measure Pulse
+            meastop  = int  (pars[(qname, "Measure Pulse Top Length" )])
+            meastail = int  (pars[(qname, "Measure Pulse Tail Length")])
+            measamp  = float(pars[(qname, "Measure Pulse Amplitude"  )])/1000.0
+            measpuls = [measamp]*meastop + [(meastail - t - 1)*measamp/meastail for t in range(meastail)]
+            p.sram_analog_data  (('Measure', qid+1), measpuls)
+
+        # Run experiment and return result
+        data = yield self.run_qubits_separate(c, p, pars['Stats'])
+        returnValue(data)
+        
+
     @setting(60, 'Two Slepian Pulses', ctxt=['ww'], returns=['*v'])
     def twoslepian(self, c, ctxt):
         """Runs a Sequence with two Slepian pulses"""
