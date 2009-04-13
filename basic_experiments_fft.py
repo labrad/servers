@@ -96,8 +96,8 @@ THREESLEPIANPARS = TWOSLEPIANPARS + [
     ("pfrq3", "Pulse 3",       "Frequency",          "v[GHz]",   6.5*GHz, float)]
 
 SLEPZSLEPPARS =    TWOSLEPIANPARS + [
-    ("sampl", "Settling",      "Amplitude",          "v[mV]",  -0.02*mV,  float),
-    ("srate", "Settling",      "Rate",               "v[GHz]", 0.02*GHz,  float),
+    ("sampl", "Settling",      "Amplitude",          "*v[]",   [-0.02],   None),
+    ("srate", "Settling",      "Rate",               "*v[GHz]",[0.02*GHz],None),
     ("zlen1", "Z Pulse 1",     "Length",             "v[ns]",   16.0*ns,  float),
     ("zdel1", "Z Pulse 1",     "Delay",              "v[ns]",   10.0*ns,  float),
     ("zovs1", "Z Pulse 1",     "Overshoot",          "v[mV]",    0.0*mV,  d1000),
@@ -201,7 +201,10 @@ class BEServer(LabradServer):
             q = result[qubit] = {}
             for parameter in qubitpars:
                 name, path, key, typ, default, func = parameter
-                q[name] = func(ans[(qubit, name)])
+                if func is None:
+                    q[name] = ans[(qubit, name)]
+                else:
+                    q[name] = func(ans[(qubit, name)])
         returnValue(result)
 
 
@@ -592,7 +595,8 @@ class BEServer(LabradServer):
         for i, qname in enumerate(qubits):
             q = pars[qname]
 
-            p.experiment_set_anritsu(uCh(i), q['pfrq1'] - q['sbfrq'], q['uwpow'])
+            p.experiment_set_anritsu (uCh(i), q['pfrq1'] - q['sbfrq'], q['uwpow'])
+            p.experiment_set_settling(mCh(i), q['srate'], q['sampl'])
             
             uwSeq = SFT.gaussian(0, q['plen1']/2.0, q['pamp1'], q['sbfrq'], q['pphs1'])
             
@@ -623,7 +627,8 @@ class BEServer(LabradServer):
         for i, qname in enumerate(qubits):
             q = pars[qname]
             
-            p.experiment_set_anritsu(uCh(i), q['pfrq1'] - q['sbfrq'], q['uwpow'])
+            p.experiment_set_anritsu (uCh(i), q['pfrq1'] - q['sbfrq'], q['uwpow'])
+            p.experiment_set_settling(mCh(i), q['srate'], q['sampl'])
 
             uwSeq = SFT.gaussian(0, q['plen1']/2.0, q['pamp1'], q['sbfrq'], q['pphs1'])
             

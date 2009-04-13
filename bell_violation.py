@@ -44,25 +44,25 @@ dBm = Unit('dBm')
 
 GLOBALPARS = [ "Stats", "Sequence", "Resonator Coupling" ];
 
-QUBITPARAMETERS = [("Microwave Offset",          "Timing",        "Microwave Offset",    "ns",   50.0*ns ),
-                   ("Resonance Frequency",       "Pulse 1",       "Frequency",           "GHz",   6.5*GHz),
-                   ("Sideband Frequency",        "Microwaves",    "Sideband Frequency",  "GHz",-150.0*MHz),
-                   ("Carrier Power",             "Microwaves",    "Carrier Power",       "dBm",   2.7*dBm), 
+QUBITPARAMETERS = [("Microwave Offset",          "Timing",        "Microwave Offset",    "v[ns]",   50.0*ns ),
+                   ("Resonance Frequency",       "Pulse 1",       "Frequency",           "v[GHz]",   6.5*GHz),
+                   ("Sideband Frequency",        "Microwaves",    "Sideband Frequency",  "v[GHz]",-150.0*MHz),
+                   ("Carrier Power",             "Microwaves",    "Carrier Power",       "v[dBm]",   2.7*dBm), 
 
-                   ("Measure Offset",            "Timing",        "Measure Offset",      "ns",   50.0*ns ),
-                   ("Measure Pulse Delay",       "Measure Pulse", "Delay",               "ns",    5.0*ns ),
-                   ("Measure Pulse Amplitude",   "Measure Pulse", "Amplitude",           "mV",  500.0*mV ),
-                   ("Measure Pulse Top Length",  "Measure Pulse", "Top Length",          "ns",    5.0*ns ),
-                   ("Measure Pulse Tail Length", "Measure Pulse", "Tail Length",         "ns",   15.0*ns )]
+                   ("Measure Offset",            "Timing",        "Measure Offset",      "v[ns]",   50.0*ns ),
+                   ("Measure Pulse Delay",       "Measure Pulse", "Delay",               "v[ns]",    5.0*ns ),
+                   ("Measure Pulse Amplitude",   "Measure Pulse", "Amplitude",           "v[mV]",  500.0*mV ),
+                   ("Measure Pulse Top Length",  "Measure Pulse", "Top Length",          "v[ns]",    5.0*ns ),
+                   ("Measure Pulse Tail Length", "Measure Pulse", "Tail Length",         "v[ns]",   15.0*ns )]
 
-RESCOUPLEPARS =   [("Settling Amplitude",        "Settling",      "Amplitude",           "mV",  -0.02*mV ),
-                   ("Settling Rate",             "Settling",      "Rate",                "GHz", 0.02*GHz ),
-                   ("Z Pulse Length",            "Z Pulse 1",     "Length",              "ns",   16.0*ns ),
-                   ("Z Pulse Delay",             "Z Pulse 1",     "Delay",               "ns",   10.0*ns ),
-                   ("Z Pulse Amplitude",         "Z Pulse 1",     "Amplitude",           "V",   100.0*mV ),
-                   ("Second Z Pulse Length",     "Z Pulse 2",     "Length",              "ns",   16.0*ns ),
-                   ("Second Z Pulse Delay",      "Z Pulse 2",     "Delay",               "ns",   10.0*ns ),
-                   ("Second Z Pulse Amplitude",  "Z Pulse 2",     "Amplitude",           "V",   100.0*mV )]
+RESCOUPLEPARS =   [("Settling Amplitude",        "Settling",      "Amplitude",           "*v[]",  [-0.02    ] ),
+                   ("Settling Rate",             "Settling",      "Rate",                "*v[GHz]",[0.02*GHz] ),
+                   ("Z Pulse Length",            "Z Pulse 1",     "Length",              "v[ns]",   16.0*ns ),
+                   ("Z Pulse Delay",             "Z Pulse 1",     "Delay",               "v[ns]",   10.0*ns ),
+                   ("Z Pulse Amplitude",         "Z Pulse 1",     "Amplitude",           "v[V]",   100.0*mV ),
+                   ("Second Z Pulse Length",     "Z Pulse 2",     "Length",              "v[ns]",   16.0*ns ),
+                   ("Second Z Pulse Delay",      "Z Pulse 2",     "Delay",               "v[ns]",   10.0*ns ),
+                   ("Second Z Pulse Amplitude",  "Z Pulse 2",     "Amplitude",           "v[V]",   100.0*mV )]
 
 
 BELLPARAMETERS  = [("Pi Pulse Amplitude",        "mV",  500.0*mV ),
@@ -127,7 +127,7 @@ class VoBIServer(LabradServer):
             if isinstance(parameter, tuple):
                 name, units = parameter
                 # Load setting with units
-                p.get(name, 'v[%s]' % units, key=name)
+                p.get(name, units, key=name)
             else:
                 # Load setting without units
                 p.get(parameter, key=parameter)
@@ -146,7 +146,7 @@ class VoBIServer(LabradServer):
             for parameter in bellpars:
                 name, units, default = parameter
                 # Load setting with units
-                p.get(name, 'v[%s]' % units, True, default, key=(qubit, name))
+                p.get(name, units, True, default, key=(qubit, name))
             # Change back to root directory
             p.cd(2, key=False)
         # Get parameters
@@ -260,8 +260,8 @@ class VoBIServer(LabradServer):
                                                              pars[(qname, 'Bell Pulse Frequency Shift')])*1000.0,
                                                              pars[(qname, "Bell Pulse Phase"         )])
                 # Coupling
-                p.experiment_set_settling(('Measure',qid+1),[pars[(qname, 'Settling Rate'            )]],
-                                                            [pars[(qname, 'Settling Amplitude'       )]])
+                p.experiment_set_settling(('Measure',qid+1), pars[(qname, 'Settling Rate'            )],
+                                                             pars[(qname, 'Settling Amplitude'       )])
                 if pars["Resonator Coupling"]:
                     # Resonator Coupling Delay
                     totmeasdel = 50 +                        int(pars[(qname, "Measure Offset"           )]) + \
