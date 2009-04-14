@@ -526,6 +526,37 @@ class BEServer(LabradServer):
         returnValue(data)
         
 
+    @setting(51, 'Slepian Pulse SS', ctxt=['ww'], returns=['*v'])
+    def slepianss(self, c, ctxt):
+        """Runs a Sequence with a single Slepian pulse (good for Power Rabis, T1, 2 Qubit Coupling, etc.)"""
+        # Initialize experiment
+        qubits, pars, p = yield self.init_qubits(c, ctxt, GLOBALPARS, SLEPIANPARS)
+
+        p2 = self.client.sequences_fft.packet(context = c.ID)
+
+        # Build SRAM
+        for i, qname in enumerate(qubits):
+            q = pars[qname]
+
+            p.experiment_set_anritsu(uCh(i), q['pfrq1'] - q['sbfrq'], q['uwpow'])
+
+            p2.add_iq_channel(uCh(i))
+
+            p2.add_gaussian(0, q['plen1']/2, q['pamp1'], q['sbfrq'], q['pphs1'])
+
+            p2.add_analog_channel(mCh(i))
+
+            p2.add_ramp_pulse_2(q['plen1']/2 + q['mpdel'], q['mptop'], q['mptal'], q['mpamp'])
+
+        p2.upload(PADDING)
+
+        yield p2.send()
+
+        # Run experiment and return result
+        data = yield self.run_qubits(c, p, pars['Stats'])
+        returnValue(data)
+        
+
     @setting(60, 'Two Slepian Pulses', ctxt=['ww'], returns=['*v'])
     def twoslepian(self, c, ctxt):
         """Runs a Sequence with two Slepian pulses"""
