@@ -175,15 +175,15 @@ class SequenceServer(LabradServer):
         c['seq'] = c['analogs'][channel] = NOTHING
     
     @setting(10, 'Add Gaussian',
-             t0='v[ns]', w='v[ns]', amplitude='v', sbfreq='v[GHz]', phase='v',
+             t0='v[ns]', w='v[ns]', amplitude='v', sbfreq='v[GHz]', phase='v[rad]',
              returns='')
-    def add_gaussian(self, c, t0, w, amplitude, sqfreq, phase):
-        c['seq'] += gaussian(float(t0), float(w), float(amplitude), float(sqfreq), float(phase))
+    def add_gaussian(self, c, t0, w, amplitude, sbfreq, phase=0.0):
+        c['seq'] += gaussian(float(t0), float(w), float(amplitude), float(sbfreq), float(phase))
         self.updateMinMax(c, t0 - 2*w, t0 + 2*w)
 
 
     @setting(20, 'Add Ramp Pulse 2',
-             starttime='v[ns]', flattime='v[ns]', ramptime='v[ns]', height='v',
+             start='v[ns]', flattime='v[ns]', ramptime='v[ns]', height='v',
              returns='')
     def add_rampPulse2(self, c, start, flattime, ramptime, height):
         c['seq'] += rampPulse2(float(start), float(flattime), float(ramptime), float(height))
@@ -199,15 +199,15 @@ class SequenceServer(LabradServer):
     
     
     @setting(40, 'Add zPulse',
-             start='v[ns]', length='v[ns]', amplitude='v', sbfreq='v[GHz]', phase='v', overshoot='v',
+             start='v[ns]', length='v[ns]', amplitude='v', sbfreq='v[GHz]', phase='v[rad]', overshoot='v',
              returns='')
-    def add_zpulse(self, c, start, length, amplitude, sbfreq, phase, overshoot=0.0):
+    def add_zpulse(self, c, start, length, amplitude, sbfreq, phase=0.0, overshoot=0.0):
         c['seq'] += zPulse(float(start), float(length), float(amplitude), float(sbfreq), float(overshoot), float(phase))
         self.updateMinMax(c, start, start + length)
     
     
-    @setting(50, 'Send', padding=['v[ns]', 'v[ns] v[ns]'])
-    def send(self, c, padding, range=None):
+    @setting(50, 'Upload', padding=['v[ns]', 'v[ns] v[ns]'])
+    def upload(self, c, padding):
         if not isinstance(padding, tuple):
             padding = (padding, padding)
         t0 = c['tmin'] - float(padding[0])
@@ -237,7 +237,7 @@ def uwFreqs(seqTime=1024):
     nfft = 2**(math.ceil(math.log(seqTime, 2)))
     return numpy.linspace(0.5, 1.5, nfft, endpoint=False) % 1 - 0.5
 
-__server__ = SequenceBuilder()
+__server__ = SequenceServer()
 
 if __name__ == '__main__':
     from labrad import util
