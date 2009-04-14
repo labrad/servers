@@ -1,5 +1,8 @@
+import math
+
+import numpy
 from numpy import exp, log, pi, sin, cos, sqrt, arange, sinc, linspace, real, imag
-from numpy.fft import ifft
+#from numpy.fft import ifft
 ##import pylab
 
 # sequences and sequence creation functions in Fourier representation
@@ -119,3 +122,123 @@ def rampPulse2(start, flattime, ramptime, height):
 ##    pylab.plot(t,real(signal))
 ##    pylab.plot(t,imag(signal))
 ##    
+
+
+
+## Sequences server
+
+from labrad.server import LabradServer, setting
+from labrad.units  import Unit, mV, ns, deg, rad, MHz, GHz
+
+from twisted.internet import reactor
+from twisted.internet.defer import inlineCallbacks, returnValue
+
+"""
+### BEGIN NODE INFO
+[info]
+name = Sequences FFT
+version = 1.0
+description = 
+
+[startup]
+cmdline = %PYTHON% %FILE%
+timeout = 20
+
+[shutdown]
+message = 987654321
+timeout = 5
+### END NODE INFO
+"""
+
+class SequenceServer(LabradServer):
+    name = 'Sequences FFT'
+
+    def initContext(self, c):
+        c['iqs'] = {}
+        c['analogs'] = {}
+        for key in ['tmin', 'tmax', 'seq']:
+            if key in c:
+                del c[key]
+    
+    def updateMinMax(self, c, tmin, tmax):
+        tmin, tmax = min(tmin, tmax), max(tmin, tmax)
+        c['tmin'] = min(tmin, c['tmin']) if 'tmin' in c else tmin
+        c['tmax'] = max(tmax, c['tmax']) if 'tmax' in c else tmax
+
+        
+    @setting(1, 'Add IQ Channel', channel='sw')
+    def add_iq_channel(self, c, channel):
+        c['seq'] = c['iqs'][channel] = NOTHING
+    
+    @setting(2, 'Add Analog Channel', channel='sw')
+    def add_analog_channel(self, c, channel):
+        c['seq'] = c['analogs'][channel] = NOTHING
+    
+    @setting(10, 'Add Gaussian',
+             t0='v[ns]', w='v[ns]', amplitude='v', sbfreq='v[GHz]', phase='v',
+             returns='')
+    def add_gaussian(self, c, t0, w, amplitude, sqfreq, phase):
+        c['seq'] += gaussian(float(t0), float(w), float(amplitude), float(sqfreq), float(phase))
+        self.updateMinMax(c, t0 - 2*w, t0 + 2*w)
+
+
+    @setting(20, 'Add Ramp Pulse 2',
+             starttime='v[ns]', flattime='v[ns]', ramptime='v[ns]', height='v',
+             returns='')
+    def add_rampPulse2(self, c, start, flattime, ramptime, height):
+        c['seq'] += rampPulse2(float(start), float(flattime), float(ramptime), float(height))
+        self.updateMinMax(c, start, start + flattime + ramptime)
+
+    
+    @setting(30, 'Add Flattop',
+             start='v[ns]', length='v[ns]', width='v[ns]', amplitude='v', sbfreq='v[GHz]',
+             returns='')
+    def add_flattop(self, c, start, length, width, amplitude, sbfreq):
+        c['seq'] += flattop(float(start), float(length), float(width), float(amplitude), float(sbfreq))
+        self.updateMinMax(c, start - width, start + length + width)
+    
+    
+    @setting(40, 'Add zPulse',
+             start='v[ns]', length='v[ns]', amplitude='v', sbfreq='v[GHz]', phase='v', overshoot='v',
+             returns='')
+    def add_zpulse(self, c, start, length, amplitude, sbfreq, phase, overshoot=0.0):
+        c['seq'] += zPulse(float(start), float(length), float(amplitude), float(sbfreq), float(overshoot), float(phase))
+        self.updateMinMax(c, start, start + length)
+    
+    
+    @setting(50, 'Send', padding=['v[ns]', 'v[ns] v[ns]'])
+    def send(self, c, padding, range=None):
+        if not isinstance(padding, tuple):
+            padding = (padding, padding)
+        t0 = c['tmin'] - float(padding[0])
+        t1 = c['tmax'] + float(padding[1])
+        p = self.cxn.qubits.packet(context=c.ID)
+        for ch, seq in c['iqs'].items():
+            p.experiment_use_fourier_deconvolution(ch, t0)
+            p.sram_iq_data(ch, seq(uwFreqs(t1 - t0)), tag='(sw)*c')
+        for ch, seq in c['analogs'].items():
+            p.experiment_use_fourier_deconvolution(ch, t0)
+            p.sram_analog_data(ch, seq(mpFreqs(t1 - t0)), tag='(sw)*v')
+        yield p.send()
+        self.initContext(c)
+    
+
+
+    @setting(100000, 'Kill')
+    def kill(self, c, context):
+        reactor.callLater(1, reactor.stop)
+
+
+def mpFreqs(seqTime=1024):
+    nfft = 2**(math.ceil(math.log(seqTime, 2)))
+    return numpy.linspace(0, 0.5, nfft/2, endpoint=False)
+
+def uwFreqs(seqTime=1024):
+    nfft = 2**(math.ceil(math.log(seqTime, 2)))
+    return numpy.linspace(0.5, 1.5, nfft, endpoint=False) % 1 - 0.5
+
+__server__ = SequenceBuilder()
+
+if __name__ == '__main__':
+    from labrad import util
+    util.runServer(__server__)
