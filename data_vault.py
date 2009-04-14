@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Data Vault
-version = 2.0
+version = 2.1
 description = Store and retrieve numeric data
 
 [startup]
@@ -692,6 +692,12 @@ class NumpyDataset(Dataset):
                     self._data.shape = (1, len(self._data))
             except ValueError:
                 # no data saved yet
+                # this error is raised by numpy <=1.2
+                self._data = numpy.array([[]])
+            except IOError:
+                # no data saved yet
+                # this error is raised by numpy 1.3
+                self.file.seek(0)
                 self._data = numpy.array([[]])
             self._dataTimeoutCall = callLater(DATA_TIMEOUT, self._dataTimeout)
         else:
