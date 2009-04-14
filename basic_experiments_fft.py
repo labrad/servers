@@ -366,7 +366,7 @@ class BEServer(LabradServer):
             p.sram_analog_data(mCh(i), mpSeq(mpFreqs(time)))
         if uwSeq is not None:
             p.experiment_use_fourier_deconvolution(uCh(i), -(PADDING + q['uwofs'])*ns)
-            p.sram_iq_data(uCh(i), uwSeq(uwFreqs(time)), tag='(sw)*c')
+            p.sram_iq_data(uCh(i), uwSeq(uwFreqs(time)))
 
 
     @inlineCallbacks
@@ -502,9 +502,8 @@ class BEServer(LabradServer):
         return self.tophatExp(c, ctxt, self.run_qubits_separate)
         
 
-    @setting(50, 'Slepian Pulse', ctxt=['ww'], returns=['*v'])
-    def slepian(self, c, ctxt):
-        """Runs a Sequence with a single Slepian pulse (good for Power Rabis, T1, 2 Qubit Coupling, etc.)"""
+    @inlineCallbacks
+    def slepianExp(self, c, ctxt, runFunc):
         # Initialize experiment
         qubits, pars, p = yield self.init_qubits(c, ctxt, GLOBALPARS, SLEPIANPARS)
 
@@ -522,40 +521,18 @@ class BEServer(LabradServer):
             self.uploadSram(p, q, i, mpSeq, uwSeq, time)
 
         # Run experiment and return result
-        data = yield self.run_qubits(c, p, pars['Stats'])
+        data = yield runFunc(c, p, pars['Stats'])
         returnValue(data)
         
-
-    @setting(51, 'Slepian Pulse SS', ctxt=['ww'], returns=['*v'])
-    def slepianss(self, c, ctxt):
+    @setting(50, 'Slepian Pulse', ctxt=['ww'], returns=['*v'])
+    def slepian(self, c, ctxt):
         """Runs a Sequence with a single Slepian pulse (good for Power Rabis, T1, 2 Qubit Coupling, etc.)"""
-        # Initialize experiment
-        qubits, pars, p = yield self.init_qubits(c, ctxt, GLOBALPARS, SLEPIANPARS)
+        return self.slepianExp(c, ctxt, self.run_qubits)        
 
-        p2 = self.client.sequences_fft.packet(context = c.ID)
-
-        # Build SRAM
-        for i, qname in enumerate(qubits):
-            q = pars[qname]
-
-            p.experiment_set_anritsu(uCh(i), q['pfrq1'] - q['sbfrq'], q['uwpow'])
-
-            p2.add_iq_channel(uCh(i))
-
-            p2.add_gaussian(0, q['plen1']/2, q['pamp1'], q['sbfrq'], q['pphs1'])
-
-            p2.add_analog_channel(mCh(i))
-
-            p2.add_ramp_pulse_2(q['plen1']/2 + q['mpdel'], q['mptop'], q['mptal'], q['mpamp'])
-
-        p2.upload(PADDING)
-
-        yield p2.send()
-
-        # Run experiment and return result
-        data = yield self.run_qubits(c, p, pars['Stats'])
-        returnValue(data)
-        
+    @setting(51, 'Slepian Pulse Separate', ctxt=['ww'], returns=['*v'])
+    def slepiansep(self, c, ctxt):
+        """Runs a Sequence with a single Slepian pulse (good for Power Rabis, T1, 2 Qubit Coupling, etc.)"""
+        return self.slepianExp(c, ctxt, self.run_qubits_separate)        
 
     @setting(60, 'Two Slepian Pulses', ctxt=['ww'], returns=['*v'])
     def twoslepian(self, c, ctxt):
@@ -697,10 +674,14 @@ class BEServer(LabradServer):
         for i, qname in enumerate(qubits):
             q = pars[qname]
             
+            p.experiment_set_anritsu(uCh(i), q['pfrq1'] - q['sbfrq'], q['uwpow'])
+            
+            uwSeq = SFT.gaussian_envelope(0, q['plen1']/2, 0.0, q['sbfrq'], q['pphs1'])
+            
             mpSeq = SFT.rampPulse2(q['plen1']/2 + q['mpdel'], q['mptop'], q['mptal'], q['mpamp'])
             
             time = q['plen1']/2 + q['mpdel'] + q['mptop'] + q['mptal']
-            self.uploadSram(p, q, i, mpSeq, time=time)            
+            self.uploadSram(p, q, i, mpSeq, uwSeq, time=time)            
 
         # Reinitialize for second data point
         p = yield self.reinit_qubits(c, p, qubits)
@@ -716,7 +697,7 @@ class BEServer(LabradServer):
             mpSeq = SFT.rampPulse2(q['plen1']/2 + q['mpdel'], q['mptop'], q['mptal'], q['mpamp'])
             
             time = q['plen1']/2 + q['mpdel'] + q['mptop'] + q['mptal']
-            self.uploadSram(p, q, i, mpSeq, uwSeq, time)
+            self.uploadSram(p, q, i, mpSeq, uwSeq, time=time)
 
         # Run experiment and return result
         data = yield self.run_qubits_separate(c, p, pars['Stats'], 2)

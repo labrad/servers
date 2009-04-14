@@ -212,7 +212,7 @@ class SequenceServer(LabradServer):
             padding = (padding, padding)
         t0 = c['tmin'] - float(padding[0])
         t1 = c['tmax'] + float(padding[1])
-        p = self.cxn.qubits.packet(context=c.ID)
+        p = self.client.qubits.packet(context=c.ID)
         for ch, seq in c['iqs'].items():
             p.experiment_use_fourier_deconvolution(ch, t0)
             p.sram_iq_data(ch, seq(uwFreqs(t1 - t0)), tag='(sw)*c')
