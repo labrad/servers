@@ -72,6 +72,7 @@ RESCOUPLEPARS =   [("Settling Amplitude",        "Settling",      "Amplitude",  
 BELLPARAMETERS  = [("Pi Pulse Amplitude",        "mV",  500.0*mV ),
                    ("Pi Pulse Phase",            "rad",   0.0*rad),
                    ("Pi Pulse Length",           "ns",   16.0*ns ),
+                   ("Pi Pulse Frequency Shift",  "GHz",   0.0*GHz),
 
                    ("Coupling Time",             "ns",   20.0*ns ),
 
@@ -208,7 +209,8 @@ class VoBIServer(LabradServer):
                 
                 piamp  = float(pars[qname, "Pi Pulse Amplitude"         ])/1000.0
                 pilen  = float(pars[qname, "Pi Pulse Length"            ])
-                pifrq  = float(pars[qname, "Sideband Frequency"         ])
+                pifrq  = float(pars[qname, "Sideband Frequency"         ]+
+                               pars[qname, "Pi Pulse Frequency Shift"   ])
                 piphs  = float(pars[qname, "Pi Pulse Phase"             ])
 
                 z1del  = float(pars[qname, "Z Pulse Delay"              ])
@@ -267,7 +269,7 @@ class VoBIServer(LabradServer):
                 if (op==5) and (qid==1):
                     uwSeq = uwSeq + SFT.gaussian_envelope(b_ofs, b_len/2.0, b_amp, b_frq, b_phs)
 
-                uwFrqs = numpy.linspace(0.5, 1.5, 512, endpoint=False) % 1 - 0.5
+                uwFrqs = numpy.linspace(0.5, 1.5, 1024, endpoint=False) % 1 - 0.5
                 uwData = uwSeq(uwFrqs)
 
                 # Build Bias Sequence
@@ -281,7 +283,7 @@ class VoBIServer(LabradServer):
                 z_ofs += z2len + b_del + b_len + mpdel
                 mpSeq = mpSeq + SFT.rampPulse2(z_ofs, mptop, mptal, mpamp)    # Measure
 
-                mpFrqs = numpy.linspace(0, 0.5, 512/2, endpoint=False)
+                mpFrqs = numpy.linspace(0, 0.5, 1024/2, endpoint=False)
                 mpData = mpSeq(mpFrqs)
 
                 # Upload Sequences
