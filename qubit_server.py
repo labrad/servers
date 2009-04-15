@@ -856,7 +856,61 @@ class QubitServer(LabradServer):
         srams = dict([(board, numpy.zeros(longest).astype('int')) for board in expt['FPGAs']])
 
         # deconvolve the IQ and Analog channels
+#        deconvolved = {}
+#        for chname in ['IQs', 'Analogs']:
+#            for ch in expt[chname].keys():
+#                if ch in expt['NoDeconvolve']:
+#                    d = numpy.hstack((expt[chname][ch]['Data'], numpy.zeros(longest - len(expt[chname][ch]['Data']))))
+#                    if chname == 'IQs':
+#                        d =  ((d.real*0x1FFF).astype('int') & 0x3FFF) + \
+#                            (((d.imag*0x1FFF).astype('int') & 0x3FFF) << 14)
+#                    else:                            
+#                        d =  ((d*0x1FFF).astype('int') & 0x3FFF)
+#                    deconvolved[chname, ch] = d
+#                    continue
+#                board = expt[chname][ch]['Info']['Board'][1]
+#                p = cxn.dac_calibration.packet()
+#                p.board(board)
+#                if 'Anritsu' in expt[chname][ch]['Info']:
+#                    anritsu = expt[chname][ch]['Info']['Anritsu'][1]
+#                    frq = expt['Anritsus'][anritsu]
+#                    if frq is None:
+#                        d = numpy.hstack((expt[chname][ch]['Data'], numpy.zeros(longest - len(expt[chname][ch]['Data']))))
+#                        d =  ((d.real*0x1FFF).astype('int') & 0x3FFF) + \
+#                            (((d.imag*0x1FFF).astype('int') & 0x3FFF) << 14)
+#                        deconvolved[chname, ch] = d
+#                        continue
+#                    frq = frq[0]
+#                    p.frequency(frq)
+#                else:
+#                    dac = expt[chname][ch]['Info']['DAC'][1]
+#                    p.dac(dac)
+#                if ch in expt['Settlings']:
+#                    #print ch, ':', expt['Settlings'][ch]
+#                    p.set_settling(expt['Settlings'][ch])
+#                cordata = numpy.hstack((expt[chname][ch]['Data'], numpy.zeros(longest - len(expt[chname][ch]['Data']))))
+#                if (len(cordata) % SRAMBLKSIZE) > 0:
+#                    cordata = cordata[0:-(len(cordata) % SRAMBLKSIZE)]
+#                if 'FT' in expt[chname][ch]:
+#                    # do fourier deconvolution
+#                    p.time_offset(expt[chname][ch]['FT'])
+#                    cordata = cordata[SRAMPREPAD:len(expt[chname][ch]['Data'])]
+#                    p.correct_ft(cordata, key='correct')
+#                else:
+#                    # do standard deconvolution
+#                    p.correct(cordata)
+#                ans = yield p.send()
+#                d = ans['correct']
+#                if isinstance(d, tuple):
+#                    d = ((d[1].asarray & 0x3FFF) << 14) + (d[0].asarray & 0x3FFF)
+#                else:
+#                    d = d.asarray & 0x3FFF
+#                deconvolved[chname, ch] = d
+
+        # deconvolve the IQ and Analog channels
         deconvolved = {}
+        requested = []
+        p = cxn.dac_calibration.packet()
         for chname in ['IQs', 'Analogs']:
             for ch in expt[chname].keys():
                 if ch in expt['NoDeconvolve']:
@@ -869,7 +923,6 @@ class QubitServer(LabradServer):
                     deconvolved[chname, ch] = d
                     continue
                 board = expt[chname][ch]['Info']['Board'][1]
-                p = cxn.dac_calibration.packet()
                 p.board(board)
                 if 'Anritsu' in expt[chname][ch]['Info']:
                     anritsu = expt[chname][ch]['Info']['Anritsu'][1]
@@ -895,17 +948,22 @@ class QubitServer(LabradServer):
                     # do fourier deconvolution
                     p.time_offset(expt[chname][ch]['FT'])
                     cordata = cordata[SRAMPREPAD:len(expt[chname][ch]['Data'])]
-                    p.correct_ft(cordata, key='correct')
+                    p.correct_ft(cordata, key=(chname, ch))
+                    requested.append((chname, ch))
                 else:
                     # do standard deconvolution
-                    p.correct(cordata)
-                ans = yield p.send()
-                d = ans['correct']
-                if isinstance(d, tuple):
-                    d = ((d[1].asarray & 0x3FFF) << 14) + (d[0].asarray & 0x3FFF)
-                else:
-                    d = d.asarray & 0x3FFF
-                deconvolved[(chname, ch)] = d
+                    p.correct(cordata, key=(chname, ch))
+                    requested.append((chname, ch))
+        # send the deconvolution request
+        ans = yield p.send()
+        # pull out the deconvolved values
+        for chname, ch in requested:
+            d = ans[chname, ch]
+            if isinstance(d, tuple):
+                d = ((d[1].asarray & 0x3FFF) << 14) + (d[0].asarray & 0x3FFF)
+            else:
+                d = d.asarray & 0x3FFF
+            deconvolved[chname, ch] = d
 
         # plug data into srams
         for ch, info in expt['IQs'].items():
