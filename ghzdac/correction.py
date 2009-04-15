@@ -776,23 +776,28 @@ class DACcorrection:
     def setSettling(self, rates, amplitudes):
         """
         If a calibration can be characterized by time constants, i.e.
-        the step response functiontion is
+        the step response function is
           0                                             for t <  0
           1 + sum(amplitudes[i]*exp(-decayrates[i]*t))  for t >= 0,
         then you don't need to load the response function explicitly
         but can just give the timeconstants and amplitudes.
         All previously used time constants will be replaced.
         """
+        rates = numpy.asarray(rates)
+        amplitudes = numpy.asarray(amplitudes)
         if numpy.shape(rates) != numpy.shape(amplitudes):
             raise Error('arguments to setSettling must have same shape.')
         s = numpy.size(rates)
-        self.decayRates = numpy.reshape(numpy.asarray(rates),s)
-        self.decayAmplitudes = numpy.reshape(numpy.asarray(amplitudes),s)
-        self.precalc = numpy.array([])
+        rates = numpy.reshape(numpy.asarray(rates),s)
+        amplitudes = numpy.reshape(numpy.asarray(amplitudes),s)
+        if any(self.decayRates != rates) or \
+           any(self.decayAmplitudes != amplitudes):
+            self.decayRates = rates
+            self.decayAmplitudes = amplitudes
+            self.precalc = numpy.array([])
         
 
     def setFilter(self, lowpass = gaussfilter, bandwidth = 0.15):
-
         """
         Set the lowpass filter used for deconvolution.
        
@@ -810,9 +815,10 @@ class DACcorrection:
         bandwidth: bandwidth are arguments passed to the lowpass
             filter function (see above)
         """
-        self.lowpass = lowpass
-        self.bandwidth = bandwidth
-        self.precalc = numpy.array([])
+        if (self.lowpass != lowpass) or (self.bandwidth != bandwidth):
+            self.lowpass = lowpass
+            self.bandwidth = bandwidth
+            self.precalc = numpy.array([])
 
         
         

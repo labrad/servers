@@ -30,6 +30,8 @@ timeout = 50
 ### END NODE INFO
 """
 
+from __future__ import with_statement
+
 from labrad import types as T
 from labrad.server import LabradServer, setting
 
@@ -41,6 +43,9 @@ from copy import deepcopy
 
 import struct
 
+from contextlib import contextmanager
+import time
+
 import numpy
 from scipy.signal import slepian
 
@@ -51,6 +56,13 @@ SRAMBLKSIZE = 100
 SRAMPAD = SRAMPREPAD + SRAMPOSTPAD
 
 REGISTRY_PATH = ['', 'Servers', 'Qubit Server', '__new__']
+
+@contextmanager
+def TIMER(msg):
+    start = time.time()
+    yield
+    end = time.time()
+    print msg, 'elapsed: %g' % (end - start)
 
 def GrabFromList(element, options, error):
     if isinstance(element, str):

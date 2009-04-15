@@ -69,6 +69,8 @@ class CalibrationServer(LabradServer):
     def initContext(self, c):
         c['Loop'] = False
         c['t0'] = 0
+        c['Settling'] = ([],[])
+        c['Filter'] = 0.200
 
     @inlineCallbacks
     def getIQcalset(self, c):
@@ -199,14 +201,34 @@ class CalibrationServer(LabradServer):
         else:
             # Single Channel Calibration
             calset = yield self.getDACcalset(c)
+            calset.setSettling(*c['Settling'])
+            calset.setFilter(bandwidth=c['Filter'])
             corrected = calset.DACifyFT(data, n=len(data),
                                         t0=c['t0'], loop=c['Loop'], fitRange=False)
         returnValue(corrected)
     
     @setting(40, 'Set Settling', rates=['*v[GHz]: settling rates'], amplitudes=['*v: settling amplitudes'])
     def setsettling(self, c, rates, amplitudes):
-        calset = yield self.getDACcalset(c)
-        calset.setSettling(rates.asarray, amplitudes.asarray)
+        """
+        If a calibration can be characterized by time constants, i.e.
+        the step response function is
+          0                                             for t <  0
+          1 + sum(amplitudes[i]*exp(-decayrates[i]*t))  for t >= 0,
+        then you don't need to load the response function explicitly
+        but can just give the timeconstants and amplitudes.
+        All previously used time constants will be replaced.
+        """
+        c['Settling'] = (rates.asarray, amplitudes.asarray)
+
+    @setting(45, 'Set Filter', bandwidth=['v[GHz]: bandwidth'])
+    def setfilter(self, c, bandwidth):
+        """
+        Set the lowpass filter used for deconvolution.
+                       
+        bandwidth: bandwidth are arguments passed to the lowpass
+            filter function (see above)
+        """
+        c['Filter'] = float(bandwidth)
 
     @setting(50, 'Fast FFT Len', n='w')
     def fast_fft_len(self, c, n):
