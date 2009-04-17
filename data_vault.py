@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Data Vault
-version = 2.1
+version = 2.2
 description = Store and retrieve numeric data
 
 [startup]
@@ -553,6 +553,11 @@ class Dataset:
         del self._file
         del self._fileTimeoutCall
     
+    def _fileSize(self):
+        """Check the file size of our datafile."""
+        # does this include the size before the file has been flushed to disk?
+        return os.fstat(self.file.fileno()).st_size
+    
     @property
     def data(self):
         """Read data from file on demand.
@@ -687,7 +692,14 @@ class NumpyDataset(Dataset):
         The data is scheduled to be cleared from memory unless accessed."""
         if not hasattr(self, '_data'):
             try:
-                self._data = numpy.loadtxt(self.file, delimiter=',')
+                # if the file is empty, this line can barf in certain versions
+                # of numpy.  Clearly, if the file does not exist on disk, this
+                # will be the case.  Even if the file exists on disk, we must
+                # check its size
+                if self._fileSize() > 0:
+                    self._data = numpy.loadtxt(self.file, delimiter=',')
+                else:
+                    self._data = numpy.array([[]])
                 if len(self._data.shape) == 1:
                     self._data.shape = (1, len(self._data))
             except ValueError:
