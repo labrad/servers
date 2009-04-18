@@ -851,7 +851,7 @@ class QubitServer(LabradServer):
 
 
     @inlineCallbacks
-    def buildSRAM(self, expt):
+    def buildSRAM(self, ctxt, expt):
         # Get client connection
         cxn = self.client
         
@@ -922,7 +922,7 @@ class QubitServer(LabradServer):
         # deconvolve the IQ and Analog channels
         deconvolved = {}
         requested = []
-        p = cxn.dac_calibration.packet()
+        p = cxn.dac_calibration.packet(context = ctxt)
         for chname in ['IQs', 'Analogs']:
             for ch in expt[chname].keys():
                 if ch in expt['NoDeconvolve']:
@@ -1025,7 +1025,7 @@ class QubitServer(LabradServer):
 
         if correct:
             # Build deconvolved SRAM content
-            srams = yield self.buildSRAM(expt)
+            srams = yield self.buildSRAM(c.ID, expt)
             # Extract corrected data from SRAM
             data = None
             for ch, info in sorted(expt['IQs'].items()):
@@ -1116,7 +1116,7 @@ class QubitServer(LabradServer):
         expt = self.getExperiment(c)
 
         # build deconvolved SRAM content
-        srams = yield self.buildSRAM(c['Experiment'])
+        srams = yield self.buildSRAM(c.ID, c['Experiment'])
         
         # add new data onto SRAM
         for board, data in srams.items():
