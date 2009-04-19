@@ -106,8 +106,8 @@ def findRelevant(starts, ends):
     n = numpy.size(starts)
     relevant = numpy.resize(True, n)
     for i in numpy.arange(n-1):
-        relevant[i] = not any((starts[i+1:] <= starts[i]) & \
-                              (ends[i+1:] >= ends[i]))
+        relevant[i] = not numpy.any((starts[i+1:] <= starts[i]) & \
+                                    (ends[i+1:] >= ends[i]))
     return numpy.argwhere(relevant)[:,0]
 
 
@@ -790,8 +790,8 @@ class DACcorrection:
         s = numpy.size(rates)
         rates = numpy.reshape(numpy.asarray(rates),s)
         amplitudes = numpy.reshape(numpy.asarray(amplitudes),s)
-        if any(self.decayRates != rates) or \
-           any(self.decayAmplitudes != amplitudes):
+        if numpy.any(self.decayRates != rates) or \
+           numpy.any(self.decayAmplitudes != amplitudes):
             self.decayRates = rates
             self.decayAmplitudes = amplitudes
             self.precalc = numpy.array([])
