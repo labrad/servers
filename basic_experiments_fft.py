@@ -76,6 +76,7 @@ TOPHATPARS =       SCURVEPARS + [
     ("plen1", "Pulse 1",       "Length",             "v[ns]",   16.0*ns,  float),
     ("pamp1", "Pulse 1",       "Amplitude",          "v[mV]",  100.0*mV,  d1000),
     ("pfrq1", "Pulse 1",       "Frequency",          "v[GHz]",   6.5*GHz, float),
+    ("pdfq1", "Pulse 1",       "Frequency Shift",    "v[GHz]",   0.0*GHz, float),
     ("mpdel", "Measure Pulse", "Delay",              "v[ns]",    5.0*ns,  float)]
 
 SLEPIANPARS =      TOPHATPARS + [
@@ -479,7 +480,7 @@ class BEServer(LabradServer):
             
             p.experiment_set_anritsu(uCh(i), q['pfrq1'] - q['sbfrq'], q['uwpow'])
             
-            uwSeq = SFT.zPulse(0, q['plen1'], q['pamp1'], q['sbfrq'])
+            uwSeq = SFT.zPulse(0, q['plen1'], q['pamp1'], q['sbfrq'] + q['pdfq1'])
             
             mpSeq = SFT.rampPulse2(q['plen1'] + q['mpdel'], q['mptop'], q['mptal'], q['mpamp'])
             
@@ -513,7 +514,7 @@ class BEServer(LabradServer):
 
             p.experiment_set_anritsu(uCh(i), q['pfrq1'] - q['sbfrq'], q['uwpow'])
             
-            uwSeq = SFT.gaussian_envelope(0, q['plen1']/2, q['pamp1'], q['sbfrq'], q['pphs1'])
+            uwSeq = SFT.gaussian_envelope(0, q['plen1']/2, q['pamp1'], q['sbfrq'] + q['pdfq1'], q['pphs1'])
             
             mpSeq = SFT.rampPulse2(q['plen1']/2 + q['mpdel'], q['mptop'], q['mptal'], q['mpamp'])
             
@@ -534,9 +535,8 @@ class BEServer(LabradServer):
         """Runs a Sequence with a single Slepian pulse (good for Power Rabis, T1, 2 Qubit Coupling, etc.)"""
         return self.slepianExp(c, ctxt, self.run_qubits_separate)        
 
-    @setting(60, 'Two Slepian Pulses', ctxt=['ww'], returns=['*v'])
-    def twoslepian(self, c, ctxt):
-        """Runs a Sequence with two Slepian pulses"""
+    @inlineCallbacks
+    def twoslepianExp(self, c, ctxt, runFunc):
         # Initialize experiment
         qubits, pars, p = yield self.init_qubits(c, ctxt, GLOBALPARS, TWOSLEPIANPARS)
 
@@ -546,7 +546,7 @@ class BEServer(LabradServer):
             
             p.experiment_set_anritsu(uCh(i), q['pfrq1'] - q['sbfrq'], q['uwpow'])
             
-            uwSeq = SFT.gaussian(0, q['plen1']/2.0, q['pamp1'], q['sbfrq'], q['pphs1'])
+            uwSeq = SFT.gaussian(0, q['plen1']/2.0, q['pamp1'], q['sbfrq'] + q['pdfq1'], q['pphs1'])
             
             ptime2 = q['plen1']/2 + q['pdel2'] + q['plen2']/2
             uwSeq += SFT.gaussian(ptime2, q['plen2']/2.0, q['pamp2'], q['pfrq2'] - q['pfrq1'] + q['sbfrq'], q['pphs2'])
@@ -558,13 +558,21 @@ class BEServer(LabradServer):
             self.uploadSram(p, q, i, mpSeq, uwSeq, time)
 
         # Run experiment and return result
-        data = yield self.run_qubits(c, p, pars['Stats'])
+        data = yield runFunc(c, p, pars['Stats'])
         returnValue(data)
         
+    @setting(60, 'Two Slepian Pulses', ctxt=['ww'], returns=['*v'])
+    def twoslepian(self, c, ctxt):
+        """Runs a Sequence with two Slepian pulses"""
+        return self.twoslepianExp(c, ctxt, self.run_qubits)        
+        
+    @setting(61, 'Two Slepian Pulses Separate', ctxt=['ww'], returns=['*v'])
+    def twoslepiansep(self, c, ctxt):
+        """Runs a Sequence with two Slepian pulses"""
+        return self.twoslepianExp(c, ctxt, self.run_qubits_separate)        
 
-    @setting(61, 'Three Slepian Pulses', ctxt=['ww'], returns=['*v'])
-    def threeslepian(self, c, ctxt):
-        """Runs a Sequence with three Slepian pulses"""
+    @inlineCallbacks
+    def threeslepianExp(self, c, ctxt, runFunc):
         # Initialize experiment
         qubits, pars, p = yield self.init_qubits(c, ctxt, GLOBALPARS, THREESLEPIANPARS)
 
@@ -574,7 +582,7 @@ class BEServer(LabradServer):
             
             p.experiment_set_anritsu(uCh(i), q['pfrq1'] - q['sbfrq'], q['uwpow'])
             
-            uwSeq = SFT.gaussian(0, q['plen1']/2.0, q['pamp1'], q['sbfrq'], q['pphs1'])
+            uwSeq = SFT.gaussian(0, q['plen1']/2.0, q['pamp1'], q['sbfrq'] + q['pdfq1'], q['pphs1'])
             
             ptime2 = q['plen1']/2 + q['pdel2'] + q['plen2']/2
             uwSeq += SFT.gaussian(ptime2, q['plen2']/2.0, q['pamp2'], q['pfrq2'] - q['pfrq1'] + q['sbfrq'], q['pphs2'])
@@ -589,9 +597,18 @@ class BEServer(LabradServer):
             self.uploadSram(p, q, i, mpSeq, uwSeq, time)
 
         # Run experiment and return result
-        data = yield self.run_qubits(c, p, pars['Stats'])
+        data = yield runFunc(c, p, pars['Stats'])
         returnValue(data)
         
+    @setting(65, 'Three Slepian Pulses', ctxt=['ww'], returns=['*v'])
+    def threeslepian(self, c, ctxt):
+        """Runs a Sequence with three Slepian pulses"""
+        return self.threeslepianExp(c, ctxt, self.run_qubits)        
+        
+    @setting(66, 'Three Slepian Pulses Separate', ctxt=['ww'], returns=['*v'])
+    def threeslepiansep(self, c, ctxt):
+        """Runs a Sequence with three Slepian pulses"""
+        return self.threeslepianExp(c, ctxt, self.run_qubits_separate)        
 
     @setting(70, 'Slepian-Z-Slepian Pulses', ctxt=['ww'], returns=['*v'])
     def slepzslep(self, c, ctxt):
@@ -606,7 +623,7 @@ class BEServer(LabradServer):
             p.experiment_set_anritsu (uCh(i), q['pfrq1'] - q['sbfrq'], q['uwpow'])
             p.experiment_set_settling(mCh(i), q['srate'], q['sampl'])
             
-            uwSeq = SFT.gaussian(0, q['plen1']/2.0, q['pamp1'], q['sbfrq'], q['pphs1'])
+            uwSeq = SFT.gaussian(0, q['plen1']/2.0, q['pamp1'], q['sbfrq'] + q['pdfq1'], q['pphs1'])
             
             ptime2 = q['plen1']/2 + q['zdel1'] + q['zlen1'] + q['pdel2'] + q['plen2']/2
             uwSeq += SFT.gaussian(ptime2, q['plen2']/2.0, q['pamp2'], q['pfrq2'] - q['pfrq1'] + q['sbfrq'], q['pphs2'])
@@ -638,7 +655,7 @@ class BEServer(LabradServer):
             p.experiment_set_anritsu (uCh(i), q['pfrq1'] - q['sbfrq'], q['uwpow'])
             p.experiment_set_settling(mCh(i), q['srate'], q['sampl'])
 
-            uwSeq = SFT.gaussian(0, q['plen1']/2.0, q['pamp1'], q['sbfrq'], q['pphs1'])
+            uwSeq = SFT.gaussian(0, q['plen1']/2.0, q['pamp1'], q['sbfrq'] + q['pdfq1'], q['pphs1'])
             
             ptime2 = q['plen1']/2 + q['zdel1'] + q['zlen1'] + q['zdel2'] + q['zlen2'] + q['pdel2'] + q['plen2']/2
             uwSeq += SFT.gaussian(ptime2, q['plen2']/2.0, q['pamp2'], q['pfrq2'] - q['pfrq1'] + q['sbfrq'], q['pphs2'])
@@ -676,7 +693,7 @@ class BEServer(LabradServer):
             
             p.experiment_set_anritsu(uCh(i), q['pfrq1'] - q['sbfrq'], q['uwpow'])
             
-            uwSeq = SFT.gaussian_envelope(0, q['plen1']/2, 0.0, q['sbfrq'], q['pphs1'])
+            uwSeq = SFT.gaussian_envelope(0, q['plen1']/2, 0.0, q['sbfrq'] + q['pdfq1'], q['pphs1'])
             
             mpSeq = SFT.rampPulse2(q['plen1']/2 + q['mpdel'], q['mptop'], q['mptal'], q['mpamp'])
             
@@ -692,7 +709,7 @@ class BEServer(LabradServer):
 
             p.experiment_set_anritsu(uCh(i), q['pfrq1'] - q['sbfrq'], q['uwpow'])
             
-            uwSeq = SFT.gaussian_envelope(0, q['plen1']/2, q['pamp1'], q['sbfrq'], q['pphs1'])
+            uwSeq = SFT.gaussian_envelope(0, q['plen1']/2, q['pamp1'], q['sbfrq'] + q['pdfq1'], q['pphs1'])
             
             mpSeq = SFT.rampPulse2(q['plen1']/2 + q['mpdel'], q['mptop'], q['mptal'], q['mpamp'])
             
