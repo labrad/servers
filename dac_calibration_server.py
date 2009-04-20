@@ -70,7 +70,7 @@ class CalibrationServer(LabradServer):
         c['Loop'] = False
         c['t0'] = 0
         c['Settling'] = ([],[])
-        c['Filter'] = 0.200
+        c['Filter'] = 0.2
 
     @inlineCallbacks
     def getIQcalset(self, c):

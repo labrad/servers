@@ -922,7 +922,7 @@ class QubitServer(LabradServer):
         # deconvolve the IQ and Analog channels
         deconvolved = {}
         requested = []
-        p = cxn.dac_calibration.packet(context = ctxt)
+        p = cxn.dac_calibration.packet() #context = ctxt)
         for chname in ['IQs', 'Analogs']:
             for ch in expt[chname].keys():
                 if ch in expt['NoDeconvolve']:
