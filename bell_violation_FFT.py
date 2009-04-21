@@ -283,7 +283,7 @@ class VoBIServer(LabradServer):
                 z_ofs += z2len + b_del + b_len + mpdel
                 mpSeq = mpSeq + SFT.rampPulse2(z_ofs, mptop, mptal, mpamp)    # Measure
 
-                mpFrqs = numpy.linspace(0, 0.5, 1024/2, endpoint=False)
+                mpFrqs = numpy.linspace(0, 0.5, 1024/2+1, endpoint=True)
                 mpData = mpSeq(mpFrqs)
 
                 # Upload Sequences

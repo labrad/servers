@@ -231,7 +231,7 @@ class SequenceServer(LabradServer):
 
 def mpFreqs(seqTime=1024):
     nfft = 2**(math.ceil(math.log(seqTime, 2)))
-    return numpy.linspace(0, 0.5, nfft/2, endpoint=False)
+    return numpy.linspace(0, 0.5, nfft/2+1, endpoint=True)
 
 def uwFreqs(seqTime=1024):
     nfft = 2**(math.ceil(math.log(seqTime, 2)))

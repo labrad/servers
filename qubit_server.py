@@ -554,7 +554,7 @@ class QubitServer(LabradServer):
         transform is symmetric, so you should only evaluate it at positive frequencies, and
         only for half the length:
         
-            freqsAnalog = numpy.linspace(0, 0.5, nfft/2, endpoint=False)
+            freqsAnalog = numpy.linspace(0, 0.5, nfft/2+1, endpoint=True)
         
         Note that this means you must upload the entire Fourier transformed sequence at once,
         since concatenating pulses will not work here, as it does in the time domain.
