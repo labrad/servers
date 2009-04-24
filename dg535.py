@@ -78,8 +78,8 @@ class DG535Server(GPIBManagedServer):
             p.write('ES')
             p.read()
             resp = yield p.send()
-            return self.deviceName
-        except:
+            returnValue(self.deviceName)
+        except Exception:
             pass
         
     @setting(11, 'Select Channel', chan=['s', 'w'], returns=['w'])
