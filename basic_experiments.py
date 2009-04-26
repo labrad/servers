@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Basic Experiments
-version = 1.1
+version = 1.2
 description = Standard qubit experiments (T1, Rabi, etc.)
 
 [startup]
