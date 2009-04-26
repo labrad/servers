@@ -200,6 +200,7 @@ class BEServer(LabradServer):
         p = self.client.registry.packet(context=c.ID)
         p.get     ('Stats')
         p.cd      ([qubit, 'Bias'])
+        p.override('Reset Cycles', 0)
         p.override('Operating Bias', -2.5*V)
         p.cd      (2)
         ans = yield p.send()
@@ -214,6 +215,7 @@ class BEServer(LabradServer):
         # Set up qubit reset for positive reset
         p = self.client.registry.packet(context=c.ID)
         p.cd      ([qubit, 'Bias'])
+        p.override('Reset Cycles', 0)
         p.override('Operating Bias', 2.5*V)
         p.cd      (2)
         yield p.send()
@@ -912,11 +914,5 @@ class BEServer(LabradServer):
 __server__ = BEServer()
 
 if __name__ == '__main__':
-    # Import Psyco if available
-    try:
-        import psyco
-        psyco.full()
-    except ImportError:
-        pass
     from labrad import util
     util.runServer(__server__)
