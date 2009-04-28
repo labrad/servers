@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Qubit Bias
-version = 1.0
+version = 1.1
 description = 
 
 [startup]
@@ -214,11 +214,14 @@ class QubitBiasServer(LabradServer):
                 p.memory_delay(key-curdelay)
             curdelay = key
             # Add squid ramp
+            srzero    = []
             srstart   = []
             timers    = []
             srend     = []
             srzeros   = []
             for qid, qname in todo[key]:
+                # Set Squid Bias to Zero, so the zero bias doesn't affect the ramp
+                srzero.append((('Squid', qid+1), DAC1fast(0)))
                 # Set Squid Bias to Ramp Start
                 srstart.append((('Squid', qid+1), DAC1fast(pars[(qname, 'Squid Ramp Start')])))
                 # Start/Stop Timer
@@ -232,6 +235,7 @@ class QubitBiasServer(LabradServer):
             maxramp  = max(4.3, max(pars[(qname, 'Squid Ramp Time')] for qid, qname in todo[key]))
 
             # Send Memory Commands
+            p.memory_bias_commands(srzero,   10.0*us)
             p.memory_bias_commands(srstart,   4.3*us)
             p.memory_start_timer  (timers)
             p.memory_bias_commands(srend, maxramp*us)
