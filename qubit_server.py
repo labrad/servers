@@ -852,20 +852,17 @@ class QubitServer(LabradServer):
 
     @inlineCallbacks
     def buildSRAM(self, ctxt, expt):
-        # Get client connection
-        cxn = self.client
-        
         # Figure out longest SRAM block
         longest = 24
         for chname in ['IQs', 'Analogs', 'Triggers']:
             for ch in expt[chname].keys():
-                l = len(expt[chname][ch]['Data'])+SRAMPOSTPAD
+                l = len(expt[chname][ch]['Data']) + SRAMPOSTPAD
                 if l > longest:
                     longest = l
         # make sure SRAM length is divisible by 4
         longest = longest - longest % SRAMBLKSIZE
         longest = (longest + 3) & 0xFFFFFC
-        srams = dict([(board, numpy.zeros(longest).astype('int')) for board in expt['FPGAs']])
+        srams = dict((board, numpy.zeros(longest, dtype=int)) for board in expt['FPGAs'])
 
         # deconvolve the IQ and Analog channels
 #        deconvolved = {}
@@ -881,7 +878,7 @@ class QubitServer(LabradServer):
 #                    deconvolved[chname, ch] = d
 #                    continue
 #                board = expt[chname][ch]['Info']['Board'][1]
-#                p = cxn.dac_calibration.packet()
+#                p = self.client.dac_calibration.packet()
 #                p.board(board)
 #                if 'Anritsu' in expt[chname][ch]['Info']:
 #                    anritsu = expt[chname][ch]['Info']['Anritsu'][1]
@@ -922,25 +919,27 @@ class QubitServer(LabradServer):
         # deconvolve the IQ and Analog channels
         deconvolved = {}
         requested = []
-        p = cxn.dac_calibration.packet() #context = ctxt)
+
+        p = self.client.dac_calibration.packet(context=ctx)
         for chname in ['IQs', 'Analogs']:
             for ch in expt[chname].keys():
+                info = expt[chname][ch]
                 if ch in expt['NoDeconvolve']:
-                    d = numpy.hstack((expt[chname][ch]['Data'], numpy.zeros(longest - len(expt[chname][ch]['Data']))))
+                    d = numpy.hstack((info['Data'], numpy.zeros(longest - len(info['Data']))))
                     if chname == 'IQs':
                         d =  ((d.real*0x1FFF).astype('int') & 0x3FFF) + \
                             (((d.imag*0x1FFF).astype('int') & 0x3FFF) << 14)
-                    else:                            
+                    else:
                         d =  ((d*0x1FFF).astype('int') & 0x3FFF)
                     deconvolved[chname, ch] = d
                     continue
-                board = expt[chname][ch]['Info']['Board'][1]
+                board = info['Info']['Board'][1]
                 p.board(board)
-                if 'Anritsu' in expt[chname][ch]['Info']:
-                    anritsu = expt[chname][ch]['Info']['Anritsu'][1]
+                if 'Anritsu' in info['Info']:
+                    anritsu = info['Info']['Anritsu'][1]
                     frq = expt['Anritsus'][anritsu]
                     if frq is None:
-                        d = numpy.hstack((expt[chname][ch]['Data'], numpy.zeros(longest - len(expt[chname][ch]['Data']))))
+                        d = numpy.hstack((info['Data'], numpy.zeros(longest - len(info['Data']))))
                         d =  ((d.real*0x1FFF).astype('int') & 0x3FFF) + \
                             (((d.imag*0x1FFF).astype('int') & 0x3FFF) << 14)
                         deconvolved[chname, ch] = d
@@ -948,18 +947,17 @@ class QubitServer(LabradServer):
                     frq = frq[0]
                     p.frequency(frq)
                 else:
-                    dac = expt[chname][ch]['Info']['DAC'][1]
+                    dac = info['Info']['DAC'][1]
                     p.dac(dac)
                 if ch in expt['Settlings']:
-                    #print ch, ':', expt['Settlings'][ch]
                     p.set_settling(expt['Settlings'][ch])
-                cordata = numpy.hstack((expt[chname][ch]['Data'], numpy.zeros(longest - len(expt[chname][ch]['Data']))))
+                cordata = numpy.hstack((info['Data'], numpy.zeros(longest - len(info['Data']))))
                 if (len(cordata) % SRAMBLKSIZE) > 0:
                     cordata = cordata[0:-(len(cordata) % SRAMBLKSIZE)]
-                if 'FT' in expt[chname][ch]:
+                if 'FT' in info:
                     # do fourier deconvolution
-                    p.time_offset(expt[chname][ch]['FT'])
-                    cordata = cordata[SRAMPREPAD:len(expt[chname][ch]['Data'])]
+                    p.time_offset(info['FT'])
+                    cordata = cordata[SRAMPREPAD:len(info['Data'])]
                     p.correct_ft(cordata, key=(chname, ch))
                     requested.append((chname, ch))
                 else:
@@ -981,24 +979,26 @@ class QubitServer(LabradServer):
         for ch, info in expt['IQs'].items():
             l = len(deconvolved['IQs', ch])
             if l > 0:
-                srams[info['Info']['Board'][1]][0:l]       |= deconvolved['IQs', ch]
-                srams[info['Info']['Board'][1]][l:longest] |= deconvolved['IQs', ch][0]
-                #srams[info['Info']['Board'][1]][l:longest] |= [deconvolved[('IQs', ch)][0]] * (longest-l)
+                board = info['Info']['Board'][1]
+                srams[board][0:l]       |= deconvolved['IQs', ch]
+                srams[board][l:longest] |= deconvolved['IQs', ch][0]
             
         for ch, info in expt['Analogs'].items():
-            shift = info['Info']['DAC'][0] * 14
             l = len(deconvolved['Analogs', ch])
             if l > 0:
-                srams[info['Info']['Board'][1]][0:l]       |= deconvolved['Analogs', ch]    << shift
-                srams[info['Info']['Board'][1]][l:longest] |= deconvolved['Analogs', ch][0] << shift
-                #srams[info['Info']['Board'][1]][l:longest] |= [deconvolved[('Analogs', ch)][0] << shift] * (longest-l)
+                board = info['Info']['Board'][1]
+                shift = info['Info']['DAC'][0] * 14
+                srams[board][0:l]       |= deconvolved['Analogs', ch]    << shift
+                srams[board][l:longest] |= deconvolved['Analogs', ch][0] << shift
 
+        # add triggers
         for info in expt['Triggers'].values():
             mask = 1 << (info['Info']['Trigger'][0] + 28)
             ofs = SRAMPREPAD
             for val, count in info['Data']:
                 if val:
-                    srams[info['Info']['Board'][1]][ofs:ofs+count] |= mask
+                    board = info['Info']['Board'][1]
+                    srams[board][ofs:ofs+count] |= mask
                 ofs += count
 
         returnValue(srams)
