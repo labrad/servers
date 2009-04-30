@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = GHz DACs
-version = 2.6.2
+version = 2.7.0
 description = Talks to GHz DAC boards
 
 [startup]
@@ -54,6 +54,7 @@ SRAM_PAGE_LEN = 5120 #4096
 SRAM_DELAY_LEN = 1024
 SRAM_BLOCK0_LEN = 8192
 SRAM_BLOCK1_LEN = 2048
+SRAM_PKT_LEN = 256 # number of words in each SRAM upload packet
 
 MEM_LEN = 512
 MEM_PAGE_LEN = 256
@@ -127,6 +128,77 @@ class TimedLock(object):
             self.addTime(dt)
             d.callback(dt)
 
+#d(1)    start[7..0]  start[2..0] is command for blue box sequencer: 
+#                     0 = no start, 
+#                     1 = starts thr. memory call SRAM, resets timer buffer
+#                     2 = Test mode, continuous output from dreg15..0
+#                     3 = continuous SRAM output, start & end adr at dreg5..0
+#                     4 = as 3, but single cycle of SRAM output
+#                     Note: continuous must be stopped with 4 or 1!
+#                     start[7] = bit controls page of memory
+#d(2)    readback[7..0]        Readback command:
+#                     0 = no readback,
+#                     1 = readback of registers after 2 us (enough for serDAC),
+#                     2 = readback of registers after I2C is done.
+#                     3 = Enable streaming of timing data
+#d(3)    stopI2C[7..0]        Stop bytes for I2C (see below).  0 for no operation
+#d(4)    readwriteI2C[7..0]    Read/Write byte for I2C
+#d(5)    ackI2C[7..0]        Acknowledge byte for I2C
+#d(6)    data7[7..0]        Last I2C data byte
+#d(7)    data6[7..0]
+#d(8)    data5[7..0]
+#d(9)    data4[7..0]
+#d(10)    data3[7..0]
+#d(11)    data2[7..0]
+#d(12)    data1[7..0]
+#d(13)    data0[7..0]        First I2C data byte
+#
+#                            start=1            start = 2           start = 3 
+#d(14)    dreg0[7..0]        numcycles[7..0]    word1[7..0]         SRAMstart[7..0]
+#d(15)    dreg1[7..0]        numcycles[15..8]   word1[15..8]        SRAMstart[15..8]
+#d(16)    dreg2[7..0]                           word1[23..16]       SRAMstart[23..16]
+#d(17)    dreg3[7..0]                           word1[31..24]       SRAMend[7..0]
+#d(18)    dreg4[7..0]                           word2[7..0]         SRAMend[15..8]
+#d(19)    dreg5[7..0]                           word2[15..8]        SRAMend[23..16]
+#d(20)    dreg6[7..0]        SRAMoffset[7..0]   word2[23..16]       SRAMoffset[7..0]
+#d(21)    dreg7[7..0]                           word2[31..24]
+#d(22)    dreg8[7..0]                           word3[7..0]
+#d(23)    dreg9[7..0]                           word3[15..8]
+#d(24)    dreg10[7..0]                          word3[23..16]
+#d(25)    dreg11[7..0]                          word3[31..24]
+#d(26)    dreg12[7..0]                          word4[7..0]
+#d(27)    dreg12[7..0]                          word4[15..8]
+#d(28)    dreg14[7..0]                          word4[23..16]
+#d(29)    dreg15[7..0]                          word4[31..24]
+#
+#d(43)    dreg29[7..0]       dreg31[7..0], dreg30[7..0], ..., dreg0[7..0] = reg[255..0]
+#
+#d(44)    slave[7..0]        slave=1; "slave", starts SRAM with daisychain pulse
+#                            slave=0; "master", initiates SRAM and daisychain
+#                            slave=3; "idle", daisychain pulse passed, SRAM not started (slave[0] is master/slave, slave[1] is SRAM start)
+#d(45)    startdelay[7..0]   SRAM start delay after master initiate or daisychain
+#                            (used to compensate for daisychain delays)
+#d(46)    sync[7..0]        Synchronize master start, use to phase lock to microwaves 
+#  sync[7..0]+1 is length of a counter that continuously runs 
+#  0 = immediate start (normal operation) 
+#  249 = start only at every 250 clock cycles = 1 us
+#  New value to register changes phase lock
+#  Only affects start of master
+#
+#d(47)    ABclock[7..0]      Clock polarity of DAC; DACA=bit0 (Enable: bit4) 
+#                                                   DACB=bit1 (Enable: bit5)
+#                                                   bit7=reset 1GHz PLL pulse
+#d(48)    serial[7..0]       Serial interface (see HardRegProgram file)
+#                                0 = no operation, 1=PLL, 2=DACA, 3=DACB
+#d(49)    ser1[7..0]        8 lowest PLL bits        DAC data
+#d(50)    ser2[7..0]        8 middle PLL bits        DAC command data
+#d(51)    ser3[7..0]        8 highest PLL bits
+#   
+#d(52)    spare[7..0]        Not readback
+#
+#d(56)    spare[7..0]        Not readback
+
+
 class FPGADevice(DeviceWrapper):
     """Manages communication with a single GHz DAC board.
 
@@ -148,8 +220,6 @@ class FPGADevice(DeviceWrapper):
         self.devName = name
         self.serverName = de._labrad_name
 
-        #self.sram = '\x00' * (SRAM_LEN*4)
-        #self.mem = [0L] * MEM_LEN
         self.DACclocks = 0
         self.timeout = T.Value(1, 's')
 
@@ -171,66 +241,20 @@ class FPGADevice(DeviceWrapper):
         """Update a packet for the ethernet server with SRAM commands."""
         totallen = len(data)
         adr = startadr = page * SRAM_PAGE_LEN * 4
+        pg_len = SRAM_PKT_LEN * 4
         endadr = startadr + totallen
-        #needToSend = False
-        #origdata = data
-        #print 'writing SRAM...'
+        needToSend = len(data) > 0
         
         while len(data) > 0:
-            page, data = data[:1024], data[1024:]
-            #curpage = self.sram[adr:adr+len(page)]
-            #if page != curpage: # only upload changes
+            page, data = data[:pg_len], data[pg_len:]
             if True: # upload entire SRAM to ensure pipeline correctness
-                if len(page) < 1024:
-                    #newpage = numpy.zeros(256, dtype='uint32')
-                    #newpage[:len(page)] = page
-                    #page = newpage
-                    page += '\x00' * (1024-len(page))
+                if len(page) < pg_len:
+                    page += '\x00' * (pg_len-len(page))
                 pkt = chr((adr >> 10) & 63) + '\x00' + page
                 p.write(pkt)
-                adr += 1024
+                adr += pg_len
                 needToSend = True
-                #print 'writing page at address %d...' % (adr/4)
         
-        # out-of-order write
-        #block0 = []
-        #block1 = []
-        #while len(data) > 0:
-        #    page, data = data[:1024], data[1024:]
-        #    #curpage = self.sram[adr:adr+len(page)]
-        #    #if page != curpage: # only upload changes
-        #    if True: # upload entire SRAM to ensure pipeline correctness
-        #        if len(page) < 1024:
-        #            #newpage = numpy.zeros(256, dtype='uint32')
-        #            #newpage[:len(page)] = page
-        #            #page = newpage
-        #            page += '\x00' * (1024-len(page))
-        #        pkt = chr(((adr/4) >> 8) & 63) + '\x00' + page
-        #        if (adr / 4) < SRAM_BLOCK0_LEN:
-        #            block0.append(pkt)
-        #        else:
-        #            block1.append(pkt)
-        #        adr += 1024
-        #        needToSend = True
-        #        #print 'writing page at address %d...' % (adr/4)        
-        
-        #if inOrderWrite:
-        #    for pkt in block0:
-        #        print hex(ord(pkt[0]))
-        #        p.write(pkt)
-        #    for pkt in block1:
-        #        print hex(ord(pkt[0]))
-        #        p.write(pkt)
-        #else:
-        #    for pkt in block1:
-        #        print hex(ord(pkt[0]))
-        #        p.write(pkt)
-        #    for pkt in block0:
-        #        print hex(ord(pkt[0]))
-        #        p.write(pkt)
-        
-        #print ''
-        #self.sram = self.sram[:startadr] + origdata + self.sram[endadr:]
         return needToSend, (startadr/4, endadr/4)
 
     def makeMemory(self, data, p, page=0):
@@ -246,21 +270,16 @@ class FPGADevice(DeviceWrapper):
         totallen = len(data)
         adr = startadr = page * MEM_PAGE_LEN
         endadr = startadr + totallen
-        needToSend = True
-        #current = self.mem[startadr:endadr]
-        #needToSend = (data != current)
-        #if needToSend: # only send if the MEM is new
-        if True: # always send mem to ensure pipeline correctness
-            while len(data) > 0:
-                page, data = data[:MEM_PAGE_LEN], data[MEM_PAGE_LEN:]
-                if len(page) < MEM_PAGE_LEN:
-                    page += [0] * (MEM_PAGE_LEN - len(page))
-                # TODO: use numpy here
-                pkt = [(adr >> 8)] + \
-                      [(n >> j) & 255 for n in page for j in (0, 8, 16)]
-                p.write(words2str(pkt))
-                adr += MEM_PAGE_LEN
-            #self.mem[startadr:endadr] = data
+        needToSend = len(data) > 0
+        while len(data) > 0:
+            page, data = data[:MEM_PAGE_LEN], data[MEM_PAGE_LEN:]
+            if len(page) < MEM_PAGE_LEN:
+                page += [0] * (MEM_PAGE_LEN - len(page))
+            # TODO: use numpy here
+            pkt = [(adr >> 8)] + \
+                  [(n >> j) & 255 for n in page for j in (0, 8, 16)]
+            p.write(words2str(pkt))
+            adr += MEM_PAGE_LEN
         return needToSend, (startadr, endadr)
 
     def load(self, mem=None, sram=None, page=0):
@@ -425,7 +444,7 @@ class BoardGroup(object):
     on some set of the boards in the group, new sequence data for the next
     point can be uploaded.
     """
-    def __init__(self, server, port):
+    def __init__(self, ghz_dac_server, server, port):
         self._nextPage = 0
         Lock = TimedLock #defer.DeferredLock
         self.pageLocks = [Lock() for _ in range(NUM_PAGES)]
@@ -437,13 +456,16 @@ class BoardGroup(object):
         self.setupState = set()
         self.runWaitTimes = []
         self.prevTriggers = 0
+        self.ghzDacServer = ghz_dac_server
     
     @inlineCallbacks
-    def init(self):
+    def init(self, boards, delays):
         """Set up the direct ethernet server in our own context."""
         p = self.server.packet(context=self.ctx)
         p.connect(self.port)
         yield p.send()
+        self.boardOrder = boards
+        self.boardDelays = delays
     
     def nextPage(self):
         """Get the next page to use for memory and SRAM upload."""
@@ -529,15 +551,44 @@ class BoardGroup(object):
         regs[0:2] = 1 + 128*page, 3
         regs[13:15] = reps & 0xFF, (reps >> 8) & 0xFF
         regs[45] = sync # start on us boundary
-        data = []
-        for dev, mem, sram, slave, delay in reversed(devs): # run master last
-            if isinstance(delay, tuple):
-                delay, blockDelay = delay
-            regs[43:45] = int(slave), int(delay)
-            # add delay for boards running multi-block sequences
-            if dev in multiBlockBoards:
-                regs[19] = blockDelay
-            data.append((dev.MAC, regs.tostring()))
+        slaves = []
+        master = []
+        # send a run packet to each board in the board group, in the following order:
+        # - slave and idle boards in daisy-chain order
+        # - master board last
+        deviceInfo = dict((dev[0].devName, dev) for dev in devs)
+        for board, delay in zip(self.boardOrder, self.boardDelays):
+            if board in deviceNames:
+                # this board will run
+                dev, mem, sram, slave_dummy, delay_dummy = deviceInfo[board]
+                regs[0:2] = 1 + 128*page, 3 # start and stream timing data
+                if isinstance(delay, tuple):
+                    delay, blockDelay = delay
+                slave = len(master) > 0 # the first board is master
+                regs[43:45] = int(slave), int(delay)
+                # add delay for boards running multi-block sequences
+                if dev in multiBlockBoards:
+                    regs[19] = blockDelay
+                if slave:
+                    slaves.append((dev.MAC, regs.tostring()))
+                else:
+                    master.append((dev.MAC, regs.tostring()))
+            else:
+                # this board will not run, so we put it in idle mode
+                regs[0:2] = 0, 0 # do not start, no readback
+                regs[43:45] = 3, int(delay) # IDLE mode, board delay
+                # look up the device wrapper for an arbitrary device in the board group
+                dev = self.ghzDacServer.devices[board]
+                slaves.append((dev.MAC, regs.tostring()))
+        data = slaves + master # send to the master board at the end
+#        for dev, mem, sram, slave, delay in reversed(devs): # run master last
+#            if isinstance(delay, tuple):
+#                delay, blockDelay = delay
+#            regs[43:45] = int(slave), int(delay)
+#            # add delay for boards running multi-block sequences
+#            if dev in multiBlockBoards:
+#                regs[19] = blockDelay
+#            data.append((dev.MAC, regs.tostring()))
         runPkts = self.makeRunPackets(data)
         
         # collect and read (or discard) timing results
@@ -712,7 +763,15 @@ class FPGAServer(DeviceServer):
 
     @inlineCallbacks
     def initServer(self):
+        # load board group definitions from the registry
+        # if the key does not exist, set it to an empty list
+        p = self.client.registry.packet()
+        p.cd(['', 'Servers', 'GHz DACs'], True)
+        p.get('boardGroups', True, [], key='boardGroups')
+        ans = yield p.send()
+        self.boardGroupDefs = ans['boardGroups']
         self.boardGroups = {}
+        # finish initializing the server
         yield DeviceServer.initServer(self)
 
     def initContext(self, c):
@@ -727,7 +786,7 @@ class FPGAServer(DeviceServer):
         cxn = self.client
         yield cxn.refresh()
         found = []
-        for name, server, port in self.possibleLinks:
+        for name, server, port, boards, delays in self.boardGroupDefs:
             if server not in cxn.servers:
                 # server not found, remove all devices on this server
                 names = self.devices.keys()
@@ -753,10 +812,11 @@ class FPGAServer(DeviceServer):
             # create board group for this link
             if (server, port) not in self.boardGroups:
                 print 'Making board group:', (server, port)
-                bg = self.boardGroups[server, port] = BoardGroup(de, port)
+                bg = self.boardGroups[server, port] = BoardGroup(self, de, port)
             else:
                 bg = self.boardGroups[server, port]
-            yield bg.init()
+            boards = ['%s FPGA %d' % (name, board) for board in boards]
+            yield bg.init(boards, delays)
 
             # make a list of the boards currently known
             skips = {}
@@ -816,6 +876,7 @@ class FPGAServer(DeviceServer):
     @setting(20, 'SRAM Address', addr='w', returns='w')
     def sram_address(self, c, addr=None):
         """Sets the next SRAM address to be written to by SRAM."""
+        #raise Exception('SRAM Address is deprecated!  Please upload your entire sequence at once.')
         dev = self.selectedDevice(c)
         d = c.setdefault(dev, {})
         d['sramAddress'] = addr*4
@@ -823,7 +884,7 @@ class FPGAServer(DeviceServer):
 
 
     @setting(21, 'SRAM', data=['*w: SRAM Words to be written', 's: Raw SRAM data'],
-                         returns='(ww): Start address, Length')
+                         returns='')
     def sram(self, c, data):
         """Writes data to the SRAM at the current starting address."""
         dev = self.selectedDevice(c)
@@ -838,8 +899,10 @@ class FPGAServer(DeviceServer):
                 addr = d['sramAddress'] = 0
         else:
             sram = '\x00' * addr
+            sram = ''
         if not isinstance(data, str):
             data = data.asarray.tostring()
+        #d['sram'] = data
         d['sram'] = sram[0:addr] + data + sram[addr+len(data):]
         d['sramAddress'] += len(data)
         return addr/4, len(data)/4
@@ -871,13 +934,12 @@ class FPGAServer(DeviceServer):
 
 
     @setting(31, 'Memory', data='*w: Memory Words to be written',
-                           returns='(ww): Start address, Length')
+                           returns='')
     def memory(self, c, data):
         """Writes data to the Memory at the current starting address."""
         dev = self.selectedDevice(c)
         d = c.setdefault(dev, {})
         d['mem'] = data
-        return 0, len(data)
 
 
     @setting(40, 'Run Sequence', reps='w', getTimingData='b',
