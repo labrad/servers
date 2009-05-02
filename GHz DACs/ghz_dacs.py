@@ -558,7 +558,7 @@ class BoardGroup(object):
         # - master board last
         deviceInfo = dict((dev[0].devName, dev) for dev in devs)
         for board, delay in zip(self.boardOrder, self.boardDelays):
-            if board in deviceNames:
+            if board in deviceInfo:
                 # this board will run
                 dev, mem, sram, slave_dummy, delay_dummy = deviceInfo[board]
                 regs[0:2] = 1 + 128*page, 3 # start and stream timing data
