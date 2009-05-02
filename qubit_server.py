@@ -920,7 +920,7 @@ class QubitServer(LabradServer):
         deconvolved = {}
         requested = []
 
-        p = self.client.dac_calibration.packet(context=ctx)
+        p = self.client.dac_calibration.packet(context=ctxt)
         for chname in ['IQs', 'Analogs']:
             for ch in expt[chname].keys():
                 info = expt[chname][ch]

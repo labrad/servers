@@ -905,7 +905,7 @@ class FPGAServer(DeviceServer):
         #d['sram'] = data
         d['sram'] = sram[0:addr] + data + sram[addr+len(data):]
         d['sramAddress'] += len(data)
-        return addr/4, len(data)/4
+        #return addr/4, len(data)/4
 
 
     @setting(22, 'SRAM dual block',
