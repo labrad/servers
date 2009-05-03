@@ -562,8 +562,8 @@ class BoardGroup(object):
                 # this board will run
                 dev, mem, sram, slave_dummy, delay_dummy = deviceInfo[board]
                 regs[0:2] = 1 + 128*page, 3 # start and stream timing data
-                if isinstance(delay, tuple):
-                    delay, blockDelay = delay
+                if isinstance(delay_dummy, tuple):
+                    delay, blockDelay = delay_dummy
                 slave = len(master) > 0 # the first board is master
                 regs[43:45] = int(slave), int(delay)
                 # add delay for boards running multi-block sequences
