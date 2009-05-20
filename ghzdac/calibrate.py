@@ -241,6 +241,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     anritsuID = yield reg.get(keys.ANRITSUID)
     anritsuPower = yield reg.get(keys.ANRITSUPOWER)
     carrierFreq = yield reg.get(keys.PULSECARRIERFREQ)
+    sens = yield reg.get(keys.SCOPESENSITIVITY)
     yield cxn.microwave_switch.switch(0)
     yield anr.select_device(anritsuID)
     yield anr.frequency(carrierFreq)
@@ -257,7 +258,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     trace(1).\
     record_length(5120).\
     average(128).\
-    sensitivity(Value(10.0,'mV')).\
+    sensitivity(sens).\
     offset(Value(0,'mV')).\
     time_step(Value(2,'ns')).\
     trigger_level(Value(0.18,'V')).\
