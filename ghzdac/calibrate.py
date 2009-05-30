@@ -270,9 +270,9 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     offsettime = yield reg.get(keys.TIMEOFFSET)
 
     baseline = makeSample(baselineA,baselineB)
-    print "Measuring offset voltage..."
-    offset = (yield measureImpulseResponse(fpga, scope, baseline, baseline))[2:]
-    offset = sum(offset) / len(offset)
+#    print "Measuring offset voltage..."
+#    offset = (yield measureImpulseResponse(fpga, scope, baseline, baseline))[2:]
+#    offset = sum(offset) / len(offset)
 
     print "Measuring pulse response DAC A..."
     traceA = yield measureImpulseResponse(fpga, scope, baseline,
@@ -293,6 +293,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     #set output to zero    
     yield fpga.run_sram([baseline]*4)
     yield anr.output(False)
+    
     ds = cxn.data_vault
     yield ds.cd(['',keys.SESSIONNAME,boardname],True)
     dataset = yield ds.new(keys.PULSENAME,[('Time','ns')],
@@ -302,9 +303,19 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     yield ds.add_parameter(keys.PULSECARRIERFREQ, carrierFreq)
     yield ds.add_parameter(keys.ANRITSUPOWER, anritsuPower)
     yield ds.add_parameter(keys.TIMEOFFSET, offsettime)
-    yield ds.add(numpy.transpose([1e9*(starttime+timestep*numpy.arange(numpy.alen(traceA)-2)),
-        traceA[2:]-offset,
-        traceB[2:]-offset]))
+    yield ds.add(numpy.transpose(\
+        [1e9*(starttime+timestep*numpy.arange(numpy.alen(traceA)-2)),
+         traceA[2:],traceB[2:]]))
+#        traceA[2:]-offset,
+#        traceB[2:]-offset]))
+    if numpy.abs(numpy.argmax(numpy.abs(traceA-numpy.average(traceA))) - \
+                 numpy.argmax(numpy.abs(traceB-numpy.average(traceB)))) \
+       * timestep > 0.5e-9:
+        print """Pulses from DAC A and B do not seem to be on top of each other.
+        Check the pulse calibration file %d in data vault directory %s -> %s.
+        If the pulses are offset by more than 0.5 ns, bring up the board
+        and rerun the pulse calibration."""
+
     returnValue(datasetNumber(dataset))
 
 @inlineCallbacks

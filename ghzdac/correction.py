@@ -250,7 +250,7 @@ class IQcorrection:
     def eliminateSidebandCals(self):
         """
         Eliminate sideband calibrations that have become obsolete.
-        Returns the zero calibration files that are still used.
+        Returns the sideband calibration files that are still used.
         You should not need to call this function. It is used internally
         during a recalibration.
         """
@@ -277,6 +277,9 @@ class IQcorrection:
         dataPoints = numpy.asarray(dataPoints)
         i=dataPoints[:,1 + self.flipChannels]
         q=dataPoints[:,1 + (not self.flipChannels)]
+        # subtract DC offsets
+        i -= numpy.average(i)
+        q -= numpy.average(q)
         length=len(i)
         samplingfreq=int(numpy.round(1.0/(dataPoints[1,0]-dataPoints[0,0])))
         dataPoints=None
