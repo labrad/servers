@@ -67,6 +67,7 @@ TIMEOUT_FACTOR = 10
 # TODO: factor out register packet creation into separate functions
 # TODO: store memory and SRAM as numpy arrays, rather than lists and strings, respectively
 # TODO: update stored versions of memory and SRAM only when a write happens (not when write is requested)
+# TODO: optionally add short delay to master before SRAM call to ensure synchronization
      
 class TimedLock(object):
     """
