@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Data Vault
-version = 2.2
+version = 2.3.0
 description = Store and retrieve numeric data
 
 [startup]
@@ -608,11 +608,7 @@ class Dataset:
         self.save()
 
     def addParameter(self, name, data, saveNow=True):
-        for p in self.parameters:
-            if p['label'] == name:
-                raise ParameterInUseError(name)
-        d = dict(label=name, data=data)
-        self.parameters.append(d)
+        self._addParam(name, data)
         if saveNow:
             self.save()
         
@@ -621,6 +617,23 @@ class Dataset:
         self.param_listeners = set()
         return name
 
+    def addParameters(self, params, saveNow=True):
+        for name, data in params:
+            self._addParam(name, data)
+        if saveNow:
+            self.save()
+        
+        # notify all listening contexts
+        self.parent.onNewParameter(None, self.param_listeners)
+        self.param_listeners = set()
+        
+    def _addParam(self, name, data):
+        for p in self.parameters:
+            if p['label'] == name:
+                raise ParameterInUseError(name)
+        d = dict(label=name, data=data)
+        self.parameters.append(d)
+        
     def getParameter(self, name, case_sensitive=True):
         for p in self.parameters:
             if case_sensitive:
@@ -1048,6 +1061,12 @@ class DataVault(LabradServer):
         dataset = self.getDataset(c)
         dataset.addParameter(name, data)
 
+    @setting(124, 'add parameters', params='?{((s?)(s?)...)' returns='')
+    def add_parameter(self, c, params):
+        """Add a new parameter to the current dataset."""
+        dataset = self.getDataset(c)
+        dataset.addParameters(params)
+        
     @setting(122, 'get parameter', name='s')
     def get_parameter(self, c, name, case_sensitive=True):
         """Get the value of a parameter."""
