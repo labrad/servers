@@ -1061,8 +1061,8 @@ class DataVault(LabradServer):
         dataset = self.getDataset(c)
         dataset.addParameter(name, data)
 
-    @setting(124, 'add parameters', params='?{((s?)(s?)...)' returns='')
-    def add_parameter(self, c, params):
+    @setting(124, 'add parameters', params='?{((s?)(s?)...)}', returns='')
+    def add_parameters(self, c, params):
         """Add a new parameter to the current dataset."""
         dataset = self.getDataset(c)
         dataset.addParameters(params)
