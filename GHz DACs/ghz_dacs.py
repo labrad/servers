@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = GHz DACs
-version = 2.7.0
+version = 2.7.2
 description = Talks to GHz DAC boards
 
 [startup]
@@ -55,6 +55,8 @@ SRAM_DELAY_LEN = 1024
 SRAM_BLOCK0_LEN = 8192
 SRAM_BLOCK1_LEN = 2048
 SRAM_PKT_LEN = 256 # number of words in each SRAM upload packet
+
+MASTER_SRAM_DELAY = 20 # microseconds for master to delay before SRAM to ensure synchronization
 
 MEM_LEN = 512
 MEM_PAGE_LEN = 256
@@ -542,10 +544,30 @@ class BoardGroup(object):
         each of these steps, but does not actually send anything.
         """
         # TODO: preflatten packets to reduce the send time
+
+        # dictionary of devices to be run
+        deviceInfo = dict((dev[0].devName, dev) for dev in devs)
         
         # load memory and SRAM
-        loadPkts = [dev.load(mem, sram, page)
-                    for dev, mem, sram, slave, delay in devs]
+        # TODO: add a delay before SRAM calls in the master board only
+        loadPkts = []
+        for board in self.boardOrder:
+            if board in deviceInfo:
+                dev, mem, sram, slave, delay = deviceInfo[board]
+                if not len(loadPkts):
+                    # this will be the master, so add delays before SRAM
+                    new_mem = []
+                    cycles = int(MASTER_SRAM_DELAY * 25) & 0x0FFFFF
+                    delay_cmd = 0x300000 + cycles
+                    for cmd in mem:
+                        if getOpcode(cmd) == 0xC: # call SRAM
+                            new_mem.append(delay_cmd) # delay
+                        new_mem.append(cmd)
+                    mem = new_mem
+                loadPkts.append(dev.load(mem, sram, page))
+            
+        #loadPkts = [dev.load(mem, sram, page)
+        #            for dev, mem, sram, slave, delay in devs]
 
         # run all boards
         regs = numpy.zeros(56, dtype='uint8')
@@ -557,14 +579,13 @@ class BoardGroup(object):
         # send a run packet to each board in the board group, in the following order:
         # - slave and idle boards in daisy-chain order
         # - master board last
-        deviceInfo = dict((dev[0].devName, dev) for dev in devs)
         for board, delay in zip(self.boardOrder, self.boardDelays):
             if board in deviceInfo:
                 # this board will run
                 dev, mem, sram, slave_dummy, delay_dummy = deviceInfo[board]
                 regs[0:2] = 1 + 128*page, 3 # start and stream timing data
                 if isinstance(delay_dummy, tuple):
-                    delay, blockDelay = delay_dummy
+                    delay_dummy, blockDelay = delay_dummy
                 slave = len(master) > 0 # the first board is master
                 regs[43:45] = int(slave), int(delay)
                 # add delay for boards running multi-block sequences
@@ -638,7 +659,7 @@ class BoardGroup(object):
     @inlineCallbacks
     def run(self, devs, reps, setupPkts, getTimingData, timingOrder, sync, setupState):
         """Run a sequence on this board group."""
-        if not all((d[0].serverName == self.server._labrad_name) and \
+        if not all((d[0].serverName == self.server._labrad_name) and
                    (d[0].port == self.port) for d in devs):
             raise Exception('All boards must belong to the same board group!')
         boardOrder = [d[0].devName for d in devs]
@@ -944,7 +965,7 @@ class FPGAServer(DeviceServer):
 
 
     @setting(40, 'Run Sequence', reps='w', getTimingData='b',
-                                 setupPkts='*((ww){context}, s{server}, ?{((s?)(s?)(s?)...)})',
+                                 setupPkts='?{(((ww), s, ((s?)(s?)(s?)...))...)}',
                                  setupState='*s',
                                  returns=['*2w', ''])
     def run_sequence(self, c, reps=30, getTimingData=True, setupPkts=[], setupState=[]):
@@ -971,18 +992,20 @@ class FPGAServer(DeviceServer):
             the setupState might describe the amplitude and frequency of
             the various microwave sources for this sequence.
         """
+        #print 'run_sequence'
         # Round stats up to multiple of the timing packet length
         reps += TIMING_PACKET_LEN - 1
         reps -= reps % TIMING_PACKET_LEN
 
-        if len(c['daisy_chain']) != len(c['start_delay']):
-            print 'daisy_chain and start_delay lengths do not match.'
-            raise Exception('daisy_chain and start_delay must be same length.')
+        #if len(c['daisy_chain']) != len(c['start_delay']):
+        #    print 'daisy_chain and start_delay lengths do not match.'
+        #    raise Exception('daisy_chain and start_delay must be same length.')
         
         if len(c['daisy_chain']):
             # run multiple boards, with first board as master
             devs = [self.getDevice(c, n) for n in c['daisy_chain']]
             delays = c['start_delay']
+            delays = [0]*len(c['daisy_chain'])
         else:
             # run the selected device only
             devs = [self.selectedDevice(c)]
@@ -1004,19 +1027,32 @@ class FPGAServer(DeviceServer):
             if spCtxt[0] == 0:
                 print "Using a context with high ID = 0 for packet requests might not do what you want!!!"
             p = self.client[spServer].packet(context=spCtxt)
-            for spSetting, spData in spSettings:
-                p[spSetting](spData)
+            for spRec in spSettings:
+                if len(spRec) == 2:
+                    spSetting, spData = spRec
+                    p[spSetting](spData)
+                elif len(spRec) == 1:
+                    spSetting, = spRec
+                    p[spSetting]()
+                else:
+                    raise Exception('Malformed setup packet: ctx=%s, server=%s, settings=%s' % (spCtxt, spServer, spSettings))
             setupReqs.append(p)
 
         bg = self.boardGroups[devs[0].serverName, devs[0].port]
-        return bg.run(devices, reps, setupReqs, getTimingData, timingOrder, c['master_sync'], set(setupState))
+        #print 'starting execution...'
+        ans = yield bg.run(devices, reps, setupReqs, getTimingData, timingOrder, c['master_sync'], set(setupState))
+        #print 'run_sequence done'
+        returnValue(ans)
         
 
     @setting(42, 'Daisy Chain', boards='*s', returns='*s')
     def daisy_chain(self, c, boards=None):
-        """Set or get daisy chain board order.
+        """Set or get the boards to run.
 
-        Set this to an empty list to run the selected board only.
+        The actual daisy chain order is determined automatically, as configured
+        in the registry for each board group.  This setting controls which set of
+        boards to run, but does not determine the order.  Set daisy_chain to an
+        empty list to run the currently-selected board only.
         """
         if boards is None:
             boards = c['daisy_chain']
@@ -1028,7 +1064,8 @@ class FPGAServer(DeviceServer):
     def start_delay(self, c, delays=None):
         """Set start delays in ns for SRAM in the daisy chain.
 
-        Must be the same length as daisy_chain for sequence to execute.
+        DEPRECATED: start delays are now handled automatically by the
+        GHz DACs server, as configured in the registry for each board group.
         """
         if delays is None:
             delays = c['start_delay']
@@ -1529,7 +1566,7 @@ def cmdTime(cmd):
     if opcode == 0x3:
         return abcde + 1 # delay
     if opcode == 0xC:
-        return 250*12 # maximum SRAM length is 12us
+        return 25*12 # maximum SRAM length is 12us, with 25 cycles per us
 
 def shiftSRAM(cmds, page):
     """Shift the addresses of SRAM calls for different pages.
