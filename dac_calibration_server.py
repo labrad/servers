@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = DAC Calibration
-version = 1.1.0
+version = 1.1.1
 description = Calibrate sequences for the GHz DAC boards.
 
 [startup]
@@ -116,7 +116,7 @@ class CalibrationServer(LabradServer):
         
         This also implicitly selects I/Q mode for the correction.
         """
-        c['Frequency'] = frequency.value
+        c['Frequency'] = float(frequency)
         c['DAC'] = None
         return frequency
 
@@ -203,7 +203,7 @@ class CalibrationServer(LabradServer):
             calset = yield self.getDACcalset(c)
             calset.setSettling(*c['Settling'])
             calset.setFilter(bandwidth=c['Filter'])
-            corrected = calset.DACifyFT(data, n=len(data),
+            corrected = calset.DACifyFT(data, n=(len(data)-1)*2,
                                         t0=c['t0'], loop=c['Loop'], fitRange=False)
         returnValue(corrected)
     
