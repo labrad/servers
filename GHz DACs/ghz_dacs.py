@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = GHz DACs
-version = 2.7.2
+version = 2.7.3
 description = Talks to GHz DAC boards
 
 [startup]
@@ -300,6 +300,15 @@ class FPGADevice(DeviceWrapper):
         p.timeout(T.Value(timeout, 's'))
         p.collect(nPackets)
         # send a packet to the trigger to indicate that we're done
+        #p.send_trigger(triggerCtx)
+        #for ctx in devCtxs:
+        #    p.send_trigger(ctx)
+        #p.wait_for_trigger(len(devCtxs))
+        return p
+
+    def trigger(self, triggerCtx, devCtxs):
+        p = self.makePacket()
+        # send a packet to the trigger to indicate that we're done
         p.send_trigger(triggerCtx)
         for ctx in devCtxs:
             p.send_trigger(ctx)
@@ -326,7 +335,8 @@ class FPGADevice(DeviceWrapper):
             p.send_trigger(triggerCtx)
         for ctx in devCtxs:
             p.send_trigger(ctx)
-        p.wait_for_trigger(len(devCtxs))
+        if len(devCtxs):
+            p.wait_for_trigger(len(devCtxs))
         return p
 
     @inlineCallbacks
@@ -506,16 +516,18 @@ class BoardGroup(object):
         the buffer and resend the trigger to synchronize the start
         of the next run command.
         """
-        devCtxs = [d[0].ctx for d in devs]
-        clearPkts = [d[0].clear(None if s else self.ctx, devCtxs)
-                     for d, (s, r) in zip(devs, collectResults)]
+        #devCtxs = [d[0].ctx for d in devs]
+        #clearPkts = [d[0].clear(None if s else self.ctx, devCtxs)
+        #             for d, (s, r) in zip(devs, collectResults)]
+        clearPkts = [d[0].clear() for d in devs]
         msg = 'Some boards failed:\n'
-        for d, (s, r) in zip(devs, collectResults):
-            msg += d[0].devName
+        devs = sorted((dev[0].devName, dev, res) for dev, res in zip(devs, collectResults))
+        for n, d, (s, r) in devs:
+            msg += n
             if s:
-                msg += ': OK\n\n'
+                msg += ': OK\n'
             else:
-                msg += ': timeout!\n' + r.getBriefTraceback() + '\n\n'
+                msg += ': timeout!\n' # + r.getBriefTraceback() + '\n\n'
         return clearPkts, msg
 
     def makePackets(self, devs, timingOrder, page, reps, sync=249, multiBlockBoards=[]):
@@ -549,7 +561,6 @@ class BoardGroup(object):
         deviceInfo = dict((dev[0].devName, dev) for dev in devs)
         
         # load memory and SRAM
-        # TODO: add a delay before SRAM calls in the master board only
         loadPkts = []
         for board in self.boardOrder:
             if board in deviceInfo:
@@ -603,14 +614,6 @@ class BoardGroup(object):
                 dev = self.ghzDacServer.devices[board]
                 slaves.append((dev.MAC, regs.tostring()))
         data = slaves + master # send to the master board at the end
-#        for dev, mem, sram, slave, delay in reversed(devs): # run master last
-#            if isinstance(delay, tuple):
-#                delay, blockDelay = delay
-#            regs[43:45] = int(slave), int(delay)
-#            # add delay for boards running multi-block sequences
-#            if dev in multiBlockBoards:
-#                regs[19] = blockDelay
-#            data.append((dev.MAC, regs.tostring()))
         runPkts = self.makeRunPackets(data)
         
         # collect and read (or discard) timing results
@@ -620,8 +623,18 @@ class BoardGroup(object):
         for dev, mem, sram, slave, delay in devs:
             nTimers = timerCount(mem)
             N = reps * nTimers / TIMING_PACKET_LEN
-            seqTime = TIMEOUT_FACTOR * (sequenceTime(mem) * reps + 1)
-            collectPkts.append(dev.collect(N, seqTime, self.ctx, devCtxs))
+            seqTime = TIMEOUT_FACTOR * (sequenceTime(mem) * reps) + 1
+            #collectPkts.append(dev.collect(N, seqTime, self.ctx, devCtxs))
+            
+            # because the direct ethernet server does not timeout properly
+            # one wait_for_trigger calls, we send two packets, one with the
+            # collect and one with the trigger.  That way, even if the collect
+            # call times out and returns an error, the triggers will get sent,
+            # which will free up the contexts for the next point and send
+            # back an error message.
+            collectPkts.append((
+                dev.collect(N, seqTime, self.ctx, devCtxs),
+                dev.trigger(self.ctx, devCtxs)))
             if timingOrder is None or dev.devName in timingOrder:
                 readPkts.append(dev.read(N))
             else:
@@ -701,8 +714,8 @@ class BoardGroup(object):
         sendAll = self.sendAll
         
         # prepare packets
-        loadPkts, runPkts, collectPkts, readPkts = \
-                  self.makePackets(devs, timingOrder, page, reps, sync, multiBlockBoards=multiBlockBoards)
+        loadPkts, runPkts, collectPkts, readPkts = self.makePackets(
+            devs, timingOrder, page, reps, sync, multiBlockBoards=multiBlockBoards)
         
         try:
             for pageLock in pageLocks:
@@ -742,7 +755,14 @@ class BoardGroup(object):
                 yield readLock.acquire() # make sure we are next in line to read
                
                 # send our collect packets and then release the run lock
-                collectAll = defer.DeferredList([p.send() for p in collectPkts])
+                #collectAll = defer.DeferredList([p.send() for p in collectPkts],
+                #                                consumeErrors=True)
+                # collect and trigger sent in separate packets so that
+                # triggers will get sent even if the collect fails
+                collectAll = defer.DeferredList([p[0].send() for p in collectPkts],
+                                                consumeErrors=True)
+                triggerAll = defer.DeferredList([p[1].send() for p in collectPkts],
+                                                consumeErrors=True)
             finally:
                 runLock.release()
             
