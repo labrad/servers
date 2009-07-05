@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = GHz DACs
-version = 2.7.3
+version = 2.7.4
 description = Talks to GHz DAC boards
 
 [startup]
@@ -582,8 +582,6 @@ class BoardGroup(object):
 
         # run all boards
         regs = numpy.zeros(56, dtype='uint8')
-        regs[0:2] = 1 + 128*page, 3
-        regs[13:15] = reps & 0xFF, (reps >> 8) & 0xFF
         regs[45] = sync # start on us boundary
         slaves = []
         master = []
@@ -594,20 +592,22 @@ class BoardGroup(object):
             if board in deviceInfo:
                 # this board will run
                 dev, mem, sram, slave_dummy, delay_dummy = deviceInfo[board]
-                regs[0:2] = 1 + 128*page, 3 # start and stream timing data
-                if isinstance(delay_dummy, tuple):
-                    delay_dummy, blockDelay = delay_dummy
                 slave = len(master) > 0 # the first board is master
+                regs[0:2] = 1 + 128*page, 3 # start and stream timing data
+                regs[13:15] = reps & 0xFF, (reps >> 8) & 0xFF
                 regs[43:45] = int(slave), int(delay)
                 # add delay for boards running multi-block sequences
                 if dev in multiBlockBoards:
+                    if isinstance(delay_dummy, tuple):
+                        delay_dummy, blockDelay = delay_dummy
                     regs[19] = blockDelay
                 if slave:
                     slaves.append((dev.MAC, regs.tostring()))
                 else:
                     master.append((dev.MAC, regs.tostring()))
-            else:
-                # this board will not run, so we put it in idle mode
+            elif len(master):
+                # this board is after the master, but will
+                # not itself run, so we put it in idle mode
                 regs[0:2] = 0, 0 # do not start, no readback
                 regs[43:45] = 3, int(delay) # IDLE mode, board delay
                 # look up the device wrapper for an arbitrary device in the board group
@@ -1126,10 +1126,12 @@ class FPGAServer(DeviceServer):
         
         For each board group (defined by direct ethernet server and port),
         this returns times for:
-            page locks
+            page lock (page 0)
+            page lock (page 1)
             run lock
             run packet (on the direct ethernet server)
             read lock
+
         If the pipe runs dry, the first time that will go to zero should
         be the run packet wait time.
         """
@@ -1138,8 +1140,8 @@ class FPGAServer(DeviceServer):
             group = self.boardGroups[server, port]
             pageTimes = [lock.times for lock in group.pageLocks]
             runTime = group.runLock.times
-            readTime = group.readLock.times
             runWaitTime = group.runWaitTimes
+            readTime = group.readLock.times
             ans.append(((server, port), (pageTimes[0], pageTimes[1], runTime, runWaitTime, readTime)))
         return ans
 
