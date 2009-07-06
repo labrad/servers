@@ -37,7 +37,6 @@ from twisted.python import log
 from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 
-import struct
 from array import array as py_array
 from datetime import datetime, timedelta
 from math import sin, cos
@@ -63,9 +62,13 @@ MEM_PAGE_LEN = 256
 
 TIMING_PACKET_LEN = 30
 
-TIMEOUT_FACTOR = 10
+TIMEOUT_FACTOR = 10 # timing estimates are multiplied by this factor to determine sequence timeout
 
 # TODO: make sure paged operations (datataking) don't conflict with e.g. bringup
+# - want to do this by having two modes for boards, either 'test' mode
+#   (when a board does not belong to a board group) or 'production' mode
+#   (when a board does belong to a board group).  It would be nice if boards
+#   could be dynamically moved between groups, but we'll see about that...
 # TODO: factor out register packet creation into separate functions
 # TODO: store memory and SRAM as numpy arrays, rather than lists and strings, respectively
 # TODO: update stored versions of memory and SRAM only when a write happens (not when write is requested)
@@ -192,7 +195,7 @@ class TimedLock(object):
 #                                                   DACB=bit1 (Enable: bit5)
 #                                                   bit7=reset 1GHz PLL pulse
 #d(48)    serial[7..0]       Serial interface (see HardRegProgram file)
-#                                0 = no operation, 1=PLL, 2=DACA, 3=DACB
+#                                0=no operation, 1=PLL, 2=DACA, 3=DACB
 #d(49)    ser1[7..0]        8 lowest PLL bits        DAC data
 #d(50)    ser2[7..0]        8 middle PLL bits        DAC command data
 #d(51)    ser3[7..0]        8 highest PLL bits
@@ -299,17 +302,12 @@ class FPGADevice(DeviceWrapper):
         p = self.makePacket()
         p.timeout(T.Value(timeout, 's'))
         p.collect(nPackets)
-        # send a packet to the trigger to indicate that we're done
-        #p.send_trigger(triggerCtx)
-        #for ctx in devCtxs:
-        #    p.send_trigger(ctx)
-        #p.wait_for_trigger(len(devCtxs))
         return p
 
-    def trigger(self, triggerCtx, devCtxs):
+    def trigger(self, groupCtx, devCtxs):
+        """Create a packet to trigger other devices and the group context."""
         p = self.makePacket()
-        # send a packet to the trigger to indicate that we're done
-        p.send_trigger(triggerCtx)
+        p.send_trigger(groupCtx)
         for ctx in devCtxs:
             p.send_trigger(ctx)
         p.wait_for_trigger(len(devCtxs))
@@ -327,12 +325,12 @@ class FPGADevice(DeviceWrapper):
         p.discard(nPackets)
         return p
 
-    def clear(self, triggerCtx=None, devCtxs=[]):
+    def clear(self, groupCtx=None, devCtxs=[]):
         """Create a packet to clear the ethernet buffer for this board."""
         p = self.makePacket()
         p.clear()
-        if triggerCtx is not None:
-            p.send_trigger(triggerCtx)
+        if groupCtx is not None:
+            p.send_trigger(groupCtx)
         for ctx in devCtxs:
             p.send_trigger(ctx)
         if len(devCtxs):
@@ -754,10 +752,7 @@ class BoardGroup(object):
                     
                 yield readLock.acquire() # make sure we are next in line to read
                
-                # send our collect packets and then release the run lock
-                #collectAll = defer.DeferredList([p.send() for p in collectPkts],
-                #                                consumeErrors=True)
-                # collect and trigger sent in separate packets so that
+                # collect and trigger placed in separate packets so that
                 # triggers will get sent even if the collect fails
                 collectAll = defer.DeferredList([p[0].send() for p in collectPkts],
                                                 consumeErrors=True)
@@ -1012,14 +1007,9 @@ class FPGAServer(DeviceServer):
             the setupState might describe the amplitude and frequency of
             the various microwave sources for this sequence.
         """
-        #print 'run_sequence'
         # Round stats up to multiple of the timing packet length
         reps += TIMING_PACKET_LEN - 1
         reps -= reps % TIMING_PACKET_LEN
-
-        #if len(c['daisy_chain']) != len(c['start_delay']):
-        #    print 'daisy_chain and start_delay lengths do not match.'
-        #    raise Exception('daisy_chain and start_delay must be same length.')
         
         if len(c['daisy_chain']):
             # run multiple boards, with first board as master
@@ -1059,9 +1049,7 @@ class FPGAServer(DeviceServer):
             setupReqs.append(p)
 
         bg = self.boardGroups[devs[0].serverName, devs[0].port]
-        #print 'starting execution...'
         ans = yield bg.run(devices, reps, setupReqs, getTimingData, timingOrder, c['master_sync'], set(setupState))
-        #print 'run_sequence done'
         returnValue(ans)
         
 
@@ -1188,12 +1176,8 @@ class FPGAServer(DeviceServer):
             # make sure data is at least 20 words long by repeating first value
             data += [data[0]] * (20-len(data))
             hdr = 4
-
-        #global inOrderWrite
-        #inOrderWrite = inOrder
             
         data = numpy.array(data, dtype='uint32').tostring()
-        #data = struct.pack('I'*len(data), *data)
         r = yield dev.sendSRAM(data)
 
         encode = lambda a: [a & 0xFF, (a>>8) & 0xFF, (a>>16) & 0xFF]
@@ -1334,7 +1318,8 @@ class FPGAServer(DeviceServer):
     def init_pll(self, c, data):
         """Sends the initialization sequence to the PLL.
 
-        The sequence is [0x1FC093, 0x1FC092, 0x100004, 0x000C11]."""
+        The sequence is [0x1FC093, 0x1FC092, 0x100004, 0x000C11].
+        """
         dev = self.selectedDevice(c)
         yield dev.runSerial(1, [0x1fc093, 0x1fc092, 0x100004, 0x000c11])
         pkt = numpy.zeros(56, dtype='uint8')
@@ -1344,8 +1329,7 @@ class FPGAServer(DeviceServer):
 
     @setting(211, 'PLL Reset', returns='')
     def pll_reset(self, c):
-        """Resets the FPGA internal GHz serializer PLLs
-        """
+        """Resets the FPGA internal GHz serializer PLLs."""
         dev = self.selectedDevice(c)
         pkt = [0,1] + [0]*54
         pkt[46] = 0x80
@@ -1355,6 +1339,7 @@ class FPGAServer(DeviceServer):
     @setting(212, 'PLL Query', returns='b')
     def pll_query(self, c):
         """Checks the FPGA internal GHz serializer PLLs for lock failures.
+
         Returns T if any of the PLLs have lost lock since the last reset.
         """
         dev = self.selectedDevice(c)
@@ -1501,7 +1486,6 @@ class FPGAServer(DeviceServer):
         # make sure data is at least 20 words long by appending 0's
         data += [0] * (20-len(data))
         data = numpy.array(data, dtype='uint32').tostring()
-        #data = struct.pack('I'*len(data), *data)
         r = yield dev.sendSRAM(data)
         yield dev.runSerial(cmd, [0x0004, 0x1107, 0x1106])
 
@@ -1668,11 +1652,5 @@ def timerCount(cmds):
 __server__ = FPGAServer()
 
 if __name__ == '__main__':
-    # Import Psyco if available
-    try:
-        import psyco
-        psyco.full()
-    except ImportError:
-        pass
     from labrad import util
     util.runServer(__server__)
