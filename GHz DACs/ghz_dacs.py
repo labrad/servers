@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = GHz DACs
-version = 2.7.4
+version = 2.7.5
 description = Talks to GHz DAC boards
 
 [startup]
@@ -56,7 +56,7 @@ SRAM_BLOCK0_LEN = 8192
 SRAM_BLOCK1_LEN = 2048
 SRAM_PKT_LEN = 256 # number of words in each SRAM upload packet
 
-MASTER_SRAM_DELAY = 20 # microseconds for master to delay before SRAM to ensure synchronization
+MASTER_SRAM_DELAY = 2 # microseconds for master to delay before SRAM to ensure synchronization
 
 MEM_LEN = 512
 MEM_PAGE_LEN = 256
