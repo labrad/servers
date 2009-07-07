@@ -75,6 +75,10 @@ def measurePower(spec,fpga,a,b):
 def datasetNumber(dataset):
     return int(dataset[1][:5])
 
+def datavaultDir(board):
+    return " >> " + keys.SESSIONNAME + " >> " + board
+
+
 def minPos(l,c,r):
     """Calculates minimum of a parabola to three equally spaced points.
     The return value is in units of the spacing relative to the center point.
@@ -190,7 +194,7 @@ def zeroScanCarrier(cxn, scanparams, boardname):
     yield ds.add_parameter(keys.ANRITSUPOWER, anritsuPower)
 
     freq=scanparams['carrierMin']
-    while freq<scanparams['carrierMax']:
+    while freq<scanparams['carrierMax']+0.001*scanparams['carrierStep']:
         yield ds.add([freq]+(yield zero(anr,spec,fpga,freq)))
         freq+=scanparams['carrierStep']
     yield anr.output(False)
@@ -311,11 +315,13 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     if numpy.abs(numpy.argmax(numpy.abs(traceA-numpy.average(traceA))) - \
                  numpy.argmax(numpy.abs(traceB-numpy.average(traceB)))) \
        * timestep > 0.5e-9:
-        print """Pulses from DAC A and B do not seem to be on top of each other.
-        Check the pulse calibration file %d in data vault directory %s -> %s.
-        If the pulses are offset by more than 0.5 ns, bring up the board
-        and rerun the pulse calibration."""
-
+        print """Pulses from DAC A and B do not seem to be on top of each other!
+        Sideband calibrations based on this pulse calibration will most likely
+        mess up you sequences!"""
+    print """
+    Check the pulse calibration file %s in data vault directory %s.
+    If the pulses are offset by more than 0.5 ns, bring up the board
+    and try the pulse calibration again.""" % (dataset, datavaultdir(boardname))
     returnValue(datasetNumber(dataset))
 
 @inlineCallbacks
@@ -478,7 +484,8 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
     yield ds.add_parameter('Number of sideband frequencies',
                      scanparams['sidebandFreqCount'])
     freq=scanparams['carrierMin']
-    while freq<scanparams['carrierMax']:
+    while freq<scanparams['carrierMax'] + \
+              0.001 * scanparams['sidebandCarrierStep']:
         print '  carrier frequency: %g GHz' % freq
         datapoint=[freq]
         for sidebandfreq in sidebandfreqs:
