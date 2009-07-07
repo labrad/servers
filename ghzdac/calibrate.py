@@ -75,8 +75,12 @@ def measurePower(spec,fpga,a,b):
 def datasetNumber(dataset):
     return int(dataset[1][:5])
 
-def datavaultDir(board):
-    return " >> " + keys.SESSIONNAME + " >> " + board
+def datasetDir(dataset):
+    result = ''
+    dataset = dataset[0]+[dataset[1]]
+    for s in dataset[1:]:
+        result += " >> " + s
+    return result
 
 
 def minPos(l,c,r):
@@ -319,9 +323,9 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
         Sideband calibrations based on this pulse calibration will most likely
         mess up you sequences!"""
     print """
-    Check the pulse calibration file %s in data vault directory %s.
+    Check the pulse calibration file %s in data vault.
     If the pulses are offset by more than 0.5 ns, bring up the board
-    and try the pulse calibration again.""" % (dataset, datavaultdir(boardname))
+    and try the pulse calibration again.""" % datasetDir(dataset)
     returnValue(datasetNumber(dataset))
 
 @inlineCallbacks
