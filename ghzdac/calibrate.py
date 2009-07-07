@@ -319,13 +319,14 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     if numpy.abs(numpy.argmax(numpy.abs(traceA-numpy.average(traceA))) - \
                  numpy.argmax(numpy.abs(traceB-numpy.average(traceB)))) \
        * timestep > 0.5e-9:
-        print """Pulses from DAC A and B do not seem to be on top of each other!
-        Sideband calibrations based on this pulse calibration will most likely
-        mess up you sequences!"""
-    print """
-    Check the pulse calibration file %s in data vault.
-    If the pulses are offset by more than 0.5 ns, bring up the board
-    and try the pulse calibration again.""" % datasetDir(dataset)
+        print "Pulses from DAC A and B do not seem to be on top of each other!"
+        print "Sideband calibrations based on this pulse calibration will"
+        print "most likely mess up you sequences!"
+    print
+    print "Check the following pulse calibration file in the data vault:"
+    print datasetDir(dataset)
+    print "If the pulses are offset by more than 0.5 ns,"
+    print "bring up the board and try the pulse calibration again."
     returnValue(datasetNumber(dataset))
 
 @inlineCallbacks
