@@ -1,0 +1,133 @@
+package org.labrad.qubits.resources;
+
+import java.util.List;
+import java.util.Map;
+
+import org.labrad.data.Data;
+import org.labrad.qubits.enums.BiasFiberId;
+import org.labrad.qubits.enums.DacFiberId;
+import org.labrad.qubits.enums.DeviceType;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
+
+public class Resources {
+	// instance is an immutable map from string names to resources
+	private final Map<String, Resource> resources;
+	
+	// private constructor for building a set of resources
+	private Resources(Map<String, Resource> resources) {
+		this.resources = ImmutableMap.copyOf(resources);
+	}
+	
+	/**
+	 * Get a resource by name, ensuring that it is of a particular type
+	 * @param <T>
+	 * @param name
+	 * @param cls
+	 * @return
+	 */
+	@SuppressWarnings("unchecked")
+	public <T extends Resource> T get(String name, Class<? extends T> cls) {
+		Preconditions.checkArgument(resources.containsKey(name),
+				"Resource '%s' not found", name);
+		Resource r = resources.get(name);
+		Preconditions.checkArgument(cls.isInstance(r),
+				"Resource '%s' not of type %s", name, cls.getName());	
+		return (T) r;
+	}
+	
+	
+	/**
+	 * Create a resource of the given type.
+	 * @param type
+	 * @param name
+	 * @return
+	 */
+	public static Resource create(DeviceType type, String name) {
+		switch (type) {
+			case UWAVEBOARD: return MicrowaveBoard.create(name);
+			case ANALOGBOARD: return AnalogBoard.create(name);
+			case FASTBIAS: return FastBias.create(name);
+			case PREAMP: return PreampBoard.create(name);
+			case UWAVESRC: return MicrowaveSource.create(name);
+			default: throw new RuntimeException("Invalid resource type: " + type);
+		}
+	}
+	
+	/**
+	 * Create new wiring configuration and update the current config.
+	 * @param resources
+	 * @param fibers
+	 * @param microwaves
+	 */
+	public static void updateWiring(List<Data> resources, List<Data> fibers, List<Data> microwaves) {
+		// build resources for all objects
+		Map<String, Resource> map = Maps.newHashMap();
+		for (Data elem : resources) {
+			String type = elem.get(0).getString();
+			String name = elem.get(1).getString();
+			
+			DeviceType dt = DeviceType.fromString(type);
+			map.put(name, create(dt, name));
+		}
+		Resources r = new Resources(map);
+		
+		// wire together DAC boards and bias boards
+		for (Data elem : fibers) {
+			String dacName = elem.get(0, 0).getString();
+			String fiber = elem.get(0, 1).getString();
+			String cardName = elem.get(1, 0).getString();
+			String channel = elem.get(1, 1).getString();
+			
+			DacBoard dac = r.get(dacName, DacBoard.class);
+			BiasBoard bias = r.get(cardName, BiasBoard.class);
+			DacFiberId df = DacFiberId.fromString(fiber);
+			BiasFiberId bf = BiasFiberId.fromString(channel);
+			dac.setFiber(df, bias, bf);
+			bias.setDacBoard(bf, dac, df);
+		}
+		
+		// wire together microwave DAC boards and microwave sources
+		for (Data elem : microwaves) {
+			String dacName = elem.get(0).getString();
+			String devName = elem.get(1).getString();
+			
+			MicrowaveBoard dac = r.get(dacName, MicrowaveBoard.class);
+			MicrowaveSource uwaveSrc = r.get(devName, MicrowaveSource.class);
+			dac.setMicrowaveSource(uwaveSrc);
+			uwaveSrc.addMicrowaveBoard(dac);
+		}
+		
+		// TODO sanity check on this wiring before we set the current resource set
+		
+		// Set this new resource map as the current one
+		setCurrent(r);
+	}
+	
+	// we keep a single instance containing the current resource map.
+	// updates to this instance are protected by a thread lock
+	private static Resources current = null;
+	private static final Object updateLock = new Object();
+	
+	/**
+	 * Set a new resource collection as the current collection
+	 * @param resources
+	 */
+	private static void setCurrent(Resources resources) {
+		synchronized (updateLock) {
+			current = resources;
+		}
+	}
+	
+	/**
+	 * Get the current resource collection
+	 * @return
+	 */
+	public static Resources getCurrent() {
+		synchronized (updateLock) {
+			return current;
+		}
+	}
+}

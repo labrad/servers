@@ -1,0 +1,7 @@
+- reload wiring whenever it changes in the registry (and reset it if this fails)
+
+- make dual-block sram delay part of the SRAM calls, not the memory calls
+  (for dual-block sequences, this is the only thing that changes,
+  so it is silly to require to regenerate the whole memory sequence)
+  
+- add timing data postprocessing options (e.g. cutoffs)
