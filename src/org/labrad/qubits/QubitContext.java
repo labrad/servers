@@ -24,7 +24,6 @@ import org.labrad.qubits.channels.Channel;
 import org.labrad.qubits.channels.DeconvolvableSramChannel;
 import org.labrad.qubits.channels.FastBiasChannel;
 import org.labrad.qubits.channels.IqChannel;
-import org.labrad.qubits.channels.PacketResultHandler;
 import org.labrad.qubits.channels.PreampChannel;
 import org.labrad.qubits.channels.TriggerChannel;
 import org.labrad.qubits.config.MicrowaveSourceConfig;
@@ -35,6 +34,8 @@ import org.labrad.qubits.mem.MemoryCommand;
 import org.labrad.qubits.resources.MicrowaveSource;
 import org.labrad.qubits.resources.Resources;
 import org.labrad.qubits.templates.ExperimentBuilder;
+import org.labrad.qubits.util.ComplexArray;
+import org.labrad.qubits.util.PacketResultHandler;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ArrayListMultimap;
@@ -50,8 +51,9 @@ public class QubitContext extends AbstractServerContext {
 	private Experiment expt = null;
 	private Context setupContext = null;
 	
-	private Request nextRequest;
+	private Request nextRequest = null;
 	private int dataIndex;
+	private Data lastData = null;
 	
 	/**
 	 * Initialize this context when it is first created.
@@ -684,8 +686,29 @@ public class QubitContext extends AbstractServerContext {
     @Returns("*2w")
     public Data run_experiment() throws InterruptedException, ExecutionException {
     	// TODO have a 'dirty bit' that gets checked to trigger a build if necessary
-   	    return getConnection().sendAndWait(nextRequest).get(dataIndex);
+    	lastData = getConnection().sendAndWait(nextRequest).get(dataIndex);
+    	return lastData;
     }
+    
+    @Setting(id = 1100,
+    		 name = "Get Data Raw",
+    		 doc = "Gets the raw timing data from the previous run")
+    @Returns("*2w")
+    public Data get_data_raw() {
+    	return lastData;
+    }
+    
+    @Setting(id = 1101,
+   		     name = "Get Data Probs",
+   		     doc = "Gets the raw timing data from the previous run")
+    @Returns("*2b")
+    public Data get_data_cutoffs(@Accepts("*(*(v[us], v[us]))") Data cutoffs) {
+    	// TODO apply cutoff ranges and 
+    	return lastData;
+    }
+    
+    // other timing options: deinterlace, combine multi-qubit probs, optionally discard certain multi-qubit probs (e.g. keep only P_0000...)
+    // should this go into the "config" section, or be its own thing here in the data retrieval section?
     
     //
     // diagnostic information

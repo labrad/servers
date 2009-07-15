@@ -4,9 +4,9 @@ import java.util.List;
 
 import org.labrad.data.Data;
 import org.labrad.data.Request;
-import org.labrad.qubits.ComplexArray;
 import org.labrad.qubits.channels.AnalogChannel;
-import org.labrad.qubits.channels.PacketResultHandler;
+import org.labrad.qubits.util.ComplexArray;
+import org.labrad.qubits.util.PacketResultHandler;
 
 import com.google.common.base.Preconditions;
 

@@ -21,6 +21,10 @@ import com.google.common.collect.Sets;
 
 public class Experiment {
 	
+	/**
+	 * Create a new experiment using the given list of devices.
+	 * @param devices
+	 */
 	public Experiment(List<Device> devices) {
 		for (Device dev : devices) {
 			addDevice(dev);

@@ -1,4 +1,4 @@
-package org.labrad.qubits;
+package org.labrad.qubits.util;
 
 public class Failure {
 	public static void fail(String errorMessage, Object... errorMessageArgs) {

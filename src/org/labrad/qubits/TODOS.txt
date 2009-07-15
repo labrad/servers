@@ -1,7 +1,10 @@
 - reload wiring whenever it changes in the registry (and reset it if this fails)
 
+- construct memory and SRAM for each fpga that will be run (before deconvolution)
+  so that we don't run spurious sequences on partially used boards.
+
 - make dual-block sram delay part of the SRAM calls, not the memory calls
   (for dual-block sequences, this is the only thing that changes,
   so it is silly to require to regenerate the whole memory sequence)
   
-- add timing data postprocessing options (e.g. cutoffs)
+- add timing data postprocessing options (e.g. cutoffs, deinterlace, multi-qubit combine, discard all but 000..., etc.)

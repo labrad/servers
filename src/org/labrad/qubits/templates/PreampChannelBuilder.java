@@ -4,7 +4,7 @@ import java.util.List;
 
 import org.labrad.qubits.channels.Channel;
 import org.labrad.qubits.channels.PreampChannel;
-import org.labrad.qubits.enums.BiasFiberId;
+import org.labrad.qubits.enums.DcRackFiberId;
 import org.labrad.qubits.resources.PreampBoard;
 import org.labrad.qubits.resources.Resources;
 
@@ -25,9 +25,9 @@ public class PreampChannelBuilder extends ChannelBuilderBase {
 		PreampChannel pc = new PreampChannel(name);
 		PreampBoard board = resources.get(boardName, PreampBoard.class);
 		pc.setPreampBoard(board);
-		pc.setPreampChannel(BiasFiberId.fromString(channel));
+		pc.setPreampChannel(DcRackFiberId.fromString(channel));
 		// look up the dacBoard on the other end and connect to it
-		pc.setDacBoard(board.getDacBoard(BiasFiberId.fromString(channel)));
+		pc.setDacBoard(board.getDacBoard(DcRackFiberId.fromString(channel)));
 		return pc;
 	}
 }

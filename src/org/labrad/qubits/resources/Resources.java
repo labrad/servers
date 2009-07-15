@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.labrad.data.Data;
-import org.labrad.qubits.enums.BiasFiberId;
+import org.labrad.qubits.enums.DcRackFiberId;
 import org.labrad.qubits.enums.DacFiberId;
 import org.labrad.qubits.enums.DeviceType;
 
@@ -84,7 +84,7 @@ public class Resources {
 			DacBoard dac = r.get(dacName, DacBoard.class);
 			BiasBoard bias = r.get(cardName, BiasBoard.class);
 			DacFiberId df = DacFiberId.fromString(fiber);
-			BiasFiberId bf = BiasFiberId.fromString(channel);
+			DcRackFiberId bf = DcRackFiberId.fromString(channel);
 			dac.setFiber(df, bias, bf);
 			bias.setDacBoard(bf, dac, df);
 		}

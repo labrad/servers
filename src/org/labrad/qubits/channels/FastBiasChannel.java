@@ -2,7 +2,7 @@ package org.labrad.qubits.channels;
 
 import org.labrad.qubits.Experiment;
 import org.labrad.qubits.FpgaModel;
-import org.labrad.qubits.enums.BiasFiberId;
+import org.labrad.qubits.enums.DcRackFiberId;
 import org.labrad.qubits.enums.DacFiberId;
 import org.labrad.qubits.resources.DacBoard;
 import org.labrad.qubits.resources.FastBias;
@@ -14,7 +14,7 @@ public class FastBiasChannel implements FiberChannel {
 	FpgaModel fpga = null;
 	FastBias fb = null;
 	DacBoard board = null;
-	BiasFiberId fbChannel;
+	DcRackFiberId fbChannel;
 	
 	public FastBiasChannel(String name) {
 		this.name = name;
@@ -28,7 +28,7 @@ public class FastBiasChannel implements FiberChannel {
 		return fb;
 	}
 	
-	public void setBiasChannel(BiasFiberId channel) {
+	public void setBiasChannel(DcRackFiberId channel) {
 		this.fbChannel = channel;
 	}
 	

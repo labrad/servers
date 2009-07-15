@@ -1,10 +1,9 @@
 package org.labrad.qubits;
 
 public class Constants {
-	// SRAM stuff
-	public static final int SRAM_LEN = 10240;
-
-	// Memory parameters
+	/*
+	 * Minimum delay (in microseconds) after sending a command to the DC Rack
+	 */
 	public final static double DEFAULT_BIAS_DELAY = 4.3;
 
 	/*

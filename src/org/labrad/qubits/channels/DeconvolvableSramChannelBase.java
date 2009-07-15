@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.labrad.data.Data;
 import org.labrad.data.Request;
+import org.labrad.qubits.util.PacketResultHandler;
 
 import com.google.common.collect.Lists;
 

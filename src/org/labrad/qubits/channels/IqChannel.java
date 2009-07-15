@@ -1,6 +1,5 @@
 package org.labrad.qubits.channels;
 
-import org.labrad.qubits.ComplexArray;
 import org.labrad.qubits.FpgaModel;
 import org.labrad.qubits.FpgaModelMicrowave;
 import org.labrad.qubits.channeldata.IqData;
@@ -9,6 +8,7 @@ import org.labrad.qubits.config.MicrowaveSourceConfig;
 import org.labrad.qubits.config.MicrowaveSourceOffConfig;
 import org.labrad.qubits.config.MicrowaveSourceOnConfig;
 import org.labrad.qubits.resources.MicrowaveSource;
+import org.labrad.qubits.util.ComplexArray;
 
 import com.google.common.base.Preconditions;
 

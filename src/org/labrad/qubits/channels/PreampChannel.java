@@ -3,7 +3,7 @@ package org.labrad.qubits.channels;
 import org.labrad.qubits.Experiment;
 import org.labrad.qubits.FpgaModel;
 import org.labrad.qubits.config.PreampConfig;
-import org.labrad.qubits.enums.BiasFiberId;
+import org.labrad.qubits.enums.DcRackFiberId;
 import org.labrad.qubits.resources.DacBoard;
 import org.labrad.qubits.resources.PreampBoard;
 
@@ -14,7 +14,7 @@ public class PreampChannel implements FiberChannel {
 	DacBoard board = null;
 	FpgaModel fpga = null;
 	PreampBoard preampBoard;
-	BiasFiberId preampChannel;
+	DcRackFiberId preampChannel;
 	PreampConfig config = null;
 
 	public PreampChannel(String name) {
@@ -35,11 +35,11 @@ public class PreampChannel implements FiberChannel {
 		return preampBoard;
 	}
 
-	public void setPreampChannel(BiasFiberId preampChannel) {
+	public void setPreampChannel(DcRackFiberId preampChannel) {
 		this.preampChannel = preampChannel;
 	}
 	
-	public BiasFiberId getPreampChannel() {
+	public DcRackFiberId getPreampChannel() {
 		return preampChannel;
 	}
 

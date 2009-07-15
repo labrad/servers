@@ -39,7 +39,6 @@ public class FastBiasCommands {
 	}
 	
 	private static SendFiberCommand makeCommand(FastBiasChannel fb, int bits) {
-		int id = fb.getFiberId().asInt();
-		return new SendFiberCommand(id, bits);
+		return new SendFiberCommand(fb.getFiberId(), bits);
 	}
 }

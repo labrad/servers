@@ -1,4 +1,4 @@
-package org.labrad.qubits.channels;
+package org.labrad.qubits.util;
 
 import java.util.List;
 

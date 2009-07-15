@@ -2,12 +2,12 @@ package org.labrad.qubits.channels;
 
 import java.util.Arrays;
 
-import org.labrad.qubits.ComplexArray;
 import org.labrad.qubits.FpgaModel;
 import org.labrad.qubits.FpgaModelAnalog;
 import org.labrad.qubits.channeldata.AnalogData;
 import org.labrad.qubits.channeldata.AnalogDataFourier;
 import org.labrad.qubits.enums.DacAnalogId;
+import org.labrad.qubits.util.ComplexArray;
 
 import com.google.common.base.Preconditions;
 

@@ -1,4 +1,4 @@
-package org.labrad.qubits;
+package org.labrad.qubits.util;
 
 import org.labrad.data.Complex;
 import org.labrad.data.Data;

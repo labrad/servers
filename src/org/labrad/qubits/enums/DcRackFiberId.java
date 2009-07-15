@@ -5,16 +5,16 @@ import java.util.Map;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 
-public enum BiasFiberId {
+public enum DcRackFiberId {
 	A("a"),
 	B("b"),
 	C("c"),
 	D("d");
 	
 	private final String name;
-	private static final Map<String, BiasFiberId> map = Maps.newHashMap();
+	private static final Map<String, DcRackFiberId> map = Maps.newHashMap();
 	
-	BiasFiberId(String name) {
+	DcRackFiberId(String name) {
 		this.name = name;
 	}
 	
@@ -23,12 +23,12 @@ public enum BiasFiberId {
 	}
 	
 	static {
-		for (BiasFiberId id : values()) {
+		for (DcRackFiberId id : values()) {
 			map.put(id.name, id);
 		}
 	}
 	
-	public static BiasFiberId fromString(String name) {
+	public static DcRackFiberId fromString(String name) {
 		String key = name.toLowerCase();
 		Preconditions.checkArgument(map.containsKey(key),
 				"Invalid bias channel id '%s'", name);
