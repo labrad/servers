@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Data Vault
-version = 2.3.0
+version = 2.3.1
 description = Store and retrieve numeric data
 
 [startup]
@@ -63,7 +63,7 @@ except ImportError, e:
 # location of repository will get loaded from the registry
 DATADIR = None
 
-PRECISION = 6 # digits of precision to use when saving data
+PRECISION = 12 # digits of precision to use when saving data
 DATA_FORMAT = '%%.%dG' % PRECISION
 FILE_TIMEOUT = 60 # how long to keep datafiles open if not accessed
 DATA_TIMEOUT = 300 # how long to keep data in memory if not accessed
