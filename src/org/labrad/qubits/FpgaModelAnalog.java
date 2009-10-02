@@ -26,6 +26,10 @@ public class FpgaModelAnalog extends FpgaModelBase {
 		return !dacs.isEmpty();
 	}
 	
+	public AnalogChannel getDacChannel(DacAnalogId id) {
+		return dacs.get(id);
+	}
+	
 	/**
 	 * Get sram bits for a particular block
 	 * @param block

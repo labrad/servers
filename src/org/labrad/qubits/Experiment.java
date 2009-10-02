@@ -259,9 +259,15 @@ public class Experiment {
 		}
 	}
 	
-	public void callSramDualBlock(String block1, String block2, double delay) {
+	public void callSramDualBlock(String block1, String block2) {
 		for (FpgaModel fpga : getFpgas()) {
-			fpga.callSramDualBlock(block1, block2, delay);
+			fpga.callSramDualBlock(block1, block2);
+		}
+	}
+	
+	public void setSramDualBlockDelay(double delay) {
+		for (FpgaModel fpga : getFpgas()) {
+			fpga.setSramDualBlockDelay(delay);
 		}
 	}
 	

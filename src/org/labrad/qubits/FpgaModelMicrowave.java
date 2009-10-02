@@ -22,6 +22,10 @@ public class FpgaModelMicrowave extends FpgaModelBase {
 		return (iq != null);
 	}
 	
+	public IqChannel getIqChannel() {
+		return iq;
+	}
+	
 	/**
 	 * Get sram bits for a particular block
 	 * @param block

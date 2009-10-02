@@ -73,6 +73,7 @@ public abstract class FpgaModelBase implements FpgaModel {
 	private boolean sramCalled = false;
 	private boolean sramCalledDualBlock = false;
 	private CallSramDualBlockCommand sramDualBlockCmd = null;
+	private Double sramDualBlockDelay = null;
 	
 	public void clearMemory() {
 		memory.clear();
@@ -170,13 +171,21 @@ public abstract class FpgaModelBase implements FpgaModel {
 		sramCalled = true;
 	}
 	
-	public void callSramDualBlock(String block1, String block2, double delay) {
+	public void callSramDualBlock(String block1, String block2) {
 		Preconditions.checkState(!sramCalled, "Cannot call SRAM and dual-block in the same sequence.");
 		Preconditions.checkState(!sramCalledDualBlock, "Only one dual-block SRAM call allowed per sequence.");
-		CallSramDualBlockCommand cmd = new CallSramDualBlockCommand(block1, block2, delay);
+		CallSramDualBlockCommand cmd = new CallSramDualBlockCommand(block1, block2, sramDualBlockDelay);
 		addMemoryCommand(cmd);
 		sramDualBlockCmd = cmd;
 		sramCalledDualBlock = true;
+	}
+	
+	public void setSramDualBlockDelay(double delay) {
+		sramDualBlockDelay = delay;
+		if (sramCalledDualBlock) {
+			// need to update the already-created dual-block command
+			sramDualBlockCmd.setDelay(delay);
+		}
 	}
 	
 	public boolean hasDualBlockSram() {

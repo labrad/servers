@@ -172,10 +172,10 @@ public class QubitContext extends AbstractServerContext {
 				 //+ "the setup.  This will copy only the device and channel definitions, not "
 				 //+ "any configuration, memory, or SRAM setup."
 				 //+ "\n\n"
-				 + "Finally, you can provide the device and channel definitions directly.  "
+				 + "Alternatively, you can provide the device and channel definitions directly.  "
 				 + "You do this by giving a list of devices, where each device is a cluster "
 				 + "of name and channel list, and where each channel is a cluster of name "
-				 + "and cluster of type and paramter list.")
+				 + "and cluster of type and parameter list.")
     public void initialize(List<String> names) {
 		// load devices from the registry
 		initialize(names, names);
@@ -188,7 +188,7 @@ public class QubitContext extends AbstractServerContext {
 		initialize(template);
 	}
 	
-	@SettingOverload
+	//@SettingOverload
     public void initialize(long high, long low) {
 		// copy the experiment defined in another context
 		QubitContext ctx = (QubitContext)getServerContext(new Context(low, high));
@@ -389,8 +389,8 @@ public class QubitContext extends AbstractServerContext {
     }
     
     @SettingOverload
-    public void mem_call_sram(String block1, String block2, @Accepts("v[ns]") double delay) {
-    	getExperiment().callSramDualBlock(block1, block2, delay);
+    public void mem_call_sram(String block1, String block2) {
+    	getExperiment().callSramDualBlock(block1, block2);
     }
     
     
@@ -435,6 +435,16 @@ public class QubitContext extends AbstractServerContext {
    		    	 + "after deconvolution.")
     public void new_sram_block(String name, long length) {
     	getExperiment().startSramBlock(name, length);
+    }
+    
+    @Setting(id = 401,
+    		 name = "SRAM Dual Block Delay",
+    		 doc = "Set the delay between the first and second blocks of a dual-block SRAM command."
+    			 + "\n\n"
+    			 + "Note that if dual-block SRAM is used in a given sequence, there can only be one "
+    			 + "such call, so that this command sets the delay regardless of the block names.")
+    public void sram_dual_block_delay(@Accepts("v[ns]") double delay) {
+    	getExperiment().setSramDualBlockDelay(delay);
     }
     
     
@@ -702,7 +712,7 @@ public class QubitContext extends AbstractServerContext {
    		     name = "Get Data Probs",
    		     doc = "Gets the raw timing data from the previous run")
     @Returns("*2b")
-    public Data get_data_cutoffs(@Accepts("*(*(v[us], v[us]))") Data cutoffs) {
+    public Data get_data_probs(@Accepts("*(*(v[us], v[us]))") Data cutoffs) {
     	// TODO apply cutoff ranges and 
     	return lastData;
     }

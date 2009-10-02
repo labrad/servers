@@ -62,7 +62,8 @@ public interface FpgaModel {
 	
 	
 	public void callSramBlock(String blockName);
-	public void callSramDualBlock(String block1, String block2, double delay);
+	public void callSramDualBlock(String block1, String block2);
+	public void setSramDualBlockDelay(double delay);
 	public boolean hasDualBlockSram();
 	
 	//
