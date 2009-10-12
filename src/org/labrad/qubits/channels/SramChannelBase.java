@@ -8,7 +8,7 @@ import org.labrad.qubits.resources.DacBoard;
 
 import com.google.common.collect.Maps;
 
-public abstract class SramChannelBase<T> implements SramChannel {
+public abstract class SramChannelBase<T> implements Channel {
 
 	String name = null;
 	Experiment expt = null;
@@ -50,10 +50,4 @@ public abstract class SramChannelBase<T> implements SramChannel {
 	//
 	
 	Map<String, T> blocks = Maps.newHashMap();
-	String currentBlock = null;
-	
-	@Override
-	public void startBlock(String name, long length) {
-		currentBlock = name;
-	}
 }

@@ -1,6 +1,5 @@
 package org.labrad.qubits.channeldata;
 
-import org.labrad.qubits.channels.Deconvolvable;
 import org.labrad.qubits.channels.IqChannel;
 
 

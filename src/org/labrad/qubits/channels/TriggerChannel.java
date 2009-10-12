@@ -40,14 +40,14 @@ public class TriggerChannel extends SramChannelBase<TriggerData> {
 		return triggerId;
 	}
 	
-	public void addData(TriggerData data) {
-		int expected = expt.getBlockLength(currentBlock);
+	public void addData(String block, TriggerData data) {
+		int expected = expt.getBlockLength(block);
 		data.checkLength(expected);
-		blocks.put(currentBlock, data);
+		blocks.put(block, data);
 	}
 
-	public void addPulse(int start, int len) {
-		boolean[] data = getSramData(currentBlock);
+	public void addPulse(String block, int start, int len) {
+		boolean[] data = getSramData(block);
 		start = Math.max(0, start);
 		int end = Math.min(data.length, start + len);
 		for (int i = start; i < end; i++) {

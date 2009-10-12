@@ -8,7 +8,8 @@ public class MicrowaveSourceOffConfig implements MicrowaveSourceConfig {
 
 	@Override
 	public double getFrequency() {
-		throw new RuntimeException("Microwaves are off");
+		return 6.0; // return a default frequency for the sake of deconvolution
+		//throw new RuntimeException("Microwaves are off");
 	}
 
 	@Override

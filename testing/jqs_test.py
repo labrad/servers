@@ -62,7 +62,7 @@ twoQubitsWithRes = {
 flatten = lambda devs: [(n, list(ch.items())) for n, ch in devs.items()]
 
 with labrad.connect() as cxn:
-    qs = cxn.qubit_server
+    qs = cxn.qubit_sequencer
 
     # test out a standard sequence
     # start a new sequence
@@ -104,7 +104,8 @@ with labrad.connect() as cxn:
             qs.sram_analog_data(q, [0] * 20)
         
     # go for it!
-    a = qs.run(300L)
+    qs.build_sequence(300L)
+    a = qs.run()
     for s, d in a:
         print ('%s:' % s), d
 
@@ -154,7 +155,8 @@ with labrad.connect() as cxn:
             qs.sram_analog_data(q, [0] * 20)
         
     # go for it!
-    a = qs.run(300)
+    qs.build_sequence(300)
+    a = qs.run()
     for s, d in a:
         print ('%s:' % s), d
         
@@ -202,7 +204,8 @@ with labrad.connect() as cxn:
             qs.sram_analog_data(q, [0, 1, -1, 0])
     
     # go for it!
-    a = qs.run(300)
+    qs.build_sequence(300)
+    a = qs.run()
     for s, d in a:
         print ('%s:' % s), d
 
@@ -260,7 +263,8 @@ with labrad.connect() as cxn:
         
     # go for it!
     p = cxn.qubit_server.packet()
-    p.run(300, key='data')
+    p.build_sequence(300)
+    p.run(key='data')
     count = 0
     import time
     start = time.time()

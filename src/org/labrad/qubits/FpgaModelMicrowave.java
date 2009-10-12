@@ -1,29 +1,55 @@
 package org.labrad.qubits;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.Future;
 
+import org.labrad.qubits.channeldata.Deconvolvable;
 import org.labrad.qubits.channels.IqChannel;
-import org.labrad.qubits.resources.DacBoard;
+import org.labrad.qubits.proxies.DeconvolutionProxy;
+import org.labrad.qubits.resources.MicrowaveBoard;
+import org.labrad.qubits.resources.MicrowaveSource;
+import org.labrad.qubits.util.Futures;
+
+import com.google.common.collect.Lists;
 
 public class FpgaModelMicrowave extends FpgaModelBase {
 	
+	private MicrowaveBoard microwaveBoard;
 	private IqChannel iq = null;
 
-	public FpgaModelMicrowave(DacBoard dacBoard, Experiment expt) {
+	public FpgaModelMicrowave(MicrowaveBoard dacBoard, Experiment expt) {
 		super(dacBoard, expt);
+		microwaveBoard = dacBoard;
+		// create a dummy channel for this board
+		IqChannel dummy = new IqChannel("dummy_iq");
+		dummy.setExperiment(expt);
+		dummy.setDacBoard(dacBoard);
+		dummy.setMicrowaveSource(dacBoard.getMicrowaveSource());
+		dummy.setFpgaModel(this);
 	}
 	
 	public void setIqChannel(IqChannel iq) {
 		this.iq = iq;
 	}
 	
-	@Override
-	protected boolean hasDacChannels() {
-		return (iq != null);
-	}
-	
 	public IqChannel getIqChannel() {
 		return iq;
+	}
+	
+	public MicrowaveSource getMicrowaveSource() {
+		return microwaveBoard.getMicrowaveSource();
+	}
+	
+	public Future<Void> deconvolveSram(DeconvolutionProxy deconvolver) {
+		List<Future<Void>> deconvolutions = Lists.newArrayList();
+		for (String blockName : expt.getBlockNames()) {
+			Deconvolvable block = iq.getBlockData(blockName);
+			if (!block.isDeconvolved()) {
+				deconvolutions.add(block.deconvolve(deconvolver));
+			}
+		}
+		return Futures.waitForAll(deconvolutions);
 	}
 	
 	/**

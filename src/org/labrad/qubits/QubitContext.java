@@ -3,6 +3,7 @@ package org.labrad.qubits;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 import org.labrad.AbstractServerContext;
 import org.labrad.annotations.Accepts;
@@ -21,21 +22,25 @@ import org.labrad.qubits.channeldata.IqDataTime;
 import org.labrad.qubits.channeldata.TriggerDataTime;
 import org.labrad.qubits.channels.AnalogChannel;
 import org.labrad.qubits.channels.Channel;
-import org.labrad.qubits.channels.DeconvolvableSramChannel;
 import org.labrad.qubits.channels.FastBiasChannel;
 import org.labrad.qubits.channels.IqChannel;
 import org.labrad.qubits.channels.PreampChannel;
 import org.labrad.qubits.channels.TriggerChannel;
 import org.labrad.qubits.config.MicrowaveSourceConfig;
+import org.labrad.qubits.config.MicrowaveSourceOffConfig;
 import org.labrad.qubits.config.SetupPacket;
 import org.labrad.qubits.enums.BiasCommandType;
+import org.labrad.qubits.enums.DacTriggerId;
 import org.labrad.qubits.mem.FastBiasCommands;
 import org.labrad.qubits.mem.MemoryCommand;
+import org.labrad.qubits.proxies.DeconvolutionProxy;
+import org.labrad.qubits.proxies.RegistryProxy;
 import org.labrad.qubits.resources.MicrowaveSource;
 import org.labrad.qubits.resources.Resources;
 import org.labrad.qubits.templates.ExperimentBuilder;
 import org.labrad.qubits.util.ComplexArray;
-import org.labrad.qubits.util.PacketResultHandler;
+import org.labrad.qubits.util.Failure;
+import org.labrad.qubits.util.Futures;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ArrayListMultimap;
@@ -46,6 +51,7 @@ import com.google.common.collect.Maps;
 
 public class QubitContext extends AbstractServerContext {
 
+	@SuppressWarnings("unused")
 	private ExperimentBuilder builder = null;
 	private final Object builderLock = new Object();
 	private Experiment expt = null;
@@ -73,12 +79,14 @@ public class QubitContext extends AbstractServerContext {
 	/**
 	 * Get the currently-defined experiment builder.
 	 */
+	/*
 	private ExperimentBuilder getExperimentBuilder() {
 		synchronized (builderLock) {
 			Preconditions.checkNotNull(builder, "No sequence initialized in this context.");
 			return builder;
 		}
 	}
+	*/
 	
 	/**
 	 * Set the current experiment to a new one when one is created.
@@ -153,6 +161,29 @@ public class QubitContext extends AbstractServerContext {
 					records);
 	}
 	
+	/**
+	 * Check the structure of a data object passed in as a setup packet
+	 */
+	private void checkSetupPacket(Data packet) {
+		if (!packet.matchesType("(ww)s?")) {
+			Failure.fail("Setup packet has invalid format: "
+					     + "Expected ((ww) s ?{records}) but got %s.", packet.getTag());
+		}
+		Data records = packet.get(2);
+		if (!records.isCluster()) {
+			Failure.fail("Setup packet has invalid format: "
+					     + "Expected a cluster of records but got %s.", records.getTag());
+		}
+		for (int i = 0; i < records.getClusterSize(); i++) {
+			Data record = records.get(i);
+			if (!record.matchesType("s?")) {
+				Failure.fail("Setup packet has invalid format: "
+						     + "Expected a cluster of (s{setting} ?{data}) for record %d but got %s",
+						     i, record.getTag());
+			}
+		}
+	}
+	
 	//
 	// Experiment
 	//
@@ -161,12 +192,13 @@ public class QubitContext extends AbstractServerContext {
 			 name = "Initialize",
 			 doc = "Initialize a new sequence with the given device and channel setup."
 				 + "\n\n"
-				 + "The setup can be specified in a number of different ways. "
-				 + "If you specify a list of string names, devices with those names "
-				 + "will be loaded from the standard registry location "
-				 + "['', 'Servers', 'Qubit Server', 'Devices'].  You can alternately specify "
-				 + "a second list of strings which will be used as aliases for those devices "
-				 + "in this context."
+				 + "You can specify a path and a list of string names.  Devices with those names "
+				 + "will be loaded from the registry at the specified path, relative to "
+				 + "the current directory in this context.  You can optionally specify "
+				 + "another list of strings to be used as aliases for those devices "
+				 + "in this context.  For example, in the registry we might have devices called "
+				 + "['Fridge qubit A', 'Fridge qubit B',...], but we could alias them for a "
+				 + "particular experiment to be called ['q0', 'q1',...]."
 				 + "\n\n"
 				 //+ "The other possibility is to specify another context from which to copy "
 				 //+ "the setup.  This will copy only the device and channel definitions, not "
@@ -176,25 +208,22 @@ public class QubitContext extends AbstractServerContext {
 				 + "You do this by giving a list of devices, where each device is a cluster "
 				 + "of name and channel list, and where each channel is a cluster of name "
 				 + "and cluster of type and parameter list.")
-    public void initialize(List<String> names) {
+    public void initialize(List<String> path, List<String> names) {
 		// load devices from the registry
-		initialize(names, names);
+		initialize(path, names, names);
 	}
-
 	@SettingOverload
-    public void initialize(List<String> names, List<String> aliases) {
+    public void initialize(List<String> path, List<String> names, List<String> aliases) {
 		// load devices from the registry, but call them by different names
-		Data template = Registry.loadDevices(names, aliases, getConnection(), getContext());
+		Data template = RegistryProxy.loadDevices(path, names, aliases, getConnection(), getContext());
 		initialize(template);
 	}
-	
 	//@SettingOverload
-    public void initialize(long high, long low) {
-		// copy the experiment defined in another context
-		QubitContext ctx = (QubitContext)getServerContext(new Context(low, high));
-		initialize(ctx.getExperimentBuilder());
-	}
-	
+    //public void initialize(long high, long low) {
+	//	// copy the experiment defined in another context
+	//	QubitContext ctx = (QubitContext)getServerContext(new Context(low, high));
+	//	initialize(ctx.getExperimentBuilder());
+	//}
 	@SettingOverload
     public void initialize(@Accepts("*(s{dev} *(s{chan} (s{type} *s{params})))") Data template) {
 		// build experiment directly from a template
@@ -233,11 +262,10 @@ public class QubitContext extends AbstractServerContext {
     public void config_microwaves(@Accepts({"s", "ss"}) Data id,
     		                      @Accepts("v[GHz]") double freq,
     		                      @Accepts("v[dBm]") double power) {
-    	// turn the microwave source on , set the power level and frequency
+    	// turn the microwave source on, set the power level and frequency
     	IqChannel ch = getChannel(id, IqChannel.class);
     	ch.configMicrowavesOn(freq, power);
 	}
-    
     @SettingOverload
     public void config_microwaves(@Accepts({"s", "ss"}) Data id) {
     	// turn the microwave source off
@@ -297,10 +325,31 @@ public class QubitContext extends AbstractServerContext {
 	public void config_setup_packets(List<String> states, Data packets) {
 		List<Data> packetList = Lists.newArrayList();
 		for (int i = 0; i < packets.getClusterSize(); i++) {
-			// TODO add sanity check on the packet structure
-			packetList.add(packets.get(i));
+			Data packet = packets.get(i);
+			checkSetupPacket(packet);
+			packetList.add(packet);
 		}
 		getExperiment().setSetupState(states, packetList);
+	}
+	
+	@Setting(id = 260,
+			 name = "Config Autotrigger",
+			 doc = "Configure automatic inclusion of a trigger pulse on every SRAM sequence."
+				 + "\n\n"
+				 + "Specifying a trigger channel name (e.g. 'S3') will cause a trigger pulse "
+				 + "to be automatically added to that channel on every board at the beginning of "
+				 + "every SRAM sequence.  This can be very helpful when viewing and debugging "
+				 + "SRAM output on the sampling scope, for example."
+				 + "\n\n"
+				 + "You can also specify an optional length for the trigger pulse, which will "
+				 + "be rounded to the nearest ns.  If no length is specified, the default (16 ns) "
+				 + "will be used.")
+	public void config_autotrigger(String channel) {
+		config_autotrigger(channel, Constants.AUTOTRIGGER_PULSE_LENGTH);
+	}
+	@SettingOverload
+	public void config_autotrigger(String channel, @Accepts("v[ns]") double length) {
+		getExperiment().setAutoTrigger(DacTriggerId.fromString(channel), (int)length);
 	}
 	
 	/*
@@ -339,12 +388,22 @@ public class QubitContext extends AbstractServerContext {
              name = "Mem Bias",
              doc = "Adds Bias box commands to the specified channels."
             	 + "\n\n"
-            	 + "If no final delay is specified, a default delay will be added "
-            	 + "(currently 4.3 microseconds).")
+            	 + "Each bias command is specified as a cluster of channel, command "
+            	 + "name, and voltage level.  As for other settings, the channel can "
+            	 + "be specified as either a device name, or a (device, channel) cluster, "
+            	 + "where the first option is allowed only when there is no ambiguity, "
+            	 + "that is, when there is only one bias channel for the device."
+            	 + "\n\n"
+            	 + "The command name specifies which DAC and mode are to be used for this "
+            	 + "bias command.  Allowed values are 'dac0', 'dac0noselect', 'dac1', and 'dac1slow'.  "
+            	 + "See the FastBias documentation for information about these options."
+            	 + "\n\n"
+            	 + "A final delay can be specified to have a delay command added after the bias "
+            	 + "commands on all memory sequences.  If no final delay is specified, a default "
+            	 + "delay will be added (currently 4.3 microseconds).")
     public void mem_bias(@Accepts({"*(s s v[mV])", "*((ss) s v[mV])"}) List<Data> commands) {
     	mem_bias(commands, Constants.DEFAULT_BIAS_DELAY);
     }
-    
     @SettingOverload
     public void mem_bias(@Accepts({"*(s s v[mV])", "*((ss) s v[mV])"}) List<Data> commands,
     		             @Accepts("v[us]") double microseconds) {
@@ -353,16 +412,14 @@ public class QubitContext extends AbstractServerContext {
     	
     	// parse the commands and group them for each fpga
     	for (Data cmd : commands) {
-    		FastBiasChannel fb = getChannel(cmd.get(0), FastBiasChannel.class);
+    		FastBiasChannel ch = getChannel(cmd.get(0), FastBiasChannel.class);
     		BiasCommandType type = BiasCommandType.fromString(cmd.get(1).getString());
     		double voltage = cmd.get(2).getValue();
-    		FpgaModel fpga = fb.getFpgaModel();
-    		fpgas.put(fpga, FastBiasCommands.get(type, fb, voltage));
+    		fpgas.put(ch.getFpgaModel(), FastBiasCommands.get(type, ch, voltage));
     	}
     	
     	getExperiment().addBiasCommands(fpgas, microseconds);
     }
-    
     
     @Setting(id = 320,
     		 name = "Mem Delay",
@@ -370,7 +427,7 @@ public class QubitContext extends AbstractServerContext {
     public void mem_delay(@Accepts("v[us]") double delay) {
     	getExperiment().addMemoryDelay(delay);
     }
-
+    
     @Setting(id = 330,
    		     name = "Mem Call SRAM",
    		     doc = "Call the SRAM block specified by name."
@@ -379,20 +436,15 @@ public class QubitContext extends AbstractServerContext {
    		    	 + "so the SRAM blocks do not have to be defined when this call is made."
    		    	 + "\n\n"
    		    	 + "If running a dual-block SRAM sequence, you must provide the names "
-   		    	 + "of the first and second blocks, as well as a delay time between the "
-   		    	 + "END of the first block and the START of the second block.  Note that "
-   		    	 + "this delay will be rounded to the nearest integral number of nanoseconds "
-   		    	 + "which may give unexpected results if the delay is converted from another "
-   		    	 + "unit of time.")
+   		    	 + "of the first and second blocks (the delay between the END of the first block "
+   		    	 + "and the START of the second block must be specified separately).")
     public void mem_call_sram(String block) {
     	getExperiment().callSramBlock(block);
     }
-    
     @SettingOverload
     public void mem_call_sram(String block1, String block2) {
     	getExperiment().callSramDualBlock(block1, block2);
     }
-    
     
 	@Setting(id = 340,
 			 name = "Mem Start Timer",
@@ -421,6 +473,8 @@ public class QubitContext extends AbstractServerContext {
     // SRAM
     //
 
+    private String currentBlock;
+    
     /**
      * Start a new named SRAM block.
      */
@@ -431,10 +485,11 @@ public class QubitContext extends AbstractServerContext {
    		    	 + "All subsequent SRAM calls will affect this block, until a new block "
    		    	 + "is created.  If you do not provide SRAM data for a particular channel, "
    		    	 + "it will be filled with zeros (and deconvolved).  If the length is not "
-   		    	 + "a multiple of 4, the data will be padded at the beginning "
-   		    	 + "after deconvolution.")
+   		    	 + "a multiple of 4, the data will be padded at the beginning after "
+   		    	 + "deconvolution.")
     public void new_sram_block(String name, long length) {
     	getExperiment().startSramBlock(name, length);
+    	currentBlock = name;
     }
     
     @Setting(id = 401,
@@ -442,7 +497,10 @@ public class QubitContext extends AbstractServerContext {
     		 doc = "Set the delay between the first and second blocks of a dual-block SRAM command."
     			 + "\n\n"
     			 + "Note that if dual-block SRAM is used in a given sequence, there can only be one "
-    			 + "such call, so that this command sets the delay regardless of the block names.")
+    			 + "such call, so that this command sets the delay regardless of the block names.  "
+    			 + "Also note that this delay will be rounded to the nearest integral number of "
+    			 + "nanoseconds which may give unexpected results if the delay is converted from "
+    			 + "another unit of time.")
     public void sram_dual_block_delay(@Accepts("v[ns]") double delay) {
     	getExperiment().setSramDualBlockDelay(delay);
     }
@@ -465,14 +523,13 @@ public class QubitContext extends AbstractServerContext {
     		                 @Accepts("*c") Data vals) {
     	sram_iq_data(id, vals, true);
     }
-    
     @SettingOverload
     public void sram_iq_data(@Accepts({"s", "ss"}) Data id,
     		                 @Accepts("*c") Data vals,
     		                 boolean deconvolve) {
     	IqChannel ch = getChannel(id, IqChannel.class);
     	ComplexArray c = ComplexArray.fromData(vals);
-    	ch.addData(new IqDataTime(c, !deconvolve));
+    	ch.addData(currentBlock, new IqDataTime(c, !deconvolve));
     }
     
     
@@ -492,7 +549,7 @@ public class QubitContext extends AbstractServerContext {
     		                         @Accepts("v[ns]") double t0) {
     	IqChannel ch = getChannel(id, IqChannel.class);
     	ComplexArray c = ComplexArray.fromData(vals);
-    	ch.addData(new IqDataFourier(c, t0));
+    	ch.addData(currentBlock, new IqDataFourier(c, t0));
     }
     
     
@@ -510,14 +567,13 @@ public class QubitContext extends AbstractServerContext {
     		                     @Accepts("*v") Data vals) {
     	sram_analog_data(id, vals, true);
     }
-    
     @SettingOverload
     public void sram_analog_data(@Accepts({"s", "ss"}) Data id,
     		                     @Accepts("*v") Data vals,
     		                     boolean deconvolve) {
     	AnalogChannel ch = getChannel(id, AnalogChannel.class);
     	double[] arr = vals.getValueArray();
-    	ch.addData(new AnalogDataTime(arr, !deconvolve));
+    	ch.addData(currentBlock, new AnalogDataTime(arr, !deconvolve));
     }
     
     
@@ -536,7 +592,7 @@ public class QubitContext extends AbstractServerContext {
     		                             @Accepts("v[ns]") double t0) {
     	AnalogChannel ch = getChannel(id, AnalogChannel.class);
 		ComplexArray c = ComplexArray.fromData(vals);
-		ch.addData(new AnalogDataFourier(c, t0));
+		ch.addData(currentBlock, new AnalogDataFourier(c, t0));
     } 
     
     
@@ -548,19 +604,22 @@ public class QubitContext extends AbstractServerContext {
     public void sram_trigger_data(@Accepts({"s", "ss"}) Data id,
     		                      @Accepts("*b") Data data) {
     	TriggerChannel ch = getChannel(id, TriggerChannel.class);
-    	ch.addData(new TriggerDataTime(data.getBoolArray()));
+    	ch.addData(currentBlock, new TriggerDataTime(data.getBoolArray()));
     }
 
     @Setting(id = 431,
    		     name = "SRAM Trigger Pulses",
-   		     doc = "Set trigger data as a series of pulses for the specified trigger channel")
+   		     doc = "Set trigger data as a series of pulses for the specified trigger channel"
+   		    	 + "\n\n"
+   		    	 + "Each pulse is given as a cluster of (start, length) values, "
+   		    	 + "specified in nanoseconds.")
     public void sram_trigger_pulses(@Accepts({"s", "ss"}) Data id,
     		                        @Accepts("*(v[ns] v[ns])") List<Data> pulses) {
     	TriggerChannel ch = getChannel(id, TriggerChannel.class);
     	for (Data pulse : pulses) {
     		int start = (int)pulse.get(0).getValue();
     		int length = (int)pulse.get(1).getValue();
-    		ch.addPulse(start, length);
+    		ch.addPulse(currentBlock, start, length);
     	}
     }
     
@@ -600,6 +659,13 @@ public class QubitContext extends AbstractServerContext {
     					"Conflicting microwave configurations for source '%s'", src.getName());
     		}
     	}
+    	// loop over microwave boards, and turn off the microwave source for any boards whose source is not configured
+    	for (FpgaModelMicrowave fpga : getExperiment().getMicrowaveFpgas()) {
+    		MicrowaveSource src = fpga.getMicrowaveSource();
+    		if (!uwaveConfigs.containsKey(src)) {
+    			uwaveConfigs.put(src, new MicrowaveSourceOffConfig());
+    		}
+    	}
     	
     	
     	//
@@ -632,18 +698,14 @@ public class QubitContext extends AbstractServerContext {
     	// deconvolve SRAM sequences
     	//
     	
-    	// build a packet for the deconvolution server
-    	Request deconvRequest = Request.to(Constants.DECONVOLUTION_SERVER);
-    	List<PacketResultHandler> handlers = Lists.newArrayList();
-    	for (DeconvolvableSramChannel ch : expt.getChannels(DeconvolvableSramChannel.class)) {
-    		handlers.add(ch.requestDeconvolution(deconvRequest));
+    	// this is the new-style deconvolution routine which sends all deconvolution requests in separate packets
+    	// TODO allow these deconvolution requests to be packetized, if that will increase performance
+    	DeconvolutionProxy deconvolver = new DeconvolutionProxy(getConnection());
+    	List<Future<Void>> deconvolutions = Lists.newArrayList();
+    	for (FpgaModel fpga : expt.getFpgas()) {
+    		deconvolutions.add(fpga.deconvolveSram(deconvolver));
     	}
-    	// send deconvolution request
-    	List<Data> ans = getConnection().sendAndWait(deconvRequest);
-    	// unpack deconvolved data and save it
-    	for (PacketResultHandler handler : handlers) {
-    		handler.handleResult(ans);
-    	}
+    	Futures.waitForAll(deconvolutions).get();
     	
     	
     	//
@@ -655,19 +717,16 @@ public class QubitContext extends AbstractServerContext {
     	// upload all memory and SRAM data
     	for (FpgaModel fpga : expt.getFpgas()) {
     		runRequest.add("Select Device", Data.valueOf(fpga.getName()));
-    		if (fpga.hasSramChannels()) {
-	    		if (fpga.hasDualBlockSram()) {
-	    			runRequest.add("SRAM dual block",
-	    					Data.clusterOf(
-	    						Data.valueOf(fpga.getSramDualBlock1()),
-	    						Data.valueOf(fpga.getSramDualBlock2()),
-	    						Data.valueOf(fpga.getSramDualBlockDelay())));
-	    		} else {
-	    			runRequest.add("SRAM Address", Data.valueOf(0L));
-	    			runRequest.add("SRAM", Data.valueOf(fpga.getSram()));
-	    		}
-    		}
     		runRequest.add("Memory", Data.valueOf(fpga.getMemory()));
+    		if (fpga.hasDualBlockSram()) {
+    			runRequest.add("SRAM dual block",
+    					Data.valueOf(fpga.getSramDualBlock1()),
+    					Data.valueOf(fpga.getSramDualBlock2()),
+    					Data.valueOf(fpga.getSramDualBlockDelay()));
+    		} else {
+    			runRequest.add("SRAM Address", Data.valueOf(0L));
+    			runRequest.add("SRAM", Data.valueOf(fpga.getSram()));
+    		}
     	}  
     	
     	// set up daisy chain and timing order
@@ -675,18 +734,11 @@ public class QubitContext extends AbstractServerContext {
     	runRequest.add("Timing Order", Data.listOf(expt.getTimingOrder(), Setters.stringSetter));
 
     	// run the sequence
-    	Data sequenceArgs;
-        if (setupPackets.size() == 0) {
-    		sequenceArgs = Data.valueOf(reps);
-    	} else {
-    		sequenceArgs = Data.clusterOf(
-    				Data.valueOf(reps),
-    				Data.valueOf(true),
-    				Data.clusterOf(setupPackets),
-    				Data.listOf(setupState, Setters.stringSetter)
-    		);
-    	}
-        dataIndex = runRequest.addRecord("Run Sequence", sequenceArgs);
+        dataIndex = runRequest.addRecord("Run Sequence",
+        				Data.valueOf(reps),
+        		        Data.valueOf(true), // return timing results
+        		        Data.clusterOf(setupPackets),
+        		        Data.listOf(setupState, Setters.stringSetter));
     	nextRequest = runRequest;
     }
     
@@ -713,7 +765,7 @@ public class QubitContext extends AbstractServerContext {
    		     doc = "Gets the raw timing data from the previous run")
     @Returns("*2b")
     public Data get_data_probs(@Accepts("*(*(v[us], v[us]))") Data cutoffs) {
-    	// TODO apply cutoff ranges and 
+    	// TODO apply cutoff ranges and convert to probabilities
     	return lastData;
     }
     
@@ -725,8 +777,8 @@ public class QubitContext extends AbstractServerContext {
     //
     
     @Setting(id = 2001,
-   		 name = "Dump Sequence Packet",
-   		 doc = "Returns a representation of the packet to be sent to the GHz DACs server.")
+   		     name = "Dump Sequence Packet",
+   		     doc = "Returns a representation of the packet to be sent to the GHz DACs server.")
     public Data dump_packet() {
     	List<Data> records = Lists.newArrayList();
         for (Record r : nextRequest.getRecords()) {

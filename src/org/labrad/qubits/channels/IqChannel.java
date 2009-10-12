@@ -12,7 +12,7 @@ import org.labrad.qubits.util.ComplexArray;
 
 import com.google.common.base.Preconditions;
 
-public class IqChannel extends DeconvolvableSramChannelBase<IqData> {
+public class IqChannel extends SramChannelBase<IqData> {
 
 	private MicrowaveSource uwaveSrc = null;
 	private MicrowaveSourceConfig uwaveConfig;
@@ -39,23 +39,24 @@ public class IqChannel extends DeconvolvableSramChannelBase<IqData> {
 		uwaveSrc = src;
 	}
 	
-	public void addData(IqData data) {
-		int expected = expt.getBlockLength(currentBlock);
+	public void addData(String block, IqData data) {
+		int expected = expt.getBlockLength(block);
 		data.setChannel(this);
 		data.checkLength(expected);
-		blocks.put(currentBlock, data);
+		blocks.put(block, data);
 	}
 	
-	protected IqData getBlockData(String name) {
-		IqData d = blocks.get(name);
-		if (d == null) {
+	public IqData getBlockData(String name) {
+		IqData data = blocks.get(name);
+		if (data == null) {
 			// create a dummy data set with zeros
 			int expected = expt.getBlockLength(name);
 			double[] zeros = new double[expected];
-			d = new IqDataFourier(new ComplexArray(zeros, zeros), 0);
-			d.setChannel(this);
+			data = new IqDataFourier(new ComplexArray(zeros, zeros), 0);
+			data.setChannel(this);
+			blocks.put(name, data);
 		}
-		return d;
+		return data;
 	}
 	
 	public int[] getSramDataA(String name) {
@@ -74,6 +75,7 @@ public class IqChannel extends DeconvolvableSramChannelBase<IqData> {
 	
 	public void configMicrowavesOn(double freq, double power) {
 		uwaveConfig = new MicrowaveSourceOnConfig(freq, power);
+		// FIXME need to mark all blocks as needing deconvolution when config changes
 	}
 	
 	public void configMicrowavesOff() {

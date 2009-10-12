@@ -48,16 +48,6 @@ public abstract class FpgaModelBase implements FpgaModel {
 	// Wiring
 	//
 	
-	public boolean hasSramChannels() {
-		return hasDacChannels() || hasTriggerChannels();
-	}
-
-	protected abstract boolean hasDacChannels();
-
-	protected boolean hasTriggerChannels() {
-		return !triggers.isEmpty();
-	}
-	
 	public void setTriggerChannel(DacTriggerId id, TriggerChannel ch) {
 		triggers.put(id, ch);
 	}
@@ -276,7 +266,7 @@ public abstract class FpgaModelBase implements FpgaModel {
 	 */
 	public long[] getSramDualBlock2() {
 		Preconditions.checkState(sramCalledDualBlock, "Sequence does not have a dual-block SRAM call");
-		return getSramBlock(sramDualBlockCmd.getBlockName2());
+		return getSramBlock(sramDualBlockCmd.getBlockName2(), false); // no autotrigger on second block
 	}
 	
 	/**
@@ -294,8 +284,17 @@ public abstract class FpgaModelBase implements FpgaModel {
 	 * @return
 	 */
 	private long[] getSramBlock(String block) {
+		return getSramBlock(block, true);
+	}
+	
+	/**
+	 * Get the SRAM bits for a particular block.
+	 * @param block
+	 * @return
+	 */
+	private long[] getSramBlock(String block, boolean addAutoTrigger) {
 		long[] sram = getSramDacBits(block);
-		setTriggerBits(sram, block);
+		setTriggerBits(sram, block, addAutoTrigger);
 		return sram;
 	}
 	
@@ -313,9 +312,14 @@ public abstract class FpgaModelBase implements FpgaModel {
 	 * @param s
 	 * @param block
 	 */
-	private void setTriggerBits(long[] s, String block) {
+	private void setTriggerBits(long[] s, String block, boolean addAutoTrigger) {
 		for (TriggerChannel ch : triggers.values()) {
 			boolean[] trigs = ch.getSramData(block);
+			if (addAutoTrigger && (expt.getAutoTriggerId() == ch.getTriggerId())) {
+				for (int i = 4; i < 4 + expt.getAutoTriggerLen(); i++) {
+					if (i < trigs.length - 1) trigs[i] = true;
+				}
+			}
 			long bit = 1L << ch.getShift();
 			for (int i = 0; i < s.length; i++) {
 				s[i] |= trigs[i] ? bit : 0;

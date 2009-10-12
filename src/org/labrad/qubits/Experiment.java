@@ -7,7 +7,7 @@ import java.util.Set;
 import org.labrad.data.Data;
 import org.labrad.qubits.channels.Channel;
 import org.labrad.qubits.channels.PreampChannel;
-import org.labrad.qubits.channels.SramChannel;
+import org.labrad.qubits.enums.DacTriggerId;
 import org.labrad.qubits.mem.MemoryCommand;
 import org.labrad.qubits.resources.AnalogBoard;
 import org.labrad.qubits.resources.DacBoard;
@@ -46,9 +46,9 @@ public class Experiment {
 			FpgaModel fpga = boards.get(board);
 			if (fpga == null) {
 				if (board instanceof AnalogBoard) {
-					fpga = new FpgaModelAnalog(board, this);
+					fpga = new FpgaModelAnalog((AnalogBoard)board, this);
 				} else if (board instanceof MicrowaveBoard) {
-					fpga = new FpgaModelMicrowave(board, this);
+					fpga = new FpgaModelMicrowave((MicrowaveBoard)board, this);
 				} else {
 					throw new RuntimeException("Unknown DAC board type for board " + board.getName());
 				}
@@ -113,7 +113,7 @@ public class Experiment {
 	private final Set<FpgaModel> timerFpgas = Sets.newHashSet();
 	private final Set<FpgaModel> nonTimerFpgas = Sets.newHashSet();
 	
-	public void addFpga(FpgaModel fpga) {
+	private void addFpga(FpgaModel fpga) {
 		fpgas.add(fpga);
 	}
 	
@@ -132,6 +132,16 @@ public class Experiment {
 		return Sets.newHashSet(nonTimerFpgas);
 	}
 	
+	public Set<FpgaModelMicrowave> getMicrowaveFpgas() {
+		Set<FpgaModelMicrowave> fpgas = Sets.newHashSet();
+		for (FpgaModel fpga : this.fpgas) {
+			if (fpga instanceof FpgaModelMicrowave) {
+				fpgas.add((FpgaModelMicrowave)fpga);
+			}
+		}
+		return fpgas;
+	}
+	
 	public List<String> getFpgaNames() {
 		List<String> boardsToRun = Lists.newArrayList();
 		for (FpgaModel fpga : fpgas) {
@@ -143,6 +153,8 @@ public class Experiment {
 	private final List<Data> setupPackets = Lists.newArrayList();
 	private final List<String> setupState = Lists.newArrayList();
 	private List<PreampChannel> timingOrder = null;
+	private DacTriggerId autoTriggerId = null;
+	private int autoTriggerLen = 0;
 	
 	/**
 	 * Clear all configuration that has been set for this experiment
@@ -153,6 +165,9 @@ public class Experiment {
 		
 		// clear timing order
 		timingOrder = null;
+		
+		// clear autotrigger
+		autoTriggerId = null;
 		
 		// clear configuration on all channels
 		for (Device dev : getDevices()) {
@@ -180,6 +195,19 @@ public class Experiment {
 	
 	public List<Data> getSetupPackets() {
 		return Lists.newArrayList(setupPackets);
+	}
+	
+	public void setAutoTrigger(DacTriggerId id, int length) {
+		autoTriggerId = id;
+		autoTriggerLen = length;
+	}
+	
+	public DacTriggerId getAutoTriggerId() {
+		return autoTriggerId;
+	}
+	
+	public int getAutoTriggerLen() {
+		return autoTriggerLen;
 	}
 	
 	public void setTimingOrder(List<PreampChannel> channels) {
@@ -252,7 +280,6 @@ public class Experiment {
 	/**
 	 * Call SRAM
 	 */
-	
 	public void callSramBlock(String block) {
 		for (FpgaModel fpga : getFpgas()) {
 			fpga.callSramBlock(block);
@@ -337,11 +364,6 @@ public class Experiment {
 	public void startSramBlock(String name, long length) {
 		blocks.add(name);
 		blockLengths.put(name, (int)length);
-		
-		// start a new block on each SRAM channel
-		for (SramChannel ch : getChannels(SramChannel.class)) {
-			ch.startBlock(name, length);
-		}
 	}
 	
 	public List<String> getBlockNames() {

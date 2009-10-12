@@ -24,7 +24,7 @@ public class ChannelBuilders {
 			case TRIGGER: return new TriggerChannelBuilder(name, params, resources);
 			case FASTBIAS: return new FastBiasChannelBuilder(name, params, resources);
 			case PREAMP: return new PreampChannelBuilder(name, params, resources);
-			default: throw new RuntimeException("No template for channel type: " + type);
+			default: throw new RuntimeException("Unknown channel type: " + type);
 		}
 	}
 }

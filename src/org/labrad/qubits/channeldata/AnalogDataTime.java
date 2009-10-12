@@ -1,12 +1,12 @@
 package org.labrad.qubits.channeldata;
 
-import java.util.List;
+import java.util.concurrent.Future;
 
-import org.labrad.data.Data;
-import org.labrad.data.Request;
 import org.labrad.qubits.channels.AnalogChannel;
-import org.labrad.qubits.util.PacketResultHandler;
+import org.labrad.qubits.proxies.DeconvolutionProxy;
+import org.labrad.qubits.util.Futures;
 
+import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 
 public class AnalogDataTime extends AnalogDataBase {
@@ -31,26 +31,17 @@ public class AnalogDataTime extends AnalogDataBase {
 	}
 	
 	@Override
-	public PacketResultHandler requestDeconvolution(Request req) {
-		Data iq = Data.ofType("*v");
-		iq.setArraySize(rawData.length);
-		for (int i = 0; i < rawData.length; i++) {
-			iq.setValue(rawData[i], i);
-		}
-		AnalogChannel channel = getChannel();
-		String board = channel.getDacBoard().getName();
-		double[] rates = channel.getSettlingRates();
-		double[] times = channel.getSettlingTimes();
-		req.add("Board", Data.valueOf(board));
-		req.add("DAC", Data.valueOf(channel.getDacId().toString()));
-		req.add("Set Settling", Data.clusterOf(Data.valueOf(rates), Data.valueOf(times)));
-		final int idx = req.addRecord("Correct", iq);
-		return new PacketResultHandler() {
-			public void handleResult(List<Data> data) {
-				deconvolvedData = data.get(idx).getIntArray();
+	public Future<Void> deconvolve(DeconvolutionProxy deconvolver) {
+		AnalogChannel ch = getChannel();
+		Future<int[]> req = deconvolver.deconvolveAnalog(ch.getDacBoard(), ch.getDacId(), rawData, ch.getSettlingRates(), ch.getSettlingTimes());
+		return Futures.chain(req, new Function<int[], Void>() {
+			@Override
+			public Void apply(int[] result) {
+				deconvolvedData = result;
 				setDeconvolved(true);
+				return null;
 			}
-		};
+		});
 	}
 	
 	@Override

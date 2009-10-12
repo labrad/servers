@@ -1,13 +1,14 @@
 package org.labrad.qubits.channeldata;
 
-import java.util.List;
+import java.util.concurrent.Future;
 
-import org.labrad.data.Data;
-import org.labrad.data.Request;
 import org.labrad.qubits.channels.IqChannel;
+import org.labrad.qubits.proxies.DeconvolutionProxy;
+import org.labrad.qubits.proxies.DeconvolutionProxy.IqResult;
 import org.labrad.qubits.util.ComplexArray;
-import org.labrad.qubits.util.PacketResultHandler;
+import org.labrad.qubits.util.Futures;
 
+import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 
 public class IqDataFourier extends IqDataBase {
@@ -26,23 +27,19 @@ public class IqDataFourier extends IqDataBase {
 	}
 	
 	@Override
-	public PacketResultHandler requestDeconvolution(Request req) {
-		IqChannel channel = getChannel();
-		String board = channel.getDacBoard().getName();
-		double freq = channel.getMicrowaveConfig().getFrequency();
-		req.add("Board", Data.valueOf(board));
-		req.add("Frequency", Data.valueOf(freq));
-		req.add("Loop", Data.valueOf(false));
-		req.add("Time Offset", Data.valueOf(t0));
-		final int idx = req.addRecord("Correct FT", data.toData());
-		return new PacketResultHandler() {
-			public void handleResult(List<Data> ans) {
-				Data data = ans.get(idx);
-				I = data.get(0).getIntArray();
-				Q = data.get(1).getIntArray();
+	public Future<Void> deconvolve(DeconvolutionProxy deconvolver) {
+		IqChannel ch = getChannel();
+		double freq = ch.getMicrowaveConfig().getFrequency();
+		Future<DeconvolutionProxy.IqResult> req = deconvolver.deconvolveIqFourier(ch.getDacBoard(), data, freq, t0);
+		return Futures.chain(req, new Function<DeconvolutionProxy.IqResult, Void>() {
+			@Override
+			public Void apply(IqResult result) {
+				I = result.I;
+				Q = result.Q;
 				setDeconvolved(true);
+				return null;
 			}
-		};
+		});
 	}
 	
 	@Override

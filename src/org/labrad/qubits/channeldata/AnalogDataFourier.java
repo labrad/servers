@@ -1,13 +1,13 @@
 package org.labrad.qubits.channeldata;
 
-import java.util.List;
+import java.util.concurrent.Future;
 
-import org.labrad.data.Data;
-import org.labrad.data.Request;
 import org.labrad.qubits.channels.AnalogChannel;
+import org.labrad.qubits.proxies.DeconvolutionProxy;
 import org.labrad.qubits.util.ComplexArray;
-import org.labrad.qubits.util.PacketResultHandler;
+import org.labrad.qubits.util.Futures;
 
+import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 
 public class AnalogDataFourier extends AnalogDataBase {
@@ -26,29 +26,19 @@ public class AnalogDataFourier extends AnalogDataBase {
 		LengthChecker.checkLengths(data.length, expectedFourier);
 	}
 	
-	/**
-	 * Add commands to deconvolve this block to a request headed for the
-	 * deconvolution server.  Returns an object that will handle the
-	 * deconvolved result when it is available.
-	 */
 	@Override
-	public PacketResultHandler requestDeconvolution(Request req) {
+	public Future<Void> deconvolve(DeconvolutionProxy deconvolver) {
 		AnalogChannel ch = getChannel();
-		String board = ch.getDacBoard().getName();
-		double[] rates = ch.getSettlingRates();
-		double[] times = ch.getSettlingTimes();
-		req.add("Board", Data.valueOf(board));
-		req.add("DAC", Data.valueOf(ch.getDacId().toString()));
-		req.add("Loop", Data.valueOf(false));
-		req.add("Set Settling", Data.clusterOf(Data.valueOf(rates), Data.valueOf(times)));
-		req.add("Time Offset", Data.valueOf(t0));
-		final int idx = req.addRecord("Correct FT", data.toData());
-		return new PacketResultHandler() {
-			public void handleResult(List<Data> data) {
-				deconvolvedData = data.get(idx).getIntArray();
+		Future<int[]> req = deconvolver.deconvolveAnalogFourier(ch.getDacBoard(), ch.getDacId(), data, t0, ch.getSettlingRates(), ch.getSettlingTimes());
+		return Futures.chain(req, new Function<int[], Void>() {
+			@Override
+			public Void apply(int[] result) {
+				deconvolvedData = result;
 				setDeconvolved(true);
+				return null;
 			}
-		};
+			
+		});
 	}
 	
 	@Override

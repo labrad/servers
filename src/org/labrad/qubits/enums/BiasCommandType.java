@@ -5,6 +5,11 @@ import java.util.Map;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 
+/**
+ * Allowed types for memory bias commands (implemented by the FastBias boards).
+ * Note that these types are also documented in the Mem Add Bias setting, so
+ * changes here should also be made in the docs for that setting.
+ */
 public enum BiasCommandType {
 	DAC0("dac0"),
 	DAC0_NOSELECT("dac0noselect"),

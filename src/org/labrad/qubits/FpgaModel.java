@@ -1,24 +1,24 @@
 package org.labrad.qubits;
 
 import java.util.List;
+import java.util.concurrent.Future;
 
 import org.labrad.qubits.channels.TriggerChannel;
 import org.labrad.qubits.enums.DacTriggerId;
 import org.labrad.qubits.mem.MemoryCommand;
+import org.labrad.qubits.proxies.DeconvolutionProxy;
 import org.labrad.qubits.resources.DacBoard;
 
 public interface FpgaModel {
 	
 	public String getName();
-	public DacBoard getDacBoard();
-	public boolean hasSramChannels();
-	
+	public DacBoard getDacBoard();	
 	
 	//
 	// SRAM
 	//
 	public void setTriggerChannel(DacTriggerId id, TriggerChannel ch);
-	
+	public Future<Void> deconvolveSram(DeconvolutionProxy deconvolver);
 	
 	//
 	// Memory

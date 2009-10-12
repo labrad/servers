@@ -3,6 +3,14 @@ package org.labrad.qubits.util;
 import org.labrad.data.Complex;
 import org.labrad.data.Data;
 
+/**
+ * A utility class that encapsulates an array of complex numbers.
+ * 
+ * This class is much more efficient than having an array of Complex objects
+ * because only two arrays need to be allocated, not one object per element
+ * in the array.  In addition, this class has convenience methods for converting
+ * to and from LabRAD data.
+ */
 public class ComplexArray {
 	public final double[] re;
 	public final double[] im;
@@ -12,7 +20,10 @@ public class ComplexArray {
 		this.im = im;
 		this.length = re.length;
 	}
-	
+
+	/**
+	 * Convert a complex array into LabRAD data of type *c
+	 */
 	public Data toData() {
 		Data iq = Data.ofType("*c");
 		iq.setArraySize(re.length);
@@ -22,6 +33,11 @@ public class ComplexArray {
 		return iq;
 	}
 	
+	/**
+	 * Create a complex array from LabRAD data of type *c
+	 * @param vals
+	 * @return
+	 */
 	public static ComplexArray fromData(Data vals) {
 		int len = vals.getArraySize();
 		double[] re = new double[len];
