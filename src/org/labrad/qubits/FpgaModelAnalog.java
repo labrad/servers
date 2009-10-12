@@ -33,6 +33,10 @@ public class FpgaModelAnalog extends FpgaModelBase {
 		}
 	}
 	
+	public AnalogBoard getAnalogBoard() {
+		return analogBoard;
+	}
+	
 	public void setAnalogChannel(DacAnalogId id, AnalogChannel ch) {
 		dacs.put(id, ch);
 	}
