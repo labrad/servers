@@ -14,76 +14,76 @@ import com.google.common.base.Preconditions;
 
 public class IqChannel extends SramChannelBase<IqData> {
 
-	private MicrowaveSource uwaveSrc = null;
-	private MicrowaveSourceConfig uwaveConfig;
-	
-	public IqChannel(String name) {
-		this.name = name;
-		clearConfig();
-	}
+  private MicrowaveSource uwaveSrc = null;
+  private MicrowaveSourceConfig uwaveConfig;
 
-	@Override
-	public void setFpgaModel(FpgaModel fpga) {
-		Preconditions.checkArgument(fpga instanceof FpgaModelMicrowave,
-			"IqChannel '%s' requires microwave board.", getName());
-		FpgaModelMicrowave fpgaMicrowave = (FpgaModelMicrowave)fpga; 
-		this.fpga = fpgaMicrowave;
-		fpgaMicrowave.setIqChannel(this);
-	}
-	
-	public MicrowaveSource getMicrowaveSource() {
-		return uwaveSrc;
-	}
-	
-	public void setMicrowaveSource(MicrowaveSource src) {
-		uwaveSrc = src;
-	}
-	
-	public void addData(String block, IqData data) {
-		int expected = expt.getBlockLength(block);
-		data.setChannel(this);
-		data.checkLength(expected);
-		blocks.put(block, data);
-	}
-	
-	public IqData getBlockData(String name) {
-		IqData data = blocks.get(name);
-		if (data == null) {
-			// create a dummy data set with zeros
-			int expected = expt.getBlockLength(name);
-			double[] zeros = new double[expected];
-			data = new IqDataFourier(new ComplexArray(zeros, zeros), 0);
-			data.setChannel(this);
-			blocks.put(name, data);
-		}
-		return data;
-	}
-	
-	public int[] getSramDataA(String name) {
-		return blocks.get(name).getDeconvolvedI();
-	}
-	
-	public int[] getSramDataB(String name) {
-		return blocks.get(name).getDeconvolvedQ();
-	}
-	
-	// configuration
-	
-	public void clearConfig() {
-		uwaveConfig = null;
-	}
-	
-	public void configMicrowavesOn(double freq, double power) {
-		uwaveConfig = new MicrowaveSourceOnConfig(freq, power);
-		// FIXME need to mark all blocks as needing deconvolution when config changes
-	}
-	
-	public void configMicrowavesOff() {
-		uwaveConfig = new MicrowaveSourceOffConfig();
-	}
-	
-	public MicrowaveSourceConfig getMicrowaveConfig() {
-		Preconditions.checkNotNull(uwaveConfig, "No microwave configuration for channel '%s'", getName());
-		return uwaveConfig;
-	}
+  public IqChannel(String name) {
+    this.name = name;
+    clearConfig();
+  }
+
+  @Override
+  public void setFpgaModel(FpgaModel fpga) {
+    Preconditions.checkArgument(fpga instanceof FpgaModelMicrowave,
+        "IqChannel '%s' requires microwave board.", getName());
+    FpgaModelMicrowave fpgaMicrowave = (FpgaModelMicrowave)fpga; 
+    this.fpga = fpgaMicrowave;
+    fpgaMicrowave.setIqChannel(this);
+  }
+
+  public MicrowaveSource getMicrowaveSource() {
+    return uwaveSrc;
+  }
+
+  public void setMicrowaveSource(MicrowaveSource src) {
+    uwaveSrc = src;
+  }
+
+  public void addData(String block, IqData data) {
+    int expected = expt.getBlockLength(block);
+    data.setChannel(this);
+    data.checkLength(expected);
+    blocks.put(block, data);
+  }
+
+  public IqData getBlockData(String name) {
+    IqData data = blocks.get(name);
+    if (data == null) {
+      // create a dummy data set with zeros
+      int expected = expt.getBlockLength(name);
+      double[] zeros = new double[expected];
+      data = new IqDataFourier(new ComplexArray(zeros, zeros), 0);
+      data.setChannel(this);
+      blocks.put(name, data);
+    }
+    return data;
+  }
+
+  public int[] getSramDataA(String name) {
+    return blocks.get(name).getDeconvolvedI();
+  }
+
+  public int[] getSramDataB(String name) {
+    return blocks.get(name).getDeconvolvedQ();
+  }
+
+  // configuration
+
+  public void clearConfig() {
+    uwaveConfig = null;
+  }
+
+  public void configMicrowavesOn(double freq, double power) {
+    uwaveConfig = new MicrowaveSourceOnConfig(freq, power);
+    // FIXME need to mark all blocks as needing deconvolution when config changes
+  }
+
+  public void configMicrowavesOff() {
+    uwaveConfig = new MicrowaveSourceOffConfig();
+  }
+
+  public MicrowaveSourceConfig getMicrowaveConfig() {
+    Preconditions.checkNotNull(uwaveConfig, "No microwave configuration for channel '%s'", getName());
+    return uwaveConfig;
+  }
 }

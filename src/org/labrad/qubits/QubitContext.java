@@ -51,757 +51,757 @@ import com.google.common.collect.Maps;
 
 public class QubitContext extends AbstractServerContext {
 
-	@SuppressWarnings("unused")
-	private ExperimentBuilder builder = null;
-	private final Object builderLock = new Object();
-	private Experiment expt = null;
-	private Context setupContext = null;
-	
-	private Request nextRequest = null;
-	private int dataIndex;
-	private Data lastData = null;
-	
-	/**
-	 * Initialize this context when it is first created.
-	 */
-	@Override
-	public void init() {
-		// this is the context in which we will create setup packets
-		// we make it different from our own context to avoid potential
-		// lockups due to making recursive calls in a context.
-		setupContext = new Context(getConnection().getId(), 1);
-	}
+  @SuppressWarnings("unused")
+  private ExperimentBuilder builder = null;
+  private final Object builderLock = new Object();
+  private Experiment expt = null;
+  private Context setupContext = null;
+  
+  private Request nextRequest = null;
+  private int dataIndex;
+  private Data lastData = null;
+  
+  /**
+   * Initialize this context when it is first created.
+   */
+  @Override
+  public void init() {
+    // this is the context in which we will create setup packets
+    // we make it different from our own context to avoid potential
+    // lockups due to making recursive calls in a context.
+    setupContext = new Context(getConnection().getId(), 1);
+  }
 
-	@Override
-	public void expire() {}
-	
-	
-	/**
-	 * Get the currently-defined experiment builder.
-	 */
-	/*
-	private ExperimentBuilder getExperimentBuilder() {
-		synchronized (builderLock) {
-			Preconditions.checkNotNull(builder, "No sequence initialized in this context.");
-			return builder;
-		}
-	}
-	*/
-	
-	/**
-	 * Set the current experiment to a new one when one is created.
-	 * @param expt
-	 */
-	private void setExperimentBuilder(ExperimentBuilder builder) {
-		synchronized (builderLock) {
-			this.builder = builder;
-		}
-	}
-	
-	
-	/**
-	 * Get the currently-defined experiment in this context.
-	 */
-	private Experiment getExperiment() {
-		Preconditions.checkNotNull(expt, "No sequence initialized in this context.");
-		return expt;
-	}
-	
-	/**
-	 * Set the current experiment in this context
-	 * @param expt
-	 */
-	private void setExperiment(Experiment expt) {
-		this.expt = expt;
-	}
-	
-	
-	/**
-	 * Get a channel from the experiment that is of a particular Channel class
-	 * this unpacks the channel descriptor directly from the incoming LabRAD data
-	 */
-	private <T extends Channel> T getChannel(Data data, Class<T> cls) {
-		if (data.matchesType("s")) {
-			String device = data.getString();
-			return getChannel(device, cls);
-		} else if (data.matchesType("ss")){
-			String device = data.get(0).getString();
-			String channel = data.get(1).getString();
-			return getChannel(device, channel, cls);
-		} else {
-			throw new RuntimeException("Unknown channel identifier: " + data.pretty());
-		}
-	}
-	
-	/**
-	 * Get a channel from the experiment that is of a particular class
-	 */
-	private <T extends Channel> T getChannel(String device, String channel, Class<T> cls) {
-		return getExperiment().getDevice(device).getChannel(channel, cls);
-	}
-	
-	/**
-	 * Get a channel from the experiment that is of a particular class.
-	 * In this case, no channel name is specified, so this will succeed
-	 * only if there is a unique channel of the appropriate type.
-	 */
-	private <T extends Channel> T getChannel(String device, Class<T> cls) {
-		return getExperiment().getDevice(device).getChannel(cls);
-	}
-	
-	/**
-	 * Build a setup packet from a given set of records, using the predefined setup context
-	 * @param data
-	 */
-	private Data buildSetupPacket(String server, Data records) {
-		return Data.clusterOf(
-					Data.clusterOf(Data.valueOf(setupContext.getHigh()),
-								   Data.valueOf(setupContext.getLow())),
-					Data.valueOf(server),
-					records);
-	}
-	
-	/**
-	 * Check the structure of a data object passed in as a setup packet
-	 */
-	private void checkSetupPacket(Data packet) {
-		if (!packet.matchesType("(ww)s?")) {
-			Failure.fail("Setup packet has invalid format: "
-					     + "Expected ((ww) s ?{records}) but got %s.", packet.getTag());
-		}
-		Data records = packet.get(2);
-		if (!records.isCluster()) {
-			Failure.fail("Setup packet has invalid format: "
-					     + "Expected a cluster of records but got %s.", records.getTag());
-		}
-		for (int i = 0; i < records.getClusterSize(); i++) {
-			Data record = records.get(i);
-			if (!record.matchesType("s?")) {
-				Failure.fail("Setup packet has invalid format: "
-						     + "Expected a cluster of (s{setting} ?{data}) for record %d but got %s",
-						     i, record.getTag());
-			}
-		}
-	}
-	
-	//
-	// Experiment
-	//
-	
-	@Setting(id = 100,
-			 name = "Initialize",
-			 doc = "Initialize a new sequence with the given device and channel setup."
-				 + "\n\n"
-				 + "You can specify a path and a list of string names.  Devices with those names "
-				 + "will be loaded from the registry at the specified path, relative to "
-				 + "the current directory in this context.  You can optionally specify "
-				 + "another list of strings to be used as aliases for those devices "
-				 + "in this context.  For example, in the registry we might have devices called "
-				 + "['Fridge qubit A', 'Fridge qubit B',...], but we could alias them for a "
-				 + "particular experiment to be called ['q0', 'q1',...]."
-				 + "\n\n"
-				 //+ "The other possibility is to specify another context from which to copy "
-				 //+ "the setup.  This will copy only the device and channel definitions, not "
-				 //+ "any configuration, memory, or SRAM setup."
-				 //+ "\n\n"
-				 + "Alternatively, you can provide the device and channel definitions directly.  "
-				 + "You do this by giving a list of devices, where each device is a cluster "
-				 + "of name and channel list, and where each channel is a cluster of name "
-				 + "and cluster of type and parameter list.")
-    public void initialize(List<String> path, List<String> names) {
-		// load devices from the registry
-		initialize(path, names, names);
-	}
-	@SettingOverload
-    public void initialize(List<String> path, List<String> names, List<String> aliases) {
-		// load devices from the registry, but call them by different names
-		Data template = RegistryProxy.loadDevices(path, names, aliases, getConnection(), getContext());
-		initialize(template);
-	}
-	//@SettingOverload
-    //public void initialize(long high, long low) {
-	//	// copy the experiment defined in another context
-	//	QubitContext ctx = (QubitContext)getServerContext(new Context(low, high));
-	//	initialize(ctx.getExperimentBuilder());
-	//}
-	@SettingOverload
-    public void initialize(@Accepts("*(s{dev} *(s{chan} (s{type} *s{params})))") Data template) {
-		// build experiment directly from a template
-		Resources rsrc = Resources.getCurrent();
-		initialize(ExperimentBuilder.fromData(template, rsrc));
-	}
-	
-    public void initialize(ExperimentBuilder builder) {
-		Experiment expt = builder.build();
-		setExperimentBuilder(builder);
-		setExperiment(expt);
-	}
-	
-    
-    //
-    // Configuration
-    //
-    
-	@Setting(id = 200,
-   		     name = "New Config",
-             doc = "Clear all config calls in this context."
-           	     + "\n\n"
-           	     + "This clears all configuration from the config calls, "
-           	     + "but leaves the device and channel setup unchanged.")
-    public void new_config() {
-	   	getExperiment().clearConfig();
-	}
-	
-    @Setting(id = 210,
-    		 name = "Config Microwaves",
-             doc = "Configure the Anritsu settings for the given channel."
-            	 + "\n\n"
-            	 + "Note that if two microwave channels share the same source, "
-            	 + "they must both use the same settings here.  If they do not, "
-            	 + "an error will be thrown when you try to run the sequence.")
-    public void config_microwaves(@Accepts({"s", "ss"}) Data id,
-    		                      @Accepts("v[GHz]") double freq,
-    		                      @Accepts("v[dBm]") double power) {
-    	// turn the microwave source on, set the power level and frequency
-    	IqChannel ch = getChannel(id, IqChannel.class);
-    	ch.configMicrowavesOn(freq, power);
-	}
-    @SettingOverload
-    public void config_microwaves(@Accepts({"s", "ss"}) Data id) {
-    	// turn the microwave source off
-    	IqChannel ch = getChannel(id, IqChannel.class);
-    	ch.configMicrowavesOff();
-	}
+  @Override
+  public void expire() {}
+  
+  
+  /**
+   * Get the currently-defined experiment builder.
+   */
+  /*
+  private ExperimentBuilder getExperimentBuilder() {
+    synchronized (builderLock) {
+      Preconditions.checkNotNull(builder, "No sequence initialized in this context.");
+      return builder;
+    }
+  }
+  */
+  
+  /**
+   * Set the current experiment to a new one when one is created.
+   * @param expt
+   */
+  private void setExperimentBuilder(ExperimentBuilder builder) {
+    synchronized (builderLock) {
+      this.builder = builder;
+    }
+  }
+  
+  
+  /**
+   * Get the currently-defined experiment in this context.
+   */
+  private Experiment getExperiment() {
+    Preconditions.checkNotNull(expt, "No sequence initialized in this context.");
+    return expt;
+  }
+  
+  /**
+   * Set the current experiment in this context
+   * @param expt
+   */
+  private void setExperiment(Experiment expt) {
+    this.expt = expt;
+  }
 
-    @Setting(id = 220,
-   		     name = "Config Preamp",
-   		     doc = "Configure the preamp settings for the given channel."
-   			     + "\n\n"
-   			     + "This includes the DAC offset and polarity, as well as high- "
-   			     + "and low-pass filtering.")
-    public void config_preamp(@Accepts({"s", "ss"}) Data id,
-    		                  long offset, boolean polarity, String highPass, String lowPass) {
-    	// set the preamp offset, polarity and filtering options
-    	PreampChannel ch = getChannel(id, PreampChannel.class);
-    	ch.setPreampConfig(offset, polarity, highPass, lowPass);
-    }
 
-	@Setting(id = 230,
-   		 	 name = "Config Settling",
-             doc = "Configure the deconvolution settling rates for the given channel.")
-    public void config_settling(@Accepts({"s", "ss"}) Data id,
-    		                    @Accepts("*v[GHz]") double[] rates,
-    		                    @Accepts("*v[GHz]") double[] amplitudes) {
-    	AnalogChannel ch = getChannel(id, AnalogChannel.class);
-    	ch.setSettling(rates, amplitudes);
+  /**
+   * Get a channel from the experiment that is of a particular Channel class
+   * this unpacks the channel descriptor directly from the incoming LabRAD data
+   */
+  private <T extends Channel> T getChannel(Data data, Class<T> cls) {
+    if (data.matchesType("s")) {
+      String device = data.getString();
+      return getChannel(device, cls);
+    } else if (data.matchesType("ss")){
+      String device = data.get(0).getString();
+      String channel = data.get(1).getString();
+      return getChannel(device, channel, cls);
+    } else {
+      throw new RuntimeException("Unknown channel identifier: " + data.pretty());
     }
-    
-	@Setting(id = 240,
-   		 	 name = "Config Timing Order",
-             doc = "Configure the order in which timing results should be returned."
-            	 + "\n\n"
-            	 + "If this option is not specified, timing results will be returned "
-            	 + "for all timing channels in the order they were defined when this "
-            	 + "sequence was initialized.")
-    public void config_timing_order(@Accepts({"*s", "*(ss)"}) List<Data> ids) {
-		List<PreampChannel> channels = Lists.newArrayList();
-		for (Data id : ids) {
-			channels.add(getChannel(id, PreampChannel.class));
-		}
-		getExperiment().setTimingOrder(channels);
+  }
+
+  /**
+   * Get a channel from the experiment that is of a particular class
+   */
+  private <T extends Channel> T getChannel(String device, String channel, Class<T> cls) {
+    return getExperiment().getDevice(device).getChannel(channel, cls);
+  }
+
+  /**
+   * Get a channel from the experiment that is of a particular class.
+   * In this case, no channel name is specified, so this will succeed
+   * only if there is a unique channel of the appropriate type.
+   */
+  private <T extends Channel> T getChannel(String device, Class<T> cls) {
+    return getExperiment().getDevice(device).getChannel(cls);
+  }
+
+  /**
+   * Build a setup packet from a given set of records, using the predefined setup context
+   * @param data
+   */
+  private Data buildSetupPacket(String server, Data records) {
+    return Data.clusterOf(
+        Data.clusterOf(Data.valueOf(setupContext.getHigh()),
+            Data.valueOf(setupContext.getLow())),
+            Data.valueOf(server),
+            records);
+  }
+
+  /**
+   * Check the structure of a data object passed in as a setup packet
+   */
+  private void checkSetupPacket(Data packet) {
+    if (!packet.matchesType("(ww)s?")) {
+      Failure.fail("Setup packet has invalid format: "
+          + "Expected ((ww) s ?{records}) but got %s.", packet.getTag());
     }
-	
-	@Setting(id = 250,
-			 name = "Config Setup Packets",
-			 doc = "Configure other setup state and packets for this experiment."
-				 + "\n\n"
-				 + "Setup information should be specified as a list of token strings "
-				 + "describing the state that should be setup before this sequence runs, "
-				 + "and a cluster of packets to be sent to initialize the other "
-				 + "servers into that state.  Each packet is a cluster of context (ww), "
-				 + "server name, and cluster of records, where each record is a cluster of "
-				 + "setting name and data.  These setup packets will get sent before "
-				 + "this sequence is run, allowing various sequences to be interleaved.")
-	public void config_setup_packets(List<String> states, Data packets) {
-		List<Data> packetList = Lists.newArrayList();
-		for (int i = 0; i < packets.getClusterSize(); i++) {
-			Data packet = packets.get(i);
-			checkSetupPacket(packet);
-			packetList.add(packet);
-		}
-		getExperiment().setSetupState(states, packetList);
-	}
-	
-	@Setting(id = 260,
-			 name = "Config Autotrigger",
-			 doc = "Configure automatic inclusion of a trigger pulse on every SRAM sequence."
-				 + "\n\n"
-				 + "Specifying a trigger channel name (e.g. 'S3') will cause a trigger pulse "
-				 + "to be automatically added to that channel on every board at the beginning of "
-				 + "every SRAM sequence.  This can be very helpful when viewing and debugging "
-				 + "SRAM output on the sampling scope, for example."
-				 + "\n\n"
-				 + "You can also specify an optional length for the trigger pulse, which will "
-				 + "be rounded to the nearest ns.  If no length is specified, the default (16 ns) "
-				 + "will be used.")
-	public void config_autotrigger(String channel) {
-		config_autotrigger(channel, Constants.AUTOTRIGGER_PULSE_LENGTH);
-	}
-	@SettingOverload
-	public void config_autotrigger(String channel, @Accepts("v[ns]") double length) {
-		getExperiment().setAutoTrigger(DacTriggerId.fromString(channel), (int)length);
-	}
-	
-	/*
-    @Setting(ID = 280,
-    		 name = "Config Timing Data",
-    	     description = "Configure options for processing timing data before returning it.")
-    public void config_timing_data(Data data) {
-    	// cutoff, histogram, deinterlace, qubits together or separate
-    	throw new RuntimeException("Not implemented yet.");
+    Data records = packet.get(2);
+    if (!records.isCluster()) {
+      Failure.fail("Setup packet has invalid format: "
+          + "Expected a cluster of records but got %s.", records.getTag());
     }
-    */
-    
-	
-    //
-    // Memory
-    //
-    // these commands allow one to build up memory sequences for FPGA execution.
-    // sequences are built up in parallel across all devices involved in
-    // the experiment to ensure that all FPGAs remain synchronized when the
-    // sequence is executed
-    //
-    
-	@Setting(id = 300,
-	   		 name = "New Mem",
-	         doc = "Clear memory content in this context.")
-    public void new_mem() {
-		getExperiment().clearMemory();
-	}
-	
-	/**
-	 * Add bias commands in parallel to the specified channels
-	 * @param commands
-	 * @param microseconds
-	 */
-    @Setting(id = 310,
-             name = "Mem Bias",
-             doc = "Adds Bias box commands to the specified channels."
-            	 + "\n\n"
-            	 + "Each bias command is specified as a cluster of channel, command "
-            	 + "name, and voltage level.  As for other settings, the channel can "
-            	 + "be specified as either a device name, or a (device, channel) cluster, "
-            	 + "where the first option is allowed only when there is no ambiguity, "
-            	 + "that is, when there is only one bias channel for the device."
-            	 + "\n\n"
-            	 + "The command name specifies which DAC and mode are to be used for this "
-            	 + "bias command.  Allowed values are 'dac0', 'dac0noselect', 'dac1', and 'dac1slow'.  "
-            	 + "See the FastBias documentation for information about these options."
-            	 + "\n\n"
-            	 + "A final delay can be specified to have a delay command added after the bias "
-            	 + "commands on all memory sequences.  If no final delay is specified, a default "
-            	 + "delay will be added (currently 4.3 microseconds).")
-    public void mem_bias(@Accepts({"*(s s v[mV])", "*((ss) s v[mV])"}) List<Data> commands) {
-    	mem_bias(commands, Constants.DEFAULT_BIAS_DELAY);
+    for (int i = 0; i < records.getClusterSize(); i++) {
+      Data record = records.get(i);
+      if (!record.matchesType("s?")) {
+        Failure.fail("Setup packet has invalid format: "
+            + "Expected a cluster of (s{setting} ?{data}) for record %d but got %s",
+            i, record.getTag());
+      }
     }
-    @SettingOverload
-    public void mem_bias(@Accepts({"*(s s v[mV])", "*((ss) s v[mV])"}) List<Data> commands,
-    		             @Accepts("v[us]") double microseconds) {
-    	// create a map with a list of commands for each board
-    	ListMultimap<FpgaModel, MemoryCommand> fpgas = ArrayListMultimap.create();
-    	
-    	// parse the commands and group them for each fpga
-    	for (Data cmd : commands) {
-    		FastBiasChannel ch = getChannel(cmd.get(0), FastBiasChannel.class);
-    		BiasCommandType type = BiasCommandType.fromString(cmd.get(1).getString());
-    		double voltage = cmd.get(2).getValue();
-    		fpgas.put(ch.getFpgaModel(), FastBiasCommands.get(type, ch, voltage));
-    	}
-    	
-    	getExperiment().addBiasCommands(fpgas, microseconds);
+  }
+
+  //
+  // Experiment
+  //
+
+  @Setting(id = 100,
+           name = "Initialize",
+           doc = "Initialize a new sequence with the given device and channel setup."
+               + "\n\n"
+               + "You can specify a path and a list of string names.  Devices with those names "
+               + "will be loaded from the registry at the specified path, relative to "
+               + "the current directory in this context.  You can optionally specify "
+               + "another list of strings to be used as aliases for those devices "
+               + "in this context.  For example, in the registry we might have devices called "
+               + "['Fridge qubit A', 'Fridge qubit B',...], but we could alias them for a "
+               + "particular experiment to be called ['q0', 'q1',...]."
+               + "\n\n"
+               //+ "The other possibility is to specify another context from which to copy "
+               //+ "the setup.  This will copy only the device and channel definitions, not "
+               //+ "any configuration, memory, or SRAM setup."
+               //+ "\n\n"
+               + "Alternatively, you can provide the device and channel definitions directly.  "
+               + "You do this by giving a list of devices, where each device is a cluster "
+               + "of name and channel list, and where each channel is a cluster of name "
+               + "and cluster of type and parameter list.")
+  public void initialize(List<String> path, List<String> names) {
+    // load devices from the registry
+    initialize(path, names, names);
+  }
+  @SettingOverload
+  public void initialize(List<String> path, List<String> names, List<String> aliases) {
+    // load devices from the registry, but call them by different names
+    Data template = RegistryProxy.loadDevices(path, names, aliases, getConnection(), getContext());
+    initialize(template);
+  }
+  //@SettingOverload
+  //public void initialize(long high, long low) {
+  //	// copy the experiment defined in another context
+  //	QubitContext ctx = (QubitContext)getServerContext(new Context(low, high));
+  //	initialize(ctx.getExperimentBuilder());
+  //}
+  @SettingOverload
+  public void initialize(@Accepts("*(s{dev} *(s{chan} (s{type} *s{params})))") Data template) {
+    // build experiment directly from a template
+    Resources rsrc = Resources.getCurrent();
+    initialize(ExperimentBuilder.fromData(template, rsrc));
+  }
+
+  public void initialize(ExperimentBuilder builder) {
+    Experiment expt = builder.build();
+    setExperimentBuilder(builder);
+    setExperiment(expt);
+  }
+
+
+  //
+  // Configuration
+  //
+
+  @Setting(id = 200,
+           name = "New Config",
+           doc = "Clear all config calls in this context."
+               + "\n\n"
+               + "This clears all configuration from the config calls, "
+               + "but leaves the device and channel setup unchanged.")
+  public void new_config() {
+    getExperiment().clearConfig();
+  }
+
+  @Setting(id = 210,
+           name = "Config Microwaves",
+           doc = "Configure the Anritsu settings for the given channel."
+               + "\n\n"
+               + "Note that if two microwave channels share the same source, "
+               + "they must both use the same settings here.  If they do not, "
+               + "an error will be thrown when you try to run the sequence.")
+  public void config_microwaves(@Accepts({"s", "ss"}) Data id,
+                                @Accepts("v[GHz]") double freq,
+                                @Accepts("v[dBm]") double power) {
+    // turn the microwave source on, set the power level and frequency
+    IqChannel ch = getChannel(id, IqChannel.class);
+    ch.configMicrowavesOn(freq, power);
+  }
+  @SettingOverload
+  public void config_microwaves(@Accepts({"s", "ss"}) Data id) {
+    // turn the microwave source off
+    IqChannel ch = getChannel(id, IqChannel.class);
+    ch.configMicrowavesOff();
+  }
+
+  @Setting(id = 220,
+           name = "Config Preamp",
+           doc = "Configure the preamp settings for the given channel."
+               + "\n\n"
+               + "This includes the DAC offset and polarity, as well as high- "
+               + "and low-pass filtering.")
+  public void config_preamp(@Accepts({"s", "ss"}) Data id,
+                            long offset, boolean polarity, String highPass, String lowPass) {
+    // set the preamp offset, polarity and filtering options
+    PreampChannel ch = getChannel(id, PreampChannel.class);
+    ch.setPreampConfig(offset, polarity, highPass, lowPass);
+  }
+
+  @Setting(id = 230,
+           name = "Config Settling",
+           doc = "Configure the deconvolution settling rates for the given channel.")
+  public void config_settling(@Accepts({"s", "ss"}) Data id,
+                              @Accepts("*v[GHz]") double[] rates,
+                              @Accepts("*v[GHz]") double[] amplitudes) {
+    AnalogChannel ch = getChannel(id, AnalogChannel.class);
+    ch.setSettling(rates, amplitudes);
+  }
+
+  @Setting(id = 240,
+           name = "Config Timing Order",
+           doc = "Configure the order in which timing results should be returned."
+               + "\n\n"
+               + "If this option is not specified, timing results will be returned "
+               + "for all timing channels in the order they were defined when this "
+               + "sequence was initialized.")
+  public void config_timing_order(@Accepts({"*s", "*(ss)"}) List<Data> ids) {
+    List<PreampChannel> channels = Lists.newArrayList();
+    for (Data id : ids) {
+      channels.add(getChannel(id, PreampChannel.class));
     }
-    
-    @Setting(id = 320,
-    		 name = "Mem Delay",
-    		 doc = "Add a delay to all channels.")
-    public void mem_delay(@Accepts("v[us]") double delay) {
-    	getExperiment().addMemoryDelay(delay);
+    getExperiment().setTimingOrder(channels);
+  }
+
+  @Setting(id = 250,
+           name = "Config Setup Packets",
+           doc = "Configure other setup state and packets for this experiment."
+               + "\n\n"
+               + "Setup information should be specified as a list of token strings "
+               + "describing the state that should be setup before this sequence runs, "
+               + "and a cluster of packets to be sent to initialize the other "
+               + "servers into that state.  Each packet is a cluster of context (ww), "
+               + "server name, and cluster of records, where each record is a cluster of "
+               + "setting name and data.  These setup packets will get sent before "
+               + "this sequence is run, allowing various sequences to be interleaved.")
+  public void config_setup_packets(List<String> states, Data packets) {
+    List<Data> packetList = Lists.newArrayList();
+    for (int i = 0; i < packets.getClusterSize(); i++) {
+      Data packet = packets.get(i);
+      checkSetupPacket(packet);
+      packetList.add(packet);
     }
-    
-    @Setting(id = 330,
-   		     name = "Mem Call SRAM",
-   		     doc = "Call the SRAM block specified by name."
-   		    	 + "\n\n"
-   		    	 + "The actual call will not be resolved until the sequence is run, "
-   		    	 + "so the SRAM blocks do not have to be defined when this call is made."
-   		    	 + "\n\n"
-   		    	 + "If running a dual-block SRAM sequence, you must provide the names "
-   		    	 + "of the first and second blocks (the delay between the END of the first block "
-   		    	 + "and the START of the second block must be specified separately).")
-    public void mem_call_sram(String block) {
-    	getExperiment().callSramBlock(block);
-    }
-    @SettingOverload
-    public void mem_call_sram(String block1, String block2) {
-    	getExperiment().callSramDualBlock(block1, block2);
-    }
-    
-	@Setting(id = 340,
-			 name = "Mem Start Timer",
-			 doc = "Start the timer for the specified timing channels.")
-    public void mem_start_timer(@Accepts({"*s", "*(ss)"}) List<Data> ids) {
-		List<PreampChannel> channels = Lists.newArrayList();
-		for (Data ch : ids) {
-			channels.add(getChannel(ch, PreampChannel.class));
-		}
-		getExperiment().startTimer(channels);
+    getExperiment().setSetupState(states, packetList);
+  }
+
+  @Setting(id = 260,
+           name = "Config Autotrigger",
+           doc = "Configure automatic inclusion of a trigger pulse on every SRAM sequence."
+               + "\n\n"
+               + "Specifying a trigger channel name (e.g. 'S3') will cause a trigger pulse "
+               + "to be automatically added to that channel on every board at the beginning of "
+               + "every SRAM sequence.  This can be very helpful when viewing and debugging "
+               + "SRAM output on the sampling scope, for example."
+               + "\n\n"
+               + "You can also specify an optional length for the trigger pulse, which will "
+               + "be rounded to the nearest ns.  If no length is specified, the default (16 ns) "
+               + "will be used.")
+  public void config_autotrigger(String channel) {
+    config_autotrigger(channel, Constants.AUTOTRIGGER_PULSE_LENGTH);
+  }
+  @SettingOverload
+  public void config_autotrigger(String channel, @Accepts("v[ns]") double length) {
+    getExperiment().setAutoTrigger(DacTriggerId.fromString(channel), (int)length);
+  }
+
+  /*
+  @Setting(ID = 280,
+           name = "Config Timing Data",
+           description = "Configure options for processing timing data before returning it.")
+  public void config_timing_data(Data data) {
+    // cutoff, histogram, deinterlace, qubits together or separate
+    throw new RuntimeException("Not implemented yet.");
+  }
+  */
+
+
+  //
+  // Memory
+  //
+  // these commands allow one to build up memory sequences for FPGA execution.
+  // sequences are built up in parallel across all devices involved in
+  // the experiment to ensure that all FPGAs remain synchronized when the
+  // sequence is executed
+  //
+
+  @Setting(id = 300,
+           name = "New Mem",
+           doc = "Clear memory content in this context.")
+  public void new_mem() {
+    getExperiment().clearMemory();
+  }
+
+  /**
+   * Add bias commands in parallel to the specified channels
+   * @param commands
+   * @param microseconds
+   */
+  @Setting(id = 310,
+           name = "Mem Bias",
+           doc = "Adds Bias box commands to the specified channels."
+               + "\n\n"
+               + "Each bias command is specified as a cluster of channel, command "
+               + "name, and voltage level.  As for other settings, the channel can "
+               + "be specified as either a device name, or a (device, channel) cluster, "
+               + "where the first option is allowed only when there is no ambiguity, "
+               + "that is, when there is only one bias channel for the device."
+               + "\n\n"
+               + "The command name specifies which DAC and mode are to be used for this "
+               + "bias command.  Allowed values are 'dac0', 'dac0noselect', 'dac1', and 'dac1slow'.  "
+               + "See the FastBias documentation for information about these options."
+               + "\n\n"
+               + "A final delay can be specified to have a delay command added after the bias "
+               + "commands on all memory sequences.  If no final delay is specified, a default "
+               + "delay will be added (currently 4.3 microseconds).")
+  public void mem_bias(@Accepts({"*(s s v[mV])", "*((ss) s v[mV])"}) List<Data> commands) {
+    mem_bias(commands, Constants.DEFAULT_BIAS_DELAY);
+  }
+  @SettingOverload
+  public void mem_bias(@Accepts({"*(s s v[mV])", "*((ss) s v[mV])"}) List<Data> commands,
+                       @Accepts("v[us]") double microseconds) {
+    // create a map with a list of commands for each board
+    ListMultimap<FpgaModel, MemoryCommand> fpgas = ArrayListMultimap.create();
+
+    // parse the commands and group them for each fpga
+    for (Data cmd : commands) {
+      FastBiasChannel ch = getChannel(cmd.get(0), FastBiasChannel.class);
+      BiasCommandType type = BiasCommandType.fromString(cmd.get(1).getString());
+      double voltage = cmd.get(2).getValue();
+      fpgas.put(ch.getFpgaModel(), FastBiasCommands.get(type, ch, voltage));
     }
 
-    @Setting(id = 350,
-    		 name = "Mem Stop Timer",
-    		 doc = "Stop the timer for the specified timing channels.")
-    public void mem_stop_timer(@Accepts({"*s", "*(ss)"}) List<Data> ids) {
-    	List<PreampChannel> channels = Lists.newArrayList();
-		for (Data ch : ids) {
-			channels.add(getChannel(ch, PreampChannel.class));
-		}
-		getExperiment().stopTimer(channels);
+    getExperiment().addBiasCommands(fpgas, microseconds);
+  }
+
+  @Setting(id = 320,
+           name = "Mem Delay",
+           doc = "Add a delay to all channels.")
+  public void mem_delay(@Accepts("v[us]") double delay) {
+    getExperiment().addMemoryDelay(delay);
+  }
+
+  @Setting(id = 330,
+           name = "Mem Call SRAM",
+           doc = "Call the SRAM block specified by name."
+               + "\n\n"
+               + "The actual call will not be resolved until the sequence is run, "
+               + "so the SRAM blocks do not have to be defined when this call is made."
+               + "\n\n"
+               + "If running a dual-block SRAM sequence, you must provide the names "
+               + "of the first and second blocks (the delay between the END of the first block "
+               + "and the START of the second block must be specified separately).")
+  public void mem_call_sram(String block) {
+    getExperiment().callSramBlock(block);
+  }
+  @SettingOverload
+  public void mem_call_sram(String block1, String block2) {
+    getExperiment().callSramDualBlock(block1, block2);
+  }
+
+  @Setting(id = 340,
+           name = "Mem Start Timer",
+           doc = "Start the timer for the specified timing channels.")
+  public void mem_start_timer(@Accepts({"*s", "*(ss)"}) List<Data> ids) {
+    List<PreampChannel> channels = Lists.newArrayList();
+    for (Data ch : ids) {
+      channels.add(getChannel(ch, PreampChannel.class));
+    }
+    getExperiment().startTimer(channels);
+  }
+
+  @Setting(id = 350,
+           name = "Mem Stop Timer",
+           doc = "Stop the timer for the specified timing channels.")
+  public void mem_stop_timer(@Accepts({"*s", "*(ss)"}) List<Data> ids) {
+    List<PreampChannel> channels = Lists.newArrayList();
+    for (Data ch : ids) {
+      channels.add(getChannel(ch, PreampChannel.class));
+    }
+    getExperiment().stopTimer(channels);
+  }
+
+
+  //
+  // SRAM
+  //
+
+  private String currentBlock;
+
+  /**
+   * Start a new named SRAM block.
+   */
+  @Setting(id = 400,
+           name = "New SRAM Block",
+           doc = "Create a new SRAM block with the specified name and length."
+               + "\n\n"
+               + "All subsequent SRAM calls will affect this block, until a new block "
+               + "is created.  If you do not provide SRAM data for a particular channel, "
+               + "it will be filled with zeros (and deconvolved).  If the length is not "
+               + "a multiple of 4, the data will be padded at the beginning after "
+               + "deconvolution.")
+  public void new_sram_block(String name, long length) {
+    getExperiment().startSramBlock(name, length);
+    currentBlock = name;
+  }
+
+  @Setting(id = 401,
+           name = "SRAM Dual Block Delay",
+           doc = "Set the delay between the first and second blocks of a dual-block SRAM command."
+               + "\n\n"
+               + "Note that if dual-block SRAM is used in a given sequence, there can only be one "
+               + "such call, so that this command sets the delay regardless of the block names.  "
+               + "Also note that this delay will be rounded to the nearest integral number of "
+               + "nanoseconds which may give unexpected results if the delay is converted from "
+               + "another unit of time.")
+  public void sram_dual_block_delay(@Accepts("v[ns]") double delay) {
+    getExperiment().setSramDualBlockDelay(delay);
+  }
+
+
+  /**
+   * Add SRAM data for a microwave IQ channel.
+   */
+  @Setting(id = 410,
+           name = "SRAM IQ Data",
+           doc = "Set IQ data for the specified channel."
+               + "\n\n"
+               + "The data is specified as a list of complex numbers, "
+               + "with the real and imaginary parts giving the I and Q "
+               + "microwave quadratures.  The length of the data should "
+               + "match the length of the current SRAM block.  "
+               + "An optional boolean specifies whether the data "
+               + "should be deconvolved (default: true).")
+  public void sram_iq_data(@Accepts({"s", "ss"}) Data id,
+                           @Accepts("*c") Data vals) {
+    sram_iq_data(id, vals, true);
+  }
+  @SettingOverload
+  public void sram_iq_data(@Accepts({"s", "ss"}) Data id,
+                           @Accepts("*c") Data vals,
+                           boolean deconvolve) {
+    IqChannel ch = getChannel(id, IqChannel.class);
+    ComplexArray c = ComplexArray.fromData(vals);
+    ch.addData(currentBlock, new IqDataTime(c, !deconvolve));
+  }
+
+
+  /**
+   * Add SRAM data for a microwave IQ channel in Fourier representation.
+   */
+  @Setting(id = 411,
+           name = "SRAM IQ Data Fourier",
+           doc = "Set IQ data in Fourier representation for the specified channel."
+               + "\n\n"
+               + "The data is specified as a list of complex numbers, "
+               + "with the real and imaginary parts giving the I and Q "
+               + "microwave quadratures.  The length of the data should "
+               + "match the length of the current SRAM block.")
+  public void sram_iq_data_fourier(@Accepts({"s", "ss"}) Data id,
+                                   @Accepts("*c") Data vals,
+                                   @Accepts("v[ns]") double t0) {
+    IqChannel ch = getChannel(id, IqChannel.class);
+    ComplexArray c = ComplexArray.fromData(vals);
+    ch.addData(currentBlock, new IqDataFourier(c, t0));
+  }
+
+
+  /**
+   * Add SRAM data for an analog channel
+   */
+  @Setting(id = 420,
+           name = "SRAM Analog Data",
+           doc = "Set analog data for the specified channel."
+               + "\n\n"
+               + "The length of the data should match the length of the "
+               + "current SRAM block.  An optional boolean specifies "
+               + "whether the data should be deconvolved (default: true).")
+  public void sram_analog_data(@Accepts({"s", "ss"}) Data id,
+                               @Accepts("*v") Data vals) {
+    sram_analog_data(id, vals, true);
+  }
+  @SettingOverload
+  public void sram_analog_data(@Accepts({"s", "ss"}) Data id,
+      @Accepts("*v") Data vals,
+      boolean deconvolve) {
+    AnalogChannel ch = getChannel(id, AnalogChannel.class);
+    double[] arr = vals.getValueArray();
+    ch.addData(currentBlock, new AnalogDataTime(arr, !deconvolve));
+  }
+
+
+  /**
+   * Add SRAM data for an analog channel in Fourier representation
+   */
+  @Setting(id = 421,
+           name = "SRAM Analog Data Fourier",
+           doc = "Set analog data in Fourier representation for the specified channel."
+               + "\n\n"
+               + "Because this represents real data, we only need half as many samples.  "
+               + "In particular, for a sequence of length n, the fourier data given "
+               + "here must have length n/2+1 (n even) or (n+1)/2 (n odd).")
+  public void sram_analog_fourier_data(@Accepts({"s", "ss"}) Data id,
+                                       @Accepts("*c") Data vals,
+                                       @Accepts("v[ns]") double t0) {
+    AnalogChannel ch = getChannel(id, AnalogChannel.class);
+    ComplexArray c = ComplexArray.fromData(vals);
+    ch.addData(currentBlock, new AnalogDataFourier(c, t0));
+  } 
+
+
+  // triggers
+
+  @Setting(id = 430,
+           name = "SRAM Trigger Data",
+           doc = "Set trigger data for the specified trigger channel")
+  public void sram_trigger_data(@Accepts({"s", "ss"}) Data id,
+                                @Accepts("*b") Data data) {
+    TriggerChannel ch = getChannel(id, TriggerChannel.class);
+    ch.addData(currentBlock, new TriggerDataTime(data.getBoolArray()));
+  }
+
+  @Setting(id = 431,
+           name = "SRAM Trigger Pulses",
+           doc = "Set trigger data as a series of pulses for the specified trigger channel"
+               + "\n\n"
+               + "Each pulse is given as a cluster of (start, length) values, "
+               + "specified in nanoseconds.")
+  public void sram_trigger_pulses(@Accepts({"s", "ss"}) Data id,
+                                  @Accepts("*(v[ns] v[ns])") List<Data> pulses) {
+    TriggerChannel ch = getChannel(id, TriggerChannel.class);
+    for (Data pulse : pulses) {
+      int start = (int)pulse.get(0).getValue();
+      int length = (int)pulse.get(1).getValue();
+      ch.addPulse(currentBlock, start, length);
+    }
+  }
+
+
+  //
+  // put the sequence together
+  //
+
+  @Setting(id = 900,
+           name = "Build Sequence",
+           doc = "Compiles SRAM and memory sequences into runnable form")
+  public void build_sequence(long reps) throws InterruptedException, ExecutionException {
+
+    Experiment expt = getExperiment();
+
+    //
+    // sanity checks
+    //
+
+    // check timer state of each involved fpga
+    for (FpgaModel fpga : expt.getFpgas()) {
+      fpga.checkTimerStatus();
     }
 
-    
-    //
-    // SRAM
-    //
-
-    private String currentBlock;
-    
-    /**
-     * Start a new named SRAM block.
-     */
-    @Setting(id = 400,
-   		     name = "New SRAM Block",
-   		     doc = "Create a new SRAM block with the specified name and length."
-   		    	 + "\n\n"
-   		    	 + "All subsequent SRAM calls will affect this block, until a new block "
-   		    	 + "is created.  If you do not provide SRAM data for a particular channel, "
-   		    	 + "it will be filled with zeros (and deconvolved).  If the length is not "
-   		    	 + "a multiple of 4, the data will be padded at the beginning after "
-   		    	 + "deconvolution.")
-    public void new_sram_block(String name, long length) {
-    	getExperiment().startSramBlock(name, length);
-    	currentBlock = name;
+    // check microwave source configuration
+    Map<MicrowaveSource, MicrowaveSourceConfig> uwaveConfigs = Maps.newHashMap();
+    for (IqChannel ch : expt.getChannels(IqChannel.class)) {
+      MicrowaveSource src = ch.getMicrowaveSource();
+      MicrowaveSourceConfig config = ch.getMicrowaveConfig();
+      Preconditions.checkNotNull(config, "No microwaves configured for channel '%s'", ch.getName());
+      if (!uwaveConfigs.containsKey(src)) {
+        // keep track of which microwave sources we have seen
+        uwaveConfigs.put(src, config);
+      } else {
+        // check that microwave configurations are compatible
+        Preconditions.checkState(config.equals(uwaveConfigs.get(src)),
+            "Conflicting microwave configurations for source '%s'", src.getName());
+      }
     }
-    
-    @Setting(id = 401,
-    		 name = "SRAM Dual Block Delay",
-    		 doc = "Set the delay between the first and second blocks of a dual-block SRAM command."
-    			 + "\n\n"
-    			 + "Note that if dual-block SRAM is used in a given sequence, there can only be one "
-    			 + "such call, so that this command sets the delay regardless of the block names.  "
-    			 + "Also note that this delay will be rounded to the nearest integral number of "
-    			 + "nanoseconds which may give unexpected results if the delay is converted from "
-    			 + "another unit of time.")
-    public void sram_dual_block_delay(@Accepts("v[ns]") double delay) {
-    	getExperiment().setSramDualBlockDelay(delay);
-    }
-    
-    
-    /**
-     * Add SRAM data for a microwave IQ channel.
-     */
-    @Setting(id = 410,
-   	         name = "SRAM IQ Data",
-   		     doc = "Set IQ data for the specified channel."
-   		    	 + "\n\n"
-   		    	 + "The data is specified as a list of complex numbers, "
-   		    	 + "with the real and imaginary parts giving the I and Q "
-   		    	 + "microwave quadratures.  The length of the data should "
-   		    	 + "match the length of the current SRAM block.  "
-   		    	 + "An optional boolean specifies whether the data "
-   		    	 + "should be deconvolved (default: true).")
-   	public void sram_iq_data(@Accepts({"s", "ss"}) Data id,
-    		                 @Accepts("*c") Data vals) {
-    	sram_iq_data(id, vals, true);
-    }
-    @SettingOverload
-    public void sram_iq_data(@Accepts({"s", "ss"}) Data id,
-    		                 @Accepts("*c") Data vals,
-    		                 boolean deconvolve) {
-    	IqChannel ch = getChannel(id, IqChannel.class);
-    	ComplexArray c = ComplexArray.fromData(vals);
-    	ch.addData(currentBlock, new IqDataTime(c, !deconvolve));
-    }
-    
-    
-    /**
-     * Add SRAM data for a microwave IQ channel in Fourier representation.
-     */
-    @Setting(id = 411,
-   	         name = "SRAM IQ Data Fourier",
-   		     doc = "Set IQ data in Fourier representation for the specified channel."
-   		    	 + "\n\n"
-   		    	 + "The data is specified as a list of complex numbers, "
-   		    	 + "with the real and imaginary parts giving the I and Q "
-   		    	 + "microwave quadratures.  The length of the data should "
-   		    	 + "match the length of the current SRAM block.")
-    public void sram_iq_data_fourier(@Accepts({"s", "ss"}) Data id,
-    		                         @Accepts("*c") Data vals,
-    		                         @Accepts("v[ns]") double t0) {
-    	IqChannel ch = getChannel(id, IqChannel.class);
-    	ComplexArray c = ComplexArray.fromData(vals);
-    	ch.addData(currentBlock, new IqDataFourier(c, t0));
-    }
-    
-    
-    /**
-     * Add SRAM data for an analog channel
-     */
-    @Setting(id = 420,
-    		 name = "SRAM Analog Data",
-    		 doc = "Set analog data for the specified channel."
-    			 + "\n\n"
-    			 + "The length of the data should match the length of the "
-    			 + "current SRAM block.  An optional boolean specifies "
-    			 + "whether the data should be deconvolved (default: true).")
-    public void sram_analog_data(@Accepts({"s", "ss"}) Data id,
-    		                     @Accepts("*v") Data vals) {
-    	sram_analog_data(id, vals, true);
-    }
-    @SettingOverload
-    public void sram_analog_data(@Accepts({"s", "ss"}) Data id,
-    		                     @Accepts("*v") Data vals,
-    		                     boolean deconvolve) {
-    	AnalogChannel ch = getChannel(id, AnalogChannel.class);
-    	double[] arr = vals.getValueArray();
-    	ch.addData(currentBlock, new AnalogDataTime(arr, !deconvolve));
-    }
-    
-    
-    /**
-     * Add SRAM data for an analog channel in Fourier representation
-     */
-    @Setting(id = 421,
-    		 name = "SRAM Analog Data Fourier",
-    		 doc = "Set analog data in Fourier representation for the specified channel."
-    			 + "\n\n"
-    			 + "Because this represents real data, we only need half as many samples.  "
-    			 + "In particular, for a sequence of length n, the fourier data given "
-    			 + "here must have length n/2+1 (n even) or (n+1)/2 (n odd).")
-    public void sram_analog_fourier_data(@Accepts({"s", "ss"}) Data id,
-    		                             @Accepts("*c") Data vals,
-    		                             @Accepts("v[ns]") double t0) {
-    	AnalogChannel ch = getChannel(id, AnalogChannel.class);
-		ComplexArray c = ComplexArray.fromData(vals);
-		ch.addData(currentBlock, new AnalogDataFourier(c, t0));
-    } 
-    
-    
-    // triggers
-    
-    @Setting(id = 430,
-    		 name = "SRAM Trigger Data",
-    		 doc = "Set trigger data for the specified trigger channel")
-    public void sram_trigger_data(@Accepts({"s", "ss"}) Data id,
-    		                      @Accepts("*b") Data data) {
-    	TriggerChannel ch = getChannel(id, TriggerChannel.class);
-    	ch.addData(currentBlock, new TriggerDataTime(data.getBoolArray()));
+    // loop over microwave boards, and turn off the microwave source for any boards whose source is not configured
+    for (FpgaModelMicrowave fpga : getExperiment().getMicrowaveFpgas()) {
+      MicrowaveSource src = fpga.getMicrowaveSource();
+      if (!uwaveConfigs.containsKey(src)) {
+        uwaveConfigs.put(src, new MicrowaveSourceOffConfig());
+      }
     }
 
-    @Setting(id = 431,
-   		     name = "SRAM Trigger Pulses",
-   		     doc = "Set trigger data as a series of pulses for the specified trigger channel"
-   		    	 + "\n\n"
-   		    	 + "Each pulse is given as a cluster of (start, length) values, "
-   		    	 + "specified in nanoseconds.")
-    public void sram_trigger_pulses(@Accepts({"s", "ss"}) Data id,
-    		                        @Accepts("*(v[ns] v[ns])") List<Data> pulses) {
-    	TriggerChannel ch = getChannel(id, TriggerChannel.class);
-    	for (Data pulse : pulses) {
-    		int start = (int)pulse.get(0).getValue();
-    		int length = (int)pulse.get(1).getValue();
-    		ch.addPulse(currentBlock, start, length);
-    	}
-    }
-    
-    
-    //
-    // put the sequence together
-    //
-    
-    @Setting(id = 900,
-    		 name = "Build Sequence",
-    		 doc = "Compiles SRAM and memory sequences into runnable form")
-    public void build_sequence(long reps) throws InterruptedException, ExecutionException {
-    	
-    	Experiment expt = getExperiment();
-    	    	
-    	//
-    	// sanity checks
-    	//
-    	
-    	// check timer state of each involved fpga
-    	for (FpgaModel fpga : expt.getFpgas()) {
-    		fpga.checkTimerStatus();
-    	}
-    	
-    	// check microwave source configuration
-    	Map<MicrowaveSource, MicrowaveSourceConfig> uwaveConfigs = Maps.newHashMap();
-    	for (IqChannel ch : expt.getChannels(IqChannel.class)) {
-    		MicrowaveSource src = ch.getMicrowaveSource();
-    		MicrowaveSourceConfig config = ch.getMicrowaveConfig();
-    		Preconditions.checkNotNull(config, "No microwaves configured for channel '%s'", ch.getName());
-    		if (!uwaveConfigs.containsKey(src)) {
-    			// keep track of which microwave sources we have seen
-    			uwaveConfigs.put(src, config);
-    		} else {
-    			// check that microwave configurations are compatible
-    			Preconditions.checkState(config.equals(uwaveConfigs.get(src)),
-    					"Conflicting microwave configurations for source '%s'", src.getName());
-    		}
-    	}
-    	// loop over microwave boards, and turn off the microwave source for any boards whose source is not configured
-    	for (FpgaModelMicrowave fpga : getExperiment().getMicrowaveFpgas()) {
-    		MicrowaveSource src = fpga.getMicrowaveSource();
-    		if (!uwaveConfigs.containsKey(src)) {
-    			uwaveConfigs.put(src, new MicrowaveSourceOffConfig());
-    		}
-    	}
-    	
-    	
-    	//
-    	// build setup packets
-    	//
-    	
-    	// start with setup packets that have already been configured
-    	List<Data> setupPackets = Lists.newArrayList(expt.getSetupPackets());
-    	List<String> setupState = Lists.newArrayList(expt.getSetupState());
-    	    	
-    	// build setup packets for microwave sources
-    	for (MicrowaveSource src : uwaveConfigs.keySet()) {
-    		SetupPacket p = uwaveConfigs.get(src).getSetupPacket(src);
-    		setupPackets.add(buildSetupPacket(Constants.ANRITSU_SERVER, p.getRecords()));
-    		setupState.add(p.getState());
-    	}
-    	
-    	// build setup packets for preamp boards
-    	// TODO improve DC Racks server (e.g. need caching)
-    	for (PreampChannel ch : expt.getChannels(PreampChannel.class)) {
-    		if (ch.hasPreampConfig()) {
-	    		SetupPacket p = ch.getPreampConfig().getSetupPacket(ch);
-	    		setupPackets.add(buildSetupPacket(Constants.DC_RACK_SERVER, p.getRecords()));
-	    		setupState.add(p.getState());
-    		}
-    	}
-    	
-    	
-    	//
-    	// deconvolve SRAM sequences
-    	//
-    	
-    	// this is the new-style deconvolution routine which sends all deconvolution requests in separate packets
-    	// TODO allow these deconvolution requests to be packetized, if that will increase performance
-    	DeconvolutionProxy deconvolver = new DeconvolutionProxy(getConnection());
-    	List<Future<Void>> deconvolutions = Lists.newArrayList();
-    	for (FpgaModel fpga : expt.getFpgas()) {
-    		deconvolutions.add(fpga.deconvolveSram(deconvolver));
-    	}
-    	Futures.waitForAll(deconvolutions).get();
-    	
-    	
-    	//
-    	// build run packet
-    	//
-    	
-    	Request runRequest = Request.to(Constants.GHZ_DAC_SERVER, getContext());
-    	
-    	// upload all memory and SRAM data
-    	for (FpgaModel fpga : expt.getFpgas()) {
-    		runRequest.add("Select Device", Data.valueOf(fpga.getName()));
-    		runRequest.add("Memory", Data.valueOf(fpga.getMemory()));
-    		if (fpga.hasDualBlockSram()) {
-    			runRequest.add("SRAM dual block",
-    					Data.valueOf(fpga.getSramDualBlock1()),
-    					Data.valueOf(fpga.getSramDualBlock2()),
-    					Data.valueOf(fpga.getSramDualBlockDelay()));
-    		} else {
-    			runRequest.add("SRAM Address", Data.valueOf(0L));
-    			runRequest.add("SRAM", Data.valueOf(fpga.getSram()));
-    		}
-    	}  
-    	
-    	// set up daisy chain and timing order
-    	runRequest.add("Daisy Chain", Data.listOf(expt.getFpgaNames(), Setters.stringSetter));
-    	runRequest.add("Timing Order", Data.listOf(expt.getTimingOrder(), Setters.stringSetter));
 
-    	// run the sequence
-        dataIndex = runRequest.addRecord("Run Sequence",
-        				Data.valueOf(reps),
-        		        Data.valueOf(true), // return timing results
-        		        Data.clusterOf(setupPackets),
-        		        Data.listOf(setupState, Setters.stringSetter));
-    	nextRequest = runRequest;
-    }
-    
-    @Setting(id = 1000,
-   		     name = "Run",
-   		     doc = "Runs the experiment and returns the timing data")
-    @Returns("*2w")
-    public Data run_experiment() throws InterruptedException, ExecutionException {
-    	// TODO have a 'dirty bit' that gets checked to trigger a build if necessary
-    	lastData = getConnection().sendAndWait(nextRequest).get(dataIndex);
-    	return lastData;
-    }
-    
-    @Setting(id = 1100,
-    		 name = "Get Data Raw",
-    		 doc = "Gets the raw timing data from the previous run")
-    @Returns("*2w")
-    public Data get_data_raw() {
-    	return lastData;
-    }
-    
-    @Setting(id = 1101,
-   		     name = "Get Data Probs",
-   		     doc = "Gets the raw timing data from the previous run")
-    @Returns("*2b")
-    public Data get_data_probs(@Accepts("*(*(v[us], v[us]))") Data cutoffs) {
-    	// TODO apply cutoff ranges and convert to probabilities
-    	return lastData;
-    }
-    
-    // other timing options: deinterlace, combine multi-qubit probs, optionally discard certain multi-qubit probs (e.g. keep only P_0000...)
-    // should this go into the "config" section, or be its own thing here in the data retrieval section?
-    
     //
-    // diagnostic information
+    // build setup packets
     //
-    
-    @Setting(id = 2001,
-   		     name = "Dump Sequence Packet",
-   		     doc = "Returns a representation of the packet to be sent to the GHz DACs server.")
-    public Data dump_packet() {
-    	List<Data> records = Lists.newArrayList();
-        for (Record r : nextRequest.getRecords()) {
-        	records.add(Data.clusterOf(Data.valueOf(r.getName()),
-       					  			   r.getData()));
-        }
-        return Data.clusterOf(records);
+
+    // start with setup packets that have already been configured
+    List<Data> setupPackets = Lists.newArrayList(expt.getSetupPackets());
+    List<String> setupState = Lists.newArrayList(expt.getSetupState());
+
+    // build setup packets for microwave sources
+    for (MicrowaveSource src : uwaveConfigs.keySet()) {
+      SetupPacket p = uwaveConfigs.get(src).getSetupPacket(src);
+      setupPackets.add(buildSetupPacket(Constants.ANRITSU_SERVER, p.getRecords()));
+      setupState.add(p.getState());
     }
-	
-	/*
-    @Setting(ID = 2002,
-    		 name = "Dump Sequence As Text",
-    		 description = "Get a dump of the current sequence in human-readable form")
-    @Returns("*s*2s")
-    public Data get_mem_text() {
-    	throw new RuntimeException("Not implemented yet.");
+
+    // build setup packets for preamp boards
+    // TODO improve DC Racks server (e.g. need caching)
+    for (PreampChannel ch : expt.getChannels(PreampChannel.class)) {
+      if (ch.hasPreampConfig()) {
+        SetupPacket p = ch.getPreampConfig().getSetupPacket(ch);
+        setupPackets.add(buildSetupPacket(Constants.DC_RACK_SERVER, p.getRecords()));
+        setupState.add(p.getState());
+      }
     }
-    
-    @Setting(ID = 2500,
-    		 name = "Dump SRAM to data vault",
-    		 description = "Send the current SRAM to the data vault")
-    public void plot_sram(List<String> session, String name, boolean correct) {
-        throw new RuntimeException("Not implemented yet.");
+
+
+    //
+    // deconvolve SRAM sequences
+    //
+
+    // this is the new-style deconvolution routine which sends all deconvolution requests in separate packets
+    // TODO allow these deconvolution requests to be packetized, if that will increase performance
+    DeconvolutionProxy deconvolver = new DeconvolutionProxy(getConnection());
+    List<Future<Void>> deconvolutions = Lists.newArrayList();
+    for (FpgaModel fpga : expt.getFpgas()) {
+      deconvolutions.add(fpga.deconvolveSram(deconvolver));
     }
-    //*/
+    Futures.waitForAll(deconvolutions).get();
+
+
+    //
+    // build run packet
+    //
+
+    Request runRequest = Request.to(Constants.GHZ_DAC_SERVER, getContext());
+
+    // upload all memory and SRAM data
+    for (FpgaModel fpga : expt.getFpgas()) {
+      runRequest.add("Select Device", Data.valueOf(fpga.getName()));
+      runRequest.add("Memory", Data.valueOf(fpga.getMemory()));
+      if (fpga.hasDualBlockSram()) {
+        runRequest.add("SRAM dual block",
+            Data.valueOf(fpga.getSramDualBlock1()),
+            Data.valueOf(fpga.getSramDualBlock2()),
+            Data.valueOf(fpga.getSramDualBlockDelay()));
+      } else {
+        runRequest.add("SRAM Address", Data.valueOf(0L));
+        runRequest.add("SRAM", Data.valueOf(fpga.getSram()));
+      }
+    }  
+
+    // set up daisy chain and timing order
+    runRequest.add("Daisy Chain", Data.listOf(expt.getFpgaNames(), Setters.stringSetter));
+    runRequest.add("Timing Order", Data.listOf(expt.getTimingOrder(), Setters.stringSetter));
+
+    // run the sequence
+    dataIndex = runRequest.addRecord("Run Sequence",
+        Data.valueOf(reps),
+        Data.valueOf(true), // return timing results
+        Data.clusterOf(setupPackets),
+        Data.listOf(setupState, Setters.stringSetter));
+    nextRequest = runRequest;
+  }
+
+  @Setting(id = 1000,
+           name = "Run",
+           doc = "Runs the experiment and returns the timing data")
+  @Returns("*2w")
+  public Data run_experiment() throws InterruptedException, ExecutionException {
+    // TODO have a 'dirty bit' that gets checked to trigger a build if necessary
+    lastData = getConnection().sendAndWait(nextRequest).get(dataIndex);
+    return lastData;
+  }
+
+  @Setting(id = 1100,
+           name = "Get Data Raw",
+           doc = "Gets the raw timing data from the previous run")
+  @Returns("*2w")
+  public Data get_data_raw() {
+    return lastData;
+  }
+
+  @Setting(id = 1101,
+           name = "Get Data Probs",
+           doc = "Gets the raw timing data from the previous run")
+  @Returns("*2b")
+  public Data get_data_probs(@Accepts("*(*(v[us], v[us]))") Data cutoffs) {
+    // TODO apply cutoff ranges and convert to probabilities
+    return lastData;
+  }
+
+  // other timing options: deinterlace, combine multi-qubit probs, optionally discard certain multi-qubit probs (e.g. keep only P_0000...)
+  // should this go into the "config" section, or be its own thing here in the data retrieval section?
+
+  //
+  // diagnostic information
+  //
+
+  @Setting(id = 2001,
+           name = "Dump Sequence Packet",
+           doc = "Returns a representation of the packet to be sent to the GHz DACs server.")
+  public Data dump_packet() {
+    List<Data> records = Lists.newArrayList();
+    for (Record r : nextRequest.getRecords()) {
+      records.add(Data.clusterOf(Data.valueOf(r.getName()),
+          r.getData()));
+    }
+    return Data.clusterOf(records);
+  }
+
+  /*
+  @Setting(ID = 2002,
+           name = "Dump Sequence As Text",
+           description = "Get a dump of the current sequence in human-readable form")
+  @Returns("*s*2s")
+  public Data get_mem_text() {
+    throw new RuntimeException("Not implemented yet.");
+  }
+
+  @Setting(ID = 2500,
+           name = "Dump SRAM to data vault",
+           description = "Send the current SRAM to the data vault")
+  public void plot_sram(List<String> session, String name, boolean correct) {
+    throw new RuntimeException("Not implemented yet.");
+  }
+  //*/
 }

@@ -14,60 +14,60 @@ import org.labrad.qubits.util.Futures;
 import com.google.common.collect.Lists;
 
 public class FpgaModelMicrowave extends FpgaModelBase {
-	
-	private MicrowaveBoard microwaveBoard;
-	private IqChannel iq = null;
 
-	public FpgaModelMicrowave(MicrowaveBoard dacBoard, Experiment expt) {
-		super(dacBoard, expt);
-		microwaveBoard = dacBoard;
-		// create a dummy channel for this board
-		IqChannel dummy = new IqChannel("dummy_iq");
-		dummy.setExperiment(expt);
-		dummy.setDacBoard(dacBoard);
-		dummy.setMicrowaveSource(dacBoard.getMicrowaveSource());
-		dummy.setFpgaModel(this);
-	}
-	
-	public void setIqChannel(IqChannel iq) {
-		this.iq = iq;
-	}
-	
-	public IqChannel getIqChannel() {
-		return iq;
-	}
-	
-	public MicrowaveSource getMicrowaveSource() {
-		return microwaveBoard.getMicrowaveSource();
-	}
-	
-	public Future<Void> deconvolveSram(DeconvolutionProxy deconvolver) {
-		List<Future<Void>> deconvolutions = Lists.newArrayList();
-		for (String blockName : expt.getBlockNames()) {
-			Deconvolvable block = iq.getBlockData(blockName);
-			if (!block.isDeconvolved()) {
-				deconvolutions.add(block.deconvolve(deconvolver));
-			}
-		}
-		return Futures.waitForAll(deconvolutions);
-	}
-	
-	/**
-	 * Get sram bits for a particular block
-	 * @param block
-	 * @return
-	 */
-	@Override
-	protected long[] getSramDacBits(String block) {
-		final long[] sram = new long[expt.getBlockLength(block)];
-		Arrays.fill(sram, 0);
-		if (iq != null) {
-			int[] A = iq.getSramDataA(block);
-			int[] B = iq.getSramDataB(block);
-			for (int i = 0; i < A.length; i++) {
-				sram[i] |= ((long)(A[i] & 0x3FFF)) + ((long)((B[i] & 0x3FFF) << 14));
-			}
-		}
-		return sram;
-	}
+  private MicrowaveBoard microwaveBoard;
+  private IqChannel iq = null;
+
+  public FpgaModelMicrowave(MicrowaveBoard dacBoard, Experiment expt) {
+    super(dacBoard, expt);
+    microwaveBoard = dacBoard;
+    // create a dummy channel for this board
+    IqChannel dummy = new IqChannel("dummy_iq");
+    dummy.setExperiment(expt);
+    dummy.setDacBoard(dacBoard);
+    dummy.setMicrowaveSource(dacBoard.getMicrowaveSource());
+    dummy.setFpgaModel(this);
+  }
+
+  public void setIqChannel(IqChannel iq) {
+    this.iq = iq;
+  }
+
+  public IqChannel getIqChannel() {
+    return iq;
+  }
+
+  public MicrowaveSource getMicrowaveSource() {
+    return microwaveBoard.getMicrowaveSource();
+  }
+
+  public Future<Void> deconvolveSram(DeconvolutionProxy deconvolver) {
+    List<Future<Void>> deconvolutions = Lists.newArrayList();
+    for (String blockName : expt.getBlockNames()) {
+      Deconvolvable block = iq.getBlockData(blockName);
+      if (!block.isDeconvolved()) {
+        deconvolutions.add(block.deconvolve(deconvolver));
+      }
+    }
+    return Futures.waitForAll(deconvolutions);
+  }
+
+  /**
+   * Get sram bits for a particular block
+   * @param block
+   * @return
+   */
+  @Override
+  protected long[] getSramDacBits(String block) {
+    final long[] sram = new long[expt.getBlockLength(block)];
+    Arrays.fill(sram, 0);
+    if (iq != null) {
+      int[] A = iq.getSramDataA(block);
+      int[] B = iq.getSramDataB(block);
+      for (int i = 0; i < A.length; i++) {
+        sram[i] |= ((long)(A[i] & 0x3FFF)) + ((long)((B[i] & 0x3FFF) << 14));
+      }
+    }
+    return sram;
+  }
 }
