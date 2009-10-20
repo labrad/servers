@@ -748,6 +748,7 @@ public class QubitContext extends AbstractServerContext {
   @Returns("*2w")
   public Data run_experiment() throws InterruptedException, ExecutionException {
     // TODO have a 'dirty bit' that gets checked to trigger a build if necessary
+    // TODO have separate 'dirty bits' for config, SRAM, etc.
     lastData = getConnection().sendAndWait(nextRequest).get(dataIndex);
     return lastData;
   }
@@ -760,14 +761,14 @@ public class QubitContext extends AbstractServerContext {
     return lastData;
   }
 
-  @Setting(id = 1101,
-           name = "Get Data Probs",
-           doc = "Gets the raw timing data from the previous run")
-  @Returns("*2b")
-  public Data get_data_probs(@Accepts("*(*(v[us], v[us]))") Data cutoffs) {
-    // TODO apply cutoff ranges and convert to probabilities
-    return lastData;
-  }
+//  @Setting(id = 1101,
+//           name = "Get Data Probs",
+//           doc = "Gets the raw timing data from the previous run")
+//  @Returns("*2b")
+//  public Data get_data_probs(@Accepts("*(*(v[us], v[us]))") Data cutoffs) {
+//    // TODO apply cutoff ranges and convert to probabilities
+//    return lastData;
+//  }
 
   // other timing options: deinterlace, combine multi-qubit probs, optionally discard certain multi-qubit probs (e.g. keep only P_0000...)
   // should this go into the "config" section, or be its own thing here in the data retrieval section?
@@ -783,7 +784,7 @@ public class QubitContext extends AbstractServerContext {
     List<Data> records = Lists.newArrayList();
     for (Record r : nextRequest.getRecords()) {
       records.add(Data.clusterOf(Data.valueOf(r.getName()),
-          r.getData()));
+                                 r.getData()));
     }
     return Data.clusterOf(records);
   }
