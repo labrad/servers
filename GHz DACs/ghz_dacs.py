@@ -30,19 +30,18 @@ timeout = 20
 ### END NODE INFO
 """
 
-from labrad import types as T, util
-from labrad.devices import DeviceWrapper, DeviceServer
-from labrad.server import setting
-from twisted.python import log
-from twisted.internet import defer, reactor
-from twisted.internet.defer import inlineCallbacks, returnValue
-
 from array import array as py_array
-from datetime import datetime, timedelta
 from math import sin, cos
 import time
 
 import numpy
+
+from twisted.internet import defer
+from twisted.internet.defer import inlineCallbacks, returnValue
+
+from labrad import types as T
+from labrad.devices import DeviceWrapper, DeviceServer
+from labrad.server import setting
 
 DEBUG = False
 
@@ -74,65 +73,7 @@ TIMEOUT_FACTOR = 10 # timing estimates are multiplied by this factor to determin
 # TODO: update stored versions of memory and SRAM only when a write happens (not when write is requested)
 # TODO: optionally add short delay to master before SRAM call to ensure synchronization
      
-class TimedLock(object):
-    """
-    A lock that times how long it takes to acquire.
-    """
 
-    TIMES_TO_KEEP = 100
-    locked = 0
-
-    def __init__(self):
-        self.waiting = []
-
-    @property
-    def times(self):
-        if not hasattr(self, '_times'):
-            self._times = []
-        return self._times
-
-    def addTime(self, dt):
-        times = self.times
-        times.append(dt)
-        if len(times) > self.TIMES_TO_KEEP:
-            times.pop(0)
-
-    def meanTime(self):
-        times = self.times
-        if not len(times):
-            return 0
-        return sum(times) / len(times)
-
-    def acquire(self):
-        """Attempt to acquire the lock.
-
-        @return: a Deferred which fires on lock acquisition.
-        """
-        d = defer.Deferred()
-        if self.locked:
-            t = time.time()
-            self.waiting.append((d, t))
-        else:
-            self.locked = 1
-            self.addTime(0)
-            d.callback(0)
-        return d
-
-    def release(self):
-        """Release the lock.
-
-        Should be called by whomever did the acquire() when the shared
-        resource is free.
-        """
-        assert self.locked, "Tried to release an unlocked lock"
-        self.locked = 0
-        if self.waiting:
-            # someone is waiting to acquire lock
-            self.locked = 1
-            d, t = self.waiting.pop(0)
-            dt = time.time() - t
-            self.addTime(dt)
-            d.callback(dt)
 
 #d(1)    start[7..0]  start[2..0] is command for blue box sequencer: 
 #                     0 = no start, 
@@ -329,12 +270,6 @@ class FPGADevice(DeviceWrapper):
         """Create a packet to clear the ethernet buffer for this board."""
         p = self.makePacket()
         p.clear()
-        if groupCtx is not None:
-            p.send_trigger(groupCtx)
-        for ctx in devCtxs:
-            p.send_trigger(ctx)
-        if len(devCtxs):
-            p.wait_for_trigger(len(devCtxs))
         return p
 
     @inlineCallbacks
@@ -509,43 +444,36 @@ class BoardGroup(object):
     def makeClearPackets(self, devs, collectResults):
         """Create packets to recover from a timeout error.
         
-        For boards whose collect succeeded, we just clear the
-        packet buffer.  For boards whose collect failed, we clear
-        the buffer and resend the trigger to synchronize the start
-        of the next run command.
+        We clear the packet buffer for all boards, whether or not
+        they succeeded.  In addition, we create a helpful message
+        to return to the user, indicating which boards failed.
         """
-        #devCtxs = [d[0].ctx for d in devs]
-        #clearPkts = [d[0].clear(None if s else self.ctx, devCtxs)
-        #             for d, (s, r) in zip(devs, collectResults)]
         clearPkts = [d[0].clear() for d in devs]
-        msg = 'Some boards failed:\n'
-        devs = sorted((dev[0].devName, dev, res) for dev, res in zip(devs, collectResults))
-        for n, d, (s, r) in devs:
-            msg += n
-            if s:
-                msg += ': OK\n'
-            else:
-                msg += ': timeout!\n' # + r.getBriefTraceback() + '\n\n'
-        return clearPkts, msg
+        results = sorted((d[0].devName, r[0]) for d, r in zip(devs, collectResults))
+        msgs = ['Some boards failed:']
+        for n, s in results:
+            msg = '%s: OK' if s else '%s: timeout!'
+            msgs.append(msg % n)
+        return clearPkts, '\n'.join(msgs)
 
     def makePackets(self, devs, timingOrder, page, reps, sync=249, multiBlockBoards=[]):
         """Make packets to run a sequence on this board group.
 
         Running a sequence has 4 stages:
-        - Load memory and SRAM into all boards in parallel
-          if possible, this is done in the background using a separate
+        - Load memory and SRAM into all boards in parallel.
+          If possible, this is done in the background using a separate
           page while another sequence is running.  We load in reverse
-          order, just to ensure that all loads are done before starting.
+          order to ensure that all loads are done before starting.
 
-        - Run sequence by firing a single packet that starts all boards
-          We start the master last, to ensure synchronization
+        - Run sequence by firing a single packet that starts all boards.
+          We start the master last, to ensure synchronization.
 
-        - Collect timing data to ensure that the sequence is finished
+        - Collect timing data to ensure that the sequence is finished.
           We instruct the direct ethernet server to collect the packets
           but not send them yet.  Once collected, we can immediately run the
           next sequence if one was uploaded into the next page.
 
-        - Read timing data
+        - Read timing data.
           Having started the next sequence (if one was waiting) we now
           read the timing data collected by the direct ethernet server,
           process it and return it.
@@ -574,10 +502,7 @@ class BoardGroup(object):
                         new_mem.append(cmd)
                     mem = new_mem
                 loadPkts.append(dev.load(mem, sram, page))
-            
-        #loadPkts = [dev.load(mem, sram, page)
-        #            for dev, mem, sram, slave, delay in devs]
-
+        
         # run all boards
         regs = numpy.zeros(56, dtype='uint8')
         regs[45] = sync # start on us boundary
@@ -622,10 +547,9 @@ class BoardGroup(object):
             nTimers = timerCount(mem)
             N = reps * nTimers / TIMING_PACKET_LEN
             seqTime = TIMEOUT_FACTOR * (sequenceTime(mem) * reps) + 1
-            #collectPkts.append(dev.collect(N, seqTime, self.ctx, devCtxs))
             
             # because the direct ethernet server does not timeout properly
-            # one wait_for_trigger calls, we send two packets, one with the
+            # on wait_for_trigger calls, we send two packets, one with the
             # collect and one with the trigger.  That way, even if the collect
             # call times out and returns an error, the triggers will get sent,
             # which will free up the contexts for the next point and send
@@ -1648,6 +1572,69 @@ def timerCount(cmds):
     return cmds.count(0x400001) # python list version
     
     
+    
+    
+class TimedLock(object):
+    """
+    A lock that times how long it takes to acquire.
+    """
+
+    TIMES_TO_KEEP = 100
+    locked = 0
+
+    def __init__(self):
+        self.waiting = []
+
+    @property
+    def times(self):
+        if not hasattr(self, '_times'):
+            self._times = []
+        return self._times
+
+    def addTime(self, dt):
+        times = self.times
+        times.append(dt)
+        if len(times) > self.TIMES_TO_KEEP:
+            times.pop(0)
+
+    def meanTime(self):
+        times = self.times
+        if not len(times):
+            return 0
+        return sum(times) / len(times)
+
+    def acquire(self):
+        """Attempt to acquire the lock.
+
+        @return: a Deferred which fires on lock acquisition.
+        """
+        d = defer.Deferred()
+        if self.locked:
+            t = time.time()
+            self.waiting.append((d, t))
+        else:
+            self.locked = 1
+            self.addTime(0)
+            d.callback(0)
+        return d
+
+    def release(self):
+        """Release the lock.
+
+        Should be called by whomever did the acquire() when the shared
+        resource is free.
+        """
+        assert self.locked, "Tried to release an unlocked lock"
+        self.locked = 0
+        if self.waiting:
+            # someone is waiting to acquire lock
+            self.locked = 1
+            d, t = self.waiting.pop(0)
+            dt = time.time() - t
+            self.addTime(dt)
+            d.callback(dt)
+    
+
 
 __server__ = FPGAServer()
 
