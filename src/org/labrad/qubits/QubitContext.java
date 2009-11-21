@@ -124,7 +124,7 @@ public class QubitContext extends AbstractServerContext {
     if (data.matchesType("s")) {
       String device = data.getString();
       return getChannel(device, cls);
-    } else if (data.matchesType("ss")){
+    } else if (data.matchesType("ss")) {
       String device = data.get(0).getString();
       String channel = data.get(1).getString();
       return getChannel(device, channel, cls);
@@ -132,7 +132,7 @@ public class QubitContext extends AbstractServerContext {
       throw new RuntimeException("Unknown channel identifier: " + data.pretty());
     }
   }
-
+  
   /**
    * Get a channel from the experiment that is of a particular class
    */
@@ -156,9 +156,9 @@ public class QubitContext extends AbstractServerContext {
   private Data buildSetupPacket(String server, Data records) {
     return Data.clusterOf(
         Data.clusterOf(Data.valueOf(setupContext.getHigh()),
-            Data.valueOf(setupContext.getLow())),
-            Data.valueOf(server),
-            records);
+                       Data.valueOf(setupContext.getLow())),
+        Data.valueOf(server),
+        records);
   }
 
   /**
@@ -230,7 +230,6 @@ public class QubitContext extends AbstractServerContext {
     Resources rsrc = Resources.getCurrent();
     initialize(ExperimentBuilder.fromData(template, rsrc));
   }
-
   public void initialize(ExperimentBuilder builder) {
     Experiment expt = builder.build();
     setExperimentBuilder(builder);
