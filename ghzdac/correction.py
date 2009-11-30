@@ -641,13 +641,13 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         q = numpy.round(q * fullscale + zeroQ).astype(numpy.int32)
 
         if not rescale:
-            if (numpy.max(i) > 0x1FFF) or (numpy.min(i) < -0x2000):
-                print 'Corrected I signal beyond DAC range, clipping.'
-                i = numpy.clip(i,-0x2000,0x1FFF)
-            if (numpy.max(q) > 0x1FFF) or (numpy.min(q) < -0x2000):
-                print 'Corrected Q signal beyond DAC range, numpy.clipping.'
-                q = numpy.clip(q,-0x2000,0x1FFF)
-
+            clippedI = numpy.clip(i,-0x2000,0x1FFF)
+            clippedQ = numpy.clip(q,-0x2000,0x1FFF)
+            if numpy.any((clippedI != i) | (clippedQ != q)):
+                print 'Corrected IQ signal beyond DAC range, clipping.'
+            i = clippedI
+            q = clippedQ
+            
         if not zipSRAM:
             return (i, q)
 
@@ -656,8 +656,10 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
                 astype(numpy.uint32)
 
 
-    def recalibrate(self, carrierMin, carrierMax, zeroCarrierStep=0.02,
+    def recalibrate(self, carrierMin, carrierMax=None, zeroCarrierStep=0.02,
                 sidebandCarrierStep=0.05, sidebandMax=0.35, sidebandStep=0.05):
+	if carrierMax is None:
+            carrierMax = carrierMin
         if self.recalibrationRoutine is None:
             print 'No calibration routine hooked in.'
             return self
