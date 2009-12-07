@@ -31,6 +31,7 @@ timeout = 20
 """
 
 from labrad import types as T, util
+from labrad import units as U
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -67,15 +68,46 @@ class SR770Server(GPIBManagedServer):
             print 'failed:', e
             raise
         
-    @setting(10, sp=['v[Hz]'], returns=['v[Hz]'])
+    @setting(10, sp=['w'], returns=['v[Hz]'])
     def span(self, c, sp=None):
-        """Get or set the current frequency span for display A."""
+        """Get or set the current frequency span.
+        The span is specified by an integer from 0 to 19. The spans corresponding to each integer are given here:
+        (i,   span)
+        (0,   191mHz)
+        (1,   382mHz)
+        (2,   763mHz)
+        (3,   1.5Hz)
+        (4,   3.1Hz)
+        (5,   6.1Hz)
+        (6,   12.2Hz)
+        (7,   24.4Hz)
+        (8,   48.75Hz)
+        (9,   97.5Hz)
+        (10,  195Hz)
+        (11,  390Hz)
+        (12,  780Hz)
+        (13,  1.56KHz)
+        (14,  3.125KHz)
+        (15,  6.25KHz)
+        (16,  12.5KHz)
+        (17,  25KHz)
+        (18,  50KHz)
+        (19,  100KHz)
+        """
+        ### List of allowed frequency spans in Hertz ###
+        spans = [0.191,0.382,0.763,1.5,3.1,6.1,12.2,24.4,48.75,97.5,
+                 195.0,390.0,780.0,1560.0,3120.0,6250.0,12500.0,
+                 25000.0,50000.0,100000.0]
+        
         dev = self.selectedDevice(c)
         if sp is None:
             resp = yield dev.query('SPAN?\n')
-            sp = T.Value(float(resp), 'Hz')
-        elif isinstance(sp, T.Value):
-            yield dev.write('SPAN, %f\n' % sp.value)
+            sp = T.Value(float(spans[int(resp)]), 'Hz')
+        else:
+        #    if not (sp<20 and sp>=0):
+        #        raise Exception('Span must be an integer between 0 and 19.')
+            yield dev.write('SPAN, %f\n' % sp)
+            sp = T.Value(float(spans[int(sp)]),'Hz')
         returnValue(sp)
 
     @setting(11, cf=['v[Hz]'], returns=['v[Hz]'])
@@ -99,45 +131,6 @@ class SR770Server(GPIBManagedServer):
         else:
             yield dev.write('STRF,%f\n' % fs.value)
         returnValue(fs)
-
-    # @setting(13, fe=['v[Hz]'], returns=['v[Hz]'])
-    # def end_frequency(self, c, fe=None):
-        # """Get or set the end frequency. Must be between 0 and 100kHz"""
-        # dev = self.selectedDevice(c)
-        # if fe is None:
-            # resp = yield dev.query('FEND?0\n')
-            # fe = T.Value(float(resp), 'Hz')
-        # else:
-            # yield dev.write('FEND0,%f\n' % fe.value)
-        # returnValue(fe)
-
-    @setting(15, nl=['w', 's'], returns=['w'])
-    def num_lines(self, c, nl=None):
-        """Get or set the number of FFT Lines:
-        100
-        200
-        400
-        800. 
-        800 is the highest resolution /slowest measurement time (t=Lines/Span).
-        """
-        dev = self.selectedDevice(c)
-        units = {
-            '100': 0,
-            '200': 1,
-            '400': 2,
-            '800': 3,
-            }
-        if nl is None:
-            resp = yield dev.query('FLIN?0\n')
-            nl = long(resp)
-        else:
-            if isinstance(nl, str):
-                if nl not in units:
-                    raise Exception('Choose number of lines 100, 200, 400, or 800.')
-                nl = units[nl]
-            yield dev.write('FLIN0,%u \n' % nl)
-        returnValue(nl)    
-
         
     @setting(17, avg=['w', 's'], returns=['w'])
     def average(self, c, avg=None):
@@ -148,14 +141,14 @@ class SR770Server(GPIBManagedServer):
             'ON': 1,
             }
         if avg is None:
-            resp = yield dev.query('FAVG?0\n')
+            resp = yield dev.query('AVGO?\n')
             avg = long(resp)
         else:
             if isinstance(avg, str):
                 if avg.upper() not in units:
                     raise Exception('Can only turn ON or OFF.')
                 avg = units[avg.upper()]
-            yield dev.write('FAVG0, %u ' % avg)
+            yield dev.write('AVGO, %u ' % avg)
         returnValue(avg)
 
     @setting(18, av=['w'], returns=['w'])
