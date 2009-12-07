@@ -45,7 +45,7 @@ class SR780Server(GPIBManagedServer):
     """Serves the Stanford Research Systems SR780 Network Signal Analyzer.
     A low frequency (0-100kHz) FFT. Can save data to datavault."""
     name = 'Signal Analyzer SR780'
-    deviceName = 'Stanford Research Systems SR780'
+    deviceName = 'Stanford_Research_Systems SR780'
     deviceWrapper = SR780Wrapper
     deviceIdentFunc = 'identify_device'
 
