@@ -26,6 +26,7 @@ public class FpgaModelMicrowave extends FpgaModelBase {
     dummy.setExperiment(expt);
     dummy.setDacBoard(dacBoard);
     dummy.setMicrowaveSource(dacBoard.getMicrowaveSource());
+    dummy.configMicrowavesOn(6.0, -10); // TODO reuse microwave config from another board that has same source
     dummy.setFpgaModel(this);
   }
 

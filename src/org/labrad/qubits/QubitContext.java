@@ -707,6 +707,7 @@ public class QubitContext extends AbstractServerContext {
     List<String> setupState = Lists.newArrayList(expt.getSetupState());
 
     // build setup packets for microwave sources
+    // TODO if a microwave source is used for dummy channels and real channels, resolve here
     for (MicrowaveSource src : uwaveConfigs.keySet()) {
       SetupPacket p = uwaveConfigs.get(src).getSetupPacket(src);
       setupPackets.add(buildSetupPacket(Constants.ANRITSU_SERVER, p.getRecords()));
