@@ -61,6 +61,10 @@ public class QubitContext extends AbstractServerContext {
   private int dataIndex;
   private Data lastData = null;
   
+  private boolean configDirty = true;
+  private boolean memDirty = true;
+  private boolean sramDirty = true;
+  
   /**
    * Initialize this context when it is first created.
    */
@@ -249,6 +253,7 @@ public class QubitContext extends AbstractServerContext {
                + "but leaves the device and channel setup unchanged.")
   public void new_config() {
     getExperiment().clearConfig();
+    configDirty = true;
   }
 
   @Setting(id = 210,
@@ -264,12 +269,14 @@ public class QubitContext extends AbstractServerContext {
     // turn the microwave source on, set the power level and frequency
     IqChannel ch = getChannel(id, IqChannel.class);
     ch.configMicrowavesOn(freq, power);
+    configDirty = true;
   }
   @SettingOverload
   public void config_microwaves(@Accepts({"s", "ss"}) Data id) {
     // turn the microwave source off
     IqChannel ch = getChannel(id, IqChannel.class);
     ch.configMicrowavesOff();
+    configDirty = true;
   }
 
   @Setting(id = 220,
@@ -283,6 +290,7 @@ public class QubitContext extends AbstractServerContext {
     // set the preamp offset, polarity and filtering options
     PreampChannel ch = getChannel(id, PreampChannel.class);
     ch.setPreampConfig(offset, polarity, highPass, lowPass);
+    configDirty = true;
   }
 
   @Setting(id = 230,
@@ -293,6 +301,7 @@ public class QubitContext extends AbstractServerContext {
                               @Accepts("*v[GHz]") double[] amplitudes) {
     AnalogChannel ch = getChannel(id, AnalogChannel.class);
     ch.setSettling(rates, amplitudes);
+    configDirty = true;
   }
 
   @Setting(id = 240,
@@ -308,6 +317,7 @@ public class QubitContext extends AbstractServerContext {
       channels.add(getChannel(id, PreampChannel.class));
     }
     getExperiment().setTimingOrder(channels);
+    configDirty = true;
   }
 
   @Setting(id = 250,
@@ -329,6 +339,7 @@ public class QubitContext extends AbstractServerContext {
       packetList.add(packet);
     }
     getExperiment().setSetupState(states, packetList);
+    configDirty = true;
   }
 
   @Setting(id = 260,
@@ -345,10 +356,12 @@ public class QubitContext extends AbstractServerContext {
                + "will be used.")
   public void config_autotrigger(String channel) {
     config_autotrigger(channel, Constants.AUTOTRIGGER_PULSE_LENGTH);
+    configDirty = true;
   }
   @SettingOverload
   public void config_autotrigger(String channel, @Accepts("v[ns]") double length) {
     getExperiment().setAutoTrigger(DacTriggerId.fromString(channel), (int)length);
+    configDirty = true;
   }
 
   /*
@@ -376,6 +389,7 @@ public class QubitContext extends AbstractServerContext {
            doc = "Clear memory content in this context.")
   public void new_mem() {
     getExperiment().clearMemory();
+    memDirty = true;
   }
 
   /**
@@ -402,6 +416,7 @@ public class QubitContext extends AbstractServerContext {
                + "delay will be added (currently 4.3 microseconds).")
   public void mem_bias(@Accepts({"*(s s v[mV])", "*((ss) s v[mV])"}) List<Data> commands) {
     mem_bias(commands, Constants.DEFAULT_BIAS_DELAY);
+    memDirty = true;
   }
   @SettingOverload
   public void mem_bias(@Accepts({"*(s s v[mV])", "*((ss) s v[mV])"}) List<Data> commands,
@@ -418,6 +433,7 @@ public class QubitContext extends AbstractServerContext {
     }
 
     getExperiment().addBiasCommands(fpgas, microseconds);
+    memDirty = true;
   }
 
   @Setting(id = 320,
@@ -425,6 +441,7 @@ public class QubitContext extends AbstractServerContext {
            doc = "Add a delay to all channels.")
   public void mem_delay(@Accepts("v[us]") double delay) {
     getExperiment().addMemoryDelay(delay);
+    memDirty = true;
   }
 
   @Setting(id = 330,
@@ -439,10 +456,12 @@ public class QubitContext extends AbstractServerContext {
                + "and the START of the second block must be specified separately).")
   public void mem_call_sram(String block) {
     getExperiment().callSramBlock(block);
+    memDirty = true;
   }
   @SettingOverload
   public void mem_call_sram(String block1, String block2) {
     getExperiment().callSramDualBlock(block1, block2);
+    memDirty = true;
   }
 
   @Setting(id = 340,
@@ -454,6 +473,7 @@ public class QubitContext extends AbstractServerContext {
       channels.add(getChannel(ch, PreampChannel.class));
     }
     getExperiment().startTimer(channels);
+    memDirty = true;
   }
 
   @Setting(id = 350,
@@ -465,6 +485,7 @@ public class QubitContext extends AbstractServerContext {
       channels.add(getChannel(ch, PreampChannel.class));
     }
     getExperiment().stopTimer(channels);
+    memDirty = true;
   }
 
 
@@ -489,6 +510,7 @@ public class QubitContext extends AbstractServerContext {
   public void new_sram_block(String name, long length) {
     getExperiment().startSramBlock(name, length);
     currentBlock = name;
+    sramDirty = true;
   }
 
   @Setting(id = 401,
@@ -502,6 +524,7 @@ public class QubitContext extends AbstractServerContext {
                + "another unit of time.")
   public void sram_dual_block_delay(@Accepts("v[ns]") double delay) {
     getExperiment().setSramDualBlockDelay(delay);
+    sramDirty = true;
   }
 
 
@@ -521,6 +544,7 @@ public class QubitContext extends AbstractServerContext {
   public void sram_iq_data(@Accepts({"s", "ss"}) Data id,
                            @Accepts("*c") Data vals) {
     sram_iq_data(id, vals, true);
+    sramDirty = true;
   }
   @SettingOverload
   public void sram_iq_data(@Accepts({"s", "ss"}) Data id,
@@ -529,6 +553,7 @@ public class QubitContext extends AbstractServerContext {
     IqChannel ch = getChannel(id, IqChannel.class);
     ComplexArray c = ComplexArray.fromData(vals);
     ch.addData(currentBlock, new IqDataTime(c, !deconvolve));
+    sramDirty = true;
   }
 
 
@@ -549,6 +574,7 @@ public class QubitContext extends AbstractServerContext {
     IqChannel ch = getChannel(id, IqChannel.class);
     ComplexArray c = ComplexArray.fromData(vals);
     ch.addData(currentBlock, new IqDataFourier(c, t0));
+    sramDirty = true;
   }
 
 
@@ -565,6 +591,7 @@ public class QubitContext extends AbstractServerContext {
   public void sram_analog_data(@Accepts({"s", "ss"}) Data id,
                                @Accepts("*v") Data vals) {
     sram_analog_data(id, vals, true);
+    sramDirty = true;
   }
   @SettingOverload
   public void sram_analog_data(@Accepts({"s", "ss"}) Data id,
@@ -573,6 +600,7 @@ public class QubitContext extends AbstractServerContext {
     AnalogChannel ch = getChannel(id, AnalogChannel.class);
     double[] arr = vals.getValueArray();
     ch.addData(currentBlock, new AnalogDataTime(arr, !deconvolve));
+    sramDirty = true;
   }
 
 
@@ -592,6 +620,7 @@ public class QubitContext extends AbstractServerContext {
     AnalogChannel ch = getChannel(id, AnalogChannel.class);
     ComplexArray c = ComplexArray.fromData(vals);
     ch.addData(currentBlock, new AnalogDataFourier(c, t0));
+    sramDirty = true;
   } 
 
 
@@ -604,6 +633,7 @@ public class QubitContext extends AbstractServerContext {
                                 @Accepts("*b") Data data) {
     TriggerChannel ch = getChannel(id, TriggerChannel.class);
     ch.addData(currentBlock, new TriggerDataTime(data.getBoolArray()));
+    sramDirty = true;
   }
 
   @Setting(id = 431,
@@ -620,6 +650,7 @@ public class QubitContext extends AbstractServerContext {
       int length = (int)pulse.get(1).getValue();
       ch.addPulse(currentBlock, start, length);
     }
+    sramDirty = true;
   }
 
 
@@ -698,7 +729,6 @@ public class QubitContext extends AbstractServerContext {
     //
 
     // this is the new-style deconvolution routine which sends all deconvolution requests in separate packets
-    // TODO allow these deconvolution requests to be packetized, if that will increase performance
     DeconvolutionProxy deconvolver = new DeconvolutionProxy(getConnection());
     List<Future<Void>> deconvolutions = Lists.newArrayList();
     for (FpgaModel fpga : expt.getFpgas()) {
@@ -739,6 +769,11 @@ public class QubitContext extends AbstractServerContext {
         Data.clusterOf(setupPackets),
         Data.listOf(setupState, Setters.stringSetter));
     nextRequest = runRequest;
+    
+    // clear the dirty bits
+    configDirty = false;
+    memDirty = false;
+    sramDirty = false;
   }
 
   @Setting(id = 1000,
@@ -746,8 +781,9 @@ public class QubitContext extends AbstractServerContext {
            doc = "Runs the experiment and returns the timing data")
   @Returns("*2w")
   public Data run_experiment() throws InterruptedException, ExecutionException {
-    // TODO have a 'dirty bit' that gets checked to trigger a build if necessary
-    // TODO have separate 'dirty bits' for config, SRAM, etc.
+    if (configDirty || memDirty || sramDirty) {
+      throw new RuntimeException("Sequence needs to be built before running.");
+    }
     lastData = getConnection().sendAndWait(nextRequest).get(dataIndex);
     return lastData;
   }

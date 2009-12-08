@@ -12,6 +12,11 @@ public interface Deconvolvable {
   public boolean isDeconvolved();
 
   /**
+   * Mark as needing to be deconvolved again.
+   */
+  public void invalidate();
+  
+  /**
    * Deconvolve this item using the provided deconvolver.
    */
   public Future<Void> deconvolve(DeconvolutionProxy deconvolver);

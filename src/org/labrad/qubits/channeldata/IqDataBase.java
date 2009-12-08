@@ -25,6 +25,11 @@ public abstract class IqDataBase implements IqData {
     return isDeconvolved;
   }
 
+  @Override
+  public void invalidate() {
+    isDeconvolved = false;
+  }
+  
   protected void setDeconvolved(boolean isDeconvolved) {
     this.isDeconvolved = isDeconvolved;
   }

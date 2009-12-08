@@ -79,7 +79,10 @@ public class AnalogChannel extends SramChannelBase<AnalogData> {
         "%s: lists of settling rates and amplitudes must be the same length", getName());
     settlingRates = rates;
     settlingAmplitudes = amplitudes;
-    // FIXME need to mark all blocks as needing deconvolution when config changes
+    // mark all blocks as needing to be deconvolved again
+    for (AnalogData block : blocks.values()) {
+      block.invalidate();
+    }
   }
 
   public double[] getSettlingRates() {

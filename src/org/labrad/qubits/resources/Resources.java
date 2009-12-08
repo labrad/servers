@@ -100,8 +100,6 @@ public class Resources {
       uwaveSrc.addMicrowaveBoard(dac);
     }
 
-    // TODO sanity check on this wiring before we set the current resource set
-
     // Set this new resource map as the current one
     setCurrent(r);
   }

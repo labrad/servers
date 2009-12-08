@@ -37,7 +37,6 @@ public class AnalogDataFourier extends AnalogDataBase {
         setDeconvolved(true);
         return null;
       }
-
     });
   }
 

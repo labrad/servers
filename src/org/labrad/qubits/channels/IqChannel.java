@@ -75,7 +75,10 @@ public class IqChannel extends SramChannelBase<IqData> {
 
   public void configMicrowavesOn(double freq, double power) {
     uwaveConfig = new MicrowaveSourceOnConfig(freq, power);
-    // FIXME need to mark all blocks as needing deconvolution when config changes
+    // mark all blocks as needing to be deconvolved again
+    for (IqData block : blocks.values()) {
+      block.invalidate();
+    }
   }
 
   public void configMicrowavesOff() {
