@@ -18,11 +18,14 @@
 # calibration but also for recalibration. The user interface is provided
 # by GHz_DAC_calibrate in "scripts".
 
+import numpy as np
+from twisted.internet.defer import inlineCallbacks, returnValue
+
+from labrad.types import Value
+
 from ghzdac import IQcorrector
 import keys
-import numpy
-from labrad.types import Value
-from twisted.internet.defer import inlineCallbacks, returnValue
+
 #trigger to be set:
 #0x1: trigger S0
 #0x2: trigger S1
@@ -37,7 +40,7 @@ PERIOD = 2000
 SCOPECHANNEL = 2
 
 def validSBstep(f):
-    return round(0.5*numpy.clip(f,2.0/PERIOD,1.0)*PERIOD)*2.0/PERIOD
+    return round(0.5*np.clip(f,2.0/PERIOD,1.0)*PERIOD)*2.0/PERIOD
 
 @inlineCallbacks
 def spectInit(spec):
@@ -59,15 +62,15 @@ def signalPower(spec):
 
 def makeSample(a,b):
     """computes sram sample from dac A and B values"""
-    if (numpy.max(a) > 0x1FFF) or (numpy.max(b) > 0x1FFF) or \
-       (numpy.min(a) < -0x2000) or (numpy.min(b) < -0x2000):
+    if (np.max(a) > 0x1FFF) or (np.max(b) > 0x1FFF) or \
+       (np.min(a) < -0x2000) or (np.min(b) < -0x2000):
         print 'DAC overflow'
     return long(a & 0x3FFFL) | (long(b & 0x3FFFL) << 14)
 
 @inlineCallbacks     
 def measurePower(spec,fpga,a,b):
     """returns signal power from the spectrum analyzer"""
-    dac=[makeSample(a,b)]*64
+    dac = [makeSample(a,b)]*64
     dac[0] |= trigger
     yield fpga.run_sram(dac,True)
     returnValue((yield signalPower(spec)))
@@ -83,19 +86,19 @@ def datasetDir(dataset):
     return result
 
 
-def minPos(l,c,r):
+def minPos(l, c, r):
     """Calculates minimum of a parabola to three equally spaced points.
     The return value is in units of the spacing relative to the center point.
     It is bounded by -1 and 1.
     """
-    d=l+r-2.0*c
+    d = l+r-2.0*c
     if d <= 0:
         return 0
-    d=0.5*(l-r)/d
-    if d>1:
-        d=1
-    if d<-1:
-        d=-1
+    d = 0.5*(l-r)/d
+    if d > 1:
+        d = 1
+    if d < -1:
+        d = -1
     return d
 
 
@@ -110,29 +113,29 @@ def zero(anr, spec, fpga, freq):
    
     yield anr.frequency(Value(freq,'GHz'))
     yield spectFreq(spec,freq)
-    a=0
-    b=0
-    precision=0x800
+    a = 0
+    b = 0
+    precision = 0x800
     print '    calibrating at %g GHz...' % freq
     while precision > 0:
-        al = yield measurePower(spec,fpga,a-precision,b)
-        ar = yield measurePower(spec,fpga,a+precision,b)
-        ac = yield measurePower(spec,fpga,a,b)
-        corra=long(round(precision*minPos(al,ac,ar)))
-        a+=corra
+        al = yield measurePower(spec, fpga, a-precision, b)
+        ar = yield measurePower(spec, fpga, a+precision, b)
+        ac = yield measurePower(spec, fpga, a, b)
+        corra = long(round(precision*minPos(al, ac, ar)))
+        a += corra
 
-        bl = yield measurePower(spec,fpga,a,b-precision)
-        br = yield measurePower(spec,fpga,a,b+precision)
-        bc = yield measurePower(spec,fpga,a,b)
-        corrb=long(round(precision*minPos(bl,bc,br)))
-        b+=corrb
-        optprec=2*numpy.max([abs(corra),abs(corrb)]) 
-        precision/=2
-        if precision>optprec:
-            precision=optprec
+        bl = yield measurePower(spec, fpga, a, b-precision)
+        br = yield measurePower(spec, fpga, a, b+precision)
+        bc = yield measurePower(spec, fpga, a, b)
+        corrb = long(round(precision*minPos(bl, bc, br)))
+        b += corrb
+        optprec = 2*np.max([abs(corra), abs(corrb)]) 
+        precision /= 2
+        if precision > optprec:
+            precision = optprec
         print '        a = %4d  b = %4d uncertainty : %4d, power %6.1f dBm' % \
-              (a, b, precision, 10 * numpy.log(bc) / numpy.log(10.0))
-    returnValue([a,b])
+              (a, b, precision, 10 * np.log(bc) / np.log(10.0))
+    returnValue([a, b])
 
 @inlineCallbacks
 def zeroFixedCarrier(cxn, boardname):
@@ -192,15 +195,15 @@ def zeroScanCarrier(cxn, scanparams, boardname):
     ds = cxn.data_vault
     yield ds.cd(['',keys.SESSIONNAME,boardname],True)
     dataset = yield ds.new(keys.ZERONAME,
-                           [('Frequency','GHz')],
+                           [('Frequency', 'GHz')],
                            [('DAC zero', 'A', 'clics'),
                             ('DAC zero', 'B', 'clics')])
     yield ds.add_parameter(keys.ANRITSUPOWER, anritsuPower)
 
-    freq=scanparams['carrierMin']
-    while freq<scanparams['carrierMax']+0.001*scanparams['carrierStep']:
-        yield ds.add([freq]+(yield zero(anr,spec,fpga,freq)))
-        freq+=scanparams['carrierStep']
+    freq = scanparams['carrierMin']
+    while freq < scanparams['carrierMax']+0.001*scanparams['carrierStep']:
+        yield ds.add([freq]+(yield zero(anr, spec, fpga, freq)))
+        freq += scanparams['carrierStep']
     yield anr.output(False)
     yield spectDeInit(spec)
     yield cxn.microwave_switch.switch(0)
@@ -223,27 +226,27 @@ def measureImpulseResponse(fpga, scope, baseline, pulse, dacoffsettime=6, pulsel
     """
     #units clock cycles
     dacoffsettime = int(round(dacoffsettime))
-    triggerdelay=30
-    looplength=2000
-    pulseindex=triggerdelay-dacoffsettime
-    yield scope.start_time(Value(triggerdelay,'ns'))
+    triggerdelay = 30
+    looplength = 2000
+    pulseindex = triggerdelay-dacoffsettime
+    yield scope.start_time(Value(triggerdelay, 'ns'))
     #calculate the baseline voltage by capturing a trace without a pulse
 
-    data = numpy.resize(baseline, looplength)
+    data = np.resize(baseline, looplength)
     data[pulseindex:pulseindex+pulselength] = pulse
     data[0] |= trigger
     yield fpga.run_sram(data,True)
     data = (yield scope.get_trace(1)).asarray
-    data[0]-=triggerdelay*1e-9
+    data[0] -= triggerdelay*1e-9
     returnValue(data)
 
 @inlineCallbacks
 def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     """Measures the impulse response of the DACs after the IQ mixer"""
-    pulseheight=0x1800
+    pulseheight = 0x1800
 
     reg = cxn.registry
-    yield reg.cd(['',keys.SESSIONNAME,boardname])
+    yield reg.cd(['', keys.SESSIONNAME, boardname])
 
     anr = cxn.anritsu_server
     anritsuID = yield reg.get(keys.ANRITSUID)
@@ -311,13 +314,13 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     yield ds.add_parameter(keys.PULSECARRIERFREQ, carrierFreq)
     yield ds.add_parameter(keys.ANRITSUPOWER, anritsuPower)
     yield ds.add_parameter(keys.TIMEOFFSET, offsettime)
-    yield ds.add(numpy.transpose(\
-        [1e9*(starttime+timestep*numpy.arange(numpy.alen(traceA)-2)),
+    yield ds.add(np.transpose(\
+        [1e9*(starttime+timestep*np.arange(np.alen(traceA)-2)),
          traceA[2:],traceB[2:]]))
 #        traceA[2:]-offset,
 #        traceB[2:]-offset]))
-    if numpy.abs(numpy.argmax(numpy.abs(traceA-numpy.average(traceA))) - \
-                 numpy.argmax(numpy.abs(traceB-numpy.average(traceB)))) \
+    if np.abs(np.argmax(np.abs(traceA-np.average(traceA))) - \
+                 np.argmax(np.abs(traceB-np.average(traceB)))) \
        * timestep > 0.5e-9:
         print "Pulses from DAC A and B do not seem to be on top of each other!"
         print "Sideband calibrations based on this pulse calibration will"
@@ -339,7 +342,7 @@ def calibrateDCPulse(cxn,boardname,channel):
     fpga.select_device(boardname)
 
     dac_baseline = -0x2000
-    dac_pulse=0x1FFF
+    dac_pulse = 0x1FFF
     dac_neutral = 0x0000
     if channel:
         pulse = makeSample(dac_neutral,dac_pulse)
@@ -370,16 +373,16 @@ def calibrateDCPulse(cxn,boardname,channel):
 
     print 'Measuring step response...'
     trace = yield measureImpulseResponse(fpga, scope, baseline, pulse,
-        dacoffsettime=offsettime['ns'],pulselength=100)
+        dacoffsettime=offsettime['ns'], pulselength=100)
     # set the output to zero so that the fridge does not warm up when the
     # cable is plugged back in
     yield fpga.run_sram([makeSample(dac_neutral, dac_neutral)]*4,False)
     ds = cxn.data_vault
-    yield ds.cd(['',keys.SESSIONNAME,boardname],True)
-    dataset = yield ds.new(keys.CHANNELNAMES[channel],[('Time','ns')],
+    yield ds.cd(['', keys.SESSIONNAME, boardname],True)
+    dataset = yield ds.new(keys.CHANNELNAMES[channel], [('Time','ns')],
                            [('Voltage','','V')])
     yield ds.add_parameter(keys.TIMEOFFSET, offsettime)
-    yield ds.add(numpy.transpose([1e9*(trace[0]+trace[1]*numpy.arange(numpy.alen(trace)-2)),
+    yield ds.add(np.transpose([1e9*(trace[0]+trace[1]*np.arange(np.alen(trace)-2)),
         trace[2:]]))
     returnValue(datasetNumber(dataset))
 
@@ -394,16 +397,16 @@ def measureOppositeSideband(spec, fpga, corrector,
     """Put out a signal at carrierfreq+sidebandfreq and return the power at
     carrierfreq-sidebandfreq"""
 
-    arg=-2.0j*numpy.pi*sidebandfreq*numpy.arange(PERIOD)
-    signal=corrector.DACify(carrierfreq,
-                            0.5 * numpy.exp(arg) + 0.5 * compensation * numpy.exp(-arg), \
+    arg = -2.0j*np.pi*sidebandfreq*np.arange(PERIOD)
+    signal = corrector.DACify(carrierfreq,
+                            0.5 * np.exp(arg) + 0.5 * compensation * np.exp(-arg), \
                             loop=True, iqcor=False, rescale=True)
     signal[0] = signal[0] | trigger
     yield fpga.run_sram(signal,True)
     returnValue((yield signalPower(spec)) / corrector.last_rescale_factor)
 
 @inlineCallbacks 
-def sideband(anr,spect,fpga,corrector,carrierfreq,sidebandfreq):
+def sideband(anr, spect, fpga, corrector, carrierfreq, sidebandfreq):
     """When the IQ mixer is used for sideband mixing, imperfections in the
     IQ mixer and the DACs give rise to a signal not only at
     carrierfreq+sidebandfreq but also at carrierfreq-sidebandfreq.
@@ -416,8 +419,8 @@ def sideband(anr,spect,fpga,corrector,carrierfreq,sidebandfreq):
     if abs(sidebandfreq) < 3e-5:
         returnValue(0.0j)
     yield anr.frequency(Value(carrierfreq,'GHz'))
-    comp=0.0j
-    precision=1.0
+    comp = 0.0j
+    precision = 1.0
     yield spectFreq(spect,carrierfreq-sidebandfreq)
     while precision > 2.0**-14:
         lR = yield measureOppositeSideband(spect, fpga, corrector, carrierfreq,
@@ -438,9 +441,9 @@ def sideband(anr,spect,fpga,corrector,carrierfreq,sidebandfreq):
         
         corrI = precision * minPos(lI,cI,rI)
         comp += 1.0j * corrI
-        precision=numpy.min([2.0 * numpy.max([abs(corrR),abs(corrI)]), precision / 2.0])
+        precision = np.min([2.0 * np.max([abs(corrR),abs(corrI)]), precision / 2.0])
         print '      compensation: %.4f%+.4fj +- %.4f, opposite sb: %6.1f dBm' % \
-            (numpy.real(comp), numpy.imag(comp), precision, 10.0 * numpy.log(cI) / numpy.log(10.0))
+            (np.real(comp), np.imag(comp), precision, 10.0 * np.log(cI) / np.log(10.0))
     corrector.dynamicReserve = reserveBuffer
     returnValue(comp)
 
@@ -449,14 +452,14 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
     """Determines relative I and Q amplitudes by canceling the undesired
        sideband at different sideband frequencies."""
 
-    fpga=cxn.ghz_dacs
+    fpga = cxn.ghz_dacs
     yield fpga.select_device(boardname)
-    anr=cxn.anritsu_server
-    spec=cxn.spectrum_analyzer_server
-    scope=cxn.sampling_scope
-    ds=cxn.data_vault
+    anr = cxn.anritsu_server
+    spec = cxn.spectrum_analyzer_server
+    scope = cxn.sampling_scope
+    ds = cxn.data_vault
     reg = cxn.registry
-    yield reg.cd(['',keys.SESSIONNAME,boardname])
+    yield reg.cd(['', keys.SESSIONNAME, boardname])
     spectID = yield reg.get(keys.SPECTID)
     spec.select_device(spectID)
     yield spectInit(spec)
@@ -472,7 +475,7 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
        %  (scanparams['carrierMin'],scanparams['carrierMax'],
            scanparams['sidebandCarrierStep'])
     
-    sidebandfreqs = (numpy.arange(scanparams['sidebandFreqCount']) \
+    sidebandfreqs = (np.arange(scanparams['sidebandFreqCount']) \
                          - (scanparams['sidebandFreqCount']-1) * 0.5) \
                      * validSBstep(scanparams['sidebandFreqStep'])
     dependents = []
@@ -481,24 +484,24 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
                             (sidebandfreq*1e3),''),
                        ('relative compensation', 'I at f_SB = %g MHz' % \
                             (sidebandfreq*1e3),'')]    
-    yield ds.cd(['',keys.SESSIONNAME,boardname],True)
-    dataset = yield ds.new(keys.IQNAME,[('Antritsu Frequency','GHz')],dependents)
+    yield ds.cd(['', keys.SESSIONNAME, boardname], True)
+    dataset = yield ds.new(keys.IQNAME, [('Antritsu Frequency','GHz')], dependents)
     yield ds.add_parameter(keys.ANRITSUPOWER, (yield reg.get(keys.ANRITSUPOWER)))
     yield ds.add_parameter('Sideband frequency step',
-                     Value(scanparams['sidebandFreqStep']*1e3,'MHz'))
+                     Value(scanparams['sidebandFreqStep']*1e3, 'MHz'))
     yield ds.add_parameter('Number of sideband frequencies',
                      scanparams['sidebandFreqCount'])
-    freq=scanparams['carrierMin']
-    while freq<scanparams['carrierMax'] + \
+    freq = scanparams['carrierMin']
+    while freq < scanparams['carrierMax'] + \
               0.001 * scanparams['sidebandCarrierStep']:
         print '  carrier frequency: %g GHz' % freq
-        datapoint=[freq]
+        datapoint = [freq]
         for sidebandfreq in sidebandfreqs:
             print '    sideband frequency: %g GHz' % sidebandfreq
-            comp = yield sideband(anr,spec,fpga,corrector,freq,sidebandfreq)
-            datapoint += [numpy.real(comp), numpy.imag(comp)]
+            comp = yield sideband(anr, spec, fpga, corrector, freq, sidebandfreq)
+            datapoint += [np.real(comp), np.imag(comp)]
         yield ds.add(datapoint)
-        freq+=scanparams['sidebandCarrierStep']
+        freq += scanparams['sidebandCarrierStep']
     yield anr.output(False)
     yield spectDeInit(spec)
     yield cxn.microwave_switch.switch(0)

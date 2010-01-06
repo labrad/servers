@@ -23,27 +23,29 @@
 # 1.0.0               first stable version
 
 
-
 from __future__ import with_statement
-from correction import DACcorrection, IQcorrection, \
-     cosinefilter, gaussfilter, flatfilter
 
+from numpy import shape, array, size
 from twisted.python import log
 from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
-from labrad.thread import blockingCallFromThread as block, startReactor
-import labrad
-import keys
-from numpy import shape, array, size
 
-def aequal(a,b):
+import labrad
+from labrad.thread import blockingCallFromThread as block, startReactor
+
+from correction import (DACcorrection, IQcorrection,
+     cosinefilter, gaussfilter, flatfilter)
+import keys
+
+
+def aequal(a, b):
     return (shape(a) == shape(b)) and (all(a == b))
 
 @inlineCallbacks
 def getDataSets(cxn, boardname, caltype, errorClass=None):
     reg = cxn.registry
     ds = cxn.data_vault
-    yield reg.cd(['',keys.SESSIONNAME,boardname],True)
+    yield reg.cd(['', keys.SESSIONNAME, boardname], True)
     if caltype in (yield reg.dir())[1]:
         calfiles = (yield reg.get(caltype))
     else:
@@ -62,8 +64,8 @@ def getDataSets(cxn, boardname, caltype, errorClass=None):
 
 @inlineCallbacks
 def IQcorrectorAsync(fpganame, connection,
-                     zerocor = True, pulsecor = True, iqcor = True,
-                     lowpass = cosinefilter, bandwidth = 0.4, errorClass = 'quiet'):
+                     zerocor=True, pulsecor=True, iqcor=True,
+                     lowpass=cosinefilter, bandwidth=0.4, errorClass='quiet'):
 
     """
     Returns a DACcorrection object for the given DAC board.
@@ -75,10 +77,10 @@ def IQcorrectorAsync(fpganame, connection,
     else:
         cxn = yield labrad.connectAsync()
         
-    ds=cxn.data_vault
+    ds = cxn.data_vault
     ctx = ds.context()
 
-    yield ds.cd(['',keys.SESSIONNAME,fpganame], True, context=ctx)
+    yield ds.cd(['', keys.SESSIONNAME, fpganame], True, context=ctx)
 
     corrector = IQcorrection(fpganame, lowpass, bandwidth)
 
@@ -130,9 +132,9 @@ def IQcorrectorAsync(fpganame, connection,
     returnValue(corrector)
 
 
-def IQcorrector(fpganame, cxn = None, \
-                zerocor = True, pulsecor = True, iqcor = True,
-                lowpass = cosinefilter, bandwidth = 0.4):
+def IQcorrector(fpganame, cxn=None,
+                zerocor=True, pulsecor=True, iqcor=True,
+                lowpass=cosinefilter, bandwidth=0.4):
     if cxn != None:
         print 'Warning: cxn argument is obsolete and is not being used.'
         print 'It is only there for backwards compatibility.'
@@ -148,8 +150,8 @@ def IQcorrector(fpganame, cxn = None, \
 
 
 @inlineCallbacks
-def DACcorrectorAsync(fpganame, channel, connection = None, \
-                      lowpass = gaussfilter, bandwidth = 0.13, errorClass = 'quiet'):
+def DACcorrectorAsync(fpganame, channel, connection=None,
+                      lowpass=gaussfilter, bandwidth=0.13, errorClass='quiet'):
 
     """
     Returns a DACcorrection object for the given DAC board.
@@ -161,10 +163,10 @@ def DACcorrectorAsync(fpganame, channel, connection = None, \
     else:
         cxn = yield labrad.connectAsync()
 
-    ds=cxn.data_vault
+    ds = cxn.data_vault
     ctx = ds.context()
 
-    yield ds.cd(['',keys.SESSIONNAME,fpganame], True, context=ctx)
+    yield ds.cd(['', keys.SESSIONNAME, fpganame], True, context=ctx)
 
     corrector = DACcorrection(fpganame, channel, lowpass, bandwidth)
 
@@ -184,8 +186,8 @@ def DACcorrectorAsync(fpganame, channel, connection = None, \
     returnValue(corrector)
 
 
-def DACcorrector(fpganame, channel, cxn = None,\
-                 lowpass = gaussfilter, bandwidth = 0.13):
+def DACcorrector(fpganame, channel, cxn=None,
+                 lowpass=gaussfilter, bandwidth=0.13):
     if cxn != None:
         print 'Warning: cxn argument is obsolete and is not being used.'
         print 'It is only there for backwards compatibility'
@@ -236,7 +238,7 @@ def recalibrateAsync(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
         # eliminate obsolete zero calibrations
         datasets = corrector.eliminateZeroCals()
         # and save which ones are being used now
-        yield reg.cd(['',keys.SESSIONNAME,boardname],True)
+        yield reg.cd(['', keys.SESSIONNAME, boardname], True)
         yield reg.set(keys.ZERONAME, datasets)
     if sidebandCarrierStep is not None:
         #check if a corrector has been provided and if it is up to date
@@ -269,7 +271,7 @@ def recalibrateAsync(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
         # eliminate obsolete zero calibrations
         datasets = corrector.eliminateSidebandCals()
         # and save which ones are being used now
-        yield reg.cd(['',keys.SESSIONNAME,boardname],True)
+        yield reg.cd(['', keys.SESSIONNAME, boardname], True)
         yield reg.set(keys.IQNAME, datasets)
     cxn.disconnect()
     returnValue(corrector)
