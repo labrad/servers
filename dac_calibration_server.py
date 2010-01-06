@@ -30,31 +30,33 @@ timeout = 5
 ### END NODE INFO
 """
 
-from labrad import types as T
-from labrad.server import LabradServer, setting
-from ghzdac import IQcorrectorAsync, DACcorrectorAsync
-from ghzdac.correction import fastfftlen
 from twisted.internet.defer import inlineCallbacks, returnValue
 
+from labrad.types import Error
+from labrad.server import LabradServer, setting
 
-class CalibrationNotFoundError(T.Error):
+from ghzdac import IQcorrectorAsync, DACcorrectorAsync
+from ghzdac.correction import fastfftlen
+
+
+class CalibrationNotFoundError(Error):
     code = 1
     def __init__(self, caltype):
         self.msg = "No " + caltype + " calibration available for this board."
 
-class NoSuchDACError(T.Error):
+class NoSuchDACError(Error):
     """No such DAC"""
     code = 2
 
-class NoBoardSelectedError(T.Error):
+class NoBoardSelectedError(Error):
     """No board selected"""
     code = 3
 
-class NoDACSelectedError(T.Error):
+class NoDACSelectedError(Error):
     """No DAC or frequency selected"""
     code = 4
 
-class DACrequiresRealError(T.Error):
+class DACrequiresRealError(Error):
     """Only single-channel data can be corrected for a DAC"""
     code = 5
 
