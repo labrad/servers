@@ -223,8 +223,7 @@ class FPGADevice(DeviceWrapper):
             if len(page) < MEM_PAGE_LEN:
                 page += [0] * (MEM_PAGE_LEN - len(page))
             # TODO: use numpy here
-            pkt = [(adr >> 8)] + \
-                  [(n >> j) & 255 for n in page for j in (0, 8, 16)]
+            pkt = [(adr >> 8)] + [(n >> j) & 255 for n in page for j in (0, 8, 16)]
             p.write(words2str(pkt))
             adr += MEM_PAGE_LEN
         return needToSend, (startadr, endadr)
@@ -1423,8 +1422,8 @@ class FPGAServer(DeviceServer):
                0x11E6, 0x9200, 0x9300, 0x9400, 0x9500]
         theory = tuple(bistChecksum(dat))
         bist = yield dev.runSerial(cmd, seq)
-        reading = [(bist[i+4] <<  0) + (bist[i+3] <<  8) + \
-                   (bist[i+2] << 16) + (bist[i+1] << 24) \
+        reading = [(bist[i+4] <<  0) + (bist[i+3] <<  8) +
+                   (bist[i+2] << 16) + (bist[i+1] << 24)
                    for i in [0, 5, 10, 15]]
         lvds, fifo = tuple(reading[0:2]), tuple(reading[2:4])
 
