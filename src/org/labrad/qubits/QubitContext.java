@@ -661,7 +661,7 @@ public class QubitContext extends AbstractServerContext {
   @Setting(id = 900,
            name = "Build Sequence",
            doc = "Compiles SRAM and memory sequences into runnable form")
-  public void build_sequence(long reps) throws InterruptedException, ExecutionException {
+  public void build_sequence() throws InterruptedException, ExecutionException {
 
     Experiment expt = getExperiment();
 
@@ -765,7 +765,7 @@ public class QubitContext extends AbstractServerContext {
 
     // run the sequence
     dataIndex = runRequest.addRecord("Run Sequence",
-        Data.valueOf(reps),
+        Data.valueOf(0L), // put in a dummy value for number of reps
         Data.valueOf(true), // return timing results
         Data.clusterOf(setupPackets),
         Data.listOf(setupState, Setters.stringSetter));
@@ -781,10 +781,13 @@ public class QubitContext extends AbstractServerContext {
            name = "Run",
            doc = "Runs the experiment and returns the timing data")
   @Returns("*2w")
-  public Data run_experiment() throws InterruptedException, ExecutionException {
+  public Data run_experiment(long reps) throws InterruptedException, ExecutionException {
     if (configDirty || memDirty || sramDirty) {
       throw new RuntimeException("Sequence needs to be built before running.");
     }
+    // set the number of reps
+    nextRequest.getRecord(dataIndex).getData().setWord(reps, 0);
+    
     lastData = getConnection().sendAndWait(nextRequest).get(dataIndex);
     return lastData;
   }
