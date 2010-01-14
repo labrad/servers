@@ -3,6 +3,6 @@
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/JLabrad"/>
-	<classpathentry kind="lib" path="google-collect-1.0-rc1.jar"/>
+	<classpathentry kind="lib" path="google-collect-1.0.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
