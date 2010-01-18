@@ -1,5 +1,6 @@
 package org.labrad.qubits;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -60,6 +61,7 @@ public class QubitContext extends AbstractServerContext {
   private Request nextRequest = null;
   private int dataIndex;
   private Data lastData = null;
+  private long[][] lastSwitches = null;
   
   private boolean configDirty = true;
   private boolean memDirty = true;
@@ -364,15 +366,21 @@ public class QubitContext extends AbstractServerContext {
     configDirty = true;
   }
 
-  /*
-  @Setting(ID = 280,
-           name = "Config Timing Data",
-           description = "Configure options for processing timing data before returning it.")
-  public void config_timing_data(Data data) {
-    // cutoff, histogram, deinterlace, qubits together or separate
-    throw new RuntimeException("Not implemented yet.");
+  @Setting(id = 280,
+           name = "Config Switch Intervals",
+           doc = "Configure switching intervals for processing timing data from a particular timing channel.")
+  public void config_switch_intervals(@Accepts({"s", "ss"}) Data id,
+                                      @Accepts({"*(v[us], v[us])"}) Data intervals) {
+    PreampChannel channel = getChannel(id, PreampChannel.class);
+    double[][] ints = new double[intervals.getArraySize()][];
+    for (int i = 0; i < ints.length; i++) {
+      Data interval = intervals.get(i);
+      double a = interval.get(0).getValue();
+      double b = interval.get(1).getValue();
+      ints[i] = new double[] {a, b};
+    }
+    channel.setSwitchIntervals(ints);
   }
-  */
 
 
   //
@@ -780,8 +788,7 @@ public class QubitContext extends AbstractServerContext {
   @Setting(id = 1000,
            name = "Run",
            doc = "Runs the experiment and returns the timing data")
-  @Returns("*2w")
-  public Data run_experiment(long reps) throws InterruptedException, ExecutionException {
+  public void run_experiment(long reps) throws InterruptedException, ExecutionException {
     if (configDirty || memDirty || sramDirty) {
       throw new RuntimeException("Sequence needs to be built before running.");
     }
@@ -789,7 +796,6 @@ public class QubitContext extends AbstractServerContext {
     nextRequest.getRecord(dataIndex).getData().setWord(reps, 0);
     
     lastData = getConnection().sendAndWait(nextRequest).get(dataIndex);
-    return lastData;
   }
 
   @Setting(id = 1100,
@@ -800,17 +806,140 @@ public class QubitContext extends AbstractServerContext {
     return lastData;
   }
 
-//  @Setting(id = 1101,
-//           name = "Get Data Probs",
-//           doc = "Gets the raw timing data from the previous run")
-//  @Returns("*2b")
-//  public Data get_data_probs(@Accepts("*(*(v[us], v[us]))") Data cutoffs) {
-//    // TODO apply cutoff ranges and convert to probabilities
-//    return lastData;
-//  }
+  @Setting(id = 1101,
+          name = "Get Data Raw Microseconds",
+          doc = "Gets the raw timing data from the previous run, converted to microseconds")
+  @Returns("*2v[us]")
+  public Data get_data_raw_microseconds() {
+    int[] shape = lastData.getArrayShape();
+    Data ans = Data.ofType("*2v[us]");
+    ans.setArrayShape(shape);
+    for (int i = 0; i < shape[0]; i++) {
+      for (int j = 0; j < shape[1]; j++) {
+        long cycles = lastData.get(i, j).getWord();
+        double microseconds = FpgaModelBase.clocksToMicroseconds(cycles);
+        ans.get(i, j).setValue(microseconds);
+      }
+    }
+    return ans;
+  }
+  
+  @Setting(id = 1102,
+      name = "Get Data Raw Switches",
+      doc = "Gets the raw timing data from the previous run, converted to "
+          + "booleans (T: switched, F: did not switch).")
+  @Returns("*2b")
+  public Data get_data_raw_switches() {
+    boolean[][] switches = interpretSwitches();
+    int[] shape = lastData.getArrayShape();
+    Data ans = Data.ofType("*2b");
+    ans.setArrayShape(shape);
+    for (int i = 0; i < shape[0]; i++) {
+      for (int j = 0; j < shape[1]; j++) {
+        ans.get(i, j).setBool(switches[i][j]);
+      }
+    }
+    return ans;
+  }
+  
+  @Setting(id = 1110,
+           name = "Get Data Probs Separate",
+           doc = "Get independent switching probabilities from the previous run."
+               + "\n\n"
+               + "Returns one probability for each timing channel, giving the switching "
+               + "probability of that channel, independent of any other channels.")
+  @Returns("*v")
+  public Data get_data_probs_separate() {
+    boolean[][] switches = interpretSwitches();
+    int[] shape = lastData.getArrayShape();
+    int N = shape[0];
+    int reps = shape[1];
+    double[] probs = new double[N];
+    for (int i = 0; i < N; i++) {
+      int count = 0;
+      for (boolean sw : switches[i]) {
+        count += sw ? 1 : 0;
+      }
+      probs[i] = (double)count / reps;
+    }
+    return Data.valueOf(probs);
+  }
 
-  // other timing options: deinterlace, combine multi-qubit probs, optionally discard certain multi-qubit probs (e.g. keep only P_0000...)
-  // should this go into the "config" section, or be its own thing here in the data retrieval section?
+  @Setting(id = 1111,
+           name = "Get Data Probs",
+           doc = "Get combined switching probabilities from the previous run."
+               + "\n\n"
+               + "Returns 2^N probabilities, where N is the number of timing channels "
+               + "(i.e. the number of qubits).  The index i should be interpreted as "
+               + "a binary integer with N bits, that is i=i[N-1..0]; then each number gives the "
+               + "probability that the measured switching result was sw[0]=i[N-1], "
+               + "sw[1]=i[N-2],..., sw[N-1]=i[0] (the zeroth switching result is in "
+               + "the MSB of the index).  In other words, the answer returned is: "
+               + "[P_00...00, P_00...01, P_00...10, P_00...11, ..., P_11...11], where "
+               + "the bits in each index read from left to right refer to qubits "
+               + "0, 1,..., N-1.  This convention was chosen to agree with what one "
+               + "obtains when taking tensor products of qubit systems, and so this "
+               + "makes for easier agreement with simulations."
+               + "\n\n"
+               + "If only a subset of probabilities is required, you can pass a list "
+               + "of states for which the probabilites should be returned.  The integers "
+               + "are interpreted in binary as described above.  For example, if you "
+               + "only care about the null result (no switches), then you would pass [0].")
+  @Returns("*v")
+  public Data get_data_probs() {
+    return Data.valueOf(getProbs());
+  }
+  
+  @SettingOverload
+  public Data get_data_probs(long[] states) {
+    double[] allProbs = getProbs();
+    double[] desiredProbs = new double[states.length];
+    for (int i = 0; i < states.length; i++) {
+      desiredProbs[i] = allProbs[(int)states[i]];
+    }
+    return Data.valueOf(desiredProbs);
+  }
+  
+  private boolean[][] interpretSwitches() {
+    int[] shape = lastData.getArrayShape();
+    List<PreampChannel> channels = getExperiment().getTimingChannels();
+    boolean[][] switches = new boolean[shape[0]][];
+    long[] cycles = new long[shape[1]];
+    for (int i = 0; i < shape[0]; i++) {
+      for (int j = 0; j < shape[1]; j++) {
+        cycles[j] = lastData.get(i, j).getWord();
+      }
+      switches[i] = channels.get(i).interpretSwitches(cycles);
+    }
+    return switches;
+  }
+
+  private double[] getProbs() {
+    boolean[][] switches = interpretSwitches();
+    int[] shape = lastData.getArrayShape();
+    int N = shape[0];
+    int reps = shape[1];
+    
+    // count switching states
+    int[] counts = new int[1<<N];
+    Arrays.fill(counts, 0);
+    for (int j = 0; j < reps; j++) {
+      int state = 0;
+      for (int i = 0; i < N; i++) {
+        state |= (switches[i][j] ? 1 : 0) << (N-1-i);
+      }
+      counts[state] += 1;
+    }
+    
+    // convert counts to probabilities
+    double[] probs = new double[counts.length];
+    for (int i = 0; i < counts.length; i++) {
+      probs[i] = (double)counts[i] / reps;
+    }
+    return probs;
+  }
+  
+  // TODO: handle data processing when deinterlacing is required
 
   //
   // diagnostic information

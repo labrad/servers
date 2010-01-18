@@ -220,13 +220,15 @@ public class Experiment {
    */
   public List<String> getTimingOrder() {
     List<String> order = Lists.newArrayList();
-    for (PreampChannel ch : timingOrder != null ? timingOrder : getChannels(PreampChannel.class)) {
+    for (PreampChannel ch : getTimingChannels()) {
       order.add(ch.getDacBoard().getName());
     }
     return order;
   }
 
-
+  public List<PreampChannel> getTimingChannels() {
+    return timingOrder != null ? timingOrder : getChannels(PreampChannel.class);
+  }
 
   //
   // Memory

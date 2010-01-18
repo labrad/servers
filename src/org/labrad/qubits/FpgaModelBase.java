@@ -93,7 +93,7 @@ public abstract class FpgaModelBase implements FpgaModel {
   }
 
   public void addMemoryDelay(double microseconds) {
-    int cycles = (int)Math.ceil(microseconds * FREQUENCY);
+    int cycles = (int)Math.ceil(microsecondsToClocks(microseconds));
     addMemoryCommand(new DelayCommand(cycles));
   }
 
@@ -152,6 +152,16 @@ public abstract class FpgaModelBase implements FpgaModel {
     timerStopCount++;
   }
 
+  // Timing Data Conversions
+  
+  public static double clocksToMicroseconds(long cycles) {
+    return cycles / FREQUENCY;
+  }
+  
+  public static long microsecondsToClocks(double microseconds) {
+    return (long)(microseconds * FREQUENCY);
+  }
+  
 
   // SRAM calls
 

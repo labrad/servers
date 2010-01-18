@@ -1,11 +1,16 @@
 package org.labrad.qubits.channels;
 
+import java.util.Arrays;
+
 import org.labrad.qubits.Experiment;
 import org.labrad.qubits.FpgaModel;
+import org.labrad.qubits.FpgaModelBase;
 import org.labrad.qubits.config.PreampConfig;
 import org.labrad.qubits.enums.DcRackFiberId;
 import org.labrad.qubits.resources.DacBoard;
 import org.labrad.qubits.resources.PreampBoard;
+
+import com.google.common.base.Preconditions;
 
 public class PreampChannel implements FiberChannel {
 
@@ -16,6 +21,7 @@ public class PreampChannel implements FiberChannel {
   PreampBoard preampBoard;
   DcRackFiberId preampChannel;
   PreampConfig config = null;
+  long[][] switchIntervals = null;
 
   public PreampChannel(String name) {
     this.name = name;
@@ -93,4 +99,37 @@ public class PreampChannel implements FiberChannel {
     return config;
   }
 
+  /**
+   * Set intervals of time that are to be interpreted as switches.
+   * These are converted to FPGA memory cycles before being stored internally.
+   * A single timing result will be interpreted as a switch if it lies within
+   * any one of these intervals.
+   * @param intervals
+   */
+  public void setSwitchIntervals(double[][] intervals) {
+    switchIntervals = new long[intervals.length][];
+    for (int i = 0; i < intervals.length; i++) {
+      Preconditions.checkArgument(intervals[i].length == 2, "Switch intervals must have length 2");
+      long a = FpgaModelBase.microsecondsToClocks(intervals[i][0]);
+      long b = FpgaModelBase.microsecondsToClocks(intervals[i][1]);
+      switchIntervals[i] = new long[] {Math.min(a, b), Math.max(a, b)};
+    }
+  }
+  
+  /**
+   * Convert an array of cycle times to boolean switches for this channel.
+   * @param cycles
+   * @return
+   */
+  public boolean[] interpretSwitches(long[] cycles) {
+    boolean[] ans = new boolean[cycles.length];
+    Arrays.fill(ans, false);
+    for (int i = 0; i < switchIntervals.length; i++) {
+      for (int j = 0; j < ans.length; j++) {
+        ans[j] |= (cycles[j] > switchIntervals[i][0]) && (cycles[j] < switchIntervals[i][1]);
+      }
+    }
+    return ans;
+  }
+    
 }

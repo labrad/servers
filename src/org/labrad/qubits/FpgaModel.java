@@ -59,8 +59,6 @@ public interface FpgaModel {
   public void startTimer();
   public void stopTimer();
 
-
-
   public void callSramBlock(String blockName);
   public void callSramDualBlock(String block1, String block2);
   public void setSramDualBlockDelay(double delay);
