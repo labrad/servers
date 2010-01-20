@@ -323,9 +323,13 @@ public abstract class FpgaModelBase implements FpgaModel {
    * @param block
    */
   private void setTriggerBits(long[] s, String block, boolean addAutoTrigger) {
+    DacTriggerId autoTriggerId = expt.getAutoTriggerId();
+    boolean foundAutoTrigger = false;
+    
     for (TriggerChannel ch : triggers.values()) {
       boolean[] trigs = ch.getSramData(block);
       if (addAutoTrigger && (expt.getAutoTriggerId() == ch.getTriggerId())) {
+        foundAutoTrigger = true;
         for (int i = 4; i < 4 + expt.getAutoTriggerLen(); i++) {
           if (i < trigs.length - 1) trigs[i] = true;
         }
@@ -333,6 +337,15 @@ public abstract class FpgaModelBase implements FpgaModel {
       long bit = 1L << ch.getShift();
       for (int i = 0; i < s.length; i++) {
         s[i] |= trigs[i] ? bit : 0;
+      }
+    }
+    
+    // set autotrigger bits even if there is no defined trigger channel
+    // TODO define dummy trigger channels, just like we do with Microwave and analog channels
+    if (!foundAutoTrigger && autoTriggerId != null) {
+      long bit = 1L << autoTriggerId.getShift();
+      for (int i = 4; i < 4 + expt.getAutoTriggerLen(); i++) {
+        if (i < s.length - 1) s[i] |= bit;
       }
     }
   }
