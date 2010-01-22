@@ -61,7 +61,6 @@ public class QubitContext extends AbstractServerContext {
   private Request nextRequest = null;
   private int dataIndex;
   private Data lastData = null;
-  private long[][] lastSwitches = null;
   
   private boolean configDirty = true;
   private boolean memDirty = true;
