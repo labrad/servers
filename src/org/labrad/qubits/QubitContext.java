@@ -788,13 +788,53 @@ public class QubitContext extends AbstractServerContext {
            name = "Run",
            doc = "Runs the experiment and returns the timing data")
   public void run_experiment(long reps) throws InterruptedException, ExecutionException {
-    if (configDirty || memDirty || sramDirty) {
-      throw new RuntimeException("Sequence needs to be built before running.");
-    }
-    // set the number of reps
-    nextRequest.getRecord(dataIndex).getData().setWord(reps, 0);
+    Preconditions.checkArgument(reps > 0, "Reps must be a positive integer");
+    Preconditions.checkArgument(reps % 30 == 0, "Reps must be a multiple of 30");
     
-    lastData = getConnection().sendAndWait(nextRequest).get(dataIndex);
+    if (configDirty || memDirty || sramDirty) {
+      build_sequence();
+    }
+    
+    // run in chunks of at most MAX_REPS
+    List<Data> allData = Lists.newArrayList();
+    long left = reps;
+    while (left > 0) {
+      long chunk = Math.max(left, Constants.MAX_REPS);
+      left -= chunk;
+      
+      // set the number of reps
+      nextRequest.getRecord(dataIndex).getData().setWord(chunk, 0);
+      
+      Data data = getConnection().sendAndWait(nextRequest).get(dataIndex);
+      allData.add(data);
+    }
+    
+    // put data together if it was run in multiple chunks
+    if (allData.size() == 1) {
+      lastData = allData.get(0);
+    } else {
+      int n = 0;
+      int len = 0;
+      for (Data data : allData) {
+        int[] shape = data.getArrayShape();
+        n = shape[0];
+        len += shape[1];
+      }
+      Data collected = Data.ofType("*2w");
+      collected.setArrayShape(n, len);
+      int ofs = 0;
+      for (Data data : allData) {
+        int[] shape = data.getArrayShape();
+        for (int i = 0; i < shape[0]; i++) {
+          for (int j = 0; j < shape[1]; j++) {
+            long val = data.get(i, j).getWord();
+            collected.get(i, j+ofs).setWord(val);
+          }
+        }
+        ofs += data.getArrayShape()[1];
+      }
+      lastData = collected;
+    }
   }
 
   @Setting(id = 1100,
