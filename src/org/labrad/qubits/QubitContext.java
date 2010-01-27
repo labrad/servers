@@ -886,9 +886,27 @@ public class QubitContext extends AbstractServerContext {
            doc = "Get independent switching probabilities from the previous run."
                + "\n\n"
                + "Returns one probability for each timing channel, giving the switching "
-               + "probability of that channel, independent of any other channels.")
+               + "probability of that channel, independent of any other channels."
+               + "\n\n"
+               + "If only a subset of probabilities is required, you can pass a list "
+               + "of qubits for which the probabilites should be returned.  The integers "
+               + "must be in the range 0 to N-1, where N is the number of timing channels.")
   @Returns("*v")
   public Data get_data_probs_separate() {
+    return Data.valueOf(getProbsSeparate());
+  }
+
+  @SettingOverload
+  public Data get_data_probs_separate(long[] qubits) {
+    double[] allProbs = getProbsSeparate();
+    double[] desiredProbs = new double[qubits.length];
+    for (int i = 0; i < qubits.length; i++) {
+      desiredProbs[i] = allProbs[(int)qubits[i]];
+    }
+    return Data.valueOf(desiredProbs);
+  }
+  
+  private double[] getProbsSeparate() {
     boolean[][] switches = interpretSwitches();
     int[] shape = lastData.getArrayShape();
     int N = shape[0];
@@ -901,9 +919,9 @@ public class QubitContext extends AbstractServerContext {
       }
       probs[i] = (double)count / reps;
     }
-    return Data.valueOf(probs);
+    return probs;
   }
-
+  
   @Setting(id = 1111,
            name = "Get Data Probs",
            doc = "Get combined switching probabilities from the previous run."
@@ -923,7 +941,9 @@ public class QubitContext extends AbstractServerContext {
                + "If only a subset of probabilities is required, you can pass a list "
                + "of states for which the probabilites should be returned.  The integers "
                + "are interpreted in binary as described above.  For example, if you "
-               + "only care about the null result (no switches), then you would pass [0].")
+               + "only care about the null result (no switches), then you would pass [0].  "
+               + "If on the other hand you are only measuring one qubit and only want P1 "
+               + "to be returned, you should pass [1].")
   @Returns("*v")
   public Data get_data_probs() {
     return Data.valueOf(getProbs());
