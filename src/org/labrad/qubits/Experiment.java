@@ -311,6 +311,14 @@ public class Experiment {
       starts.add(fpga);
       noops.remove(fpga);
     }
+    // non-timer boards get started if they have never been started before
+    for (FpgaModel fpga : getNonTimerFpgas()) {
+      if (!fpga.isTimerStarted()) {
+        starts.add(fpga);
+      } else {
+        noops.add(fpga);
+      }
+    }
     // start the timer on requested boards
     for (FpgaModel fpga : starts) {
       fpga.startTimer();
@@ -318,12 +326,6 @@ public class Experiment {
     // insert a no-op on all other boards
     for (FpgaModel fpga : noops) {
       fpga.addMemoryNoop();
-    }
-    // start non-timer boards if they have never been started before
-    for (FpgaModel fpga : getNonTimerFpgas()) {
-      if (!fpga.isTimerStarted()) {
-        fpga.startTimer();
-      }
     }
   }
 
@@ -338,6 +340,14 @@ public class Experiment {
       stops.add(fpga);
       noops.remove(fpga);
     }
+    // stop non-timer boards if they are currently running
+    for (FpgaModel fpga : getNonTimerFpgas()) {
+      if (fpga.isTimerRunning()) {
+        stops.add(fpga);
+      } else {
+        noops.add(fpga);
+      }
+    }
     // stop the timer on requested boards and non-timer boards
     for (FpgaModel fpga : stops) {
       fpga.stopTimer();
@@ -345,12 +355,6 @@ public class Experiment {
     // insert a no-op on all other boards
     for (FpgaModel fpga : noops) {
       fpga.addMemoryNoop();
-    }
-    // stop non-timer boards if they are currently running
-    for (FpgaModel fpga : getNonTimerFpgas()) {
-      if (fpga.isTimerRunning()) {
-        fpga.stopTimer();
-      }
     }
   }
 

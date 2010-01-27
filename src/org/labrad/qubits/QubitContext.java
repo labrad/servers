@@ -1006,7 +1006,7 @@ public class QubitContext extends AbstractServerContext {
 
   @Setting(id = 2001,
            name = "Dump Sequence Packet",
-           doc = "Returns a representation of the packet to be sent to the GHz DACs server.")
+           doc = "Returns a dump of the packet to be sent to the GHz DACs server.")
   public Data dump_packet() {
     List<Data> records = Lists.newArrayList();
     for (Record r : nextRequest.getRecords()) {
@@ -1018,8 +1018,8 @@ public class QubitContext extends AbstractServerContext {
 
   /*
   @Setting(ID = 2002,
-           name = "Dump Sequence As Text",
-           description = "Get a dump of the current sequence in human-readable form")
+           name = "Dump Sequence Text",
+           description = "Returns a dump of the current sequence in human-readable form")
   @Returns("*s*2s")
   public Data get_mem_text() {
     throw new RuntimeException("Not implemented yet.");
