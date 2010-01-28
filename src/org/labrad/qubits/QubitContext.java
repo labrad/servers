@@ -59,7 +59,7 @@ public class QubitContext extends AbstractServerContext {
   private Context setupContext = null;
   
   private Request nextRequest = null;
-  private int dataIndex;
+  private int runIndex;
   private Data lastData = null;
   
   private boolean configDirty = true;
@@ -771,7 +771,7 @@ public class QubitContext extends AbstractServerContext {
     runRequest.add("Timing Order", Data.listOf(expt.getTimingOrder(), Setters.stringSetter));
 
     // run the sequence
-    dataIndex = runRequest.addRecord("Run Sequence",
+    runIndex = runRequest.addRecord("Run Sequence",
         Data.valueOf(0L), // put in a dummy value for number of reps
         Data.valueOf(true), // return timing results
         Data.clusterOf(setupPackets),
@@ -797,15 +797,15 @@ public class QubitContext extends AbstractServerContext {
     
     // run in chunks of at most MAX_REPS
     List<Data> allData = Lists.newArrayList();
-    long left = reps;
-    while (left > 0) {
-      long chunk = Math.max(left, Constants.MAX_REPS);
-      left -= chunk;
+    long remaining = reps;
+    while (remaining > 0) {
+      long chunk = Math.min(remaining, Constants.MAX_REPS);
+      remaining -= chunk;
       
       // set the number of reps
-      nextRequest.getRecord(dataIndex).getData().setWord(chunk, 0);
+      nextRequest.getRecord(runIndex).getData().setWord(chunk, 0);
       
-      Data data = getConnection().sendAndWait(nextRequest).get(dataIndex);
+      Data data = getConnection().sendAndWait(nextRequest).get(runIndex);
       allData.add(data);
     }
     
