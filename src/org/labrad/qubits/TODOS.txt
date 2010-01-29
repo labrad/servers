@@ -1,2 +1,1 @@
-- support for extremely large stats (run sequence multiple times, then combine stats)
-- add timing data postprocessing options (e.g. cutoffs, deinterlace, multi-qubit combine, discard all but 000..., etc.)
+- add support for deinterlacing in postprocessing of timing data
