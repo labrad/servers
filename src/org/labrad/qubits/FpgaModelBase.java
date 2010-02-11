@@ -23,6 +23,9 @@ import com.google.common.collect.Maps;
 public abstract class FpgaModelBase implements FpgaModel {
 
   public final static double FREQUENCY = 25.0;
+  
+  public final static int MAX_MEM_LEN = 256;
+  public final static int MAX_SRAM_LEN = 10240; // 8us + 2us
 
   private DacBoard dacBoard;
   protected Experiment expt;
@@ -232,6 +235,11 @@ public abstract class FpgaModelBase implements FpgaModel {
       System.arraycopy(cmdBits, 0, bits, pos, cmdBits.length);
       pos += cmdBits.length;
     }
+    
+    // check that the total memory sequence is not too long
+    if (bits.length > MAX_MEM_LEN) {
+      throw new RuntimeException("Memory sequence exceeds maximum length");
+    }
     return bits;
   }
 
@@ -257,6 +265,10 @@ public abstract class FpgaModelBase implements FpgaModel {
     for (long[] block : blocks) {
       System.arraycopy(block, 0, sram, pos, block.length);
       pos += block.length;
+    }
+    // check that the total sram sequence is not too long
+    if (sram.length > MAX_SRAM_LEN) {
+      throw new RuntimeException("SRAM sequence exceeds maximum length");
     }
     return sram;
   }
