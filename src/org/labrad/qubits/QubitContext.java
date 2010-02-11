@@ -978,54 +978,6 @@ public class QubitContext extends AbstractServerContext {
     return Data.valueOf(probs);
   }
   
-  // filter an array 
-  private double[] filterArray(double[] in, long[] indices) {
-    double[] out = new double[indices.length];
-    for (int i = 0; i < indices.length; i++) {
-      out[i] = in[(int)indices[i]];
-    }
-    return out;
-  }
-  
-  private boolean[][][] deinterlaceArray(boolean[][] in, int deinterlace) {
-    int lim0 = deinterlace, lim1 = in.length, lim2 = in[0].length / deinterlace;
-    boolean[][][] ans = new boolean[lim0][lim1][lim2];
-    for (int i = 0; i < lim0; i++) {
-      for (int j = 0; j < lim1; j++) {
-        for (int k = 0; k < lim2; k++) {
-          ans[i][j][k] = in[j][i+k*deinterlace];
-        }
-      }
-    }
-    return ans;
-  }
-  
-  private long[][][] deinterlaceArray(long[][] in, int deinterlace) {
-    int lim0 = deinterlace, lim1 = in.length, lim2 = in[0].length / deinterlace;
-    long[][][] ans = new long[lim0][lim1][lim2];
-    for (int i = 0; i < lim0; i++) {
-      for (int j = 0; j < lim1; j++) {
-        for (int k = 0; k < lim2; k++) {
-          ans[i][j][k] = in[j][i+k*deinterlace];
-        }
-      }
-    }
-    return ans;
-  }
-  
-  private double[][][] deinterlaceArray(double[][] in, int deinterlace) {
-    int lim0 = deinterlace, lim1 = in.length, lim2 = in[0].length / deinterlace;
-    double[][][] ans = new double[lim0][lim1][lim2];
-    for (int i = 0; i < lim0; i++) {
-      for (int j = 0; j < lim1; j++) {
-        for (int k = 0; k < lim2; k++) {
-          ans[i][j][k] = in[j][i+k*deinterlace];
-        }
-      }
-    }
-    return ans;
-  }
-  
   // extract data from last run as an array
   private long[][] extractLastData() {
     int[] shape = lastData.getArrayShape();
@@ -1049,6 +1001,45 @@ public class QubitContext extends AbstractServerContext {
   }
   
   
+  private boolean[][][] deinterlaceArray(boolean[][] in, int deinterlace) {
+    int lim0 = deinterlace, lim1 = in.length, lim2 = in[0].length / deinterlace;
+    boolean[][][] ans = new boolean[lim0][lim1][lim2];
+    for (int i = 0; i < lim0; i++) {
+      for (int j = 0; j < lim1; j++) {
+        for (int k = 0; k < lim2; k++) {
+          ans[i][j][k] = in[j][i+k*deinterlace];
+        }
+      }
+    }
+    return ans;
+  }
+
+  private long[][][] deinterlaceArray(long[][] in, int deinterlace) {
+    int lim0 = deinterlace, lim1 = in.length, lim2 = in[0].length / deinterlace;
+    long[][][] ans = new long[lim0][lim1][lim2];
+    for (int i = 0; i < lim0; i++) {
+      for (int j = 0; j < lim1; j++) {
+        for (int k = 0; k < lim2; k++) {
+          ans[i][j][k] = in[j][i+k*deinterlace];
+        }
+      }
+    }
+    return ans;
+  }
+
+  private double[][][] deinterlaceArray(double[][] in, int deinterlace) {
+    int lim0 = deinterlace, lim1 = in.length, lim2 = in[0].length / deinterlace;
+    double[][][] ans = new double[lim0][lim1][lim2];
+    for (int i = 0; i < lim0; i++) {
+      for (int j = 0; j < lim1; j++) {
+        for (int k = 0; k < lim2; k++) {
+          ans[i][j][k] = in[j][i+k*deinterlace];
+        }
+      }
+    }
+    return ans;
+  }
+
   // convert timing data to boolean switches, using the
   // specified switch intervals to interpret 0 and 1
   private boolean[][] interpretSwitches() {
@@ -1130,6 +1121,15 @@ public class QubitContext extends AbstractServerContext {
     return probs;
   }
   
+
+  // filter an array 
+  private double[] filterArray(double[] in, long[] indices) {
+    double[] out = new double[indices.length];
+    for (int i = 0; i < indices.length; i++) {
+      out[i] = in[(int)indices[i]];
+    }
+    return out;
+  }
 
   //
   // diagnostic information
