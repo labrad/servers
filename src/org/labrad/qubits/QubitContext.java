@@ -837,6 +837,7 @@ public class QubitContext extends AbstractServerContext {
     }
   }
 
+  
   @Setting(id = 1100,
            name = "Get Data Raw",
            doc = "Gets the raw timing data from the previous run")
@@ -852,6 +853,7 @@ public class QubitContext extends AbstractServerContext {
     return Data.valueOf(reshaped);
   }
 
+  
   @Setting(id = 1101,
           name = "Get Data Raw Microseconds",
           doc = "Gets the raw timing data from the previous run, converted to microseconds")
@@ -868,6 +870,7 @@ public class QubitContext extends AbstractServerContext {
     return Data.valueOf(reshaped, "us");
   }
   
+  
   @Setting(id = 1102,
       name = "Get Data Raw Switches",
       doc = "Gets the raw timing data from the previous run, converted to "
@@ -875,15 +878,7 @@ public class QubitContext extends AbstractServerContext {
   @Returns("*2b")
   public Data get_data_raw_switches() {
     boolean[][] switches = interpretSwitches();
-    int[] shape = lastData.getArrayShape();
-    Data ans = Data.ofType("*2b");
-    ans.setArrayShape(shape);
-    for (int i = 0; i < shape[0]; i++) {
-      for (int j = 0; j < shape[1]; j++) {
-        ans.get(i, j).setBool(switches[i][j]);
-      }
-    }
-    return ans;
+    return Data.valueOf(switches);
   }
   @SettingOverload
   @Returns("*3b")
@@ -891,6 +886,7 @@ public class QubitContext extends AbstractServerContext {
     boolean[][][] switches = interpretSwitches(deinterlace);
     return Data.valueOf(switches);
   }
+  
   
   @Setting(id = 1110,
            name = "Get Data Probs Separate",
@@ -931,6 +927,7 @@ public class QubitContext extends AbstractServerContext {
     }
     return Data.valueOf(probs);
   }
+  
   
   @Setting(id = 1111,
            name = "Get Data Probs",
@@ -981,7 +978,7 @@ public class QubitContext extends AbstractServerContext {
     return Data.valueOf(probs);
   }
   
-  
+  // filter an array 
   private double[] filterArray(double[] in, long[] indices) {
     double[] out = new double[indices.length];
     for (int i = 0; i < indices.length; i++) {
@@ -1029,6 +1026,7 @@ public class QubitContext extends AbstractServerContext {
     return ans;
   }
   
+  // extract data from last run as an array
   private long[][] extractLastData() {
     int[] shape = lastData.getArrayShape();
     long[][] ans = new long[shape[0]][shape[1]];
@@ -1040,6 +1038,7 @@ public class QubitContext extends AbstractServerContext {
     return ans;
   }
   
+  // convert data from last run to microseconds
   private double[][] extractDataMicroseconds() {
     long[][] raw = extractLastData();
     double[][] ans = new double[raw.length][];
@@ -1049,6 +1048,9 @@ public class QubitContext extends AbstractServerContext {
     return ans;
   }
   
+  
+  // convert timing data to boolean switches, using the
+  // specified switch intervals to interpret 0 and 1
   private boolean[][] interpretSwitches() {
     return interpretSwitches(1)[0];
   }
@@ -1063,6 +1065,8 @@ public class QubitContext extends AbstractServerContext {
   }
   
 
+  // calculate separate switching probabilities, ie probabilities
+  // for each channel to switch independent of the other channels
   private double[] getProbsSeparate() {
     return getProbsSeparate(1)[0];
   }
@@ -1075,9 +1079,9 @@ public class QubitContext extends AbstractServerContext {
     return probs;
   }
   private double[] getProbsSeparateBase(boolean[][] switches) {
-    int[] shape = lastData.getArrayShape();
-    int N = shape[0];
-    int reps = shape[1];
+    int N = switches.length;
+    int reps = N > 0 ? switches[0].length : 0;
+    
     double[] probs = new double[N];
     for (int i = 0; i < N; i++) {
       int count = 0;
@@ -1089,6 +1093,9 @@ public class QubitContext extends AbstractServerContext {
     return probs;
   }
 
+  
+  // calculate combined state probabilities, ie probabilities for each
+  // combination of switching states of the various timing channels
   private double[] getProbs() {
     return getProbs(1)[0];
   }
@@ -1101,9 +1108,8 @@ public class QubitContext extends AbstractServerContext {
     return probs;
   }
   private double[] getProbsBase(boolean[][] switches) {
-    int[] shape = lastData.getArrayShape();
-    int N = shape[0];
-    int reps = shape[1];
+    int N = switches.length;
+    int reps = N > 0 ? switches[0].length : 0;
     
     // count switching states
     int[] counts = new int[1<<N];
@@ -1124,7 +1130,6 @@ public class QubitContext extends AbstractServerContext {
     return probs;
   }
   
-  // TODO: handle data processing when deinterlacing is required
 
   //
   // diagnostic information
