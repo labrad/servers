@@ -161,6 +161,14 @@ public abstract class FpgaModelBase implements FpgaModel {
     return cycles / FREQUENCY;
   }
   
+  public static double[] clocksToMicroseconds(long[] cycles) {
+    double[] ans = new double[cycles.length];
+    for (int i = 0; i < cycles.length; i++) {
+      ans[i] = clocksToMicroseconds(cycles[i]);
+    }
+    return ans;
+  }
+  
   public static long microsecondsToClocks(double microseconds) {
     return (long)(microseconds * FREQUENCY);
   }

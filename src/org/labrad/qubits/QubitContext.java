@@ -844,23 +844,28 @@ public class QubitContext extends AbstractServerContext {
   public Data get_data_raw() {
     return lastData;
   }
+  @SettingOverload
+  @Returns("*3w")
+  public Data get_data_raw(int deinterlace) {
+    long[][] raw = extractLastData();
+    long[][][] reshaped = deinterlaceArray(raw, deinterlace);
+    return Data.valueOf(reshaped);
+  }
 
   @Setting(id = 1101,
           name = "Get Data Raw Microseconds",
           doc = "Gets the raw timing data from the previous run, converted to microseconds")
   @Returns("*2v[us]")
   public Data get_data_raw_microseconds() {
-    int[] shape = lastData.getArrayShape();
-    Data ans = Data.ofType("*2v[us]");
-    ans.setArrayShape(shape);
-    for (int i = 0; i < shape[0]; i++) {
-      for (int j = 0; j < shape[1]; j++) {
-        long cycles = lastData.get(i, j).getWord();
-        double microseconds = FpgaModelBase.clocksToMicroseconds(cycles);
-        ans.get(i, j).setValue(microseconds);
-      }
-    }
-    return ans;
+    double[][] ans = extractDataMicroseconds();
+    return Data.valueOf(ans, "us");
+  }
+  @SettingOverload
+  @Returns("*3v[us]")
+  public Data get_data_raw_microseconds(int deinterlace) {
+    double[][] ans = extractDataMicroseconds();
+    double[][][] reshaped = deinterlaceArray(ans, deinterlace);
+    return Data.valueOf(reshaped, "us");
   }
   
   @Setting(id = 1102,
@@ -880,6 +885,12 @@ public class QubitContext extends AbstractServerContext {
     }
     return ans;
   }
+  @SettingOverload
+  @Returns("*3b")
+  public Data get_data_raw_switches(int deinterlace) {
+    boolean[][][] switches = interpretSwitches(deinterlace);
+    return Data.valueOf(switches);
+  }
   
   @Setting(id = 1110,
            name = "Get Data Probs Separate",
@@ -897,29 +908,28 @@ public class QubitContext extends AbstractServerContext {
   }
 
   @SettingOverload
+  @Returns("*v")
   public Data get_data_probs_separate(long[] qubits) {
     double[] allProbs = getProbsSeparate();
-    double[] desiredProbs = new double[qubits.length];
-    for (int i = 0; i < qubits.length; i++) {
-      desiredProbs[i] = allProbs[(int)qubits[i]];
-    }
+    double[] desiredProbs = filterArray(allProbs, qubits);
     return Data.valueOf(desiredProbs);
   }
   
-  private double[] getProbsSeparate() {
-    boolean[][] switches = interpretSwitches();
-    int[] shape = lastData.getArrayShape();
-    int N = shape[0];
-    int reps = shape[1];
-    double[] probs = new double[N];
-    for (int i = 0; i < N; i++) {
-      int count = 0;
-      for (boolean sw : switches[i]) {
-        count += sw ? 1 : 0;
-      }
-      probs[i] = (double)count / reps;
+  @SettingOverload
+  @Returns("*2v")
+  public Data get_data_probs_separate(int deinterlace) {
+    double[][] probs = getProbsSeparate(deinterlace);
+    return Data.valueOf(probs);
+  }
+  
+  @SettingOverload
+  @Returns("*2v")
+  public Data get_data_probs_separate(long[] states, int deinterlace) {
+    double[][] probs = getProbsSeparate(deinterlace);
+    for (int i = 0; i < probs.length; i++) {
+      probs[i] = filterArray(probs[i], states);
     }
-    return probs;
+    return Data.valueOf(probs);
   }
   
   @Setting(id = 1111,
@@ -948,33 +958,149 @@ public class QubitContext extends AbstractServerContext {
   public Data get_data_probs() {
     return Data.valueOf(getProbs());
   }
-  
   @SettingOverload
+  @Returns("*v")
   public Data get_data_probs(long[] states) {
     double[] allProbs = getProbs();
-    double[] desiredProbs = new double[states.length];
-    for (int i = 0; i < states.length; i++) {
-      desiredProbs[i] = allProbs[(int)states[i]];
-    }
+    double[] desiredProbs = filterArray(allProbs, states);
     return Data.valueOf(desiredProbs);
+  }
+  @SettingOverload
+  @Returns("*2v")
+  public Data get_data_probs(int deinterlace) {
+    double[][] probs = getProbs(deinterlace);
+    return Data.valueOf(probs);
+  }
+  @SettingOverload
+  @Returns("*2v")
+  public Data get_data_probs(long[] states, int deinterlace) {
+    double[][] probs = getProbs(deinterlace);
+    for (int i = 0; i < probs.length; i++) {
+      probs[i] = filterArray(probs[i], states);
+    }
+    return Data.valueOf(probs);
+  }
+  
+  
+  private double[] filterArray(double[] in, long[] indices) {
+    double[] out = new double[indices.length];
+    for (int i = 0; i < indices.length; i++) {
+      out[i] = in[(int)indices[i]];
+    }
+    return out;
+  }
+  
+  private boolean[][][] deinterlaceArray(boolean[][] in, int deinterlace) {
+    int lim0 = deinterlace, lim1 = in.length, lim2 = in[0].length / deinterlace;
+    boolean[][][] ans = new boolean[lim0][lim1][lim2];
+    for (int i = 0; i < lim0; i++) {
+      for (int j = 0; j < lim1; j++) {
+        for (int k = 0; k < lim2; k++) {
+          ans[i][j][k] = in[j][i+k*deinterlace];
+        }
+      }
+    }
+    return ans;
+  }
+  
+  private long[][][] deinterlaceArray(long[][] in, int deinterlace) {
+    int lim0 = deinterlace, lim1 = in.length, lim2 = in[0].length / deinterlace;
+    long[][][] ans = new long[lim0][lim1][lim2];
+    for (int i = 0; i < lim0; i++) {
+      for (int j = 0; j < lim1; j++) {
+        for (int k = 0; k < lim2; k++) {
+          ans[i][j][k] = in[j][i+k*deinterlace];
+        }
+      }
+    }
+    return ans;
+  }
+  
+  private double[][][] deinterlaceArray(double[][] in, int deinterlace) {
+    int lim0 = deinterlace, lim1 = in.length, lim2 = in[0].length / deinterlace;
+    double[][][] ans = new double[lim0][lim1][lim2];
+    for (int i = 0; i < lim0; i++) {
+      for (int j = 0; j < lim1; j++) {
+        for (int k = 0; k < lim2; k++) {
+          ans[i][j][k] = in[j][i+k*deinterlace];
+        }
+      }
+    }
+    return ans;
+  }
+  
+  private long[][] extractLastData() {
+    int[] shape = lastData.getArrayShape();
+    long[][] ans = new long[shape[0]][shape[1]];
+    for (int i = 0; i < shape[0]; i++) {
+      for (int j = 0; j < shape[1]; j++) {
+        ans[i][j] = lastData.get(i, j).getWord();
+      }
+    }
+    return ans;
+  }
+  
+  private double[][] extractDataMicroseconds() {
+    long[][] raw = extractLastData();
+    double[][] ans = new double[raw.length][];
+    for (int i = 0; i < raw.length; i++) {
+      ans[i] = FpgaModelBase.clocksToMicroseconds(raw[i]);
+    }
+    return ans;
   }
   
   private boolean[][] interpretSwitches() {
-    int[] shape = lastData.getArrayShape();
+    return interpretSwitches(1)[0];
+  }
+  private boolean[][][] interpretSwitches(int deinterlace) {
     List<PreampChannel> channels = getExperiment().getTimingChannels();
-    boolean[][] switches = new boolean[shape[0]][];
-    long[] cycles = new long[shape[1]];
-    for (int i = 0; i < shape[0]; i++) {
-      for (int j = 0; j < shape[1]; j++) {
-        cycles[j] = lastData.get(i, j).getWord();
-      }
-      switches[i] = channels.get(i).interpretSwitches(cycles);
+    long[][] clocks = extractLastData();
+    boolean[][] switches = new boolean[clocks.length][];
+    for (int i = 0; i < clocks.length; i++) {
+      switches[i] = channels.get(i).interpretSwitches(clocks[i]);
     }
-    return switches;
+    return deinterlaceArray(switches, deinterlace);
+  }
+  
+
+  private double[] getProbsSeparate() {
+    return getProbsSeparate(1)[0];
+  }
+  private double[][] getProbsSeparate(int deinterlace) {
+    boolean[][][] switches = interpretSwitches(deinterlace);
+    double[][] probs = new double[deinterlace][];
+    for (int i = 0; i < deinterlace; i++) {
+      probs[i] = getProbsSeparateBase(switches[i]);
+    }
+    return probs;
+  }
+  private double[] getProbsSeparateBase(boolean[][] switches) {
+    int[] shape = lastData.getArrayShape();
+    int N = shape[0];
+    int reps = shape[1];
+    double[] probs = new double[N];
+    for (int i = 0; i < N; i++) {
+      int count = 0;
+      for (boolean sw : switches[i]) {
+        count += sw ? 1 : 0;
+      }
+      probs[i] = (double)count / reps;
+    }
+    return probs;
   }
 
   private double[] getProbs() {
-    boolean[][] switches = interpretSwitches();
+    return getProbs(1)[0];
+  }
+  private double[][] getProbs(int deinterlace) {
+    boolean[][][] switches = interpretSwitches(deinterlace);
+    double[][] probs = new double[deinterlace][];
+    for (int i = 0; i < deinterlace; i++) {
+      probs[i] = getProbsBase(switches[i]);
+    }
+    return probs;
+  }
+  private double[] getProbsBase(boolean[][] switches) {
     int[] shape = lastData.getArrayShape();
     int N = shape[0];
     int reps = shape[1];
