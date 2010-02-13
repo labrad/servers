@@ -16,8 +16,6 @@ import com.google.common.base.Function;
 public class DeconvolutionProxy {
   public static final String SERVER_NAME = "DAC Calibration";
 
-  // TODO allow deconvolution requests to be packetized
-
   private Connection cxn;
 
   public DeconvolutionProxy(Connection cxn) {

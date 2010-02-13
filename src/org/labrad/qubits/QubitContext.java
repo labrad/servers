@@ -82,18 +82,6 @@ public class QubitContext extends AbstractServerContext {
   
   
   /**
-   * Get the currently-defined experiment builder.
-   */
-  /*
-  private ExperimentBuilder getExperimentBuilder() {
-    synchronized (builderLock) {
-      Preconditions.checkNotNull(builder, "No sequence initialized in this context.");
-      return builder;
-    }
-  }
-  */
-  
-  /**
    * Set the current experiment to a new one when one is created.
    * @param expt
    */
@@ -205,10 +193,6 @@ public class QubitContext extends AbstractServerContext {
                + "['Fridge qubit A', 'Fridge qubit B',...], but we could alias them for a "
                + "particular experiment to be called ['q0', 'q1',...]."
                + "\n\n"
-               //+ "The other possibility is to specify another context from which to copy "
-               //+ "the setup.  This will copy only the device and channel definitions, not "
-               //+ "any configuration, memory, or SRAM setup."
-               //+ "\n\n"
                + "Alternatively, you can provide the device and channel definitions directly.  "
                + "You do this by giving a list of devices, where each device is a cluster "
                + "of name and channel list, and where each channel is a cluster of name "
@@ -223,12 +207,6 @@ public class QubitContext extends AbstractServerContext {
     Data template = RegistryProxy.loadDevices(path, names, aliases, getConnection(), getContext());
     initialize(template);
   }
-  //@SettingOverload
-  //public void initialize(long high, long low) {
-  //	// copy the experiment defined in another context
-  //	QubitContext ctx = (QubitContext)getServerContext(new Context(low, high));
-  //	initialize(ctx.getExperimentBuilder());
-  //}
   @SettingOverload
   public void initialize(@Accepts("*(s{dev} *(s{chan} (s{type} *s{params})))") Data template) {
     // build experiment directly from a template
