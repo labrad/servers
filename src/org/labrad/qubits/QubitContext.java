@@ -645,7 +645,11 @@ public class QubitContext extends AbstractServerContext {
 
   @Setting(id = 900,
            name = "Build Sequence",
-           doc = "Compiles SRAM and memory sequences into runnable form")
+           doc = "Compiles SRAM and memory sequences into runnable form."
+           		 + "\n\n"
+           		 + "Any problems with the setup (for example, conflicting microwave "
+           		 + "settings for two channels that use the same microwave source) "
+           		 + "will be detected at this point and cause an error to be thrown.")
   public void build_sequence() throws InterruptedException, ExecutionException {
 
     Experiment expt = getExperiment();
@@ -764,7 +768,10 @@ public class QubitContext extends AbstractServerContext {
 
   @Setting(id = 1000,
            name = "Run",
-           doc = "Runs the experiment and returns the timing data")
+           doc = "Runs the current sequence by sending to the GHz DACs server."
+               + "\n\n"
+               + "Note that no timing data are returned here.  You must call one or more "
+               + "of the 'Get Data *' methods to retrieve the data in the desired format.")
   public void run_experiment(long reps) throws InterruptedException, ExecutionException {
     Preconditions.checkArgument(reps > 0, "Reps must be a positive integer");
     Preconditions.checkArgument(reps % 30 == 0, "Reps must be a multiple of 30");
@@ -874,13 +881,12 @@ public class QubitContext extends AbstractServerContext {
                + "probability of that channel, independent of any other channels."
                + "\n\n"
                + "If only a subset of probabilities is required, you can pass a list "
-               + "of qubits for which the probabilites should be returned.  The integers "
-               + "must be in the range 0 to N-1, where N is the number of timing channels.")
+               + "of indices for the timing channels whose probabilites should be returned.  "
+               + "Indices must be in the range 0 to N-1, where N is the number of timing channels.")
   @Returns("*v")
   public Data get_data_probs_separate() {
     return Data.valueOf(getProbsSeparate());
   }
-
   @SettingOverload
   @Returns("*v")
   public Data get_data_probs_separate(long[] qubits) {
@@ -888,14 +894,12 @@ public class QubitContext extends AbstractServerContext {
     double[] desiredProbs = filterArray(allProbs, qubits);
     return Data.valueOf(desiredProbs);
   }
-  
   @SettingOverload
   @Returns("*2v")
   public Data get_data_probs_separate(int deinterlace) {
     double[][] probs = getProbsSeparate(deinterlace);
     return Data.valueOf(probs);
   }
-  
   @SettingOverload
   @Returns("*2v")
   public Data get_data_probs_separate(long[] states, int deinterlace) {
@@ -905,7 +909,7 @@ public class QubitContext extends AbstractServerContext {
     }
     return Data.valueOf(probs);
   }
-  
+
   
   @Setting(id = 1111,
            name = "Get Data Probs",
@@ -1065,6 +1069,7 @@ public class QubitContext extends AbstractServerContext {
   
   // calculate combined state probabilities, ie probabilities for each
   // combination of switching states of the various timing channels
+  
   private double[] getProbs() {
     return getProbs(1)[0];
   }
