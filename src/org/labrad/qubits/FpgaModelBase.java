@@ -96,7 +96,7 @@ public abstract class FpgaModelBase implements FpgaModel {
   }
 
   public void addMemoryDelay(double microseconds) {
-    int cycles = (int)Math.ceil(microsecondsToClocks(microseconds));
+    int cycles = (int)microsecondsToClocks(microseconds);
     addMemoryCommand(new DelayCommand(cycles));
   }
 

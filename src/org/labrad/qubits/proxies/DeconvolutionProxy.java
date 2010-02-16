@@ -13,6 +13,12 @@ import org.labrad.qubits.util.Futures;
 
 import com.google.common.base.Function;
 
+/**
+ * This class gives us a way to ask for data to be deconvolved before we pass it
+ * to the DACs to be executed.  Currently, this works by sending requests to the
+ * DAC Calibration server, which does the actual work.
+ *
+ */
 public class DeconvolutionProxy {
   public static final String SERVER_NAME = "DAC Calibration";
 
@@ -77,7 +83,7 @@ public class DeconvolutionProxy {
     });
   }
 
-  public class IqResult {
+  public static class IqResult {
     public final int[] I;
     public final int[] Q;
     IqResult(int[] I, int[] Q) {
