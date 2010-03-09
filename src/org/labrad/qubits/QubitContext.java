@@ -1,6 +1,7 @@
 package org.labrad.qubits;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -35,7 +36,6 @@ import org.labrad.qubits.enums.DacTriggerId;
 import org.labrad.qubits.mem.FastBiasCommands;
 import org.labrad.qubits.mem.MemoryCommand;
 import org.labrad.qubits.proxies.DeconvolutionProxy;
-import org.labrad.qubits.proxies.RegistryProxy;
 import org.labrad.qubits.resources.MicrowaveSource;
 import org.labrad.qubits.resources.Resources;
 import org.labrad.qubits.templates.ExperimentBuilder;
@@ -52,8 +52,6 @@ import com.google.common.collect.Maps;
 
 public class QubitContext extends AbstractServerContext {
 
-  @SuppressWarnings("unused")
-  private ExperimentBuilder builder = null;
   private final Object builderLock = new Object();
   private Experiment expt = null;
   private Context setupContext = null;
@@ -79,17 +77,6 @@ public class QubitContext extends AbstractServerContext {
 
   @Override
   public void expire() {}
-  
-  
-  /**
-   * Set the current experiment to a new one when one is created.
-   * @param expt
-   */
-  private void setExperimentBuilder(ExperimentBuilder builder) {
-    synchronized (builderLock) {
-      this.builder = builder;
-    }
-  }
   
   
   /**
@@ -197,25 +184,13 @@ public class QubitContext extends AbstractServerContext {
                + "You do this by giving a list of devices, where each device is a cluster "
                + "of name and channel list, and where each channel is a cluster of name "
                + "and cluster of type and parameter list.")
-  public void initialize(List<String> path, List<String> names) {
-    // load devices from the registry
-    initialize(path, names, names);
-  }
-  @SettingOverload
-  public void initialize(List<String> path, List<String> names, List<String> aliases) {
-    // load devices from the registry, but call them by different names
-    Data template = RegistryProxy.loadDevices(path, names, aliases, getConnection(), getContext());
-    initialize(template);
-  }
-  @SettingOverload
-  public void initialize(@Accepts("*(s{dev} *(s{chan} (s{type} *s{params})))") Data template) {
+  public void initialize(@Accepts("*(s{dev} *(s{chan} s{type} *s{params}))") Data template) {
     // build experiment directly from a template
     Resources rsrc = Resources.getCurrent();
     initialize(ExperimentBuilder.fromData(template, rsrc));
   }
   public void initialize(ExperimentBuilder builder) {
     Experiment expt = builder.build();
-    setExperimentBuilder(builder);
     setExperiment(expt);
   }
 
@@ -1120,7 +1095,11 @@ public class QubitContext extends AbstractServerContext {
 
   @Setting(id = 2001,
            name = "Dump Sequence Packet",
-           doc = "Returns a dump of the packet to be sent to the GHz DACs server.")
+           doc = "Returns a dump of the packet to be sent to the GHz DACs server."
+               + "\n\n"
+               + "The packet dump is a cluster of records where each record is itself "
+               + "a cluster of (name, data).  For a human-readable dump of the packet, "
+               + "see the 'Dump Sequence Text' setting.")
   public Data dump_packet() {
     List<Data> records = Lists.newArrayList();
     for (Record r : nextRequest.getRecords()) {
@@ -1129,16 +1108,63 @@ public class QubitContext extends AbstractServerContext {
     }
     return Data.clusterOf(records);
   }
-
-  /*
-  @Setting(ID = 2002,
+  
+  @Setting(id = 2002,
            name = "Dump Sequence Text",
-           description = "Returns a dump of the current sequence in human-readable form")
-  @Returns("*s*2s")
-  public Data get_mem_text() {
+           doc = "Returns a dump of the current sequence in human-readable form")
+  @Returns("*s")
+  public Data dump_text() {
+    
+    List<String> deviceNames = Lists.newArrayList();
+    Map<String, long[]> memorySequences = Maps.newHashMap();
+    Map<String, long[]> sramSequences = Maps.newHashMap();
+    List<Record> commands = Lists.newArrayList();
+    
+    // iterate over packet, pulling out commands
+    String currentDevice = null;
+    for (Record r : nextRequest.getRecords()) {
+      String cmd = r.getName();
+      if ("Select Device".equals(cmd)) {
+        currentDevice = r.getData().getString();
+        deviceNames.add(currentDevice);
+      } else if ("Memory".equals(cmd)) {
+        memorySequences.put(currentDevice, r.getData().getWordArray());
+      } else if ("SRAM".equals(cmd)) {
+        sramSequences.put(currentDevice, r.getData().getWordArray());
+      } else if ("SRAM Address".equals(cmd)) {
+        // do nothing
+      } else {
+        commands.add(r);
+      }
+    }
+    Collections.sort(deviceNames);
+
+    List<String> lines = Lists.newArrayList();
+
+    
+//    lines.append(', '.join(devs))
+//    lines.append('')
+//        
+//    lines.append('Memory')
+//    for row in zip(*[mems[dev] for dev in devs]):
+//        lines.append('  '.join('%06X' % c for c in row))
+//    lines.append('')
+//            
+//    lines.append('SRAM')
+//    for row in zip(*[srams[dev] for dev in devs]):
+//        lines.append('  '.join('%08X' % c for c in row))
+//    lines.append('')
+//            
+//    for cmd, data in cmds:
+//        lines.append(cmd)
+//        lines.append(str(data))
+//        lines.append('')
+//    
+//    return '\n'.join(lines)
     throw new RuntimeException("Not implemented yet.");
   }
 
+  /*
   @Setting(ID = 2500,
            name = "Dump SRAM to data vault",
            description = "Send the current SRAM to the data vault")
