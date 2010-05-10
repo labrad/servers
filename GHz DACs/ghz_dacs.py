@@ -30,6 +30,8 @@ timeout = 20
 ### END NODE INFO
 """
 
+from __future__ import with_statement
+
 from array import array as py_array
 from math import sin, cos
 import time
