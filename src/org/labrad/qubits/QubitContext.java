@@ -184,7 +184,7 @@ public class QubitContext extends AbstractServerContext {
                + "You do this by giving a list of devices, where each device is a cluster "
                + "of name and channel list, and where each channel is a cluster of name "
                + "and cluster of type and parameter list.")
-  public void initialize(@Accepts("*(s{dev} *(s{chan} s{type} *s{params}))") Data template) {
+  public void initialize(@Accepts("*(s{dev} *(s{chan} (s{type} *s{params})))") Data template) {
     // build experiment directly from a template
     Resources rsrc = Resources.getCurrent();
     initialize(ExperimentBuilder.fromData(template, rsrc));
@@ -959,7 +959,9 @@ public class QubitContext extends AbstractServerContext {
   
   
   private boolean[][][] deinterlaceArray(boolean[][] in, int deinterlace) {
-    int lim0 = deinterlace, lim1 = in.length, lim2 = in[0].length / deinterlace;
+    int lim0 = deinterlace;
+    int lim1 = in.length;
+    int lim2 = in.length > 0 ? in[0].length / deinterlace : 0;
     boolean[][][] ans = new boolean[lim0][lim1][lim2];
     for (int i = 0; i < lim0; i++) {
       for (int j = 0; j < lim1; j++) {
@@ -972,7 +974,9 @@ public class QubitContext extends AbstractServerContext {
   }
 
   private long[][][] deinterlaceArray(long[][] in, int deinterlace) {
-    int lim0 = deinterlace, lim1 = in.length, lim2 = in[0].length / deinterlace;
+    int lim0 = deinterlace;
+    int lim1 = in.length;
+    int lim2 = in.length > 0 ? in[0].length / deinterlace : 0;
     long[][][] ans = new long[lim0][lim1][lim2];
     for (int i = 0; i < lim0; i++) {
       for (int j = 0; j < lim1; j++) {
@@ -985,7 +989,9 @@ public class QubitContext extends AbstractServerContext {
   }
 
   private double[][][] deinterlaceArray(double[][] in, int deinterlace) {
-    int lim0 = deinterlace, lim1 = in.length, lim2 = in[0].length / deinterlace;
+    int lim0 = deinterlace;
+    int lim1 = in.length;
+    int lim2 = in.length > 0 ? in[0].length / deinterlace : 0;
     double[][][] ans = new double[lim0][lim1][lim2];
     for (int i = 0; i < lim0; i++) {
       for (int j = 0; j < lim1; j++) {
