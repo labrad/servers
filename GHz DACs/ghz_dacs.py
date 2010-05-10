@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = GHz DACs
-version = 2.7.5
+version = 2.8.0
 description = Talks to GHz DAC boards
 
 [startup]
@@ -242,15 +242,27 @@ class FPGADevice(DeviceWrapper):
         p = self.makePacket()
         p.timeout(T.Value(timeout, 's'))
         p.collect(nPackets)
+        # added triggering back into collect packet
+        # note that if a timeout error occurs the remainder of the packet
+        # is discarded, so that none of these triggering commands are sent
+        p.send_trigger(triggerCtx)
+        #for ctx in devCtxs:
+        #    p.send_trigger(ctx)
+        #p.wait_for_trigger(len(devCtxs))
         return p
 
-    def trigger(self, groupCtx, devCtxs):
+    def triggerDevs(self, groupCtx, devCtxs):
+        """Create a packet to trigger other devices and the group context."""
+        p = self.makePacket()
+        #for ctx in devCtxs:
+        #    p.send_trigger(ctx)
+        #p.wait_for_trigger(len(devCtxs))
+        return p
+    
+    def triggerRunContext(self, groupCtx, devCtxs):
         """Create a packet to trigger other devices and the group context."""
         p = self.makePacket()
         p.send_trigger(groupCtx)
-        for ctx in devCtxs:
-            p.send_trigger(ctx)
-        p.wait_for_trigger(len(devCtxs))
         return p
     
     def read(self, nPackets):
@@ -376,6 +388,10 @@ class FPGADevice(DeviceWrapper):
             r = yield self.sendRegisters(regs)
             answer.append(ord(r[56]))
         returnValue(answer)
+
+
+class TimeoutError(Exception):
+    """Error raised when boards timeout."""
 
 
 class BoardGroup(object):
@@ -555,7 +571,8 @@ class BoardGroup(object):
             # back an error message.
             collectPkts.append((
                 dev.collect(N, seqTime, self.ctx, devCtxs),
-                dev.trigger(self.ctx, devCtxs)))
+                dev.triggerDevs(self.ctx, devCtxs),
+                dev.triggerRunContext(self.ctx, devCtxs)))
             if timingOrder is None or dev.devName in timingOrder:
                 readPkts.append(dev.read(N))
             else:
@@ -675,47 +692,77 @@ class BoardGroup(object):
                     
                 yield readLock.acquire() # make sure we are next in line to read
                
-                # collect and trigger placed in separate packets so that
-                # triggers will get sent even if the collect fails
+                # collect appropriate number of packets and then trigger other contexts
                 collectAll = defer.DeferredList([p[0].send() for p in collectPkts],
                                                 consumeErrors=True)
-                triggerAll = defer.DeferredList([p[1].send() for p in collectPkts],
-                                                consumeErrors=True)
             finally:
+                # note that if a timeout error occurs, the inter-context triggers in the
+                # direct ethernet server are not actually sent, so that the next sequence
+                # is here allowed to get in line to run, but their sequence will not execute
+                # until after we clean up from the timeout and send the necessary triggers
                 runLock.release()
             
-            # wait for the collect packet
+            # wait for the collect packets
             results = yield collectAll
         finally:
             for pageLock in reversed(pageLocks):
                 pageLock.release()
                 
-        #yield readNow # wait until all previous reads have been sent
-        if all(s for s, r in results):
-            readAll = sendAll(readPkts, 'Read', boardOrder)
-            readLock.release()
-        else:
+        if not all(success for success, result in results):
             # recover from timeout
+            # what needs to happen here:
+            # - send triggers to other device contexts to unlock them
+            # - download packets from all boards
+            # - check counters to see which packets were lost
+            # - send triggers to run context so that next sequence can execute
+            
+            # send trigger packets to unlock all device contexts
+            #for (success, result), pkts in zip(results, collectPkts):
+            #    collectPkt, triggerDevs, triggerRunContext = pkts
+            #    if not success:
+            #        yield triggerDevs.send()
+            
+            # download packets from all boards
+            # FIXME: download the packets and process them
             clearPkts, msg = self.makeClearPackets(devs, results)
-            try:
-                yield sendAll(clearPkts, 'Timeout Recovery', boardOrder)
-            finally:
-                # if an error happens here, we are in trouble
-                # but make sure to release read lock anyway
-                readLock.release()
-            raise Exception(msg)
+            yield sendAll(clearPkts, 'Timeout Recovery', boardOrder)
+            
+            # send trigger packets to unlock all device contexts
+            for (success, result), pkts in zip(results, collectPkts):
+                collectPkt, triggerDevs, triggerRunContext = pkts
+                if not success:
+                    yield triggerRunContext.send()
+            
+            # record the error
+            # FIXME: implement this
+            
+            #try:
+            #    yield sendAll(clearPkts, 'Timeout Recovery', boardOrder)
+            #finally:
+            #    # if an error happens here, we are in trouble
+            #    # but make sure to release read lock anyway
+            readLock.release()
+            raise TimeoutError(msg)
+        
+        # if we get to this point there was no timeout, so go ahead and read data
+        readAll = sendAll(readPkts, 'Read', boardOrder)
+        readLock.release()
         results = yield readAll # wait for read to complete
 
         if getTimingData:
             if timingOrder is not None:
                 results = [results[boardOrder.index(b)] for b in timingOrder]
-            timing = numpy.vstack(self.extractTiming(r) for r in results)
+            if len(results):
+                timing = numpy.vstack(self.extractTiming(r) for r in results)
+            else:
+                timing = []
             returnValue(timing)
     
 
 class FPGAServer(DeviceServer):
     name = 'GHz DACs'
     deviceWrapper = FPGADevice
+    retries = 5
 
     # possible links: name, server, port
     possibleLinks = [('DR Lab', 'DR Direct Ethernet', 1),
@@ -972,10 +1019,28 @@ class FPGAServer(DeviceServer):
             setupReqs.append(p)
 
         bg = self.boardGroups[devs[0].serverName, devs[0].port]
-        ans = yield bg.run(devices, reps, setupReqs, getTimingData, timingOrder, c['master_sync'], set(setupState))
-        returnValue(ans)
-        
-
+        retries = self.retries
+        attempt = 1
+        while True:
+            try:
+                # FIXME: check that it is okay to rerun this function call, since some data can get mutated
+                ans = yield bg.run(devices, reps, setupReqs, getTimingData, timingOrder, c['master_sync'], set(setupState))
+                returnValue(ans)
+            except TimeoutError, err:
+                # log attempt to stdout and file
+                with open('C:\\dac_timeout_log.txt', 'a') as logfile:
+                    print 'attempt %d - error: %s' % (attempt, err)
+                    print >>logfile, 'attempt %d - error: %s' % (attempt, err)
+                    if attempt == retries:
+                        print 'FAIL!'
+                        print >>logfile, 'FAIL!'
+                        raise
+                    else:
+                        print 'retrying...'
+                        print >>logfile, 'retrying...'
+                        attempt += 1
+    
+    
     @setting(42, 'Daisy Chain', boards='*s', returns='*s')
     def daisy_chain(self, c, boards=None):
         """Set or get the boards to run.
