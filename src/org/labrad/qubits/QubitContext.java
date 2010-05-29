@@ -1105,7 +1105,7 @@ public class QubitContext extends AbstractServerContext {
   @Setting(id = 2002,
            name = "Dump Sequence Text",
            doc = "Returns a dump of the current sequence in human-readable form")
-  @Returns("*s")
+  @Returns("s")
   public Data dump_text() {
     
     List<String> deviceNames = Lists.newArrayList();
@@ -1134,27 +1134,54 @@ public class QubitContext extends AbstractServerContext {
 
     List<String> lines = Lists.newArrayList();
 
-    
-//    lines.append(', '.join(devs))
-//    lines.append('')
-//        
-//    lines.append('Memory')
-//    for row in zip(*[mems[dev] for dev in devs]):
-//        lines.append('  '.join('%06X' % c for c in row))
-//    lines.append('')
-//            
-//    lines.append('SRAM')
-//    for row in zip(*[srams[dev] for dev in devs]):
-//        lines.append('  '.join('%08X' % c for c in row))
-//    lines.append('')
-//            
-//    for cmd, data in cmds:
-//        lines.append(cmd)
-//        lines.append(str(data))
-//        lines.append('')
-//    
-//    return '\n'.join(lines)
-    throw new RuntimeException("Not implemented yet.");
+    StringBuilder devLine = new StringBuilder();
+    for (String dev : deviceNames) {
+      devLine.append(dev);
+      devLine.append(", ");
+    }
+    lines.add(devLine.toString());
+    lines.add("");
+
+    lines.add("Memory");
+    if (deviceNames.size() > 0) {
+      int N = memorySequences.get(deviceNames.get(0)).length;
+      for (int i = 0; i < N; i++) {
+        StringBuilder row = new StringBuilder();
+        for (int j = 0; j < deviceNames.size(); j++) {
+          row.append(String.format("%06X", memorySequences.get(deviceNames.get(j))[i]));
+          row.append("  ");
+        }
+        lines.add(row.toString());
+      }
+    }
+    lines.add("");
+
+    lines.add("SRAM");
+    if (deviceNames.size() > 0) {
+      int N = sramSequences.get(deviceNames.get(0)).length;
+      for (int i = 0; i < N; i++) {
+        StringBuilder row = new StringBuilder();
+        for (int j = 0; j < deviceNames.size(); j++) {
+          row.append(String.format("%08X", sramSequences.get(deviceNames.get(j))[i]));
+          row.append("  ");
+        }
+        lines.add(row.toString());
+      }
+    }
+    lines.add("");
+
+    for (Record r : commands) {
+      lines.add(r.getName());
+      lines.add(r.getData().toString());
+      lines.add("");
+    }
+
+    StringBuilder builder = new StringBuilder();
+    for (String line : lines) {
+      builder.append(line);
+      builder.append("\n");
+    }
+    return Data.valueOf(builder.toString());
   }
 
   /*
