@@ -640,7 +640,7 @@ public class QubitContext extends AbstractServerContext {
             "Conflicting microwave configurations for source '%s'", src.getName());
       }
     }
-    // loop over microwave boards, and turn off the microwave source for any boards whose source is not configured
+    // turn off the microwave source for any boards whose source is not configured
     for (FpgaModelMicrowave fpga : getExperiment().getMicrowaveFpgas()) {
       MicrowaveSource src = fpga.getMicrowaveSource();
       if (!uwaveConfigs.containsKey(src)) {
