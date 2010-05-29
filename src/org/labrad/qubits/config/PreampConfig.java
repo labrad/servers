@@ -46,9 +46,9 @@ public class PreampConfig {
 
   public PreampConfig(long offset, boolean polarity, String highPass, String lowPass) {
     Preconditions.checkArgument(highPassFilterMap.containsKey(highPass),
-        "Invalid high-pass filter value '%s'.  Must use on of %s", highPass, highPassAllowedNames);
+        "Invalid high-pass filter value '%s'.  Must be one of %s", highPass, highPassAllowedNames);
     Preconditions.checkArgument(lowPassFilterMap.containsKey(lowPass),
-        "Invalid low-pass filter value '%s'.  Must use on of %s", lowPass, lowPassAllowedNames);
+        "Invalid low-pass filter value '%s'.  Must be one of %s", lowPass, lowPassAllowedNames);
     this.offset = offset;
     this.polarity = polarity;
     this.highPass = highPassFilterMap.get(highPass);

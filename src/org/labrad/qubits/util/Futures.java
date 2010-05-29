@@ -32,8 +32,7 @@ public class Futures {
 
       @Override
       public T get(long timeout, TimeUnit unit)
-      throws InterruptedException, ExecutionException,
-      TimeoutException {
+          throws InterruptedException, ExecutionException, TimeoutException {
         return func.apply(in.get(timeout, unit));
       }
 
@@ -80,8 +79,7 @@ public class Futures {
 
       @Override
       public T get(long timeout, TimeUnit unit)
-      throws InterruptedException, ExecutionException,
-      TimeoutException {
+          throws InterruptedException, ExecutionException, TimeoutException {
         List<F> results = Lists.newArrayList();
         for (Future<F> f : futures) {
           results.add(f.get(timeout, unit));

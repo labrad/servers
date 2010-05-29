@@ -52,7 +52,6 @@ import com.google.common.collect.Maps;
 
 public class QubitContext extends AbstractServerContext {
 
-  private final Object builderLock = new Object();
   private Experiment expt = null;
   private Context setupContext = null;
   
@@ -172,25 +171,13 @@ public class QubitContext extends AbstractServerContext {
            name = "Initialize",
            doc = "Initialize a new sequence with the given device and channel setup."
                + "\n\n"
-               + "You can specify a path and a list of string names.  Devices with those names "
-               + "will be loaded from the registry at the specified path, relative to "
-               + "the current directory in this context.  You can optionally specify "
-               + "another list of strings to be used as aliases for those devices "
-               + "in this context.  For example, in the registry we might have devices called "
-               + "['Fridge qubit A', 'Fridge qubit B',...], but we could alias them for a "
-               + "particular experiment to be called ['q0', 'q1',...]."
-               + "\n\n"
-               + "Alternatively, you can provide the device and channel definitions directly.  "
-               + "You do this by giving a list of devices, where each device is a cluster "
+               + "Setup is given by a list of devices, where each device is a cluster "
                + "of name and channel list, and where each channel is a cluster of name "
                + "and cluster of type and parameter list.")
   public void initialize(@Accepts("*(s{dev} *(s{chan} (s{type} *s{params})))") Data template) {
     // build experiment directly from a template
     Resources rsrc = Resources.getCurrent();
-    initialize(ExperimentBuilder.fromData(template, rsrc));
-  }
-  public void initialize(ExperimentBuilder builder) {
-    Experiment expt = builder.build();
+    Experiment expt = ExperimentBuilder.fromData(template, rsrc).build();
     setExperiment(expt);
   }
 
