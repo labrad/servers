@@ -1147,8 +1147,8 @@ public class QubitContext extends AbstractServerContext {
       int N = memorySequences.get(deviceNames.get(0)).length;
       for (int i = 0; i < N; i++) {
         StringBuilder row = new StringBuilder();
-        for (int j = 0; j < deviceNames.size(); j++) {
-          row.append(String.format("%06X", memorySequences.get(deviceNames.get(j))[i]));
+        for (String name : deviceNames) {
+          row.append(String.format("%06X", memorySequences.get(name)[i]));
           row.append("  ");
         }
         lines.add(row.toString());
@@ -1161,8 +1161,8 @@ public class QubitContext extends AbstractServerContext {
       int N = sramSequences.get(deviceNames.get(0)).length;
       for (int i = 0; i < N; i++) {
         StringBuilder row = new StringBuilder();
-        for (int j = 0; j < deviceNames.size(); j++) {
-          row.append(String.format("%08X", sramSequences.get(deviceNames.get(j))[i]));
+        for (String name : deviceNames) {
+          row.append(String.format("%08X", sramSequences.get(name)[i]));
           row.append("  ");
         }
         lines.add(row.toString());
@@ -1183,13 +1183,4 @@ public class QubitContext extends AbstractServerContext {
     }
     return Data.valueOf(builder.toString());
   }
-
-  /*
-  @Setting(ID = 2500,
-           name = "Dump SRAM to data vault",
-           description = "Send the current SRAM to the data vault")
-  public void plot_sram(List<String> session, String name, boolean correct) {
-    throw new RuntimeException("Not implemented yet.");
-  }
-  //*/
 }
