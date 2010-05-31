@@ -162,6 +162,16 @@ class ADRServer(DeviceServer):
             deviceList.append((name,(self.client,)))
         returnValue(deviceList)
 
+    @setting(21, 'list peripherals')
+    def list_peripherals(self,c):
+        dev = self.selectedDevice(c)
+        return dev.peripheralsConnected
+    
+    @setting(22, 'refresh peripherals')
+    def refresh_peripherals(self,c):
+        dev = self.selectedDevice(c)
+        yield dev.refreshPeripherals()
+
     #################
     #TED, START HERE#
     #################
