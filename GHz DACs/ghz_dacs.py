@@ -1411,7 +1411,7 @@ class FPGAServer(DeviceServer):
         oldlvds = (reading[0] & 0xF0) | 0x0500 # grab current LVDS setting
         reading = reading[2] # get FIFO counter reading
         base = reading
-        while reading == base: # until we have a clock edge ...
+        while (reading == base) and (pkt[0] < 0xffff - 16): # until we have a clock edge ...
             pkt[0] += 16 # ... move LVDS
             reading = (yield dev.runSerial(op, pkt))[1]
 
