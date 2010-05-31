@@ -30,6 +30,11 @@ timeout = 20
 ### END NODE INFO
 """
 
+### TODO
+#   Nail down error handling during startup
+#   
+
+
 from labrad.devices import DeviceServer, DeviceWrapper
 from labrad import types as T, util
 from labrad.server import setting
@@ -162,16 +167,39 @@ class ADRServer(DeviceServer):
             deviceList.append((name,(self.client,)))
         returnValue(deviceList)
 
-    @setting(21, 'list peripherals')
-    def list_peripherals(self,c):
-        dev = self.selectedDevice(c)
-        return dev.peripheralsConnected
-    
-    @setting(22, 'refresh peripherals')
+
+    @setting(21, 'refresh peripherals', returns=[''])
     def refresh_peripherals(self,c):
+        """Refreshes peripheral connections for the currently selected ADR"""
+
         dev = self.selectedDevice(c)
         yield dev.refreshPeripherals()
 
+    @setting(22, 'list all peripherals', returns='*?')
+    def list_all_peripherals(self,c):
+        dev = self.selectedDevice(c)
+        peripheralList=[]
+        for peripheral,idTuple in dev.allPeripherals.items():
+            peripheralList.append((peripheral,idTuple))
+        return peripheralList
+
+    @setting(23, 'list connected peripherals', returns='*?')
+    def list_connected_peripherals(self,c):
+        dev = self.selectedDevice(c)
+        connected=[]
+        for peripheral,idTuple in dev.peripheralsConnected.items():
+            connected.append((peripheral,idTuple))
+        return connected
+
+    @setting(24, 'list orphans', returns='*?')
+    def list_orphans(self,c):
+        dev = self.selectedDevice(c)
+        orphans=[]
+        for peripheral,idTuple in dev.peripheralOrphans.items():
+            orphans.append((peripheral,idTuple))
+        return orphans
+    
+    
     #################
     #TED, START HERE#
     #################
