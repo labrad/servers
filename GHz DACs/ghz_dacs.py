@@ -1413,7 +1413,7 @@ class FPGAServer(DeviceServer):
         base = reading
         while reading == base: # until we have a clock edge ...
             pkt[0] += 16 # ... move LVDS
-            if pkt[0] >= 0x600:
+            if pkt[0] >= 0x0600:
                 raise Exception('Failed to find clock edge while setting FIFO counter!')
             reading = (yield dev.runSerial(op, pkt))[1]
 
