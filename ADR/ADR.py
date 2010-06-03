@@ -128,9 +128,7 @@ class ADRWrapper(DeviceWrapper):
         # If the peripheral's server has this peripheral, select it in this ADR's context.
         devices = yield server.list_devices()
         if peripheralID in [device[1] for device in devices]:
-#            yield self._connectPeripheral(server, peripheralTuple)
-            self.peripheralsConnected[peripheralName] = Peripheral(peripheralName,server,peripheralID,self.ctxt)
-            self.peripheralsConnected[peripheralName].connect()
+            yield self._connectPeripheral(server, peripheralTuple)
         # otherwise, orphan it
         else:
             print 'Server '+ serverName + ' does not have device ' + peripheralID
@@ -139,11 +137,10 @@ class ADRWrapper(DeviceWrapper):
     @inlineCallbacks
     def _connectPeripheral(self, server, peripheralTuple):
         peripheralName = peripheralTuple[0]
-        idTuple = peripheralTuple[1]
+        ID = peripheralTuple[1][1]
         #Make the actual connection to the peripheral device!
-        yield server.select_device(idTuple[1], context=self.ctxt)
-        if peripheralName not in self.peripheralsConnected:
-            self.peripheralsConnected[peripheralName] = idTuple
+        self.peripheralsConnected[peripheralName] = Peripheral(peripheralName,server,ID,self.ctxt)
+        yield self.peripheralsConnected[peripheralName].connect()
 
     def _orphanPeripheral(self,peripheralTuple):
         peripheralName = peripheralTuple[0]
