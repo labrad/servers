@@ -198,7 +198,14 @@ class ADRServer(DeviceServer):
         for peripheral,idTuple in dev.peripheralOrphans.items():
             orphans.append((peripheral,idTuple))
         return orphans
-    
+
+    @setting(31, 'echo PNA', data=['?'], returns=['?'])
+    def echo_PNA(self,c,data):
+        dev = self.selectedDevice(c)
+        if 'PNA' in dev.peripheralsConnected.keys():
+            server = self.client[dev.peripheralsConnected['PNA'][0]]
+            response = yield server.echo('hi',context=dev.ctxt)
+            returnValue(response)
     
     #################
     #TED, START HERE#
