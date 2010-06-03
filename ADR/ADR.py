@@ -45,11 +45,19 @@ import numpy as np
 #Registry path to ADR configurations
 CONFIG_PATH = ['','Servers','ADR']
 
-class ADRWrapper(DeviceWrapper):
+class Peripheral(object):
+    
+    def __init__(self,name,server,ID,ctxt):
+        self.name = name
+        self.ID = ID
+        self.server = server
+        self.ctxt = ctxt
 
-##    def __init__(self, guid, name):
-##        #Add stuff here#
-##        self.__init__(self, guid, names)
+    @inlineCallbacks
+    def connect(self):
+        yield self.server.select_device(self.ID,context=self.ctxt)
+
+class ADRWrapper(DeviceWrapper):
 
     @inlineCallbacks
     def connect(self, *args, **peripheralDict):
@@ -120,7 +128,9 @@ class ADRWrapper(DeviceWrapper):
         # If the peripheral's server has this peripheral, select it in this ADR's context.
         devices = yield server.list_devices()
         if peripheralID in [device[1] for device in devices]:
-            yield self._connectPeripheral(server, peripheralTuple)
+#            yield self._connectPeripheral(server, peripheralTuple)
+            self.peripheralsConnected[peripheralName] = Peripheral(peripheralName,server,peripheralID,self.ctxt)
+            self.peripheralsConnected[peripheralName].connect()
         # otherwise, orphan it
         else:
             print 'Server '+ serverName + ' does not have device ' + peripheralID
@@ -187,8 +197,8 @@ class ADRServer(DeviceServer):
     def list_connected_peripherals(self,c):
         dev = self.selectedDevice(c)
         connected=[]
-        for peripheral,idTuple in dev.peripheralsConnected.items():
-            connected.append((peripheral,idTuple))
+        for name, peripheral in dev.peripheralsConnected.items():
+            connected.append((peripheral.name,peripheral.ID))
         return connected
 
     @setting(24, 'list orphans', returns='*?')
@@ -199,14 +209,14 @@ class ADRServer(DeviceServer):
             orphans.append((peripheral,idTuple))
         return orphans
 
-    @setting(31, 'echo PNA', data=['?'], returns=['?'])
+    @setting(32, 'echo PNA', data=['?'], returns=['?'])
     def echo_PNA(self,c,data):
         dev = self.selectedDevice(c)
         if 'PNA' in dev.peripheralsConnected.keys():
-            server = self.client[dev.peripheralsConnected['PNA'][0]]
-            response = yield server.echo('hi',context=dev.ctxt)
-            returnValue(response)
-    
+            PNA = dev.peripheralsConnected['PNA']
+            resp = yield PNA.server.echo(data, context=PNA.ctxt)
+            returnValue(resp)
+
     #################
     #TED, START HERE#
     #################
