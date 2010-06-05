@@ -97,9 +97,10 @@ class ADRWrapper(DeviceWrapper):
             peripheralDict[peripheral] = ans[peripheral]
         returnValue(peripheralDict)
 
+    @inlineCallbacks
     def attemptOrphans(self):
         for peripheralName, idTuple in self.peripheralOrphans.items():
-            self.attemptPeripheral((peripheralName, idTuple))
+            yield self.attemptPeripheral((peripheralName, idTuple))
 
     @inlineCallbacks
     def attemptPeripheral(self,peripheralTuple):
