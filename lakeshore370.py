@@ -47,13 +47,13 @@ SETTLE_TIME = 8
 def res2temp(r):
     try:
         return ((math.log(r) - 6.02) / 1.76) ** (-1/.345)
-    except:
+    except Exception:
         return 0.0
 
 def temp2res(t):
     try:
         return math.exp(1.76*(t**(-0.345)) + 6.02)
-    except:
+    except Exception:
         return 0.0
 
 class RuOxWrapper(GPIBDeviceWrapper):
@@ -62,7 +62,6 @@ class RuOxWrapper(GPIBDeviceWrapper):
         self.alive = True
         self.onlyChannel = 0
         self.readLoop().addErrback(log.err)
-
 
     def shutdown(self):
         self.alive = False
@@ -85,7 +84,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
             value = float(value)
             val = 8
             for limit in [31.6, 10, 3.16, 1, 0.316, 0.1, 0.0316]:
-                if value<=limit:
+                if value <= limit:
                     val -= 1
             yield self.write('HTRRNG %d' % val)
             returnValue([0.0316, 0.1, 0.316, 1.0, 3.16, 10.0, 31.6, 100.0][val-1])
@@ -124,7 +123,7 @@ class LakeshoreRuOxServer(GPIBManagedServer):
     deviceName = 'LSCI MODEL370'
     deviceWrapper = RuOxWrapper
 
-    @setting(10, 'Temperatures', returns=['*(v[K], t)'])
+    @setting(10, 'Temperatures', returns='*(v[K], t)')
     def temperatures(self, c):
         """Read channel temperatures.
 
@@ -133,7 +132,7 @@ class LakeshoreRuOxServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         return [(res2temp(r), t) for r, t in dev.readings]
 
-    @setting(11, 'Resistances', returns=['*(v[Ohm], t)'])
+    @setting(11, 'Resistances', returns='*(v[Ohm], t)')
     def resistances(self, c):
         """Read channel voltages.
 
@@ -142,7 +141,7 @@ class LakeshoreRuOxServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         return dev.readings
 
-    @setting(12, 'Select channel', channel=['w'], returns=['w'])
+    @setting(12, 'Select channel', channel='w', returns='w')
     def selectchannel(self, c, channel):
         """Select channel to be read. If argument is 0,
         scan over channels.
@@ -150,7 +149,7 @@ class LakeshoreRuOxServer(GPIBManagedServer):
         Returns selected channel.
         """
         dev = self.selectedDevice(c)
-        dev.onlyChannel=channel
+        dev.onlyChannel = channel
         if channel > 0:
             dev.selectChannel(channel)
         return channel
@@ -164,27 +163,27 @@ class LakeshoreRuOxServer(GPIBManagedServer):
         if channel not in range(1,17):
             raise Exception('Channel needs to be between 1 and 16')
         res = temp2res(float(temperature))
-        if res==0.0:
+        if res == 0.0:
             raise Exception('Invalid temperature')
         loadresistor = float(loadresistor)
-        if (loadresistor<1) or (loadresistor>100000):
+        if (loadresistor < 1) or (loadresistor > 100000):
             raise Exception('Load resistor value must be between 1 Ohm and 100kOhm')
-        dev=self.selectedDevice(c)
-        dev.onlyChannel=channel
+        dev = self.selectedDevice(c)
+        dev.onlyChannel = channel
         dev.selectChannel(channel)
         yield dev.controlTemperature(channel, res, loadresistor)
         returnValue(res)
 
     @setting(52, 'PID', P='v', I='v[s]', D='v[s]')
     def setPID(self, c, P, I, D=0):
-        P=float(P)
-        if (P<0.001) or (P>1000):
+        P = float(P)
+        if (P < 0.001) or (P > 1000):
             raise Exception('P value must be between 0.001 and 1000')
-        I=float(I)
-        if (I<0) or (I>10000):
+        I = float(I)
+        if (I < 0) or (I > 10000):
             raise Exception('I value must be between 0s and 10000s')
-        D=float(D)
-        if (D<0) or (D>2500):
+        D = float(D)
+        if (D < 0) or (D > 2500):
             raise Exception('D value must be between 0s and 2500s')
         dev = self.selectedDevice(c)
         yield dev.setPID(P, I, D)
@@ -196,7 +195,7 @@ class LakeshoreRuOxServer(GPIBManagedServer):
         ans = yield dev.setHeaterRange(limit)
         returnValue(ans)
 
-    @setting(56, 'Heater Output', returns=['v[%]'])
+    @setting(56, 'Heater Output', returns='v[%]')
     def heateroutput(self, c):
         """Queries the current Heater Output"""
         dev = self.selectedDevice(c)
