@@ -196,14 +196,11 @@ class FPGADevice(DeviceWrapper):
         
         while len(data) > 0:
             page, data = data[:pg_len], data[pg_len:]
-            if True: # upload entire SRAM to ensure pipeline correctness
-                if len(page) < pg_len:
-                    page += '\x00' * (pg_len-len(page))
-                pkt = chr((adr >> 10) & 63) + '\x00' + page
-                p.write(pkt)
-                adr += pg_len
-                needToSend = True
-        
+            if len(page) < pg_len:
+                page += '\x00' * (pg_len-len(page))
+            pkt = chr((adr >> 10) & 63) + '\x00' + page
+            p.write(pkt)
+            adr += pg_len
         return needToSend, (startadr/4, endadr/4)
 
     def makeMemory(self, data, p, page=0):
