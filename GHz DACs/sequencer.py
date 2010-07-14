@@ -227,7 +227,7 @@ class FPGAServer(DeviceServer):
     #retryStats = [0] * NUMRETRIES
 
     # possible links: name, server, port
-    possibleLinks = [('ADR Lab', 'adr_direct_ethernet', 2)]
+    possibleLinks = [('ADR Lab', 'adr_direct_ethernet', 0)]
 
     def initContext(self, c):
         c.update(daisy_chain=[], start_delay=[])
@@ -250,8 +250,8 @@ class FPGAServer(DeviceServer):
                 ports, names = [], []
             if port not in ports:
                 continue
-            MAC = names[list(ports).index(port)][-17:]
-
+            #MAC = names[list(ports).index(port)][-17:]
+            
             # make a list of the boards currently known
             skips = {}
             for dname in self.devices:
