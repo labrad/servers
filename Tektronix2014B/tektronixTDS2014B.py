@@ -1,4 +1,4 @@
-# Copyright (C) 2007  Matthew Neeley
+# Copyright (C) 2007  Daniel Sank
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -44,20 +44,11 @@ SCALES = []
 
 class Tektronix2014BWrapper(GPIBDeviceWrapper):
     pass
-#    @inlineCallbacks
-#    def initialize(self):
-#        pass
-
-##def _parName(meas):
-##    return 'labrad_%s' % meas
 
 class Tektronix2014BServer(GPIBManagedServer):
     name = 'TEKTRONIX 2014B OSCILLOSCOPE'
     deviceName = 'TEKTRONIX TDS 2014B'
     deviceWrapper = Tektronix2014BWrapper
-
-    def initContext(self, c):
-        pass
         
     @setting(11, returns=[])
     def reset(self, c):
@@ -71,38 +62,42 @@ class Tektronix2014BServer(GPIBManagedServer):
         yield dev.write('*CLS')
 
     #Channel settings
-    @setting(21, channel = 'i', returns = '(vss)')
-    def channel(self, c, channel):
-        """Get information on one of the scope channels.
+    @setting(21, channel = 'i', returns = '(vsvvssss)')
+    def channel_info(self, c, channel):
+        """channel(int channel)
+        Get information on one of the scope channels.
 
-        INPUTS
-        channel - integer indicating a scope channel
-        
-        OUTPUTS 
-        A tuple of (position, coupling, unit)
-
-        TODO
-        Parse the rest of the parameters that come back from the CH<x> call.
+        OUTPUT
+        Tuple of (probeAtten, ?, scale, position, coupling, bwLimit, invert, units)
         """
+        #NOTES
+        #The scope's response to 'CH<x>?' is a string of format
+        #'1.0E1;1.0E1;2.5E1;0.0E0;DC;OFF;OFF;"V"'
+        #These strings represent respectively,
+        #probeAttenuation;?;?;vertPosition;coupling;?;?;vertUnit
+
         dev = self.selectedDevice(c)
         resp = yield dev.query('CH%d?' %channel)
-        first, second, third, position, coupling, sixth, seventh, unit = resp.split(';')
+        probeAtten, second, scale, position, coupling, bwLimit, invert, unit = resp.split(';')
 
         #Convert strings to numerical data when appropriate
-        first = None
-        second = None
-        third = None
+        probeAtten = T.Value(eng2float(probeAtten),'')
+        #second = None, I don't know what this is!
+        scale = T.Value(eng2float(scale),'')
         position = T.Value(eng2float(position),'')
         coupling = coupling
-        sixth = None
-        seventh = None
-        unit = unit[1:-1]
+        bwLimit = bwLimit
+        invert = invert
+        unit = unit[1:-1] #Get's rid of an extra set of quotation marks
 
-        returnValue((position, coupling, unit))
+        returnValue((probeAtten,second,scale,position,coupling,bwLimit,invert,unit))
 
     @setting(22, channel = 'i', coupling = 's', returns=['s'])
     def coupling(self, c, channel, coupling = None):
-        """Get or set the coupling of a specified channel"""
+        """Get or set the coupling of a specified channel
+        Coupling can be "AC" or "DC"
+        """
+
         dev = self.selectedDevice(c)
         if coupling is None:
             resp = yield dev.query('CH%d:COUP?' %channel)
@@ -110,25 +105,59 @@ class Tektronix2014BServer(GPIBManagedServer):
             coupling = coupling.upper()
             if coupling not in COUPLINGS:
                 raise Exception('Coupling must be "AC" or "DC"')
-            yield dev.write(('CH%d:COUP '+coupling) %channel)
-            resp = yield dev.query('CH%d:COUP?' %channel)
+            else:
+                yield dev.write(('CH%d:COUP '+coupling) %channel)
+                resp = yield dev.query('CH%d:COUP?' %channel)
         returnValue(resp)
 
     @setting(23, channel = 'i', scale = 'v', returns = ['v'])
     def scale(self, c, channel, scale = None):
-        """scale(int(channel), Value(scale))
-
-        Get or set the vertical scale of a channel
+        """Get or set the vertical scale of a channel
         """
         dev = self.selectedDevice(c)
         if scale is None:
-            resp = yield dev.query('CH%d:SC?' %channel)
+            resp = yield dev.query('CH%d:SCA?' %channel)
         else:
+            scale = float2eng(scale)
             yield dev.write(('CH%d:SCA '+scale) %channel)
+            resp = yield dev.query('CH%d:SCA?' %channel)
+        scale = eng2float(resp)
+        returnValue(scale)
 
-    @setting(41, channel = 'i', start = 'i', stop = 'i', returns='s')
-    def get_trace(self, c, channel, start=1, stop=2):
-        """get_trace(int channel, )
+    @setting(24, channel = 'i', factor = 'i', returns = ['s'])
+    def probe(self, c, channel, factor = None):
+        """Get or set the probe attenuation factor.
+        """
+        probeFactors = [1,10,20,50,100,500,1000]
+        dev = self.selectedDevice(c)
+        chString = 'CH%d:' %channel
+        if factor is None:
+            resp = yield dev.query(chString+'PRO?')
+        elif factor in probeFactors:
+            yield dev.write(chString+'PRO %d' %factor)
+            resp = yield dev.query(chString+'PRO?')
+        else:
+            raise Exception('Probe attenuation factor not in '+str(probeFactors))
+        returnValue(resp)
+
+    @setting(25, channel = 'i', state = '?', returns = '')
+    def channelOnOff(self, c, channel, state):
+        """Nothing"""
+        dev = self.selectedDevice(c)
+        if isinstance(state, str):
+            state = state.upper()
+        if state not in [0,1,'ON','OFF']:
+            raise Exception('state must be 0, 1, "ON", or "OFF"')
+        if isinstance(state, int):
+            state = str(state)
+        yield dev.write(('SEL:CH%d '+state) %channel)            
+        
+    
+    #Data acquisition settings
+    @setting(41, channel = 'i', start = 'i', stop = 'i', wordLength = 'i',
+             binary = 'b', returns='?')
+    def get_trace(self, c, channel, start=1, stop=2500, wordLength = 2, binary=True):
+        """Get a trace from the scope.
 
         DATA ENCODINGS
         RIB - signed, MSB first
@@ -137,20 +166,36 @@ class Tektronix2014BServer(GPIBManagedServer):
         SRP - unsigned, LSB first
         """
         dev = self.selectedDevice(c)
-        #DAT:SOU - set waveform source
+        #DAT:SOU - set waveform source channel
         yield dev.write('DAT:SOU CH%d' %channel)
         #DAT:ENC - data format (binary/ascii)
-        yield dev.write('DAT:ENC RIB')
-        #DAT:WID - set number of bytes per point
-        yield dev.write('DAT:WID 2')
-        #DAT:STAR- starting and stopping point
+        if binary is True:
+            yield dev.write('DAT:ENC RIB')
+        else:
+            yield dev.write('DAT:ENC ASCI')
+        #Set number of bytes per point
+        yield dev.write('DAT:WID %d' %wordLength)
+        #Starting and stopping point
         yield dev.write('DAT:STAR %d' %start)
         yield dev.write('DAT:STOP %d' %stop)
-        #WFMPR - transfer waveform preamble
+        #Transfer waveform preamble
         preamble = yield dev.query('WFMP?')
-        #CURV - transfer waveform data
+        #Transfer waveform data
         resp = yield dev.query('CURV?')
-        returnValue(resp)
+        #Parse waveform preamble
+        voltsPerDiv, secPerDiv = _parsePreamble(preamble)
+        #Parse curve data if binary
+        if binary is True:
+            #Turn the trace into a numpy array in "byte units" 
+            trace = _parseBinaryData(resp,wordLength = wordLength)
+        else:
+            #turn the ascii strings into floats
+            pass
+        #Convert from binary to volts
+        traceVolts = 5.0*voltsPerDiv*(1.0/127)*trace
+        recordLength = stop-start+1
+        time = numpy.linspace(0,10.0*secPerDiv*(1.0/2500)*recordLength,recordLength)
+        returnValue((time,trace))
 
 
 def eng2float(s):
@@ -159,9 +204,31 @@ def eng2float(s):
     value = float(s[0])*10**float(s[1])
     return value
 
-def float2eng(x):
-    """Convert a floating point number to a string in engineering notation"""
+def float2eng(num):
+    """Convert a floating point number to a string in engineering notation
+`   """
+    s = format(num,'E')
+    return s
+
+def _parsePreamble(preamble):
+    preamble = preamble.split(';')
+    vertInfo = preamble[6].split(',')
+    voltsPerDiv = float(vertInfo[2][1:7])
+    secPerDiv = float(vertInfo[3][1:7])
+    return (voltsPerDiv,secPerDiv)
+
+def _parseBinaryData(data, wordLength):
+    """Parse binary data packed as ASCII string
+    """
+    formatChars = {'1':'b','2':'h'}
+    formatChar = formatChars[str(wordLength)]
+
+    #Get rid of header crap
+    header = data[0:6]
+    dat = data[6:-1]
     
+    dat = numpy.array(unpack(formatChar*(len(dat)/wordLength),dat))
+    return dat
 
 __server__ = Tektronix2014BServer()
 
