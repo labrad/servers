@@ -155,8 +155,8 @@ class Tektronix2014BServer(GPIBManagedServer):
     
     #Data acquisition settings
     @setting(41, channel = 'i', start = 'i', stop = 'i', wordLength = 'i',
-             binary = 'b', returns='?')
-    def get_trace(self, c, channel, start=1, stop=2500, wordLength = 2, binary=True):
+             returns='?')
+    def get_trace(self, c, channel, start=1, stop=2500, wordLength = 1):
         """Get a trace from the scope.
 
         DATA ENCODINGS
@@ -169,30 +169,25 @@ class Tektronix2014BServer(GPIBManagedServer):
         #DAT:SOU - set waveform source channel
         yield dev.write('DAT:SOU CH%d' %channel)
         #DAT:ENC - data format (binary/ascii)
-        if binary is True:
-            yield dev.write('DAT:ENC RIB')
-        else:
-            yield dev.write('DAT:ENC ASCI')
+        yield dev.write('DAT:ENC RIB')
         #Set number of bytes per point
         yield dev.write('DAT:WID %d' %wordLength)
         #Starting and stopping point
+        if not (start<2500 and start>0 and stop<2501 and stop>1):
+            raise Exception('start/stop points out of bounds')
         yield dev.write('DAT:STAR %d' %start)
         yield dev.write('DAT:STOP %d' %stop)
         #Transfer waveform preamble
         preamble = yield dev.query('WFMP?')
         #Transfer waveform data
-        trace = yield dev.query('CURV?')
+        binary = yield dev.query('CURV?')
         #Parse waveform preamble
         voltsPerDiv, secPerDiv = _parsePreamble(preamble)
-        #Parse curve data if binary
-        if binary is True:
-            #Turn the trace into a numpy array in "byte units" 
-            trace = _parseBinaryData(trace,wordLength = wordLength)
-        else:
-            #turn the ascii strings into floats
-            pass
+        #Parse binary
+        trace = _parseBinaryData(binary,wordLength = wordLength)
         #Convert from binary to volts
-        
+        ##TODO##
+        returnValue(trace)        
 
 
 def eng2float(s):
