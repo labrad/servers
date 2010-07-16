@@ -181,21 +181,18 @@ class Tektronix2014BServer(GPIBManagedServer):
         #Transfer waveform preamble
         preamble = yield dev.query('WFMP?')
         #Transfer waveform data
-        resp = yield dev.query('CURV?')
+        trace = yield dev.query('CURV?')
         #Parse waveform preamble
         voltsPerDiv, secPerDiv = _parsePreamble(preamble)
         #Parse curve data if binary
         if binary is True:
             #Turn the trace into a numpy array in "byte units" 
-            trace = _parseBinaryData(resp,wordLength = wordLength)
+            trace = _parseBinaryData(trace,wordLength = wordLength)
         else:
             #turn the ascii strings into floats
             pass
         #Convert from binary to volts
-        traceVolts = 5.0*voltsPerDiv*(1.0/127)*trace
-        recordLength = stop-start+1
-        time = numpy.linspace(0,10.0*secPerDiv*(1.0/2500)*recordLength,recordLength)
-        returnValue((time,trace))
+        
 
 
 def eng2float(s):
@@ -225,8 +222,8 @@ def _parseBinaryData(data, wordLength):
 
     #Get rid of header crap
     header = data[0:6]
-    dat = data[6:-1]
-    
+    dat = data[6:]
+    #unpack binary data
     dat = numpy.array(unpack(formatChar*(len(dat)/wordLength),dat))
     return dat
 
