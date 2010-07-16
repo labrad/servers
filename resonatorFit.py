@@ -45,7 +45,7 @@ from time import sleep
 
 class ResonatorFit(LabradServer):
     """This server fits resonator data to determine Q, f0, etc."""
-    name = "resonatorfit"
+    name = "Resonator Fit"
     
     
     
