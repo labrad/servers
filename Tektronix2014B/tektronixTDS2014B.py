@@ -40,6 +40,7 @@ from struct import unpack
 import numpy
 
 COUPLINGS = ['AC', 'DC']
+VERT_DIVISIONS = 5.0
 SCALES = []
 
 class Tektronix2014BWrapper(GPIBDeviceWrapper):
@@ -154,9 +155,8 @@ class Tektronix2014BServer(GPIBManagedServer):
         
     
     #Data acquisition settings
-    @setting(41, channel = 'i', start = 'i', stop = 'i', wordLength = 'i',
-             returns='?')
-    def get_trace(self, c, channel, start=1, stop=2500, wordLength = 1):
+    @setting(41, channel = 'i', start = 'i', stop = 'i', returns='?')
+    def get_trace(self, c, channel, start=1, stop=2500):
         """Get a trace from the scope.
 
         DATA ENCODINGS
@@ -165,7 +165,11 @@ class Tektronix2014BServer(GPIBManagedServer):
         SRI - signed, LSB first
         SRP - unsigned, LSB first
         """
+        wordLength = 1 #Hardcoding to set data transer word length to 1 byte
+        recordLength = stop-start+1
+        
         dev = self.selectedDevice(c)
+
         #DAT:SOU - set waveform source channel
         yield dev.write('DAT:SOU CH%d' %channel)
         #DAT:ENC - data format (binary/ascii)
@@ -186,8 +190,9 @@ class Tektronix2014BServer(GPIBManagedServer):
         #Parse binary
         trace = _parseBinaryData(binary,wordLength = wordLength)
         #Convert from binary to volts
-        ##TODO##
-        returnValue(trace)        
+        traceVolts = VERT_DIVISIONS*voltsPerDiv*(1.0/127)*trace
+        time = numpy.linspace(0,,recordLength)
+        returnValue(traceVolts)
 
 
 def eng2float(s):
