@@ -1,4 +1,4 @@
-# Copyright (C) 2007  Markus Ansmann
+# Copyright (C) 2010 James Wenner
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 [info]
 name = Resonator Fit
 version = 0.1.0
-description = 
+description = Fits resonator data to find Q
 
 [startup]
 cmdline = %PYTHON% %FILE%
