@@ -41,6 +41,7 @@ import numpy
 
 COUPLINGS = ['AC', 'DC']
 VERT_DIVISIONS = 5.0
+HORZ_DIVISIONS = 10.0
 SCALES = []
 
 class Tektronix2014BWrapper(GPIBDeviceWrapper):
@@ -79,26 +80,25 @@ class Tektronix2014BServer(GPIBManagedServer):
 
         dev = self.selectedDevice(c)
         resp = yield dev.query('CH%d?' %channel)
-        probeAtten, second, scale, position, coupling, bwLimit, invert, unit = resp.split(';')
+        probeAtten, iDontKnow, scale, position, coupling, bwLimit, invert, unit = resp.split(';')
 
         #Convert strings to numerical data when appropriate
-        probeAtten = T.Value(eng2float(probeAtten),'')
-        #second = None, I don't know what this is!
-        scale = T.Value(eng2float(scale),'')
-        position = T.Value(eng2float(position),'')
+        probeAtten = T.Value(float(probeAtten),'')
+        #iDontKnow = None, I don't know what this is!
+        scale = T.Value(float(scale),'')
+        position = T.Value(float(position),'')
         coupling = coupling
         bwLimit = bwLimit
         invert = invert
         unit = unit[1:-1] #Get's rid of an extra set of quotation marks
 
-        returnValue((probeAtten,second,scale,position,coupling,bwLimit,invert,unit))
+        returnValue((probeAtten,iDontKnow,scale,position,coupling,bwLimit,invert,unit))
 
     @setting(22, channel = 'i', coupling = 's', returns=['s'])
     def coupling(self, c, channel, coupling = None):
         """Get or set the coupling of a specified channel
         Coupling can be "AC" or "DC"
         """
-
         dev = self.selectedDevice(c)
         if coupling is None:
             resp = yield dev.query('CH%d:COUP?' %channel)
@@ -122,7 +122,7 @@ class Tektronix2014BServer(GPIBManagedServer):
             scale = float2eng(scale)
             yield dev.write(('CH%d:SCA '+scale) %channel)
             resp = yield dev.query('CH%d:SCA?' %channel)
-        scale = eng2float(resp)
+        scale = float(resp)
         returnValue(scale)
 
     @setting(24, channel = 'i', factor = 'i', returns = ['s'])
@@ -143,7 +143,8 @@ class Tektronix2014BServer(GPIBManagedServer):
 
     @setting(25, channel = 'i', state = '?', returns = '')
     def channelOnOff(self, c, channel, state):
-        """Nothing"""
+        """Turn on or off a scope channel display
+        """
         dev = self.selectedDevice(c)
         if isinstance(state, str):
             state = state.upper()
@@ -158,13 +159,13 @@ class Tektronix2014BServer(GPIBManagedServer):
     @setting(41, channel = 'i', start = 'i', stop = 'i', returns='?')
     def get_trace(self, c, channel, start=1, stop=2500):
         """Get a trace from the scope.
-
-        DATA ENCODINGS
-        RIB - signed, MSB first
-        RPB - unsigned, MSB first
-        SRI - signed, LSB first
-        SRP - unsigned, LSB first
+        OUTPUT - (array voltage in volts, array time in seconds)
         """
+##        DATA ENCODINGS
+##        RIB - signed, MSB first
+##        RPB - unsigned, MSB first
+##        SRI - signed, LSB first
+##        SRP - unsigned, LSB first
         wordLength = 1 #Hardcoding to set data transer word length to 1 byte
         recordLength = stop-start+1
         
@@ -191,15 +192,16 @@ class Tektronix2014BServer(GPIBManagedServer):
         trace = _parseBinaryData(binary,wordLength = wordLength)
         #Convert from binary to volts
         traceVolts = VERT_DIVISIONS*voltsPerDiv*(1.0/127)*trace
-        time = numpy.linspace(0,,recordLength)
-        returnValue(traceVolts)
+        time = numpy.linspace(0,HORZ_DIVISIONS*secPerDiv*recordLength(*1.0/2500),recordLength)
+
+        returnValue((time,traceVolts))
 
 
-def eng2float(s):
-    """Convert engineering notation string to a float"""
-    s = s.split('E')
-    value = float(s[0])*10**float(s[1])
-    return value
+##def eng2float(s):
+##    """Convert engineering notation string to a float"""
+##    s = s.split('E')
+##    value = float(s[0])*10**float(s[1])
+##    return value
 
 def float2eng(num):
     """Convert a floating point number to a string in engineering notation
@@ -208,6 +210,7 @@ def float2eng(num):
     return s
 
 def _parsePreamble(preamble):
+    ###TODO: parse the rest of the preamble and return the results as a useful dictionary
     preamble = preamble.split(';')
     vertInfo = preamble[6].split(',')
     voltsPerDiv = float(vertInfo[2][1:7])
