@@ -119,7 +119,7 @@ class Tektronix2014BServer(GPIBManagedServer):
         if scale is None:
             resp = yield dev.query('CH%d:SCA?' %channel)
         else:
-            scale = float2eng(scale)
+            scale = format(scale,'E')
             yield dev.write(('CH%d:SCA '+scale) %channel)
             resp = yield dev.query('CH%d:SCA?' %channel)
         scale = float(resp)
@@ -203,11 +203,6 @@ class Tektronix2014BServer(GPIBManagedServer):
 ##    value = float(s[0])*10**float(s[1])
 ##    return value
 
-def float2eng(num):
-    """Convert a floating point number to a string in engineering notation
-`   """
-    s = format(num,'E')
-    return s
 
 def _parsePreamble(preamble):
     ###TODO: parse the rest of the preamble and return the results as a useful dictionary
