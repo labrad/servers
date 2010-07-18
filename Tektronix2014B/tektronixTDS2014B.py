@@ -192,8 +192,10 @@ class Tektronix2014BServer(GPIBManagedServer):
         trace = _parseBinaryData(binary,wordLength = wordLength)
         #Convert from binary to volts
         traceVolts = VERT_DIVISIONS*voltsPerDiv*(1.0/127)*trace
-        time = numpy.linspace(0,HORZ_DIVISIONS*secPerDiv*recordLength(*1.0/2500),recordLength)
-
+        try:
+            time = numpy.linspace(0,HORZ_DIVISIONS*secPerDiv*recordLength*(1.0/2500),recordLength)
+        except:
+            time = secPerDiv
         returnValue((time,traceVolts))
 
 
