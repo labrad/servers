@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Resonator Fit
-version = 0.1.0
+version = 0.1.1
 description = Fits resonator data to find Q
 
 [startup]
@@ -182,9 +182,13 @@ class ResonatorFit(LabradServer):
         # We also calculate an aproximatin for Q from John's paper deltaOmega/Omega0 = 1/Q
         
         angles = numpy.angle((center - z) / A)
-        anglesrange = numpy.logical_and(angles>-3,angles<3)
+        # anglesmid = numpy.logical_and(angles>-pi/4,angles<pi/4)
+        # fmid = numpy.median(frequency[anglesmid])
+        
+        anglesrange = numpy.logical_and(angles>-2,angles<2)
         freqinterp = frequency[anglesrange]
         anginterp = angles[anglesrange]
+        
         freqplus = numpy.median(interpolate.sproot(interpolate.splrep(freqinterp,anginterp-(pi/2))))
         freqneg = numpy.median(interpolate.sproot(interpolate.splrep(freqinterp,anginterp-(-pi/2))))
         f0 = numpy.median(interpolate.sproot(interpolate.splrep(freqinterp,anginterp)))
@@ -292,49 +296,12 @@ class ResonatorFit(LabradServer):
     
     
         
-    #@setting(10, 'Single Fit', dirname='*s', filenum='w', shunt='b', ifcal='b', caldir='*s', calnum='w', ifrange='s', rangemin='v', rangemax='v', ifback='s', backmin='v', backmax='v', backorder='w', returns='?')
-    @setting(10, 'Single Fit', dirname='?', filenum='?', shunt='?', ifcal='?', caldir='?', calnum='?', ifrange='?', rangemin='?', rangemax='?', ifback='?', backmin='?', backmax='?', backorder='?', returns='?')
+    @setting(10, 'Single Fit', dirname='*s', filenum='w', shunt='b', ifcal='b', caldir='*s', calnum='w', ifrange='b', rangemin='v', rangemax='v', ifback='b', backmin='v', backmax='v', backorder='w', returns='?')
     def single_fit(self, c, dirname, filenum, shunt, ifcal, caldir, calnum, ifrange, rangemin, rangemax, ifback, backmin, backmax, backorder):
-        """Fits a single S21 trace with calibration."""
+        """Fits a single S21 trace with calibration. To retrieve data, change result to dictionary."""
         fitDict = yield self.calibrate_fit(dirname,filenum,shunt,(ifcal,caldir,calnum),(ifrange,rangemin,rangemax),(ifback,backmin,backmax,backorder))
         returnValue(tuple(fitDict.items()))
-            
-        
-        
-    @setting(20, 'Magnitude Plot', data='?', returns='?')
-    def magplot(self, c, data):
-        """Plots magnitude vs frequency"""
-        plotData = data.asarray
-        freq=plotData[0].real
-        mag=10*numpy.log10(abs(plotData[1]))
-        pyplot.plot(freq,mag,'b.')
-        pyplot.xlabel('Frequency / GHz')
-        pyplot.ylabel('Magnitude of S21 in dB')
-        pyplot.show()
-        
-        
-    @setting(21, 'Phase Plot', data='?', returns='?')
-    def phplot(self, c, data):
-        """Plots phase vs frequency"""
-        plotData = data.asarray
-        freq=plotData[0].real
-        phase=numpy.arctan2(plotData[1].imag,plotData[1].real)*180/pi
-        pyplot.plot(freq,phase,'b.')
-        pyplot.xlabel('Frequency / GHz')
-        pyplot.ylabel('Phase of S21 in degrees')
-        pyplot.show()
-        
-        
-    @setting(22, 'Circle Plot', data='?', returns='?')
-    def cirplot(self, c, data):
-        """Plots phase vs frequency"""
-        plotData = data.asarray
-        pyplot.plot(plotData[1].real,plotData[1].imag,'b.')
-        pyplot.xlabel('Real of S21')
-        pyplot.ylabel('Imag of S21')
-        pyplot.show()
-        
-        
+       
         
     
 #Run this server if this is being run as a script, not imported by another script.
