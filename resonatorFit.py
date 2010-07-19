@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Resonator Fit
-version = 0.1.1
+version = 0.2
 description = Fits resonator data to find Q
 
 [startup]
@@ -81,7 +81,7 @@ class ResonatorFit(LabradServer):
                     magcol = strnum+1
                     break
         else:
-            print 'Did not measure magnitude of S21.'
+            raise ValueError, 'Did not measure magnitude or phase of S21'
             return
         for strnum in range(len(vars)):
             if vars[strnum][1] == 'S21':
@@ -89,7 +89,7 @@ class ResonatorFit(LabradServer):
                     phasecol = strnum+1
                     break
         else:
-            print 'Did not measure phase of S21.'
+            raise ValueError, 'Did not measure magnitude or phase of S21'
             return
         mag = 10**(datafromfile[:,magcol]/20.)
         complexval = mag*exp(1j*datafromfile[:,phasecol]) 
@@ -295,11 +295,56 @@ class ResonatorFit(LabradServer):
         returnValue(s21)
     
     
+    
+    @inlineCallbacks
+    def multifile_fit(self, dirname, shunt, cal, range, background):
+    #Load multiple s21 traces. For each, run calibrate_fit to calibrate data and fit Q.
         
+        dv = self.client.data_vault
+        
+        # Goes to the correct directory.
+        yield dv.cd([''])
+        yield dv.cd(dirname)
+        
+        # Get contents of directory (by numerical tags)
+        dirContents = yield dv.dir()
+        files = dirContents[1]
+        listnum = []
+        for filename in files:
+            filenum = int(filename[0:6])
+            listnum.append(filenum)
+        
+        # Open first file in directory
+        filenum = listnum[0]
+        s21 = yield self.calibrate_fit(dirname,filenum,shunt,cal,range,background)
+        
+        # Set up results dictionary
+        sweeps = {}
+        for key in s21.keys():
+            sweeps[key]=[s21[key]]
+        
+        # Load data into results dictionary
+        for filenum in listnum[1:]:
+            s21 = yield self.calibrate_fit(dirname,filenum,shunt,cal,range,background)
+            for key in sweeps.keys():
+                sweeps[key].append(s21[key])
+        
+        returnValue(sweeps)
+        
+        
+    
     @setting(10, 'Single Fit', dirname='*s', filenum='w', shunt='b', ifcal='b', caldir='*s', calnum='w', ifrange='b', rangemin='v', rangemax='v', ifback='b', backmin='v', backmax='v', backorder='w', returns='?')
     def single_fit(self, c, dirname, filenum, shunt, ifcal, caldir, calnum, ifrange, rangemin, rangemax, ifback, backmin, backmax, backorder):
         """Fits a single S21 trace with calibration. To retrieve data, change result to dictionary."""
         fitDict = yield self.calibrate_fit(dirname,filenum,shunt,(ifcal,caldir,calnum),(ifrange,rangemin,rangemax),(ifback,backmin,backmax,backorder))
+        returnValue(tuple(fitDict.items()))
+    
+    
+    
+    @setting(20, 'Multiple Fit', dirname='*s', shunt='b', ifcal='b', caldir='*s', calnum='w', ifrange='b', rangemin='v', rangemax='v', ifback='b', backmin='v', backmax='v', backorder='w', returns='?')
+    def multiple_fit(self, c, dirname, shunt, ifcal, caldir, calnum, ifrange, rangemin, rangemax, ifback, backmin, backmax, backorder):
+        """Fits multiple S21 traces with calibration."""
+        fitDict = yield self.multifile_fit(dirname,shunt,(ifcal,caldir,calnum),(ifrange,rangemin,rangemax),(ifback,backmin,backmax,backorder))
         returnValue(tuple(fitDict.items()))
        
         
