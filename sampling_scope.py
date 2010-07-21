@@ -30,12 +30,15 @@ timeout = 5
 ### END NODE INFO
 """
 
+import struct
+import re
+
+import numpy as np
+
 from labrad import types as T, errors, util
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
-import struct
-import re
 
 __QUERY__ = 'ENC WAV:BIN;BYT. LSB;OUT TRA%d;WAV?'
 
@@ -102,8 +105,43 @@ class SamplingScope(GPIBManagedServer):
             yield util.wakeupCall(2)
 
         resp = yield dev.query(__QUERY__ % trace, bytes=20000L)
-        vals = _parseBinaryData(resp)
-        returnValue([T.Value(v, 'V') for v in vals])
+        ofs, incr, vals = _parseBinaryData(resp)
+        returnValue([T.Value(v, 'V') for v in np.hstack(([ofs, incr], vals))])
+
+    @setting(99, 'Multi Trace',
+                 cstar='w', cend='w',
+                 returns='v[s]{time offset} v[s]{time step} *2v[V]{channel}')
+    def multi_trace(self, c, cstar=1, cend=2):
+        """Returns the y-values of the current traces from the sampling scope in a tuple.
+        (offset, timestep, 2-D array of traces)
+        """
+        dev = self.selectedDevice(c)
+        if cstar < 1 or cstar > 8:
+            raise Exception('cstar out of range')
+        if cend < 1 or cend > 8:
+            raise Exception('cend out of range')
+        if cstar > cend:
+            raise Exception('must have cend >= cstar')
+        
+        yield dev.write('COND TYP:AVG')
+        
+        while True:
+            if int((yield dev.query('COND? REMA'))[18:]) == 0:
+                break
+            yield util.wakeupCall(2)
+
+        resp = yield dev.query('ENC WAV:BIN;BYT. LSB;OUT TRA%dTOTRA%d;WAV?' % (cstar, cend), bytes=20000L)
+        splits = resp.split(";WFMPRE")
+        traces = []
+        ofs = 0
+        incr = 0
+        for trace in splits:
+            ofs, incr, vals = _parseBinaryData(trace)
+            traces.append(vals)
+        #ofs1, incr1, vals1 = _parseBinaryData(t1)
+        #ofs2, incr2, vals2 = _parseBinaryData(t2)
+        #traces = np.vstack((vals1, vals2))
+        returnValue((ofs, incr, traces))
     
     @setting(241, 'Send Trace To Data Vault',
                   server=['s'], session=['*s'], dataset=['s'], trace=['w'],
@@ -277,13 +315,13 @@ def _parseBinaryData(data):
     """Parse the data coming back from the scope"""
     hdr, dat = data.split(';CURVE')
     dat = dat[dat.find('%')+3:-1]
-    dat = struct.unpack('h'*(len(dat)/2), dat)
+    dat = np.array(struct.unpack('h'*(len(dat)/2), dat))
     xzero = float(_xzero.findall(hdr)[0])
     xincr = float(_xincr.findall(hdr)[0])
     yzero = float(_yzero.findall(hdr)[0])
     ymult = float(_ymult.findall(hdr)[0])
 
-    return [xzero, xincr] + [d*ymult + yzero for d in dat]
+    return xzero, xincr, dat*ymult + yzero
 
 
 __server__ = SamplingScope()
