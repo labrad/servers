@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Resonator Fit
-version = 0.2
+version = 0.3
 description = Fits resonator data to find Q
 
 [startup]
@@ -133,6 +133,37 @@ class ResonatorFit(LabradServer):
                 caldata = datain
         else:
             caldata = datain
+            
+        # Background subtraction if desired
+        if background[0]:
+            frange = array([background[1],background[2]])
+            order = background[3]
+            s21 = caldata
+            f = s21[:,0]
+            sr = s21[:,1].real
+            si = s21[:,1].imag
+            
+            # Determine which indices (given by fcut) are within the background subraction range
+            fcut = numpy.logical_and(f>frange[0],f<frange[1])
+            if fcut[0] == True:
+                fcut = fcut[1:]
+                order = 1
+            if fcut[-1] == True:
+                fcut = fcut[:-1]
+                order = 1
+            fout = numpy.logical_not(fcut)
+                
+            # Fit real part of s21 and subract from actual (calibrated) data
+            f0 = f[fcut]
+            p = numpy.polyfit(f[fout],sr[fout],order)
+            s21r = sr[fcut]-numpy.polyval(p,f0)
+                
+            # Fit imaginary part of s21 and subract from actual (calibrated) data
+            p = numpy.polyfit(f[fout],si[fout],order)
+            s21i = si[fcut]-numpy.polyval(p,f0)
+
+            # Save data with background subtraction as the data to be returned
+            caldata = array([f0,s21r+1j*s21i])
         
         returnValue(caldata)
     
