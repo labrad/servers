@@ -13,11 +13,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+# Version 2.1	pomalley	7/23/2010	Added reading of calibrations from LabRAD registry.
+
 """
 ### BEGIN NODE INFO
 [info]
 name = Lakeshore RuOx
-version = 2.0
+version = 2.1
 description = 
 
 [startup]
@@ -40,9 +42,12 @@ from labrad import types as T, util
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 
+import numpy as np
+
 READ_ORDER = [1, 2, 1, 3, 1, 4, 1, 5]
 N_CHANNELS = 5
 SETTLE_TIME = 8
+DEFAULT, FUNCTION, INTERPOLATION = range(3)
 
 def res2temp(r):
     try:
@@ -57,150 +62,263 @@ def temp2res(t):
         return 0.0
 
 class RuOxWrapper(GPIBDeviceWrapper):
-    def initialize(self):
-        self.readings = [(0, datetime.now())] * N_CHANNELS
-        self.alive = True
-        self.onlyChannel = 0
-        self.readLoop().addErrback(log.err)
 
-    def shutdown(self):
-        self.alive = False
+	# load a single calibration
+	# reg = registry object
+	# path = directory where registry keys are (e.g. ["", "Servers", "Lakeshore 370", "GPIB1::12", "Channel 1"])
+	# returns a list: [regType, parameters...]
+	# for regType == DEFAULT, then there are no parameters (len(returnValue) = 1)
+	# for regType == FUNCTION, then the returnValue [1] is a string of python code to be eval'd
+	#							in a place where r (float) is a resistance, in ohms
+	# for regType == INTERPOLATION, then returnValue[1] is a list of resistances for interpolation,
+	#								and returnValue[2] is a list of temperatures
+	@inlineCallbacks
+	def loadSingleCalibration(self, reg, path):
+		try:
+			p = reg.packet()
+			p.cd(path)
+			p.get("Calibration Type", key="type")
+			ans = yield p.send()
+			if ans.type.upper() == "INTERPOLATION":
+				p = reg.packet()
+				p.cd(path)
+				p.get("Resistances", key="res")
+				p.get("Temperatures", key="temp")
+				ans = yield p.send()
+				returnValue([INTERPOLATION, ans.res.asarray, ans.temp.asarray])
+			elif ans.type.upper() == "FUNCTION":
+				p = reg.packet()
+				p.cd(path)
+				p.get("Function", key="fun")
+				ans = yield p.send()
+				returnValue([FUNCTION, ans.fun])
+			else:
+				returnValue([DEFAULT])
+		except Exception:
+			returnValue([DEFAULT])
 
-    @inlineCallbacks
-    def selectChannel(self, channel):
-        yield self.write('SCAN %d,0' % channel)
+	@inlineCallbacks
+	def initialize(self):
+		self.readings = [(0, datetime.now())] * N_CHANNELS
+		self.alive = True
+		self.onlyChannel = 0
+		self.readLoop().addErrback(log.err)
+		
+		# load resistance->temperature function from registry
+		# there are actually multiple functions--one for each channel,
+		# and a device default in case any of the channels' are missing
+		# self.calibrations[0] = device default calibration, self.calibrations[1-5] for channels 1-5
+		# see comment above loadSingleCalibration 
+		self.calibrations = []
+		reg = self.gpib._cxn.registry
+		# first do the default one
+		dir = ["", "Servers", "Lakeshore 370", self.addr]
+		calib = yield self.loadSingleCalibration(reg, dir)
+		self.calibrations.append(calib)
+		if self.calibrations[0][0] == DEFAULT:
+			print "WARNING: %s -- no calibration found for device default. Using server default calibration." % (self.addr)
+		elif self.calibrations[0][0] == INTERPOLATION:
+			print "%s -- found INTERPOLATION calibration for device default." % (self.addr)
+		elif self.calibrations[0][0] == FUNCTION:
+			print "%s -- found FUNCTION calibration for device default." % (self.addr)
+		else:
+			raise Exception("Calibration loader messed up. This shouldn't have happened.")
+		for i in range(5):
+			calib = yield self.loadSingleCalibration(reg, dir + ['Channel %d' % (i+1)])
+			self.calibrations.append(calib)
+			if self.calibrations[i+1][0] == DEFAULT:
+				print "WARNING: %s -- no calibration found for channel %d. Using device default calibration." % (self.addr, i+1)
+			elif self.calibrations[i+1][0] == INTERPOLATION:
+				print "%s -- found INTERPOLATION calibration for channel %d." % (self.addr, i+1)
+			elif self.calibrations[i+1][0] == FUNCTION:
+				print "%s -- found FUNCTION calibration for channel %d." % (self.addr, i+1)
+			else:
+				raise Exception("Calibration loader messed up. This shouldn't have happened.")
+		
+		# also we should set the box settings here
+		yield self.write('RDGRNG 0,0,04,15,1,0')
+			
 
-    @inlineCallbacks
-    def getHeaterOutput(self):
-        ans = yield self.query('HTR?')
-        returnValue(float(ans))
+	def shutdown(self):
+		self.alive = False
 
-    @inlineCallbacks
-    def setHeaterRange(self, value):
-        if value is None:
-            yield self.write('HTRRNG 0')
-            returnValue(None)
-        else:
-            value = float(value)
-            val = 8
-            for limit in [31.6, 10, 3.16, 1, 0.316, 0.1, 0.0316]:
-                if value <= limit:
-                    val -= 1
-            yield self.write('HTRRNG %d' % val)
-            returnValue([0.0316, 0.1, 0.316, 1.0, 3.16, 10.0, 31.6, 100.0][val-1])
+	@inlineCallbacks
+	def selectChannel(self, channel):
+		yield self.write('SCAN %d,0' % channel)
 
-    @inlineCallbacks
-    def controlTemperature(self, channel, resistance, loadresistor):
-        yield self.write('HTRRNG 0')
-        yield self.write('CSET %d,0,2,1,1,8,%f' % (channel, loadresistor))
-        yield self.write('SETP %f' % resistance)
+	@inlineCallbacks
+	def getHeaterOutput(self):
+		ans = yield self.query('HTR?')
+		returnValue(float(ans))
 
-    @inlineCallbacks
-    def setPID(self, P, I, D):
-        yield self.write('PID %f, %f, %f' % (P, I, D))
+	@inlineCallbacks
+	def setHeaterRange(self, value):
+		if value is None:
+			yield self.write('HTRRNG 0')
+			returnValue(None)
+		else:
+			value = float(value)
+			val = 8
+			for limit in [31.6, 10, 3.16, 1, 0.316, 0.1, 0.0316]:
+				if value <= limit:
+					val -= 1
+			yield self.write('HTRRNG %d' % val)
+			returnValue([0.0316, 0.1, 0.316, 1.0, 3.16, 10.0, 31.6, 100.0][val-1])
 
-    @inlineCallbacks
-    def readLoop(self, idx=0):
-        while self.alive:
-            # read only one specific channel
-            if self.onlyChannel > 0:
-                chan = self.onlyChannel
-                yield util.wakeupCall(SETTLE_TIME)
-                r = yield self.query('RDGR? %d' % chan)
-                self.readings[chan-1] = float(r), datetime.now()
-            # scan over channels
-            else:   
-                chan = READ_ORDER[idx]
-                yield self.selectChannel(chan)
-                yield util.wakeupCall(SETTLE_TIME)
-                r = yield self.query('RDGR? %d' % chan)
-                self.readings[chan-1] = float(r), datetime.now()
-                idx = (idx + 1) % len(READ_ORDER)
+	@inlineCallbacks
+	def controlTemperature(self, channel, resistance, loadresistor):
+		yield self.write('HTRRNG 0')
+		yield self.write('CSET %d,0,2,1,1,8,%f' % (channel, loadresistor))
+		yield self.write('SETP %f' % resistance)
 
-        
+	@inlineCallbacks
+	def setPID(self, P, I, D):
+		yield self.write('PID %f, %f, %f' % (P, I, D))
+
+	@inlineCallbacks
+	def readLoop(self, idx=0):
+		while self.alive:
+			# read only one specific channel
+			if self.onlyChannel > 0:
+				chan = self.onlyChannel
+				yield util.wakeupCall(SETTLE_TIME)
+				r = yield self.query('RDGR? %d' % chan)
+				self.readings[chan-1] = float(r), datetime.now()
+			# scan over channels
+			else:   
+				chan = READ_ORDER[idx]
+				yield self.selectChannel(chan)
+				yield util.wakeupCall(SETTLE_TIME)
+				r = yield self.query('RDGR? %d' % chan)
+				self.readings[chan-1] = float(r), datetime.now()
+				idx = (idx + 1) % len(READ_ORDER)
+	
+	# get a single temperature for a given channel
+	# use that channel's calibration, or if it's default, the device calibration
+	# (and if that's zero, the default function)
+	def getSingleTemp(self, channel, calIndex):
+		#try:
+			if self.calibrations[calIndex][0] == INTERPOLATION:
+				# log-log interpolation
+				return (np.exp(np.interp(np.log(self.readings[channel-1][0]),
+											np.log(np.array(self.calibrations[calIndex][1])),
+											np.log(np.array(self.calibrations[calIndex][2]))
+											)))
+			elif self.calibrations[calIndex][0] == FUNCTION:
+				# hack alert--using eval is bad:
+				# (1) this depends on the function string being good python code
+				# (2) also depends on it having "r" as the variable for resistance, in ohms
+				# (3) very unsafe, if anyone ever hacks our registry. of course, then we have bigger problems
+				r = self.readings[channel-1][0]
+				return eval(self.calibrations[calIndex][1])
+			elif self.calibrations[calIndex][0] == DEFAULT:
+				if calIndex > 0:
+					return self.getSingleTemp(channel, 0) # use calibration 0--the device calibration
+				else:
+					return res2temp(self.readings[channel-1][0])
+		#except Exception as e:
+		#	print e
+		#	return 0.0
+	
+	def getTemperatures(self):
+		# we now do this channel by channel. oh yeah.
+		result = []
+		for i in range(5):
+			result.append((self.getSingleTemp(i+1, i+1), self.readings[i][1]))
+		return result
+			
 class LakeshoreRuOxServer(GPIBManagedServer):
-    name = 'Lakeshore RuOx'
-    deviceName = 'LSCI MODEL370'
-    deviceWrapper = RuOxWrapper
+	name = 'Lakeshore RuOx'
+	deviceName = 'LSCI MODEL370'
+	deviceWrapper = RuOxWrapper
 
-    @setting(10, 'Temperatures', returns='*(v[K], t)')
-    def temperatures(self, c):
-        """Read channel temperatures.
+	@setting(10, 'Temperatures', returns='*(v[K], t)')
+	def temperatures(self, c):
+		"""Read channel temperatures.
 
-        Returns a ValueList of the channel temperatures in Kelvin.
-        """
-        dev = self.selectedDevice(c)
-        return [(res2temp(r), t) for r, t in dev.readings]
+		Returns a ValueList of the channel temperatures in Kelvin.
+		"""
+		dev = self.selectedDevice(c)
+		return dev.getTemperatures()
 
-    @setting(11, 'Resistances', returns='*(v[Ohm], t)')
-    def resistances(self, c):
-        """Read channel voltages.
+	@setting(13, "Single Temperature", channel='w', returns='(v[K], t)')
+	def single_temperature(self, c, channel):
+		"""Read a single temperature. Argument must be a valid channel.
 
-        Returns a ValueList of the channel voltages in Volts.
-        """
-        dev = self.selectedDevice(c)
-        return dev.readings
+		Returns temperature in Kelvin, and time of measurement.
+		"""
+		dev = self.selectedDevice(c)
+		return (dev.getSingleTemp(channel, channel), dev.readings[channel-1][1])
 
-    @setting(12, 'Select channel', channel='w', returns='w')
-    def selectchannel(self, c, channel):
-        """Select channel to be read. If argument is 0,
-        scan over channels.
+	@setting(11, 'Resistances', returns='*(v[Ohm], t)')
+	def resistances(self, c):
+		"""Read channel resistances.
 
-        Returns selected channel.
-        """
-        dev = self.selectedDevice(c)
-        dev.onlyChannel = channel
-        if channel > 0:
-            dev.selectChannel(channel)
-        return channel
+		Returns a ValueList of the channel resistances in Ohms.
+		"""
+		dev = self.selectedDevice(c)
+		return dev.readings
 
-    @setting(50, 'Regulate Temperature', channel='w', temperature='v[K]', loadresistor='v[Ohm]', returns='v[Ohm]: Target resistance')
-    def regulate(self, c, channel, temperature, loadresistor=30000):
-        """Initializes temperature regulation
+	@setting(12, 'Select channel', channel='w', returns='w')
+	def selectchannel(self, c, channel):
+		"""Select channel to be read. If argument is 0,
+		scan over channels.
 
-        NOTE:
-        Use "Heater Range" to turn on heater and start regulation."""
-        if channel not in range(1,17):
-            raise Exception('Channel needs to be between 1 and 16')
-        res = temp2res(float(temperature))
-        if res == 0.0:
-            raise Exception('Invalid temperature')
-        loadresistor = float(loadresistor)
-        if (loadresistor < 1) or (loadresistor > 100000):
-            raise Exception('Load resistor value must be between 1 Ohm and 100kOhm')
-        dev = self.selectedDevice(c)
-        dev.onlyChannel = channel
-        dev.selectChannel(channel)
-        yield dev.controlTemperature(channel, res, loadresistor)
-        returnValue(res)
+		Returns selected channel.
+		"""
+		dev = self.selectedDevice(c)
+		dev.onlyChannel = channel
+		if channel > 0:
+			dev.selectChannel(channel)
+		return channel
 
-    @setting(52, 'PID', P='v', I='v[s]', D='v[s]')
-    def setPID(self, c, P, I, D=0):
-        P = float(P)
-        if (P < 0.001) or (P > 1000):
-            raise Exception('P value must be between 0.001 and 1000')
-        I = float(I)
-        if (I < 0) or (I > 10000):
-            raise Exception('I value must be between 0s and 10000s')
-        D = float(D)
-        if (D < 0) or (D > 2500):
-            raise Exception('D value must be between 0s and 2500s')
-        dev = self.selectedDevice(c)
-        yield dev.setPID(P, I, D)
+	@setting(50, 'Regulate Temperature', channel='w', temperature='v[K]', loadresistor='v[Ohm]', returns='v[Ohm]: Target resistance')
+	def regulate(self, c, channel, temperature, loadresistor=30000):
+		"""Initializes temperature regulation
 
-    @setting(55, 'Heater Range', limit=['v[mA]: Set to this current', ' : Turn heater off'], returns=['v[mA]', ''])
-    def heaterrange(self, c, limit=None):
-        """Sets the Heater Range"""
-        dev = self.selectedDevice(c)
-        ans = yield dev.setHeaterRange(limit)
-        returnValue(ans)
+		NOTE:
+		Use "Heater Range" to turn on heater and start regulation."""
+		if channel not in range(1,17):
+			raise Exception('Channel needs to be between 1 and 16')
+		res = temp2res(float(temperature))
+		if res == 0.0:
+			raise Exception('Invalid temperature')
+		loadresistor = float(loadresistor)
+		if (loadresistor < 1) or (loadresistor > 100000):
+			raise Exception('Load resistor value must be between 1 Ohm and 100kOhm')
+		dev = self.selectedDevice(c)
+		dev.onlyChannel = channel
+		dev.selectChannel(channel)
+		yield dev.controlTemperature(channel, res, loadresistor)
+		returnValue(res)
 
-    @setting(56, 'Heater Output', returns='v[%]')
-    def heateroutput(self, c):
-        """Queries the current Heater Output"""
-        dev = self.selectedDevice(c)
-        ans = yield dev.getHeaterOutput()
-        returnValue(ans)
+	@setting(52, 'PID', P='v', I='v[s]', D='v[s]')
+	def setPID(self, c, P, I, D=0):
+		P = float(P)
+		if (P < 0.001) or (P > 1000):
+			raise Exception('P value must be between 0.001 and 1000')
+		I = float(I)
+		if (I < 0) or (I > 10000):
+			raise Exception('I value must be between 0s and 10000s')
+		D = float(D)
+		if (D < 0) or (D > 2500):
+			raise Exception('D value must be between 0s and 2500s')
+		dev = self.selectedDevice(c)
+		yield dev.setPID(P, I, D)
+
+	@setting(55, 'Heater Range', limit=['v[mA]: Set to this current', ' : Turn heater off'], returns=['v[mA]', ''])
+	def heaterrange(self, c, limit=None):
+		"""Sets the Heater Range"""
+		dev = self.selectedDevice(c)
+		ans = yield dev.setHeaterRange(limit)
+		returnValue(ans)
+
+	@setting(56, 'Heater Output', returns='v[%]')
+	def heateroutput(self, c):
+		"""Queries the current Heater Output"""
+		dev = self.selectedDevice(c)
+		ans = yield dev.getHeaterOutput()
+		returnValue(ans)
 
 
 
