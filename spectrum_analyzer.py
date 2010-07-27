@@ -130,7 +130,7 @@ def _parseBinaryData(data):
     """Parse binary trace data."""
     h = int(data[1])
     d = int(data[2:2+h])
-    s = data[2+h:-1]
+    s = data[2+h:]
     if len(s) != d:
         raise errors.HandlerError('Could not decode binary response.')
     n = d/4 # 4 bytes per data point
