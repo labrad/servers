@@ -120,6 +120,11 @@ class SpectrumAnalyzer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         dev.write(':FREQ:SPAN %gMHz' % float(f))
         
+    @setting(523, 'Set Resolution Bandwidth', f = ['v[MHz]'], returns=[''])
+    def set_resolutionbandwidth(self,c,f):
+            """Set the Resolution Bandwidth up to 5MHz"""
+            dev = self.selectedDevice(c)
+            dev.write(':BAND %gMHz' % float(f))
 
         
 ##    @setting(501, 'Resolution Bandwidth',
