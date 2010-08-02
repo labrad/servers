@@ -114,6 +114,14 @@ class SpectrumAnalyzer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         dev.write(':FREQ:CENT %gMHz\n' % float(f))
 
+    @setting(522, 'Set Span', f=['v[MHz]'], returns=[''])
+    def set_span(self, c, f):
+        """Sets the Frequency Span"""
+        dev = self.selectedDevice(c)
+        dev.write(':FREQ:SPAN %gMHz' % float(f))
+        
+
+        
 ##    @setting(501, 'Resolution Bandwidth',
 ##                  accepts=['v[kHz]'],
 ##                  returns=['v[kHz]'])
