@@ -402,15 +402,11 @@ class AdcDevice(DeviceWrapper):
         ans = yield p.send()
                 
         # parse the packets out and return data
-        Is = []
-        Qs = []
+        vals = []
         for src, dst, eth, data in ans.read:
-            vals = np.fromstring(data, dtype='int16')
-            Is.append(vals[0::2])
-            Qs.append(vals[1::2])
-        I = np.hstack(Is)
-        Q = np.hstack(Qs)
-        returnValue((I, Q))
+            vals.append(np.fromstring(data, dtype='int16'))
+        IQs = np.hstack(vals).reshape(-1, 2)
+        returnValue(IQs)
         
     
     @inlineCallbacks
@@ -988,16 +984,18 @@ class BoardGroup(object):
                 timing = []
             returnValue(timing)
     
+    
+def customDeviceWrapper(guid, name):
+    if 'ADC' in name:
+        return AdcDevice(guid, name)
+    else:
+        return DacDevice(guid, name)
+
 
 class FPGAServer(DeviceServer):
     name = 'GHz DACs'
-    deviceWrapper = DacDevice
     retries = 5
-
-    # possible links: name, server, port
-    possibleLinks = [('DR Lab', 'DR Direct Ethernet', 1),
-                     ('ADR Lab', 'ADR Direct Ethernet', 1)]
-
+    
     @inlineCallbacks
     def initServer(self):
         # load board group definitions from the registry
@@ -1076,7 +1074,7 @@ class FPGAServer(DeviceServer):
             
             p.listen()
 
-            # ping all boards
+            # ping all DAC boards
             for i in xrange(256):
                 if i in skips:
                     found.append(skips[i].name)
@@ -1085,7 +1083,7 @@ class FPGAServer(DeviceServer):
                     p.write(regPing())
             yield p.send(context=ctx)
 
-            # get ID packets from all boards
+            # get ID packets from DAC boards
             while True:
                 try:
                     ans = yield de.read(context=ctx)
@@ -1098,12 +1096,41 @@ class FPGAServer(DeviceServer):
                 except T.Error:
                     break
 
+            # ping all ADC boards
+            for i in xrange(256):
+                if i in skips:
+                    found.append(skips[i].name)
+                else:
+                    p.destination_mac(adcMAC(i))
+                    p.write(regAdcPing())
+            yield p.send(context=ctx)
+
+            # get ID packets from ADC boards
+            while True:
+                try:
+                    ans = yield de.read(context=ctx)
+                    src, dst, eth, data = ans
+                    info = processReadbackAdc(data)
+                    board, build = int(src[-2:], 16), info['build']
+                    devName = '%s ADC %d' % (name, board)
+                    args = de, port, board, build, devName
+                    found.append((devName, args))
+                except T.Error:
+                    break
+
             # expire this context to stop listening
             yield cxn.manager.expire_context(de.ID, context=ctx)
         returnValue(found)
 
-    ## only trigger a refresh if this is a direct ethernet server
+    def deviceWrapper(self, *a, **kw):
+        """Build a DAC or ADC device wrapper, depending on the device name"""
+        if 'ADC' in name:
+            return AdcDevice(*a, **kw)
+        else:
+            return DacDevice(*a, **kw)
 
+
+    ## Trigger refreshes if a direct ethernet server connects or disconnects
     def serverConnected(self, ID, name):
         if "Direct Ethernet" in name:
             self.refreshDeviceList()
@@ -1112,8 +1139,8 @@ class FPGAServer(DeviceServer):
         if "Direct Ethernet" in name:
             self.refreshDeviceList()
 
+
     ## allow selecting different kinds of devices in each context
-    
     def selectedDAC(self, context):
         dev = self.selectedDevice(context)
         if not isinstance(dev, DacDevice):
@@ -1124,6 +1151,8 @@ class FPGAServer(DeviceServer):
         if not isinstance(dev, AdcDevice):
             raise Exception("selected device is not an ADC board")
 
+
+    ## remote settings
 
     @setting(20, 'SRAM Address', addr='w', returns='w')
     def sram_address(self, c, addr=None):
@@ -1138,7 +1167,10 @@ class FPGAServer(DeviceServer):
     @setting(21, 'SRAM', data=['*w: SRAM Words to be written', 's: Raw SRAM data'],
                          returns='')
     def sram(self, c, data):
-        """Writes data to the SRAM at the current starting address."""
+        """Writes data to the SRAM at the current starting address.
+        
+        Data can be specified as a list of 32-bit words, or a pre-flattened byte string.
+        """
         dev = self.selectedDAC(c)
         d = c.setdefault(dev, {})
         addr = d.setdefault('sramAddress', 0)
@@ -1344,7 +1376,7 @@ class FPGAServer(DeviceServer):
     def performance_data(self, c):
         """Get data about the pipeline performance.
         
-        For each board group (defined by direct ethernet server and port),
+        For each board group (as defined in the registry),
         this returns times for:
             page lock (page 0)
             page lock (page 1)
@@ -1352,8 +1384,10 @@ class FPGAServer(DeviceServer):
             run packet (on the direct ethernet server)
             read lock
 
-        If the pipe runs dry, the first time that will go to zero should
-        be the run packet wait time.
+        If the pipe runs dry, the first time that will go to zero will
+        be the run packet wait time.  In other words, if you have non-zero
+        times for the run-packet wait, then the pipe is saturated,
+        and the experiment is running at full capacity.
         """
         ans = []
         for server, port in sorted(self.boardGroups.keys()):
@@ -1368,7 +1402,7 @@ class FPGAServer(DeviceServer):
 
     @setting(50, 'Debug Output', data='(wwww)', returns='')
     def debug_output(self, c, data):
-        """Outputs data directly to the output bus."""
+        """Outputs data directly to the output bus. (DAC only)"""
         dev = self.selectedDAC(c)
         pkt = regDebug(*data)
         yield dev.sendRegisters(pkt)
@@ -1376,7 +1410,7 @@ class FPGAServer(DeviceServer):
 
     @setting(51, 'Run SRAM', data='*w', loop='b', blockDelay='w', returns='(ww)')
     def run_sram(self, c, data, loop=False, blockDelay=0):
-        """Loads data into the SRAM and executes.
+        """Loads data into the SRAM and executes. (DAC only)
 
         If loop is True, the sequence will be repeated forever,
         otherwise it will be executed just once.  Sending
@@ -1410,7 +1444,7 @@ class FPGAServer(DeviceServer):
 
     @setting(100, 'I2C', data='*w', returns='*w')
     def i2c(self, c, data):
-        """Runs an I2C Sequence
+        """Runs an I2C Sequence (DAC only)
 
         The entries in the WordList to be sent have the following meaning:
           0..255 : send this byte
@@ -1426,7 +1460,7 @@ class FPGAServer(DeviceServer):
 
     @setting(110, 'LEDs', data=['w', '(bbbbbbbb)'], returns='w')
     def leds(self, c, data):
-        """Sets the status of the 8 I2C LEDs."""
+        """Sets the status of the 8 I2C LEDs. (DAC only)"""
         dev = self.selectedDAC(c)
 
         if isinstance(data, tuple):
@@ -1439,7 +1473,7 @@ class FPGAServer(DeviceServer):
 
     @setting(120, 'Reset Phasor', returns='b: phase detector output')
     def reset_phasor(self, c):
-        """Resets the clock phasor."""
+        """Resets the clock phasor. (DAC only)"""
         dev = self.selectedDAC(c)
 
         pkt = [152,   0, 127, 0, I2C_END,  # set I to 0 deg
@@ -1459,7 +1493,7 @@ class FPGAServer(DeviceServer):
                         'v[rad]: set angle (in rad, deg, \xF8, \', or ")'],
                   returns='b: phase detector output')
     def set_phasor(self, c, data=None):
-        """Sets the clock phasor angle and reads the phase detector bit."""
+        """Sets the clock phasor angle and reads the phase detector bit. (DAC only)"""
         dev = self.selectedDAC(c)
 
         if data is None:
@@ -1476,7 +1510,7 @@ class FPGAServer(DeviceServer):
 
     @setting(130, 'Vout', chan='s', V='v[V]', returns='w')
     def vout(self, c, chan, V):
-        """Sets the output voltage of any Vout channel, A, B, C or D."""
+        """Sets the output voltage of any Vout channel, A, B, C or D. (DAC only)"""
         cmd = getCommand({'A': 16, 'B': 18, 'C': 20, 'D': 22}, chan)
         dev = self.selectedDAC(c)
         val = int(max(min(round(V*0x3333), 0x10000), 0))
@@ -1487,7 +1521,7 @@ class FPGAServer(DeviceServer):
 
     @setting(135, 'Ain', returns='v[V]')
     def ain(self, c):
-        """Reads the voltage on Ain."""
+        """Reads the voltage on Ain. (DAC only)"""
         dev = self.selectedDAC(c)
         pkt = [144, 0, I2C_END, 145, I2C_RB_ACK, I2C_RB]
         r = yield dev.runI2C(pkt)
@@ -1496,7 +1530,7 @@ class FPGAServer(DeviceServer):
 
     @setting(200, 'PLL', data=['w', '*w'], returns='*w')
     def pll(self, c, data):
-        """Sends a command or a sequence of commands to the PLL
+        """Sends a command or a sequence of commands to the PLL. (DAC only)
 
         The returned WordList contains any read-back values.
         It has the same length as the sent list.
@@ -1506,7 +1540,7 @@ class FPGAServer(DeviceServer):
 
     @setting(204, 'DAC', chan='s', data=['w', '*w'], returns='*w')
     def dac_cmd(self, c, chan, data):
-        """Send a command or sequence of commands to either DAC.
+        """Send a command or sequence of commands to either DAC. (DAC only)
 
         The DAC channel must be either 'A' or 'B'.
         The returned list of words contains any read-back values.
@@ -1519,7 +1553,7 @@ class FPGAServer(DeviceServer):
 
     @setting(206, 'DAC Clock Polarity', chan='s', invert='b', returns='b')
     def dac_pol(self, c, chan, invert):
-        """Sets the clock polarity for either DAC."""
+        """Sets the clock polarity for either DAC. (DAC only)"""
         regs = regClockPolarity(chan, invert)
         dev = self.selectedDAC(c)
         yield dev.sendRegisters(regs)
@@ -1528,7 +1562,7 @@ class FPGAServer(DeviceServer):
 
     @setting(210, 'PLL Init', returns='')
     def init_pll(self, c, data):
-        """Sends the initialization sequence to the PLL.
+        """Sends the initialization sequence to the PLL. (DAC and ADC)
 
         The sequence is [0x1FC093, 0x1FC092, 0x100004, 0x000C11].
         """
@@ -1538,14 +1572,14 @@ class FPGAServer(DeviceServer):
 
     @setting(211, 'PLL Reset', returns='')
     def pll_reset(self, c):
-        """Resets the FPGA internal GHz serializer PLLs."""
+        """Resets the FPGA internal GHz serializer PLLs. (DAC only)"""
         dev = self.selectedDAC(c)
         regs = regPllReset()
         yield dev.sendRegisters(regs)
 
     @setting(212, 'PLL Query', returns='b')
     def pll_query(self, c):
-        """Checks the FPGA internal GHz serializer PLLs for lock failures.
+        """Checks the FPGA internal GHz serializer PLLs for lock failures. (DAC and ADC)
 
         Returns T if any of the PLLs have lost lock since the last reset.
         """
@@ -1556,7 +1590,7 @@ class FPGAServer(DeviceServer):
 
     @setting(220, 'DAC Init', chan='s', signed='b', returns='b')
     def init_dac(self, c, chan, signed=False):
-        """Sends an initialization sequence to either DAC.
+        """Sends an initialization sequence to either DAC. (DAC only)
         
         For unsigned data, this sequence is 0026, 0006, 1603, 0500
         For signed data, this sequence is 0024, 0004, 1603, 0500
@@ -1571,7 +1605,7 @@ class FPGAServer(DeviceServer):
 
     @setting(221, 'DAC LVDS', chan='s', data='w', returns='(www*(bb))')
     def dac_lvds(self, c, chan, data=None):
-        """Set or determine DAC LVDS phase shift and return y, z check data."""
+        """Set or determine DAC LVDS phase shift and return y, z check data. (DAC only)"""
         cmd = getCommand({'A': 2, 'B': 3}, chan)
         dev = self.selectedDAC(c)
         pkt = [[0x0400 + (i<<4), 0x8500, 0x0400 + i, 0x8500][j]
@@ -1610,9 +1644,11 @@ class FPGAServer(DeviceServer):
 
     @setting(222, 'DAC FIFO', chan='s', returns='(wwbww)')
     def dac_fifo(self, c, chan):
-        """Moves the LVDS into a region where the FIFO counter is stable,
+        """Adjust FIFO buffer. (DAC only)
+        
+        Moves the LVDS into a region where the FIFO counter is stable,
         adjusts the clock polarity and phase offset to make FIFO counter = 3,
-        and finally returns LVDS setting back to original value
+        and finally returns LVDS setting back to original value.
         """
         op = getCommand({'A': 2, 'B': 3}, chan)
         dev = self.selectedDAC(c)
@@ -1665,7 +1701,7 @@ class FPGAServer(DeviceServer):
 
     @setting(223, 'DAC Cross Controller', chan='s', delay='i', returns='i')
     def dac_xctrl(self, c, chan, delay=0):
-        """Sets the cross controller delay on either DAC
+        """Sets the cross controller delay on either DAC. (DAC only)
 
         Range for delay is -63 to 63.
         """
@@ -1681,7 +1717,7 @@ class FPGAServer(DeviceServer):
 
     @setting(225, 'DAC BIST', chan='s', data='*w', returns='(b(ww)(ww)(ww))')
     def dac_bist(self, c, chan, data):
-        """Run a BIST on the given SRAM sequence."""
+        """Run a BIST on the given SRAM sequence. (DAC only)"""
         cmd, shift = getCommand({'A': (2, 0), 'B': (3, 14)}, chan)
         dev = self.selectedDAC(c)
         pkt = regRunSram(0, 0, loop=False)
@@ -1717,14 +1753,17 @@ class FPGAServer(DeviceServer):
             fifo = tuple(reversed(fifo))
         returnValue((lvds == theory and fifo == theory, theory, lvds, fifo))
 
+
+
     @setting(500, 'ADC Recalibrate', returns='')
     def adc_recalibrate(self, c):
+        """Recalibrate the analog-to-digital converters. (ADC only)"""
         dev = self.selectedADC(c)
         yield dev.recalibrate()
         
     @setting(501, 'ADC Filter Func', bytes='s', stretchLen='w', stretchAt='w', returns='')
     def adc_filter_func(self, c, bytes, stretchLen=0, stretchAt=0):
-        """Set the filter function to be used with the selected ADC board.
+        """Set the filter function to be used with the selected ADC board. (ADC only)
         
         Each byte specifies the filter weight for a 4ns interval.  In addition,
         you can specify a stretch which will repeat a value in the middle of the filter
@@ -1740,6 +1779,12 @@ class FPGAServer(DeviceServer):
         
     @setting(502, 'ADC Trig Magnitude', channel='w', sineAmp='w', cosineAmp='w', returns='')
     def adc_trig_magnitude(self, c, channel, sineAmp, cosineAmp):
+        """Set the magnitude of sine and cosine functions for a demodulation channel. (ADC only)
+        
+        The channel indicates which demodulation channel to use, in the range 0 to N-1 where
+        N is the number of channels (currently 4).  sineAmp and cosineAmp are the magnitudes
+        of the respective sine and cosine functions, ranging from 0 to 255.
+        """
         assert 0 <= channel < ADC_DEMOD_CHANNELS, 'channel out of range: %d' % channel
         assert 0 <= sineAmp <= ADC_TRIG_AMP, 'sine amplitude out of range: %d' % sineAmp
         assert 0 <= cosineAmp <= ADC_TRIG_AMP, 'cosine amplitude out of range: %d' % cosineAmp
@@ -1754,6 +1799,10 @@ class FPGAServer(DeviceServer):
     
     @setting(503, 'ADC Demod Phase', channel='w', dphi='i', phi0='i', returns='')
     def adc_demod_frequency(self, c, channel, dphi, phi0=0):
+        """Set the phase difference and initial phase for a demodulation channel. (ADC only)
+        
+        The phase difference gives the phase change per 2ns.
+        """
         assert -2**15 <= dphi < 2**15, 'delta phi out of range'
         assert -2**15 <= phi0 < 2**15, 'phi0 out of range'
         dev = self.selectedADC(c)
@@ -1762,8 +1811,14 @@ class FPGAServer(DeviceServer):
         ch['dphi'] = dphi
         ch['phi0'] = phi0
     
-    @setting(600, 'ADC Run Average', returns='*i{Is} *i{Qs}')
+    @setting(600, 'ADC Run Average', returns='*(i{I} i{Q})')
     def adc_run_average(self, c, channel, sineAmp, cosineAmp):
+        """Run the selected ADC board once in average mode. (ADC only)
+        
+        The board will start immediately using the trig lookup and demod
+        settings already specified in this context.  Returns the acquired
+        I and Q waveforms.
+        """
         dev = self.selectedADC(c)
         info = c.setdefault(dev, {})
         filterFunc = info.get('filterFunc', np.array([255], dtype='uint8'))
