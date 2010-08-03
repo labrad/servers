@@ -108,25 +108,72 @@ class SpectrumAnalyzer(GPIBManagedServer):
         idn = yield dev.query('*IDN?')
         returnValue(idn)
 
-    @setting(500, 'Set center Frequency', f=['v[MHz]'], returns=[''])
+    @setting(500, 'Set center Frequency', f='v[MHz]', returns='')
     def set_centerfreq(self, c, f):
         """Sets the center frequency"""
         dev = self.selectedDevice(c)
         dev.write(':FREQ:CENT %gMHz\n' % float(f))
 
-    @setting(522, 'Set Span', f=['v[MHz]'], returns=[''])
+    @setting(522, 'Set Span', f='v[MHz]', returns='')
     def set_span(self, c, f):
         """Sets the Frequency Span"""
         dev = self.selectedDevice(c)
         dev.write(':FREQ:SPAN %gMHz' % float(f))
         
-    @setting(523, 'Set Resolution Bandwidth', f = ['v[MHz]'], returns=[''])
+    @setting(523, 'Set Resolution Bandwidth MHz', f = 'v[MHz]', returns='')
     def set_resolutionbandwidth(self,c,f):
-            """Set the Resolution Bandwidth up to 5MHz"""
-            dev = self.selectedDevice(c)
-            dev.write(':BAND %gMHz' % float(f))
+        """Set the Resolution Bandwidth units in MHz"""
+        dev = self.selectedDevice(c)
+        dev.write(':BAND %gMHz' % float(f))
 
-        
+    @setting(524, 'Set Video Bandwidth kHz', f = 'v[kHz]', returns='')
+    def set_videobandwidth(self,c,f):
+        """Set the video Bandwidth units in kHz"""
+        dev = self.selectedDevice(c)
+        dev.write(':BAND:VID %gkHz' % float(f))
+
+    @setting(600, 'Y Scale',setting='s', returns='')
+    def set_yscale_lin(self,c,setting):
+        """This sets the Y scale to either LINear or LOGarithmic"""
+        allowed = ['LIN','LOG']
+        if setting not in allowed:
+            raise Exception('allowed settings are: %s' % allowed)
+        dev = self.selectedDevice(c)
+        dev.write('DISP:WIND:TRAC:Y:SPAC %s' % setting)
+
+    @setting(602, 'Reference Level dBm',f='v[dBm]', returns=[''])
+    def set_referencelevel(self,c,f):
+        """This sets the Reference Level in dBm"""
+        dev = self.selectedDevice(c)
+        dev.write('DISP:WIND:TRAC:Y:RLEV %gdBm' % float(f))
+
+    @setting(603, 'Sweep time msec', f='v[ms]', returns='')
+    def set_sweeprate(self, c, f):
+        """This sets the sweep rate of the spectrum analyzer in mSeconds"""
+        dev = self.selectedDevice(c)
+        dev.write(':SWE:TIME %gms' % float(f))
+
+    @setting(604, 'Detector type', setting='s', returns='')
+    def set_detector(self, c, setting='SAMP'):
+        """This sets the detector type to either Peak,Negative Peak or Sample"""
+        allowed = ['SAMP', 'POS','NEG']
+        if setting not in allowed:
+            raise Exception('allowed settings are: %s' % allowed)
+        dev = self.selectedDevice(c)
+        dev.write(':DET %s' % setting)
+
+    @setting(605, 'Triger Source', setting='s', returns='')
+    def set_trigsource(self,c,setting='IMM')
+        """This sets the triger source to Free Run, Video, Power Line, or External"""
+        allowed = ['IMM', 'VID', 'LINE', 'EXT']
+        if setting not in allowed:
+            raise Exception('allowed settings are: %s' % allowed)
+        dev = self.selectedDevice(c)
+        dev.write(':TRIG:SOUR %s' % setting)
+
+
+            
+## dev.write('DISPlay:WINDow:TRACe:Y:SPACing  LINear|LOGarithmic)        
 ##    @setting(501, 'Resolution Bandwidth',
 ##                  accepts=['v[kHz]'],
 ##                  returns=['v[kHz]'])
