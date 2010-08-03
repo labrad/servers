@@ -507,7 +507,7 @@ class DacDevice(DeviceWrapper):
             raise Exception(msg % (len(data), MEM_PAGE_LEN))
         # translate SRAM addresses for higher pages
         if page:
-            shiftSRAM(data, page)
+            data = shiftSRAM(data, page)
         pkt = pktWriteMem(page, data)
         p.write(pkt)
 
@@ -1389,7 +1389,7 @@ class FPGAServer(DeviceServer):
         yield dev.sendRegisters(pkt)
 
 
-    @setting(51, 'Run SRAM', data='*w', loop='b', blockDelay='w', returns='(ww)')
+    @setting(51, 'Run SRAM', data='*w', loop='b', blockDelay='w', returns='')
     def run_sram(self, c, data, loop=False, blockDelay=0):
         """Loads data into the SRAM and executes. (DAC only)
 
@@ -1420,7 +1420,6 @@ class FPGAServer(DeviceServer):
 
         pkt = regRunSram(startAddr, endAddr, loop, blockDelay)
         yield dev.sendRegisters(pkt, readback=False)
-        returnValue(r)
 
 
     @setting(100, 'I2C', data='*w', returns='*w')
@@ -1919,11 +1918,14 @@ def shiftSRAM(cmds, page):
     modifies the commands for calling SRAM to point to the
     appropriate page.
     """
-    for i, cmd in enumerate(cmds):
+    def shiftAddr(cmd):
         opcode, address = getOpcode(cmd), getAddress(cmd)
         if opcode in [0x8, 0xA]: 
             address += page * SRAM_PAGE_LEN
-            cmds[i] = (opcode << 20) + address
+            return (opcode << 20) + address
+        else:
+            return cmd
+    return [shiftAddr(cmd) for cmd in cmds]
 
 def fixSRAMaddresses(mem, sram, dev):
     """Set the addresses of SRAM calls for multiblock sequences.
