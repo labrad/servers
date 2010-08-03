@@ -133,7 +133,7 @@ class SpectrumAnalyzer(GPIBManagedServer):
         dev.write(':BAND:VID %gkHz' % float(f))
 
     @setting(600, 'Y Scale',setting='s', returns='')
-    def set_yscale_lin(self,c,setting):
+    def set_yscale(self,c,setting):
         """This sets the Y scale to either LINear or LOGarithmic"""
         allowed = ['LIN','LOG']
         if setting not in allowed:
@@ -154,7 +154,7 @@ class SpectrumAnalyzer(GPIBManagedServer):
         dev.write(':SWE:TIME %gms' % float(f))
 
     @setting(604, 'Detector type', setting='s', returns='')
-    def set_detector(self, c, setting='SAMP'):
+    def set_detector(self, c, setting='POS'):
         """This sets the detector type to either Peak,Negative Peak or Sample"""
         allowed = ['SAMP', 'POS','NEG']
         if setting not in allowed:
