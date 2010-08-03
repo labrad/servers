@@ -44,6 +44,8 @@ from labrad import types as T
 from labrad.devices import DeviceWrapper, DeviceServer
 from labrad.server import setting
 
+import adc
+import dac
 
 NUM_PAGES = 2
 
@@ -94,48 +96,47 @@ ADC_SRAM_WRITE_LEN = 1024
 # TODO: run sequences to verify the daisy-chain order automatically
 
 
+def littleEndian(data, bytes=4):
+    return [(data >> ofs) & 0xFF for ofs in (0, 8, 16, 24)[:bytes]]
+
 # functions to register packets for DAC boards
 
 def regPing():
-    regs = np.zeros(REG_PACKET_LEN, dtype='uint8')
+    regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = 0
     regs[1] = 1
     return regs    
 
 def regDebug(word1, word2, word3, word4):
-    def bytes(word):
-        return [(word >> ofs) & 0xFF for ofs in (0, 8, 16, 24)]
-    regs = np.zeros(REG_PACKET_LEN, dtype='uint8')
+    regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = 2
     regs[1] = 1
-    regs[13:17] = bytes(word1)
-    regs[17:21] = bytes(word2)
-    regs[21:25] = bytes(word3)
-    regs[25:29] = bytes(word4)
+    regs[13:17] = littleEndian(word1)
+    regs[17:21] = littleEndian(word2)
+    regs[21:25] = littleEndian(word3)
+    regs[25:29] = littleEndian(word4)
     return regs
     
 def regRunSram(startAddr, endAddr, loop=True, blockDelay=0, sync=249):
-    def bytes(addr):
-        return [(addr >> ofs) & 0xFF for ofs in (0, 8, 16)]
-    regs = np.zeros(REG_PACKET_LEN, dtype='uint8')
+    regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = (3 if loop else 4)
     regs[1] = 0
-    regs[13:16] = bytes(startAddr)
-    regs[16:19] = bytes(endAddr-1 + SRAM_DELAY_LEN * blockDelay)
+    regs[13:16] = littleEndian(startAddr, 3)
+    regs[16:19] = littleEndian(endAddr-1 + SRAM_DELAY_LEN * blockDelay, 3)
     regs[19] = blockDelay
     regs[45] = sync
     return regs
 
 def regClockPolarity(chan, invert):
     ofs = getCommand({'A': (4, 0), 'B': (5, 1)}, chan)
-    regs = np.zeros(REG_PACKET_LEN, dtype='uint8')
+    regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = 0
     regs[1] = 1
     regs[46] = (1 << ofs[0]) + ((invert & 1) << ofs[1])
     return regs
 
 def regPllReset():
-    regs = np.zeros(REG_PACKET_LEN, dtype='uint8')
+    regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = 0
     regs[1] = 1
     regs[46] = 0x80
@@ -145,19 +146,17 @@ def regPllQuery():
     return regPing()
 
 def regSerial(op, data):
-    def bytes(word):
-        return [(word >> ofs) & 0xFF for ofs in (0, 8, 16)]
-    regs = np.zeros(REG_PACKET_LEN, dtype='uint8')
+    regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = 0
     regs[1] = 1
     regs[47] = op
-    regs[48:51] = bytes(data)
+    regs[48:51] = littleEndian(data, 3)
     return regs
 
 def regI2C(data, read, ack):
     assert len(data) == len(read) == len(ack), "data, read and ack must have same length for I2C"
     assert len(data) <= 8, "Cannot send more than 8 I2C data bytes"
-    regs = np.zeros(REG_PACKET_LEN, dtype='uint8')
+    regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = 0
     regs[1] = 2
     regs[2] = 1 << (8 - len(data))
@@ -167,10 +166,10 @@ def regI2C(data, read, ack):
     return regs
 
 def regRun(page, slave, delay, blockDelay=None, sync=249):
-    regs = np.zeros(REG_PACKET_LEN, dtype='uint8')
+    regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = 1 + (page << 7) # run memory in specified page
     regs[1] = 3 # stream timing data
-    regs[13:15] = [(reps >> ofs) & 0xFF for ofs in (0, 8)]
+    regs[13:15] = littleEndian(reps, 2)
     if blockDelay is not None:
         regs[19] = blockDelay # for boards running multi-block sequences
     regs[43] = int(slave)
@@ -179,7 +178,7 @@ def regRun(page, slave, delay, blockDelay=None, sync=249):
     return regs
 
 def regIdle(delay):
-    regs = np.zeros(REG_PACKET_LEN, dtype='uint8')
+    regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = 0 # do not start
     regs[1] = 0 # no readback
     regs[43] = 3 # IDLE mode
@@ -187,11 +186,11 @@ def regIdle(delay):
     return regs
 
 def processReadback(resp):
-    a = np.fromstring(resp, dtype='uint8')
+    a = np.fromstring(resp, dtype='<u1')
     return {
         'build': a[51],
         'serDAC': a[56],
-        'noPllLatch': (a[58] >> 7) > 0,
+        'noPllLatch': (a[58] & 0x80) > 0,
         'ackoutI2C': a[61],
         'I2Cbytes': a[69:61:-1],
     }
@@ -199,45 +198,72 @@ def processReadback(resp):
 def pktWriteSram(page, data):
     assert 0 <= page < SRAM_WRITE_PAGES, "SRAM page out of range: %d" % page 
     data = np.asarray(data)
-    pkt = np.zeros(1026, dtype='uint8')
+    pkt = np.zeros(1026, dtype='<u1')
     pkt[0] = (page >> 0) & 0xFF
     pkt[1] = (page >> 8) & 0xFF
     pkt[2:2+len(data)*4:4] = (data >> 0) & 0xFF
     pkt[3:3+len(data)*4:4] = (data >> 8) & 0xFF
     pkt[4:4+len(data)*4:4] = (data >> 16) & 0xFF
     pkt[5:5+len(data)*4:4] = (data >> 24) & 0xFF
+    #a, b, c, d = littleEndian(data)
+    #pkt[2:2+len(data)*4:4] = a
+    #pkt[3:3+len(data)*4:4] = b
+    #pkt[4:4+len(data)*4:4] = c
+    #pkt[5:5+len(data)*4:4] = d
     return pkt
 
 def pktWriteMem(page, data):
     data = np.asarray(data)
-    pkt = np.zeros(769, dtype='uint8')
+    pkt = np.zeros(769, dtype='<u1')
     pkt[0] = page
     pkt[1:1+len(data)*3:3] = (data >> 0) & 0xFF
     pkt[2:2+len(data)*3:3] = (data >> 8) & 0xFF
     pkt[3:3+len(data)*3:3] = (data >> 16) & 0xFF
+    #a, b, c = littleEndian(data, 3)
+    #pkt[1:1+len(data)*3:3] = a
+    #pkt[2:2+len(data)*3:3] = b
+    #pkt[3:3+len(data)*3:3] = c
     return pkt
 
 
 # functions to register packets for ADC boards
 
 def regAdcPllQuery():
-    regs = np.zeros(ADC_REG_PACKET_LEN, dtype='uint8')
+    regs = np.zeros(ADC_REG_PACKET_LEN, dtype='<u1')
     regs[0] = 1
     return regs
 
 def regAdcSerial(bits):
-    regs = np.zeros(ADC_REG_PACKET_LEN, dtype='uint8')
+    regs = np.zeros(ADC_REG_PACKET_LEN, dtype='<u1')
     regs[0] = 6
-    regs[3:6] = [(bits >> ofs) & 0xFF for ofs in (0, 8, 16)]
+    regs[3:6] = littleEndian(bits, 3)
     return regs
 
 def regAdcRecalibrate():
-    regs = np.zeros(ADC_REG_PACKET_LEN, dtype='uint8')
+    regs = np.zeros(ADC_REG_PACKET_LEN, dtype='<u1')
     regs[0] = 7
     return regs
 
+def regAdcRun(mode, reps, filterFunc, filterStretchAt, filterStretchLen, demods):
+    regs = np.zeros(ADC_REG_PACKET_LEN, dtype='<u1')
+    regs[0] = mode # average mode, autostart
+    regs[7:9] = littleEndian(reps, 2)
+    
+    regs[9:11] = littleEndian(len(filterFunc), 2)
+    regs[11:13] = littleEndian(filterStretchAt, 2)
+    regs[13:15] = littleEndian(filterStretchLen, 2)
+    
+    for i in range(ADC_DEMOD_CHANNELS):
+        if i not in demods:
+            continue
+        addr = 15 + 4*i
+        regs[addr:addr+2] = littleEndian(demods[i]['dphi'], 2)
+        regs[addr+2:addr+4] = littleEndian(demods[i]['phi0'], 2)
+    return regs
+
+
 def processReadbackAdc(resp):
-    a = np.fromstring(resp, dtype='uint8')
+    a = np.fromstring(resp, dtype='<u1')
     return {
         'build': a[0],
         'noPllLatch': a[1] > 0,
@@ -246,9 +272,8 @@ def processReadbackAdc(resp):
 def pktWriteSramAdc(page, data):
     assert 0 <= page < ADC_SRAM_WRITE_PAGES, 'SRAM page out of range: %d' % page 
     data = np.asarray(data)
-    pkt = np.zeros(1026, dtype='uint8')
-    pkt[0] = (page >> 0) & 0xFF
-    pkt[1] = (page >> 8) & 0xFF
+    pkt = np.zeros(1026, dtype='<u1')
+    pkt[0:2] = littleEndian(page, 2)
     pkt[2:2+len(data)] = data
     return pkt
 
@@ -265,7 +290,7 @@ class AdcDevice(DeviceWrapper):
     @inlineCallbacks
     def connect(self, de, port, board, build, name):
         """Establish a connection to the board."""
-        print 'connecting to: %s (build #%d)' % (adcMAC(board), build)
+        print 'connecting to ADC board: %s (build #%d)' % (adcMAC(board), build)
 
         self.server = de
         self.ctx = de.context()
@@ -315,7 +340,7 @@ class AdcDevice(DeviceWrapper):
                     if ch in demods:
                         d = demods[ch][func]
                     else:
-                        d = np.zeros(256, dtype='uint8')
+                        d = np.zeros(256, dtype='<u1')
                     data.append(d)
             data = np.hstack(data)
             pkt = pktWriteSramAdc(page, data)
@@ -340,7 +365,7 @@ class AdcDevice(DeviceWrapper):
         If readback is True, the result packet is returned as a string of bytes.
         """
         if not isinstance(regs, np.ndarray):
-            regs = np.asarray(regs, dtype='uint8')
+            regs = np.asarray(regs, dtype='<u1')
         p = self.makePacket()
         p.write(regs.tostring())
         if readback:
@@ -375,22 +400,19 @@ class AdcDevice(DeviceWrapper):
     @inlineCallbacks
     def runAverage(filterFunc, filterStretchLen, filterStretchAt, demods):
         # build registry packet
-        def bytes(i):
-            return [(i >> ofs) & 0xFF for ofs in (0, 8)]
-        
-        regs = np.zeros(ADC_REG_PACKET_LEN, dtype='uint8')
+        regs = np.zeros(ADC_REG_PACKET_LEN, dtype='<u1')
         regs[0] = 2 # average mode, autostart
-        regs[7:9] = bytes(1)
+        regs[7:9] = littleEndian(1, 2)
         
-        regs[9:11] = bytes(len(filterFunc))
-        regs[11:13] = bytes(filterStretchAt)
-        regs[13:15] = bytes(filterStretchLen)
+        regs[9:11] = littleEndian(len(filterFunc), 2)
+        regs[11:13] = littleEndian(filterStretchAt, 2)
+        regs[13:15] = littleEndian(filterStretchLen, 2)
         
         for i in range(ADC_DEMOD_CHANNELS):
             if i in demods:
                 addr = 15 + 4*i
-                regs[addr:addr+2] = bytes(demods[i]['dphi'])
-                regs[addr+2:addr+4] = bytes(demods[i]['phi0'])
+                regs[addr:addr+2] = littleEndian(demods[i]['dphi'], 2)
+                regs[addr+2:addr+4] = littleEndian(demods[i]['phi0'], 2)
 
         # create packet for the ethernet server
         p = self.makePacket()
@@ -405,7 +427,7 @@ class AdcDevice(DeviceWrapper):
         # parse the packets out and return data
         vals = []
         for src, dst, eth, data in ans.read:
-            vals.append(np.fromstring(data, dtype='int16'))
+            vals.append(np.fromstring(data, dtype='<i2'))
         IQs = np.hstack(vals).reshape(-1, 2)
         returnValue(IQs)
         
@@ -413,22 +435,19 @@ class AdcDevice(DeviceWrapper):
     @inlineCallbacks
     def runDemod(filterFunc, filterStretchLen, filterStretchAt, demods):
         # build registry packet
-        def bytes(i):
-            return [(i >> ofs) & 0xFF for ofs in (0, 8)]
-        
-        regs = np.zeros(ADC_REG_PACKET_LEN, dtype='uint8')
+        regs = np.zeros(ADC_REG_PACKET_LEN, dtype='<u1')
         regs[0] = 4 # demod mode, autostart
-        regs[7:9] = bytes(1)
+        regs[7:9] = littleEndian(1, 2)
         
-        regs[9:11] = bytes(len(filterFunc))
-        regs[11:13] = bytes(filterStretchAt)
-        regs[13:15] = bytes(filterStretchLen)
+        regs[9:11] = littleEndian(len(filterFunc), 2)
+        regs[11:13] = littleEndian(filterStretchAt, 2)
+        regs[13:15] = littleEndian(filterStretchLen, 2)
         
         for i in range(ADC_DEMOD_CHANNELS):
             if i in demods:
                 addr = 15 + 4*i
-                regs[addr:addr+2] = bytes(demods[i]['dphi'])
-                regs[addr+2:addr+4] = bytes(demods[i]['phi0'])
+                regs[addr:addr+2] = littleEndian(demods[i]['dphi'], 2)
+                regs[addr+2:addr+4] = littleEndian(demods[i]['phi0'], 2)
 
         # create packet for the ethernet server
         p = self.makePacket()
@@ -442,7 +461,7 @@ class AdcDevice(DeviceWrapper):
                 
         # parse the packets out and return data
         src, dst, eth, data = ans.read
-        vals = np.fromstring(data[:44], dtype='int16')
+        vals = np.fromstring(data[:44], dtype='<i2')
         IQs = vals.reshape(-1, 2)
         Irng, Qrng = [ord(i) for i in data[46:48]]
         twosComp = lambda i: i if i < 0x8 else i - 0x10
@@ -464,7 +483,7 @@ class DacDevice(DeviceWrapper):
     @inlineCallbacks
     def connect(self, de, port, board, build, name):
         """Establish a connection to the board."""
-        print 'connecting to: %s (build #%d)' % (dacMAC(board), build)
+        print 'connecting to DAC board: %s (build #%d)' % (dacMAC(board), build)
 
         self.server = de
         self.ctx = de.context()
@@ -495,7 +514,7 @@ class DacDevice(DeviceWrapper):
         writePage = page * SRAM_PAGE_LEN / SRAM_WRITE_PKT_LEN
         while len(data) > 0:
             chunk, data = data[:SRAM_WRITE_PKT_LEN*4], data[SRAM_WRITE_PKT_LEN*4:]
-            chunk = np.fromstring(chunk, dtype='uint32')
+            chunk = np.fromstring(chunk, dtype='<u4')
             pkt = pktWriteSram(writePage, chunk)
             p.write(pkt)
             writePage += 1
@@ -573,7 +592,7 @@ class DacDevice(DeviceWrapper):
         If readback is True, the result packet is returned as a string of bytes.
         """
         if not isinstance(regs, np.ndarray):
-            regs = np.asarray(regs, dtype='uint8')
+            regs = np.asarray(regs, dtype='<u1')
         p = self.makePacket()
         p.write(regs.tostring())
         if readback:
@@ -585,8 +604,7 @@ class DacDevice(DeviceWrapper):
 
     @inlineCallbacks
     def runI2C(self, pkts):
-        """Run a list of I2C commands on the board."""
-
+        """Run I2C commands on the board."""
         answer = []
         for pkt in pkts:
             while len(pkt):
@@ -825,9 +843,7 @@ class BoardGroup(object):
     def extractTiming(self, result):
         """Extract timing data coming back from a readPacket."""
         data = ''.join(data[3:63] for src, dst, eth, data in result.read)
-        bytes = np.fromstring(data, dtype='uint8')
-        timing = bytes[::2] + (bytes[1::2].astype('uint32') << 8)
-        return timing
+        return np.fromstring(data, dtype='<u2')
 
     @inlineCallbacks
     def run(self, devs, reps, setupPkts, getTimingData, timingOrder, sync, setupState):
@@ -843,8 +859,12 @@ class BoardGroup(object):
         if len(multiBlockBoards):
             print 'Multi-block SRAM sequence'
             # update sram calls in memory sequences to the correct addresses
-            for dev, mem, sram, slave, delay in devs:
-                fixSRAMaddresses(mem, sram, dev)
+            def fixSRAM(dev):
+                dev, mem, sram, slave, delay = dev
+                mem = fixSRAMaddresses(mem, sram, dev)
+                return dev, mem, sram, slave, delay
+            devs = [fixSRAM(dev) for dev in devs]
+            
             # pad sram blocks to take up full space (this will disable paging)
             def padSRAM(dev):
                 dev, mem, sram, slave, delay = dev
@@ -936,7 +956,7 @@ class BoardGroup(object):
             # - record the error so we can keep track of how often timeouts happen
             
             # clear packets from all boards
-            # FIXME: it would be nice to actually download packets here and process them, e.g. check counters
+            # FIXME: download packets here and process them, e.g. check counters
             clearPkts, msg = self.makeClearPackets(devs, results)
             yield sendAll(clearPkts, 'Timeout Recovery', boardOrder)
             
@@ -944,10 +964,7 @@ class BoardGroup(object):
             for (success, result), triggerPkt in zip(results, triggerPkts):
                 if not success:
                     yield triggerPkt.send()
-            
-            # record the error
-            # FIXME: implement this
-            
+                        
             readLock.release()
             raise TimeoutError(msg)
         
@@ -1285,7 +1302,10 @@ class FPGAServer(DeviceServer):
                 returnValue(ans)
             except TimeoutError, err:
                 # log attempt to stdout and file
-                with open('C:\\dac_timeout_log.txt', 'a') as logfile:
+                import os
+                userpath = os.path.expanduser('~')
+                logpath = os.path.join(userpath, 'dac_timeout_log.txt')
+                with open(logpath, 'a') as logfile:
                     print 'attempt %d - error: %s' % (attempt, err)
                     print >>logfile, 'attempt %d - error: %s' % (attempt, err)
                     if attempt == retries:
@@ -1414,7 +1434,7 @@ class FPGAServer(DeviceServer):
             # make sure data is at least 20 words long by repeating first value
             data += [data[0]] * (20-len(data))
             
-        data = np.array(data, dtype='uint32').tostring()
+        data = np.array(data, dtype='<u4').tostring()
         yield dev.sendSRAM(data)
         startAddr, endAddr = 0, len(data) / 4
 
@@ -1727,7 +1747,7 @@ class FPGAServer(DeviceServer):
         data = [0, 0, 0, 0] + [d << shift for d in dat]
         # make sure data is at least 20 words long by appending 0's
         data += [0] * (20-len(data))
-        data = np.array(data, dtype='uint32').tostring()
+        data = np.array(data, dtype='<u4').tostring()
         yield dev.sendSRAM(data)
         startAddr, endAddr = 0, len(data) / 4
         yield dev.runSerial(cmd, [0x0004, 0x1107, 0x1106])
@@ -1771,7 +1791,7 @@ class FPGAServer(DeviceServer):
         """
         assert len(bytes) <= ADC_FILTER_LEN, 'Filter function max length is %d' % ADC_FILTER_LEN
         dev = self.selectedADC(c)
-        bytes = np.fromstring(bytes, dtype='unit8')
+        bytes = np.fromstring(bytes, dtype='<u1')
         d = c.setdefault(dev, {})
         d['filterFunc'] = bytes
         d['filterStretchLen'] = stretchLen
@@ -1821,7 +1841,7 @@ class FPGAServer(DeviceServer):
         """
         dev = self.selectedADC(c)
         info = c.setdefault(dev, {})
-        filterFunc = info.get('filterFunc', np.array([255], dtype='uint8'))
+        filterFunc = info.get('filterFunc', np.array([255], dtype='<u1'))
         filterStretchLen = info.get('filterStretchLen', 0)
         filterStretchAt = info.get('filterStretchAt', 0)
         demods = dict((i, info[i]) for i in range(ADC_DEMOD_CHANNELS) if i in info)
@@ -1832,7 +1852,7 @@ class FPGAServer(DeviceServer):
     def adc_run_demod(self, c, channel, sineAmp, cosineAmp):
         dev = self.selectedADC(c)
         info = c.setdefault(dev, {})
-        filterFunc = info.get('filterFunc', np.array([255], dtype='uint8'))
+        filterFunc = info.get('filterFunc', np.array([255], dtype='<u1'))
         filterStretchLen = info.get('filterStretchLen', 0)
         filterStretchAt = info.get('filterStretchAt', 0)
         demods = dict((i, info[i]) for i in range(ADC_DEMOD_CHANNELS) if i in info)
@@ -1935,20 +1955,23 @@ def fixSRAMaddresses(mem, sram, dev):
     the call SRAM commands to the correct addresses. 
     """
     if not isinstance(sram, tuple):
-        return
+        return mem
     sramCalls = sum(getOpcode(cmd) == 0xC for cmd in mem)
     if sramCalls > 1:
-        raise Exception('Does not support multiple SRAM calls in multi-block sequences.')
-    for i, cmd in enumerate(mem):
+        raise Exception('Only one SRAM call allowed in multi-block sequences.')
+    def fixAddr(cmd):
         opcode, address = getOpcode(cmd), getAddress(cmd)
         if opcode == 0x8:
             # SRAM start address
             address = SRAM_BLOCK0_LEN - len(sram[0])/4
-            mem[i] = (opcode << 20) + address
+            return (opcode << 20) + address
         elif opcode == 0xA:
             # SRAM end address
             address = SRAM_BLOCK0_LEN + len(sram[1])/4 + SRAM_DELAY_LEN * sram[2]
-            mem[i] = (opcode << 20) + address
+            return (opcode << 20) + address
+        else:
+            return cmd
+    return [fixAddr(cmd) for cmd in cmds]
 
 def maxSRAM(cmds):
     """Determines the maximum SRAM address used in a memory sequence.
