@@ -68,9 +68,10 @@ TIMING_PACKET_LEN = 30
 
 TIMEOUT_FACTOR = 10 # timing estimates are multiplied by this factor to determine sequence timeout
 
-I2C_RB = 256
-I2C_RB_ACK = 257
-I2C_END = 258
+I2C_RB = 0x100
+I2C_ACK = 0x200
+I2C_RB_ACK = I2C_RB | I2C_ACK
+I2C_END = 0x400
 
 ADC_DEMOD_CHANNELS = 4
 ADC_DEMOD_PACKET_LEN = 46 # length of result packets in demodulation mode
@@ -359,7 +360,7 @@ class AdcDevice(DeviceWrapper):
     @inlineCallbacks
     def recalibrate(self):
         regs = regAdcRecalibrate()
-        yield sendRegisters(regs, readback=False)
+        yield self.sendRegisters(regs, readback=False)
     
     @inlineCallbacks
     def initPLL(self):
@@ -368,7 +369,7 @@ class AdcDevice(DeviceWrapper):
     @inlineCallbacks
     def queryPLL(self):
         regs = regAdcPllQuery()
-        r = yield dev.sendRegisters(pkt)
+        r = yield self.sendRegisters(pkt)
         returnValue(processReadbackAdc(r)['noPllLatch'])
         
     @inlineCallbacks
@@ -583,25 +584,8 @@ class DacDevice(DeviceWrapper):
             returnValue(data)
 
     @inlineCallbacks
-    def runI2C(self, data):
+    def runI2C(self, pkts):
         """Run a list of I2C commands on the board."""
-
-        # split a list into sublists delimited by the sentinel value
-        def partition(l, sentinel):
-            if len(l) == 0:
-                return []
-            try:
-                i = l.index(sentinel)
-                rest = partition(l[i+1:], sentinel)
-                if i > 0:
-                    return [l[:i]] + rest
-                else:
-                    return rest
-            except ValueError:
-                return [l]
-            
-        # split data into packets delimited by I2C_END
-        pkts = partition(data, I2C_END)
 
         answer = []
         for pkt in pkts:
@@ -609,8 +593,8 @@ class DacDevice(DeviceWrapper):
                 data, pkt = pkt[:8], pkt[8:]
     
                 bytes = [(b if b <= 0xFF else 0) for b in data]
-                read = [(b in [I2C_RB, I2C_RB_ACK]) for b in data]
-                ack = [(b in [I2C_RB_ACK]) for b in data]
+                read = [b & I2C_RB for b in data]
+                ack = [b & I2C_ACK for b in data]
                 
                 regs = regI2C(bytes, read, ack)
                 r = yield self.sendRegisters(regs)
@@ -638,7 +622,7 @@ class DacDevice(DeviceWrapper):
     @inlineCallbacks
     def queryPLL(self):
         regs = regPllQuery()
-        r = yield dev.sendRegisters(pkt)
+        r = yield self.sendRegisters(pkt)
         returnValue(processReadback(r)['noPllLatch'])
 
 
@@ -1446,13 +1430,31 @@ class FPGAServer(DeviceServer):
         The entries in the WordList to be sent have the following meaning:
           0..255 : send this byte
           256:     read back one byte without acknowledging it
-          257:     read back one byte with ACK
-          258:     sent data and start new packet
-        For each 256 or 257 entry in the WordList to be sent, the read-back byte is appended to the returned WordList.
-        In other words: the length of the returned list is equal to the count of 256's and 257's in the sent list.
+          512:     read back one byte with ACK
+          1024:    send data and start new packet
+        For each 256 or 512 entry in the WordList to be sent, the read-back byte is appended to the returned WordList.
+        In other words: the length of the returned list is equal to the count of 256's and 512's in the sent list.
         """
         dev = self.selectedDAC(c)
-        return dev.runI2C(data)
+        
+        # split a list into sublists delimited by a sentinel value
+        def partition(l, sentinel):
+            if len(l) == 0:
+                return []
+            try:
+                i = l.index(sentinel) # find next occurence of sentinel
+                rest = partition(l[i+1:], sentinel) # partition rest of list
+                if i > 0:
+                    return [l[:i]] + rest
+                else:
+                    return rest
+            except ValueError: # no more sentinels
+                return [l]
+            
+        # split data into packets delimited by I2C_END
+        pkts = partition(data, I2C_END)
+        
+        return dev.runI2C(pkts)
 
 
     @setting(110, 'LEDs', data=['w', '(bbbbbbbb)'], returns='w')
@@ -1464,7 +1466,8 @@ class FPGAServer(DeviceServer):
             # convert to a list of digits, and interpret as binary int
             data = long(''.join(str(int(b)) for b in data), 2)
 
-        yield dev.runI2C([200, 68, data & 0xFF])  # 192 for build 1
+        pkts = [[200, 68, data & 0xFF]] # 192 for build 1
+        yield dev.runI2C(pkts)  
         returnValue(data)
 
 
@@ -1473,15 +1476,15 @@ class FPGAServer(DeviceServer):
         """Resets the clock phasor. (DAC only)"""
         dev = self.selectedDAC(c)
 
-        pkt = [152,   0, 127, 0, I2C_END,  # set I to 0 deg
-               152,  34, 254, 0, I2C_END,  # set Q to 0 deg
-               112,  65, I2C_END,          # set enable bit high
-               112, 193, I2C_END,          # set reset high
-               112,  65, I2C_END,          # set reset low
-               112,   1, I2C_END,          # set enable low
-               113, I2C_RB]                # read phase detector
+        pkts = [[152,   0, 127, 0],  # set I to 0 deg
+                [152,  34, 254, 0],  # set Q to 0 deg
+                [112,  65],          # set enable bit high
+                [112, 193],          # set reset high
+                [112,  65],          # set reset low
+                [112,   1],          # set enable low
+                [113, I2C_RB]]       # read phase detector
 
-        r = yield dev.runI2C(pkt)
+        r = yield dev.runI2C(pkts)
         returnValue((r[0] & 1) > 0)
 
 
@@ -1494,15 +1497,16 @@ class FPGAServer(DeviceServer):
         dev = self.selectedDAC(c)
 
         if data is None:
-            pkt = [112,  1, I2C_END, 113, I2C_RB]
+            pkts = [[112,  1], [113, I2C_RB]]
         else:
             sn = int(round(127 + 127*np.sin(data))) & 0xFF
             cs = int(round(127 + 127*np.cos(data))) & 0xFF
-            pkt = [152,  0, sn, 0, I2C_END,
-                   152, 34, cs, 0, I2C_END,
-                   112,  1, I2C_END, 113, I2C_RB]
+            pkts = [[152,  0, sn, 0],
+                    [152, 34, cs, 0],
+                    [112,  1],
+                    [113, I2C_RB]]
                    
-        r = yield dev.runI2C(pkt)
+        r = yield dev.runI2C(pkts)
         returnValue((r[0] & 1) > 0)
 
     @setting(130, 'Vout', chan='s', V='v[V]', returns='w')
@@ -1511,8 +1515,8 @@ class FPGAServer(DeviceServer):
         cmd = getCommand({'A': 16, 'B': 18, 'C': 20, 'D': 22}, chan)
         dev = self.selectedDAC(c)
         val = int(max(min(round(V*0x3333), 0x10000), 0))
-        pkt = [154, cmd, (val >> 8) & 0xFF, val & 0xFF]
-        yield dev.runI2C(pkt)
+        pkts = [[154, cmd, (val >> 8) & 0xFF, val & 0xFF]]
+        yield dev.runI2C(pkts)
         returnValue(val)
         
 
@@ -1520,9 +1524,9 @@ class FPGAServer(DeviceServer):
     def ain(self, c):
         """Reads the voltage on Ain. (DAC only)"""
         dev = self.selectedDAC(c)
-        pkt = [144, 0, I2C_END, 145, I2C_RB_ACK, I2C_RB]
-        r = yield dev.runI2C(pkt)
-        returnValue(T.Value(((r[0]<<8) + r[1])/819.0, 'V'))
+        pkts = [[144, 0], [145, I2C_RB_ACK, I2C_RB]]
+        r = yield dev.runI2C(pkts)
+        returnValue(T.Value(((r[0] << 8) + r[1]) / 819.0, 'V'))
 
 
     @setting(200, 'PLL', data=['w', '*w'], returns='*w')
