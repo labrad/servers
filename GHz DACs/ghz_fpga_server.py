@@ -32,7 +32,7 @@ timeout = 20
 
 from __future__ import with_statement
 
-from math import sin, cos
+import struct
 import time
 
 import numpy as np
@@ -72,7 +72,16 @@ I2C_RB = 256
 I2C_RB_ACK = 257
 I2C_END = 258
 
+ADC_DEMOD_CHANNELS = 4
+ADC_DEMOD_PACKET_LEN = 46 # length of result packets in demodulation mode
+ADC_AVERAGE_PACKETS = 32 # number of packets that
+ADC_AVERAGE_PACKET_LEN = 1024
+
+ADC_TRIG_AMP = 255
 ADC_REG_PACKET_LEN = 59
+ADC_FILTER_LEN = 4096
+ADC_SRAM_WRITE_PAGES = 9
+ADC_SRAM_WRITE_LEN = 1024
 
 # TODO: make sure paged operations (datataking) don't conflict with e.g. bringup
 # - want to do this by having two modes for boards, either 'test' mode
@@ -186,6 +195,27 @@ def processReadback(resp):
         'I2Cbytes': a[69:61:-1],
     }
 
+def pktWriteSram(page, data):
+    assert 0 <= page < SRAM_WRITE_PAGES, "SRAM page out of range: %d" % page 
+    data = np.asarray(data)
+    pkt = np.zeros(1026, dtype='uint8')
+    pkt[0] = (page >> 0) & 0xFF
+    pkt[1] = (page >> 8) & 0xFF
+    pkt[2:2+len(data)*4:4] = (data >> 0) & 0xFF
+    pkt[3:3+len(data)*4:4] = (data >> 8) & 0xFF
+    pkt[4:4+len(data)*4:4] = (data >> 16) & 0xFF
+    pkt[5:5+len(data)*4:4] = (data >> 24) & 0xFF
+    return pkt
+
+def pktWriteMem(page, data):
+    data = np.asarray(data)
+    pkt = np.zeros(769, dtype='uint8')
+    pkt[0] = page
+    pkt[1:1+len(data)*3:3] = (data >> 0) & 0xFF
+    pkt[2:2+len(data)*3:3] = (data >> 8) & 0xFF
+    pkt[3:3+len(data)*3:3] = (data >> 16) & 0xFF
+    return pkt
+
 
 # functions to register packets for ADC boards
 
@@ -212,26 +242,13 @@ def processReadbackAdc(resp):
         'noPllLatch': a[1] > 0,
     }
 
-
-def pktWriteSram(page, data):
-    assert 0 <= page < SRAM_WRITE_PAGES, "SRAM page out of range: %d" % page 
+def pktWriteSramAdc(page, data):
+    assert 0 <= page < ADC_SRAM_WRITE_PAGES, 'SRAM page out of range: %d' % page 
     data = np.asarray(data)
     pkt = np.zeros(1026, dtype='uint8')
     pkt[0] = (page >> 0) & 0xFF
     pkt[1] = (page >> 8) & 0xFF
-    pkt[2:2+len(data)*4:4] = (data >> 0) & 0xFF
-    pkt[3:3+len(data)*4:4] = (data >> 8) & 0xFF
-    pkt[4:4+len(data)*4:4] = (data >> 16) & 0xFF
-    pkt[5:5+len(data)*4:4] = (data >> 24) & 0xFF
-    return pkt
-
-def pktWriteMem(page, data):
-    data = np.asarray(data)
-    pkt = np.zeros(769, dtype='uint8')
-    pkt[0] = page
-    pkt[1:1+len(data)*3:3] = (data >> 0) & 0xFF
-    pkt[2:2+len(data)*3:3] = (data >> 8) & 0xFF
-    pkt[3:3+len(data)*3:3] = (data >> 16) & 0xFF
+    pkt[2:2+len(data)] = data
     return pkt
 
 
@@ -273,6 +290,48 @@ class AdcDevice(DeviceWrapper):
         p.listen()
         yield p.send()
     
+    def makePacket(self):
+        """Create a new packet to be sent to the ethernet server for this device."""
+        return self.server.packet(context=self.ctx)
+    
+    def makeFilter(self, data, p):
+        """Update a packet for the ethernet server with SRAM commands to upload the filter function."""
+        for page in range(4):
+            start = ADC_SRAM_WRITE_LEN * page
+            end = start + ADC_SRAM_WRITE_LEN
+            pkt = pktWriteSramAdc(page, data[start:end])
+            p.write(pkt)
+    
+    def makeTrigLookups(self, demods, p):
+        """Update a packet for the ethernet server with SRAM commands to upload Trig lookup tables."""
+        page = 4
+        channel = 0
+        while channel < ADC_DEMOD_CHANNELS:
+            data = []
+            for ofs in [0, 1]:
+                ch = channel + ofs
+                for func in ['cosine', 'sine']:
+                    if ch in demods:
+                        d = demods[ch][func]
+                    else:
+                        d = np.zeros(256, dtype='uint8')
+                    data.append(d)
+            data = np.hstack(data)
+            pkt = pktWriteSramAdc(page, data)
+            p.write(pkt)            
+            channel += 2 # two channels per sram packet
+            page += 1 # each sram packet writes one page
+
+    
+    @inlineCallbacks
+    def sendSRAM(self, filter, demods={}):
+        """Write SRAM data to the FPGA."""
+        p = self.makePacket()
+        self.makeFilter(filter, p)
+        self.makeTrigLookups(demods, p)
+        yield p.send()
+    
+    
     @inlineCallbacks
     def sendRegisters(self, regs, readback=True):
         """Send a register packet and optionally readback the result.
@@ -311,6 +370,91 @@ class AdcDevice(DeviceWrapper):
         regs = regAdcPllQuery()
         r = yield dev.sendRegisters(pkt)
         returnValue(processReadbackAdc(r)['noPllLatch'])
+        
+    @inlineCallbacks
+    def runAverage(filterFunc, filterStretchLen, filterStretchAt, demods):
+        # build registry packet
+        def bytes(i):
+            return [(i >> ofs) & 0xFF for ofs in (0, 8)]
+        
+        regs = np.zeros(ADC_REG_PACKET_LEN, dtype='uint8')
+        regs[0] = 2 # average mode, autostart
+        regs[7:9] = bytes(1)
+        
+        regs[9:11] = bytes(len(filterFunc))
+        regs[11:13] = bytes(filterStretchAt)
+        regs[13:15] = bytes(filterStretchLen)
+        
+        for i in range(ADC_DEMOD_CHANNELS):
+            if i in demods:
+                addr = 15 + 4*i
+                regs[addr:addr+2] = bytes(demods[i]['dphi'])
+                regs[addr+2:addr+4] = bytes(demods[i]['phi0'])
+
+        # create packet for the ethernet server
+        p = self.makePacket()
+        self.makeFilter(filterFunc, p) # upload filter function
+        self.makeTrigLookups(demods, p) # upload trig lookup tables
+        p.write(regs) # send registry packet
+        p.timeout(T.Value(1, 's')) # set a conservative timeout
+        p.read(ADC_AVERAGE_PACKETS) # read back all packets from average buffer
+        
+        ans = yield p.send()
+                
+        # parse the packets out and return data
+        Is = []
+        Qs = []
+        for src, dst, eth, data in ans.read:
+            vals = np.fromstring(data, dtype='int16')
+            Is.append(vals[0::2])
+            Qs.append(vals[1::2])
+        I = np.hstack(Is)
+        Q = np.hstack(Qs)
+        returnValue((I, Q))
+        
+    
+    @inlineCallbacks
+    def runDemod(filterFunc, filterStretchLen, filterStretchAt, demods):
+        # build registry packet
+        def bytes(i):
+            return [(i >> ofs) & 0xFF for ofs in (0, 8)]
+        
+        regs = np.zeros(ADC_REG_PACKET_LEN, dtype='uint8')
+        regs[0] = 4 # demod mode, autostart
+        regs[7:9] = bytes(1)
+        
+        regs[9:11] = bytes(len(filterFunc))
+        regs[11:13] = bytes(filterStretchAt)
+        regs[13:15] = bytes(filterStretchLen)
+        
+        for i in range(ADC_DEMOD_CHANNELS):
+            if i in demods:
+                addr = 15 + 4*i
+                regs[addr:addr+2] = bytes(demods[i]['dphi'])
+                regs[addr+2:addr+4] = bytes(demods[i]['phi0'])
+
+        # create packet for the ethernet server
+        p = self.makePacket()
+        self.makeFilter(filterFunc, p) # upload filter function
+        self.makeTrigLookups(demods, p) # upload trig lookup tables
+        p.write(regs) # send registry packet
+        p.timeout(T.Value(1, 's')) # set a conservative timeout
+        p.read(1) # read back one demodulation packet
+        
+        ans = yield p.send()
+                
+        # parse the packets out and return data
+        src, dst, eth, data = ans.read
+        vals = np.fromstring(data[:44], dtype='int16')
+        IQs = vals.reshape(-1, 2)
+        Irng, Qrng = [ord(i) for i in data[46:48]]
+        twosComp = lambda i: i if i < 0x8 else i - 0x10
+        Imax = twosComp((Irng >> 4) & 0xF) # << 12
+        Imin = twosComp((Irng >> 0) & 0xF) # << 12
+        Qmax = twosComp((Qrng >> 4) & 0xF) # << 12
+        Qmin = twosComp((Qrng >> 0) & 0xF) # << 12
+        returnValue((IQs, (Imax, Imin, Qmax, Qmin)))
+
 
 
 class DacDevice(DeviceWrapper):
@@ -873,6 +1017,7 @@ class FPGAServer(DeviceServer):
         c['timing_order'] = None
         c['master_sync'] = 249
         
+        
     @inlineCallbacks
     def findDevices(self):
         # TODO: also look for ADC devices
@@ -1006,7 +1151,6 @@ class FPGAServer(DeviceServer):
                 addr = d['sramAddress'] = 0
         else:
             sram = '\x00' * addr
-            sram = ''
         if not isinstance(data, str):
             data = data.asarray.tostring()
         #d['sram'] = data
@@ -1222,8 +1366,6 @@ class FPGAServer(DeviceServer):
         return ans
 
 
-    # TODO: make sure that low-level commands are compatible with board group operations.
-
     @setting(50, 'Debug Output', data='(wwww)', returns='')
     def debug_output(self, c, data):
         """Outputs data directly to the output bus."""
@@ -1323,8 +1465,8 @@ class FPGAServer(DeviceServer):
         if data is None:
             pkt = [112,  1, I2C_END, 113, I2C_RB]
         else:
-            sn = int(round(127 + 127*sin(data))) & 0xFF
-            cs = int(round(127 + 127*cos(data))) & 0xFF
+            sn = int(round(127 + 127*np.sin(data))) & 0xFF
+            cs = int(round(127 + 127*np.cos(data))) & 0xFF
             pkt = [152,  0, sn, 0, I2C_END,
                    152, 34, cs, 0, I2C_END,
                    112,  1, I2C_END, 113, I2C_RB]
@@ -1580,6 +1722,67 @@ class FPGAServer(DeviceServer):
         dev = self.selectedADC(c)
         yield dev.recalibrate()
         
+    @setting(501, 'ADC Filter Func', bytes='s', stretchLen='w', stretchAt='w', returns='')
+    def adc_filter_func(self, c, bytes, stretchLen=0, stretchAt=0):
+        """Set the filter function to be used with the selected ADC board.
+        
+        Each byte specifies the filter weight for a 4ns interval.  In addition,
+        you can specify a stretch which will repeat a value in the middle of the filter
+        for the specified length (in 4ns intervals).
+        """
+        assert len(bytes) <= ADC_FILTER_LEN, 'Filter function max length is %d' % ADC_FILTER_LEN
+        dev = self.selectedADC(c)
+        bytes = np.fromstring(bytes, dtype='unit8')
+        d = c.setdefault(dev, {})
+        d['filterFunc'] = bytes
+        d['filterStretchLen'] = stretchLen
+        d['filterStretchAt'] = stretchAt
+        
+    @setting(502, 'ADC Trig Magnitude', channel='w', sineAmp='w', cosineAmp='w', returns='')
+    def adc_trig_magnitude(self, c, channel, sineAmp, cosineAmp):
+        assert 0 <= channel < ADC_DEMOD_CHANNELS, 'channel out of range: %d' % channel
+        assert 0 <= sineAmp <= ADC_TRIG_AMP, 'sine amplitude out of range: %d' % sineAmp
+        assert 0 <= cosineAmp <= ADC_TRIG_AMP, 'cosine amplitude out of range: %d' % cosineAmp
+        dev = self.selectedADC(c)
+        d = c.setdefault(dev, {})
+        ch = d.setdefault(channel, {})
+        ch['sineAmp'] = sineAmp
+        ch['cosineAmp'] = cosineAmp
+        phi = np.pi/2 * (np.arange(256) + 0.5) / 256
+        ch['sine'] = np.floor(sineAmp * np.sin(phi) + 0.5).astype('uint8')
+        ch['cosine'] = np.floor(cosineAmp * np.cos(phi) + 0.5).astype('uint8')
+    
+    @setting(503, 'ADC Demod Phase', channel='w', dphi='i', phi0='i', returns='')
+    def adc_demod_frequency(self, c, channel, dphi, phi0=0):
+        assert -2**15 <= dphi < 2**15, 'delta phi out of range'
+        assert -2**15 <= phi0 < 2**15, 'phi0 out of range'
+        dev = self.selectedADC(c)
+        d = c.setdefault(dev, {})
+        ch = d.setdefault(channel, {})
+        ch['dphi'] = dphi
+        ch['phi0'] = phi0
+    
+    @setting(600, 'ADC Run Average', returns='*i{Is} *i{Qs}')
+    def adc_run_average(self, c, channel, sineAmp, cosineAmp):
+        dev = self.selectedADC(c)
+        info = c.setdefault(dev, {})
+        filterFunc = info.get('filterFunc', np.array([255], dtype='uint8'))
+        filterStretchLen = info.get('filterStretchLen', 0)
+        filterStretchAt = info.get('filterStretchAt', 0)
+        demods = dict((i, info[i]) for i in range(ADC_DEMOD_CHANNELS) if i in info)
+        ans = yield dev.runAverage(filterFunc, filterStretchLen, filterStretchAt, demods)
+        returnValue(ans)
+    
+    @setting(601, 'ADC Run Demod', returns='*(i{I} i{Q}), (i{Imax} i{Imin} i{Qmax} i{Qmin})')
+    def adc_run_demod(self, c, channel, sineAmp, cosineAmp):
+        dev = self.selectedADC(c)
+        info = c.setdefault(dev, {})
+        filterFunc = info.get('filterFunc', np.array([255], dtype='uint8'))
+        filterStretchLen = info.get('filterStretchLen', 0)
+        filterStretchAt = info.get('filterStretchAt', 0)
+        demods = dict((i, info[i]) for i in range(ADC_DEMOD_CHANNELS) if i in info)
+        ans = yield dev.runDemod(filterFunc, filterStretchLen, filterStretchAt, demods)
+        returnValue(ans)
     
     # TODO: new settings
     # - run ADC board in average mode
