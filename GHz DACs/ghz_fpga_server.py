@@ -547,28 +547,23 @@ class DacDevice(DeviceWrapper):
     def sendSRAM(self, data):
         """Write SRAM data to the FPGA."""
         p = self.makePacket()
-        needToSend = self.makeSRAM(data, p)
-        if needToSend:
-            yield p.send()
+        self.makeSRAM(data, p)
+        p.send()
 
 #    @inlineCallbacks
 #    def sendMemory(self, data):
 #        """Write Memory data to the FPGA."""
 #        p = self.makePacket()
-#        needToSend, result = self.makeMemory(data, p)
-#        if needToSend:
-#            yield p.send()
-#        returnValue(result)
+#        self.makeMemory(data, p)
+#        p.send()
 #
 #    @inlineCallbacks
 #    def sendMemoryAndSRAM(self, mem, sram):
 #        """Write both Memory and SRAM data to the FPGA."""
 #        p = self.makePacket()
-#        sendMem, resultMem = self.makeMemory(mem, p)
-#        sendSRAM, resultSRAM = self.makeSRAM(sram, p)
-#        if sendMem or sendSRAM:
-#            yield p.send()
-#        returnValue((resultMem, resultSRAM))
+#        self.makeMemory(mem, p)
+#        self.makeSRAM(sram, p)
+#        p.send()
 
     @inlineCallbacks
     def sendRegisters(self, regs, readback=True):
@@ -591,7 +586,7 @@ class DacDevice(DeviceWrapper):
     def runI2C(self, data):
         """Run a list of I2C commands on the board."""
 
-        # partition data into packets
+        # split a list into sublists delimited by the sentinel value
         def partition(l, sentinel):
             if len(l) == 0:
                 return []
@@ -604,6 +599,8 @@ class DacDevice(DeviceWrapper):
                     return rest
             except ValueError:
                 return [l]
+            
+        # split data into packets delimited by I2C_END
         pkts = partition(data, I2C_END)
 
         answer = []
@@ -611,13 +608,13 @@ class DacDevice(DeviceWrapper):
             while len(pkt):
                 data, pkt = pkt[:8], pkt[8:]
     
-                bytes = [(b if b < 256 else 0) for b in data]
+                bytes = [(b if b <= 0xFF else 0) for b in data]
                 read = [(b in [I2C_RB, I2C_RB_ACK]) for b in data]
                 ack = [(b in [I2C_RB_ACK]) for b in data]
                 
                 regs = regI2C(bytes, read, ack)
                 r = yield self.sendRegisters(regs)
-                ansBytes = processReadback(r)[I2Cbytes][-len(data):] # readout data wrapped around to end
+                ansBytes = processReadback(r)['I2Cbytes'][-len(data):] # readout data wrapped around to end
                 
                 answer += [b for b, r in zip(ansBytes, read) if r]
         returnValue(answer)
@@ -1482,7 +1479,7 @@ class FPGAServer(DeviceServer):
                112, 193, I2C_END,          # set reset high
                112,  65, I2C_END,          # set reset low
                112,   1, I2C_END,          # set enable low
-               113, I2C_RB]               # read phase detector
+               113, I2C_RB]                # read phase detector
 
         r = yield dev.runI2C(pkt)
         returnValue((r[0] & 1) > 0)
