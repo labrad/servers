@@ -172,7 +172,42 @@ class SpectrumAnalyzer(GPIBManagedServer):
         dev.write(':TRIG:SOUR %s' % setting)
 
 
-            
+    @setting(701, 'Average ON/OFF', setting='s', returns='')
+    def switch_average(self, c, setting='OFF'):
+        """This turns the averaging on or off"""
+        allowed = ['OFF', 'ON', 0, 1]
+        if setting not in allowed:
+            raise Exception('allowed settings are: %s' % allowed)
+        dev = self.selectedDevice(c)
+        dev.write(':AVER %s' % setting)
+
+    @setting(702, 'Start Frequency MHz', f='v[MHz]',returns='')
+    def start_frequency(self, c, f):
+        """This will set the starting frequency"""
+        dev = self.selectedDevice(c)
+        dev.write(':FREQ:STAR %gMHz' % float(f) )
+
+
+    @setting(703, 'Stop Frequency MHz', f='v[MHz]',returns='')
+    def stop_frequency(self, c, f):
+        """This will set the stopping frequency"""
+        dev = self.selectedDevice(c)
+        dev.write(':FREQ:STOP %gMHz' % float(f) )
+
+
+
+##  Attempt to set average type.  SA does not accept value.
+##  Gives error: "illegal paramter value"
+##    @setting(702, 'Average Type', setting='s', returns='')
+##    def average_type(self, c, setting='VID'):
+##        """This switching the averaging type from either Video or to RMS Power"""
+##        allowed = ['VID', 'POW']
+##        if setting not in allowed:
+##            raise Exception('allowed settings are: %s' % allowed)
+##        dev = self.selectedDevice(c)
+##        dev.write(':AVER:TYPE %s' % setting)
+
+
 ## dev.write('DISPlay:WINDow:TRACe:Y:SPACing  LINear|LOGarithmic)        
 ##    @setting(501, 'Resolution Bandwidth',
 ##                  accepts=['v[kHz]'],
