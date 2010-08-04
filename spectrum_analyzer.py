@@ -12,12 +12,15 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# UPDATED
+# 4 Aug, 2010 - Nathan Earnest - 2.1
 
 """
 ### BEGIN NODE INFO
 [info]
 name = Spectrum Analyzer Server
-version = 2.0
+version = 2.1
 description = 
 
 [startup]
