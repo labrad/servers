@@ -46,10 +46,10 @@ class FPGAWrapper(object):
         pass
 
 class DACWrapper(FPGAWrapper):
-        """ Represents a GHzDAC board.
-        ATTRIBUTES
-        sram - numpy array representing the board's SRAM. 
-        """
+    """ Represents a GHzDAC board.
+    ATTRIBUTES
+    sram - numpy array representing the board's SRAM. 
+    """
     def __init__(self):
         self.sram = np.zeros(SRAM_LENGTH, dtype=SRAM_DTYPE)
 
@@ -63,8 +63,8 @@ class ADCWrapper(FPGAWrapper):
 class FPGASimulationServer(LabradServer):
 
     @setting(10, 'adapters', returns='*(ws)')
-    """Retrieves a list of network adapters"""
     def adapters(self, c):
+        """Retrieves a list of network adapters"""
         adapterList = [(0, 'nothing'),(1, 'here')]
         return adapterList
 
@@ -112,28 +112,28 @@ class FPGASimulationServer(LabradServer):
                               'w: Read this many packets (returns *(ssis))'],
              returns=['(ssis): Source MAC, Destination MAC, Ether Type (-1 for IEEE 802.3, and Data of received packet',
                       '*(ssis): List of above'])
-    def read(self,c num):
+    def read(self, c, num):
         pass
 
     @setting(19, 'Read as Words', num=[': Read one packet (returns (ssi*w))',
                               'w: Read this many packets (returns *(ssi*w))'],
              returns=['(ssi*w): Source MAC, Destination MAC, Ether Type (-1 for IEEE 802.3, and Data of received packet',
                       '*(ssi*w): List of above'])
-    def read_as_words(self,c num):
+    def read_as_words(self, c, num):
         pass
 
 
     @setting(20, 'Reject Content', pattern=['(ws): Offset,data',
                                             '(w*w): Offset, data'],
              returns='')
-    def reject_content(self,c ):
+    def reject_content(self, c):
         """If the packet content matches, the packet will be rejected."""
         pass
     
     @setting(21, 'Reject Destination MAC', mac=['s: MAC in string form: 01:23:45:67:89:AB',
                                                 '(wwwwww): MAC as individual numbers'],
              returns='s')
-    def reject_destination_mac(self,c mac):
+    def reject_destination_mac(self, c, mac):
         pass
 
     @setting(22, 'Require Source MAC', mac=['s: MAC in string form: 01:23:45:67:89:AB',
