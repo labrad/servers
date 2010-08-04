@@ -37,13 +37,25 @@ from labrad.server import LabradServer, setting
 
 import numpy as np
 
+
+SRAM_LENGTH = 1
+SRAM_DTYPE = np.uint8
+
 class FPGAWrapper(object):
     def __init__(self):
         pass
 
 class DACWrapper(FPGAWrapper):
+        """ Represents a GHzDAC board.
+        ATTRIBUTES
+        sram - numpy array representing the board's SRAM. 
+        """
     def __init__(self):
-        self.sram = np.
+        self.sram = np.zeros(SRAM_LENGTH, dtype=SRAM_DTYPE)
+
+    def handle_packet(packet):
+        pass
+    
 
 class ADCWrapper(FPGAWrapper):
     pass
