@@ -37,9 +37,10 @@ from labrad.server import LabradServer, setting
 
 import numpy as np
 
-
-SRAM_LENGTH = 1
-SRAM_DTYPE = np.uint8
+DAC_SRAM_LEN = 10240 #words
+DAC_SRAM_PAGE_LEN = 256 #words
+DAC_SRAM_PAGES = DAC_SRAM_LEN/DAC_SRAM_PAGE_LEN
+DAC_SRAM_DTYPE = np.uint8
 
 class FPGAWrapper(object):
     def __init__(self):
@@ -48,15 +49,16 @@ class FPGAWrapper(object):
 class DACWrapper(FPGAWrapper):
     """ Represents a GHzDAC board.
     ATTRIBUTES
-    sram - numpy array representing the board's SRAM. 
+    sram - numpy array representing the board's SRAM.
+        each element is of type <u4, meaning little endian, four bytes.
     """
     def __init__(self):
-        self.sram = np.zeros(SRAM_LENGTH, dtype=SRAM_DTYPE)
-        self.register = 
+        self.sram = np.zeros(DAC_SRAM_LEN, dtype=DAC_SRAM_DTYPE)
+        self.register = np.zeros(DAC_REG_BYTES)
 
     def handle_packet(self, packet):
         """Handle an incoming ethernet packet to this board"""
-        if len(packet) == SRAM_PACKET_LENGTH:
+        if len(packet) == DAC_SRAM_PACKET_LENGTH:
             self.handle_sram_packet(packet)
         elif len(packet) == REG_PACKET_LENGTH:
             self.handle_register_packet(packet)
@@ -64,8 +66,21 @@ class DACWrapper(FPGAWrapper):
             raise Exception('GHzDAC packet length not appropriate for register or SRAM')
 
     def handle_sram_packet(self, packet):
-        raise Exception
+        """Stores SRAM data from a packet in the device's SRAM.
 
+        PARAMETERS
+        packet - numpy array of 
+
+        SRAM packets have 256 words, each word is 32 bits long (4 bytes)
+        One word represents 1 ns of sequence data.
+        Each word has 14 bits for each DAC channel, plus four bits for the four ECL triggers (=32 bits).
+        Each byte has the following form:
+            bits[13..0] = DACA[13..0] D/A converter A
+            bits[13..0] = DACB[13..0] D/A converter B
+            bits[31..28]= SERIAL[3..0] ECL serial output
+        """
+        
+        
 class ADCWrapper(FPGAWrapper):
     pass
         
