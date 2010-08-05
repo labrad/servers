@@ -60,8 +60,15 @@ class SpectrumAnalyzer(GPIBManagedServer):
         trace = data
         start = float((yield dev.query(':FREQ:STAR?')))
         span = float((yield dev.query(':FREQ:SPAN?')))
-        resp = yield dev.query(__QUERY__ % trace)
-        vals = _parseBinaryData(resp)
+        failed = True
+        while failed:
+            try:
+                resp = yield dev.query(__QUERY__ % trace)
+                vals = _parseBinaryData(resp)
+                failed = False
+            except:
+                print "Failed to get trace, trying again."
+                failed = True
         n = len(vals)
         returnValue((start/1.0e6, span/1.0e6/(n-1), vals))
 
@@ -97,11 +104,16 @@ class SpectrumAnalyzer(GPIBManagedServer):
         returnValue(T.Value(height, 'dBm'))
 
         
-    @setting(51, 'Number Of Points', n=['w'], returns=[''])
-    def num_points(self, c, n):
-        """Sets the current number of points in the sweep"""
+    @setting(51, 'Number Of Points', n=[':Default, get number of points',
+                                        'w: Set number of points'],
+             returns=['w'])
+    def num_points(self, c, n=None):
+        """Set of get the current number of points in the sweep"""
         dev = self.selectedDevice(c)
-        dev.write(':SWE:POIN %d' % n)
+        if n is not None:
+            yield dev.write(':SWE:POIN %d' % n)
+        numpts = yield dev.query(':SWE:POIN?')
+        returnValue(int(numpts))
 
 
     @setting(102, 'Do IDN query', returns=['s'])
@@ -226,9 +238,12 @@ class SpectrumAnalyzer(GPIBManagedServer):
     
 def _parseBinaryData(data):
     """Parse binary trace data."""
-    h = int(data[1])
-    d = int(data[2:2+h])
+    h = int(data[1]) #length of header
+    d = int(data[2:2+h]) #header, tells us how many bytes of data
     s = data[2+h:]
+    print 'Length of complete response: %d (bytes)' %len(data)
+    print 'Expected data length: %d (bytes)' %d
+    print 'Actual data length: %d (bytes)' %len(s)
     if len(s) != d:
         raise errors.HandlerError('Could not decode binary response.')
     n = d/4 # 4 bytes per data point
