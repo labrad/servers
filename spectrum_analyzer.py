@@ -60,15 +60,18 @@ class SpectrumAnalyzer(GPIBManagedServer):
         trace = data
         start = float((yield dev.query(':FREQ:STAR?')))
         span = float((yield dev.query(':FREQ:SPAN?')))
-        failed = True
-        while failed:
+        maxRetries = 10
+        for i in range(maxRetries):
             try:
                 resp = yield dev.query(__QUERY__ % trace)
                 vals = _parseBinaryData(resp)
-                failed = False
-            except:
+                break
+            except Exception:
+                pass
+            if i+1 < maxRetries:
                 print "Failed to get trace, trying again."
-                failed = True
+            else:
+                raise Exception("Failed to get trace")
         n = len(vals)
         returnValue((start/1.0e6, span/1.0e6/(n-1), vals))
 
