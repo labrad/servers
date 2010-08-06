@@ -94,6 +94,7 @@ ADC_SRAM_WRITE_LEN = 1024
 # TODO: store memory and SRAM as numpy arrays, rather than lists and strings, respectively
 # TODO: preflatten packets to reduce the send time
 # TODO: run sequences to verify the daisy-chain order automatically
+# TODO: when running adc boards in demodulation (streaming mode) it will be extremely important to check counters to verify that there is no packet loss
 
 
 def littleEndian(data, bytes=4):
@@ -400,19 +401,7 @@ class AdcDevice(DeviceWrapper):
     @inlineCallbacks
     def runAverage(filterFunc, filterStretchLen, filterStretchAt, demods):
         # build registry packet
-        regs = np.zeros(ADC_REG_PACKET_LEN, dtype='<u1')
-        regs[0] = 2 # average mode, autostart
-        regs[7:9] = littleEndian(1, 2)
-        
-        regs[9:11] = littleEndian(len(filterFunc), 2)
-        regs[11:13] = littleEndian(filterStretchAt, 2)
-        regs[13:15] = littleEndian(filterStretchLen, 2)
-        
-        for i in range(ADC_DEMOD_CHANNELS):
-            if i in demods:
-                addr = 15 + 4*i
-                regs[addr:addr+2] = littleEndian(demods[i]['dphi'], 2)
-                regs[addr+2:addr+4] = littleEndian(demods[i]['phi0'], 2)
+        regs = regAdcRun(2, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
 
         # create packet for the ethernet server
         p = self.makePacket()
@@ -435,19 +424,7 @@ class AdcDevice(DeviceWrapper):
     @inlineCallbacks
     def runDemod(filterFunc, filterStretchLen, filterStretchAt, demods):
         # build registry packet
-        regs = np.zeros(ADC_REG_PACKET_LEN, dtype='<u1')
-        regs[0] = 4 # demod mode, autostart
-        regs[7:9] = littleEndian(1, 2)
-        
-        regs[9:11] = littleEndian(len(filterFunc), 2)
-        regs[11:13] = littleEndian(filterStretchAt, 2)
-        regs[13:15] = littleEndian(filterStretchLen, 2)
-        
-        for i in range(ADC_DEMOD_CHANNELS):
-            if i in demods:
-                addr = 15 + 4*i
-                regs[addr:addr+2] = littleEndian(demods[i]['dphi'], 2)
-                regs[addr+2:addr+4] = littleEndian(demods[i]['phi0'], 2)
+        regs = regAdcRun(4, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
 
         # create packet for the ethernet server
         p = self.makePacket()
@@ -470,7 +447,6 @@ class AdcDevice(DeviceWrapper):
         Qmax = twosComp((Qrng >> 4) & 0xF) # << 12
         Qmin = twosComp((Qrng >> 0) & 0xF) # << 12
         returnValue((IQs, (Imax, Imin, Qmax, Qmin)))
-
 
 
 class DacDevice(DeviceWrapper):
@@ -834,10 +810,8 @@ class BoardGroup(object):
                 msg += ''.join(r.getBriefTraceback() for s, r in results if not s)
             else:
                 for i, (s, r) in zip(infoList, results):
-                    if s:
-                        msg += str(i) + ': OK\n\n'
-                    else:
-                        msg += str(i) + ': error!\n' + r.getBriefTraceback() + '\n\n'
+                    m = 'OK' if s else ('error!\n' + r.getBriefTraceback())
+                    msg += str(i) + (': %s\n\n' % m)
             raise Exception(msg)
         
     def extractTiming(self, result):
@@ -981,13 +955,6 @@ class BoardGroup(object):
             else:
                 timing = []
             returnValue(timing)
-    
-    
-def customDeviceWrapper(guid, name):
-    if 'ADC' in name:
-        return AdcDevice(guid, name)
-    else:
-        return DacDevice(guid, name)
 
 
 class FPGAServer(DeviceServer):
