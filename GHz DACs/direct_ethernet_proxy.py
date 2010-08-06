@@ -89,7 +89,7 @@ class DeferredBuffer(object):
         if self.waiter and len(self.buf) >= self.waitCount:
             d = self.waiter
             self.waiter = None
-            d.callback()
+            d.callback(None)
     
     def collect(self, n=1, timeout=None):
         assert (self.waiter is None), 'already waiting'
