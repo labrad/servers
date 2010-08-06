@@ -4,14 +4,19 @@ DAC_SRAM_PAGE_LEN = 256 #words
 DAC_SRAM_PAGES = DAC_SRAM_LEN/DAC_SRAM_PAGE_LEN
 DAC_SRAM_DTYPE = np.uint8
 
+def dacMAC(board):
+    """Get the MAC address of a DAC board as a string."""
+    return '00:01:CA:AA:00:' + ('0'+hex(int(board))[2:])[-2:].upper()
+
 class DACProxy(object):
     """ Represents a GHzDAC board.
     ATTRIBUTES
     sram - numpy array representing the board's SRAM.
         each element is of type <u4, meaning little endian, four bytes.
     """
-    def __init__(self, mac, adapter):
-        self.mac = mac
+    def __init__(self, id, adapter):
+        self.id = id
+        self.mac = dacMAC(id)
         self.adapter = adapter
         adapter.addListener(self)
         self.sram = np.zeros(DAC_SRAM_LEN, dtype=DAC_SRAM_DTYPE)

@@ -353,12 +353,21 @@ class DirectEthernetProxy(LabradServer):
 
 if __name__ == '__main__':
     from labrad import util
+    import adc
+    import dac
     
-    proxy0 = EthernetAdapter('proxy0', '01:23:45:67:89:00')
-    proxy1 = EthernetAdapter('proxy1', '01:23:45:67:89:01')
+    # create ethernet
+    adapter0 = EthernetAdapter('proxy0', '01:23:45:67:89:00')
+    adapter1 = EthernetAdapter('proxy1', '01:23:45:67:89:01')
     
-    # TODO: create some DAC devices here...
+    # create devices
+    dev00 = dac.DACProxy(0, adapter0)
+    dev01 = dac.ADCProxy(1, adapter0)
+    dev02 = dac.DACProxy(2, adapter0)
     
-    server = DirectEthernetProxy([proxy0, proxy1])
+    dev10 = dac.DACProxy(0, adapter1)
+    dev11 = dac.DACProxy(1, adapter1)
+    dev12 = dac.ADCProxy(2, adapter1)
     
+    server = DirectEthernetProxy([adapter0, adapter1])
     util.runServer(server)
