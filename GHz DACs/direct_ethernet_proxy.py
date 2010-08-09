@@ -32,7 +32,7 @@ class EthernetAdapter(object):
     
     def send(self, pkt):
         """Send a packet on this adapter."""
-        for listener in listeners:
+        for listener in self.listeners:
             listener(pkt)
     
     def addListener(self, listener):
