@@ -48,3 +48,14 @@ class FunctionGenerator(GPIBManagedServer):
         accepts value from -5V to 5V"""
         dev = self.selectedDevice(c)
         dev.write(':APPL:DC DEF, DEF, %f' % float(f))
+
+
+
+__server__ = AgilentFunctionGenerator()
+
+if __name__ == '__main__':
+    from labrad import util
+    util.runServer(__server__)
+
+
+
