@@ -43,8 +43,9 @@ class AgilentFunctionGenerator(GPIBManagedServer):
     deviceName = 'HEWLETT-PACKARD 33120A'
     @setting(11,'Set DC', f='v[Volts]', returns='')
     def set_dc_waveform(self, c,f=0):
-        """Puts generator into DC mode with given voltage.
-        accepts value from -5V to 5V"""
+        if f< -5 or f > 5:
+            raise Exception('Signal Gnerator only puts out -5 to 5 volts in DCV')
+        """Puts generator into DC mode with given voltage."""
         dev = self.selectedDevice(c)
         dev.write(':APPL:DC DEF, DEF, %f' % float(f))
 
