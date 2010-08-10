@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Resonator Fit
-version = 0.3
+version = 0.4
 description = Fits resonator data to find Q
 
 [startup]
@@ -50,7 +50,7 @@ class ResonatorFit(LabradServer):
     
     
     @inlineCallbacks
-    def open_s21(self, dir, filenum):
+    def open_s21(self, sparam, dir, filenum):
     #Opens a data vault file and pulls out the S21 data as an array in the format (frequency, complex S21).
     
         dv=self.client.data_vault
@@ -76,20 +76,20 @@ class ResonatorFit(LabradServer):
         magcol = -1
         phasecol = -1
         for strnum in range(len(vars)):
-            if vars[strnum][1] == 'S21':
+            if vars[strnum][1] == sparam:
                 if vars[strnum][0] == 'Magnitude':
                     magcol = strnum+1
                     break
         else:
-            raise ValueError, 'Did not measure magnitude or phase of S21'
+            raise ValueError, 'Invalid S-parameter'
             return
         for strnum in range(len(vars)):
-            if vars[strnum][1] == 'S21':
+            if vars[strnum][1] == sparam:
                 if vars[strnum][0] == 'Phase':
                     phasecol = strnum+1
                     break
         else:
-            raise ValueError, 'Did not measure magnitude or phase of S21'
+            raise ValueError, 'Invalid S-parameter'
             return
         mag = 10**(datafromfile[:,magcol]/20.)
         complexval = mag*exp(1j*datafromfile[:,phasecol]) 
@@ -105,7 +105,7 @@ class ResonatorFit(LabradServer):
     
     
     @inlineCallbacks
-    def calibrate_data(self, datain, cal, range, background):
+    def calibrate_data(self, sparam, datain, cal, range, background):
     #Calibrate input data using calibration file calfile in caldir
     
         # If only wanting to fit a limited range, select data with frequencies in this range
@@ -123,7 +123,7 @@ class ResonatorFit(LabradServer):
         # Calibrate data if desired
         if cal[0]:
             # Open calibration file
-            calopen = yield self.open_s21(cal[1],cal[2])
+            calopen = yield self.open_s21(sparam,cal[1],cal[2])
             if (datain[0].min()>=calopen[0].min() and datain[0].max()<=calopen[0].max()):
                 calfreqfull = calopen[0]
                 calcut = numpy.logical_and(calfreqfull>=(0.9*datain[0].min()),calfreqfull<=(1.1*datain[0].max()))
@@ -139,9 +139,10 @@ class ResonatorFit(LabradServer):
             frange = array([background[1],background[2]])
             order = background[3]
             s21 = caldata
-            f = s21[:,0]
-            sr = s21[:,1].real
-            si = s21[:,1].imag
+            f = s21[0].real
+            s = s21[1]
+            sr = s.real
+            si = s.imag
             
             # Determine which indices (given by fcut) are within the background subraction range
             fcut = numpy.logical_and(f>frange[0],f<frange[1])
@@ -154,18 +155,23 @@ class ResonatorFit(LabradServer):
             fout = numpy.logical_not(fcut)
                 
             # Fit real part of s21 and subract from actual (calibrated) data
-            f0 = f[fcut]
-            p = numpy.polyfit(f[fout],sr[fout],order)
-            s21r = sr[fcut]-numpy.polyval(p,f0)
+            pr = numpy.polyfit(f[fout],sr[fout],order)
+            srfit = numpy.polyval(pr,f)
                 
             # Fit imaginary part of s21 and subract from actual (calibrated) data
-            p = numpy.polyfit(f[fout],si[fout],order)
-            s21i = si[fcut]-numpy.polyval(p,f0)
+            pi = numpy.polyfit(f[fout],si[fout],order)
+            sifit = numpy.polyval(pi,f)
+            
+            # Combine real & imag parts
+            sfit = srfit + 1j * sifit
+            s21out = s-sfit
 
             # Save data with background subtraction as the data to be returned
-            caldata = array([f0,s21r+1j*s21i])
+            dataout = [array([f[fcut],s21out[fcut]]),array([f,s,sfit,s21out])]
+        else:
+            dataout = [caldata]
         
-        returnValue(caldata)
+        returnValue(dataout)
     
     
     
@@ -302,12 +308,12 @@ class ResonatorFit(LabradServer):
     
     
     @inlineCallbacks
-    def calibrate_fit(self, dirname, filenum, shunt, cal, range, background):
+    def calibrate_fit(self, sparam, singlefit, dirname, filenum, shunt, cal, range, background):
     #Read a single s21 trace, calibrate data, and fit Q
         
         #Read s21 data from s21 from Data Vault into numpy array
         s21={}
-        s21['rawdata'] = yield self.open_s21(dirname,filenum)
+        s21['rawdata'] = yield self.open_s21(sparam, dirname,filenum)
         
         #Get parameters for this data set
         params = yield self.client.data_vault.get_parameters()
@@ -315,7 +321,13 @@ class ResonatorFit(LabradServer):
         
         #If data to be calibrated, calibrates data
         if (cal[0] or range[0] or background[0]):
-            s21['caldata'] = yield self.calibrate_data(s21['rawdata'],cal,range,background)
+            calresults = yield self.calibrate_data(sparam,s21['rawdata'],cal,range,background)
+            s21['caldata'] = calresults[0]
+            if (background[0] and singlefit):
+                s21['PreBackgroundFrequency'] = calresults[1][0]
+                s21['PreBackgroundData'] = calresults[1][1]
+                s21['BackgroundFitPolynomial'] = calresults[1][2]
+                s21['BackgroundRemovedData'] = calresults[1][3]
         else:
             s21['caldata'] = s21['rawdata']
         
@@ -328,7 +340,7 @@ class ResonatorFit(LabradServer):
     
     
     @inlineCallbacks
-    def multifile_fit(self, dirname, shunt, cal, range, background):
+    def multifile_fit(self, sparam, dirname, shunt, cal, range, background):
     #Load multiple s21 traces. For each, run calibrate_fit to calibrate data and fit Q.
         
         dv = self.client.data_vault
@@ -347,7 +359,7 @@ class ResonatorFit(LabradServer):
         
         # Open first file in directory
         filenum = listnum[0]
-        s21 = yield self.calibrate_fit(dirname,filenum,shunt,cal,range,background)
+        s21 = yield self.calibrate_fit(sparam,False,dirname,filenum,shunt,cal,range,background)
         
         # Set up results dictionary
         sweeps = {}
@@ -356,7 +368,7 @@ class ResonatorFit(LabradServer):
         
         # Load data into results dictionary
         for filenum in listnum[1:]:
-            s21 = yield self.calibrate_fit(dirname,filenum,shunt,cal,range,background)
+            s21 = yield self.calibrate_fit(sparam,False,dirname,filenum,shunt,cal,range,background)
             for key in sweeps.keys():
                 sweeps[key].append(s21[key])
         
@@ -364,18 +376,18 @@ class ResonatorFit(LabradServer):
         
         
     
-    @setting(10, 'Single Fit', dirname='*s', filenum='w', shunt='b', ifcal='b', caldir='*s', calnum='w', ifrange='b', rangemin='v', rangemax='v', ifback='b', backmin='v', backmax='v', backorder='w', returns='?')
-    def single_fit(self, c, dirname, filenum, shunt, ifcal, caldir, calnum, ifrange, rangemin, rangemax, ifback, backmin, backmax, backorder):
+    @setting(10, 'Single Fit', sparam='s', dirname='*s', filenum='w', shunt='b', ifcal='b', caldir='*s', calnum='w', ifrange='b', rangemin='v', rangemax='v', ifback='b', backmin='v', backmax='v', backorder='w', returns='?')
+    def single_fit(self, c, sparam, dirname, filenum, shunt, ifcal, caldir, calnum, ifrange, rangemin, rangemax, ifback, backmin, backmax, backorder):
         """Fits a single S21 trace with calibration. To retrieve data, change result to dictionary."""
-        fitDict = yield self.calibrate_fit(dirname,filenum,shunt,(ifcal,caldir,calnum),(ifrange,rangemin,rangemax),(ifback,backmin,backmax,backorder))
+        fitDict = yield self.calibrate_fit(sparam,True,dirname,filenum,shunt,(ifcal,caldir,calnum),(ifrange,rangemin,rangemax),(ifback,backmin,backmax,backorder))
         returnValue(tuple(fitDict.items()))
     
     
     
-    @setting(20, 'Multiple Fit', dirname='*s', shunt='b', ifcal='b', caldir='*s', calnum='w', ifrange='b', rangemin='v', rangemax='v', ifback='b', backmin='v', backmax='v', backorder='w', returns='?')
-    def multiple_fit(self, c, dirname, shunt, ifcal, caldir, calnum, ifrange, rangemin, rangemax, ifback, backmin, backmax, backorder):
+    @setting(20, 'Multiple Fit', sparam='s', dirname='*s', shunt='b', ifcal='b', caldir='*s', calnum='w', ifrange='b', rangemin='v', rangemax='v', ifback='b', backmin='v', backmax='v', backorder='w', returns='?')
+    def multiple_fit(self, c, sparam, dirname, shunt, ifcal, caldir, calnum, ifrange, rangemin, rangemax, ifback, backmin, backmax, backorder):
         """Fits multiple S21 traces with calibration."""
-        fitDict = yield self.multifile_fit(dirname,shunt,(ifcal,caldir,calnum),(ifrange,rangemin,rangemax),(ifback,backmin,backmax,backorder))
+        fitDict = yield self.multifile_fit(sparam,dirname,shunt,(ifcal,caldir,calnum),(ifrange,rangemin,rangemax),(ifback,backmin,backmax,backorder))
         returnValue(tuple(fitDict.items()))
        
         
