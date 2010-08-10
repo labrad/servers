@@ -19,6 +19,7 @@ class DACProxy(object):
         self.id = id
         self.mac = dacMAC(id)
         self.adapter = adapter
+        #Add ourself to our adapter's list of listeners
         adapter.addListener(self)
         self.sram = np.zeros(DAC_SRAM_LEN, dtype=DAC_SRAM_DTYPE)
         self.register = np.zeros(DAC_REG_BYTES)
@@ -49,4 +50,8 @@ class DACProxy(object):
             bits[13..0] = DACB[13..0] D/A converter B
             bits[31..28]= SERIAL[3..0] ECL serial output
         """
+        raise Exception
+
+    def handle_register_packet(self, packet):
+        reaise Exception
         
