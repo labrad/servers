@@ -82,6 +82,7 @@ ADC_AVERAGE_PACKET_LEN = 1024
 
 ADC_TRIG_AMP = 255
 ADC_REG_PACKET_LEN = 59
+ADC_READBACK_LEN = 46
 ADC_FILTER_LEN = 4096
 ADC_SRAM_WRITE_PAGES = 9
 ADC_SRAM_WRITE_LEN = 1024
@@ -551,21 +552,6 @@ class DacDevice(DeviceWrapper):
         self.makeSRAM(data, p)
         p.send()
 
-#    @inlineCallbacks
-#    def sendMemory(self, data):
-#        """Write Memory data to the FPGA."""
-#        p = self.makePacket()
-#        self.makeMemory(data, p)
-#        p.send()
-#
-#    @inlineCallbacks
-#    def sendMemoryAndSRAM(self, mem, sram):
-#        """Write both Memory and SRAM data to the FPGA."""
-#        p = self.makePacket()
-#        self.makeMemory(mem, p)
-#        self.makeSRAM(sram, p)
-#        p.send()
-
     @inlineCallbacks
     def sendRegisters(self, regs, readback=True):
         """Send a register packet and optionally readback the result.
@@ -988,7 +974,6 @@ class FPGAServer(DeviceServer):
         
     @inlineCallbacks
     def findDevices(self):
-        # TODO: also look for ADC devices
         print 'Refreshing...'
         cxn = self.client
         yield cxn.refresh()
@@ -1030,67 +1015,159 @@ class FPGAServer(DeviceServer):
             for dname in self.devices:
                 dev = self.devices[dname]
                 if dev.serverName == de._labrad_name and dev.port == port:
-                    skips[dev.board] = dev
+                    skips[dev.MAC] = dev
             print 'Skipping:', sorted(skips.keys())
 
-            p = de.packet()
-            p.connect(port)
-            p.require_length(DAC_READBACK_LEN)
-            p.timeout(T.Value(1, 's'))
-            
-            for i in skips:
-                # do not listen for packets from boards we want to skip
-                p.reject_source_mac(dacMAC(i))
-            
-            p.listen()
-
-            # ping all DAC boards
+            detections = []
             for i in xrange(256):
-                if i in skips:
-                    found.append(skips[i].name)
+                mac = dacMAC(i)
+                if mac in skips:
+                    found.append(skips[mac].name)
                 else:
-                    p.destination_mac(dacMAC(i))
-                    p.write(regPing().tostring())
-            yield p.send(context=ctx)
-
-            # get ID packets from DAC boards
-            while True:
-                try:
-                    ans = yield de.read(context=ctx)
-                    src, dst, eth, data = ans
-                    info = processReadback(data)
-                    board, build = int(src[-2:], 16), info['build']
-                    devName = '%s DAC %d' % (name, board)
-                    args = de, port, board, build, devName
-                    found.append((devName, args))
-                except T.Error:
-                    break
-
-            # ping all ADC boards
-            for i in xrange(256):
-                if i in skips:
-                    found.append(skips[i].name)
+                    detections.append(self.detectDAC(cxn, name, de, port, mac))
+                mac = adcMAC(i)
+                if mac in skips:
+                    found.append(skips[mac].name)
                 else:
-                    p.destination_mac(adcMAC(i))
-                    p.write(regAdcPing().tostring())
-            yield p.send(context=ctx)
+                    detections.append(self.detectADC(cxn, name, de, port, mac))
+            
+            answer = yield defer.DeferredList(detections, consumeErrors=True)
+            
+            for success, result in answer:
+                if success:
+                    found.append(result)
 
-            # get ID packets from ADC boards
-            while True:
-                try:
-                    ans = yield de.read(context=ctx)
-                    src, dst, eth, data = ans
-                    info = processReadbackAdc(data)
-                    board, build = int(src[-2:], 16), info['build']
-                    devName = '%s ADC %d' % (name, board)
-                    args = de, port, board, build, devName
-                    found.append((devName, args))
-                except T.Error:
-                    break
-
-            # expire this context to stop listening
-            yield cxn.manager.expire_context(de.ID, context=ctx)
+#            # autodetect DAC boards
+#            p = de.packet()
+#            p.connect(port)
+#            p.require_length(DAC_READBACK_LEN)
+#            p.timeout(T.Value(1, 's'))
+#            for MAC in skips:
+#                # do not listen for packets from boards we want to skip
+#                p.reject_source_mac(MAC)
+#            p.listen()
+#
+#            # ping all DAC boards
+#            for i in xrange(256):
+#                mac = dacMAC(i)
+#                if mac in skips:
+#                    found.append(skips[mac].name)
+#                else:
+#                    p.destination_mac(mac)
+#                    p.write(regPing().tostring())
+#            yield p.send(context=ctx)
+#
+#            # get ID packets from DAC boards
+#            while True:
+#                try:
+#                    ans = yield de.read(context=ctx)
+#                    src, dst, eth, data = ans
+#                    if isDacMAC(src):
+#                        info = processReadback(data)
+#                        board, build = int(src[-2:], 16), info['build']
+#                        devName = '%s DAC %d' % (name, board)
+#                        args = de, port, board, build, devName
+#                        found.append((devName, args))
+#                except T.Error:
+#                    # after all boards have responded
+#                    # a timeout error will be thrown
+#                    break
+#            
+#            # expire this context to stop listening
+#            yield cxn.manager.expire_context(de.ID, context=ctx)
+#
+#
+#            # autodetect ADC boards
+#            p = de.packet()
+#            p.connect(port)
+#            p.require_length(ADC_READBACK_LEN)
+#            p.timeout(T.Value(1, 's'))
+#            for MAC in skips:
+#                # do not listen for packets from boards we want to skip
+#                p.reject_source_mac(MAC)
+#            p.listen()
+#
+#            # ping all ADC boards
+#            for i in xrange(256):
+#                mac = adcMAC(i)
+#                if mac in skips:
+#                    found.append(skips[mac].name)
+#                else:
+#                    p.destination_mac(mac)
+#                    p.write(regAdcPing().tostring())
+#            yield p.send(context=ctx)
+#
+#            # get ID packets from ADC boards
+#            while True:
+#                try:
+#                    ans = yield de.read(context=ctx)
+#                    src, dst, eth, data = ans
+#                    if isAdcMAC(src):
+#                        info = processReadbackAdc(data)
+#                        board, build = int(src[-2:], 16), info['build']
+#                        devName = '%s ADC %d' % (name, board)
+#                        args = de, port, board, build, devName
+#                        found.append((devName, args))
+#                except T.Error:
+#                    # after all boards have responded
+#                    # a timeout error will be thrown
+#                    break
+#
+#            # expire this context to stop listening
+#            yield cxn.manager.expire_context(de.ID, context=ctx)
         returnValue(found)
+
+    @inlineCallbacks
+    def detectDAC(self, cxn, groupName, de, port, mac):
+        ctx = de.context()
+        p = de.packet()
+        p.connect(port)
+        p.destination_mac(mac)
+        p.require_source_mac(mac)
+        p.require_length(DAC_READBACK_LEN)
+        p.timeout(T.Value(1, 's'))
+        p.listen()
+        p.write(regPing().tostring())
+        p.read()
+        try:
+            ans = yield p.send(context=ctx)
+        finally:
+            # expire the context, even if there was a timeout error
+            yield cxn.manager.expire_context(de.ID, context=ctx)
+        src, dst, eth, data = ans.read
+        info = processReadback(data)
+        board, build = int(src[-2:], 16), info['build']
+        devName = '%s DAC %d' % (groupName, board)
+        args = de, port, board, build, devName
+        returnValue((devName, args))
+
+
+    @inlineCallbacks
+    def detectADC(self, cxn, groupName, de, port, mac):
+        # TODO: move autodetection to the board groups
+        # TODO: do not use exceptions to indicate failure to find a device (that should be reserved for real errors)
+        ctx = de.context()
+        p = de.packet()
+        p.connect(port)
+        p.destination_mac(mac)
+        p.require_source_mac(mac)
+        p.require_length(ADC_READBACK_LEN)
+        p.timeout(T.Value(1, 's'))
+        p.listen()
+        p.write(regAdcPing().tostring())
+        p.read()
+        try:
+            ans = yield p.send(context=ctx)
+        finally:
+            # expire the context, even if there was a timeout error
+            yield cxn.manager.expire_context(de.ID, context=ctx)
+        src, dst, eth, data = ans.read
+        info = processReadbackAdc(data)
+        board, build = int(src[-2:], 16), info['build']
+        devName = '%s ADC %d' % (groupName, board)
+        args = de, port, board, build, devName
+        returnValue((devName, args))
+
 
     def deviceWrapper(self, *a, **kw):
         """Build a DAC or ADC device wrapper, depending on the device name"""
@@ -1163,11 +1240,11 @@ class FPGAServer(DeviceServer):
 
 
     @setting(22, 'SRAM dual block',
-             block1=['*w: SRAM Words to be written', 's: Raw SRAM data'],
+             block1=['*w: SRAM Words for first block', 's: Raw SRAM for first block'],
              block2=['*w: SRAM Words for second block', 's: Raw SRAM for second block'],
              delay='w: nanoseconds to delay',
              returns='')
-    def sram2(self, c, block1, block2, delay):
+    def sram_dual_block(self, c, block1, block2, delay):
         """Writes a dual-block SRAM sequence with a delay between the two blocks."""
         dev = self.selectedDAC(c)
         d = c.setdefault(dev, {})
@@ -1449,7 +1526,7 @@ class FPGAServer(DeviceServer):
         return dev.runI2C(pkts)
 
 
-    @setting(110, 'LEDs', data=['w', '(bbbbbbbb)'], returns='w')
+    @setting(110, 'LEDs', data=['w', 'bbbbbbbb'], returns='w')
     def leds(self, c, data):
         """Sets the status of the 8 I2C LEDs. (DAC only)"""
         dev = self.selectedDAC(c)
@@ -1468,13 +1545,13 @@ class FPGAServer(DeviceServer):
         """Resets the clock phasor. (DAC only)"""
         dev = self.selectedDAC(c)
 
-        pkts = [[152,   0, 127, 0],  # set I to 0 deg
-                [152,  34, 254, 0],  # set Q to 0 deg
-                [112,  65],          # set enable bit high
-                [112, 193],          # set reset high
-                [112,  65],          # set reset low
-                [112,   1],          # set enable low
-                [113, I2C_RB]]       # read phase detector
+        pkts = [[152, 0, 127, 0],  # set I to 0 deg
+                [152, 34, 254, 0], # set Q to 0 deg
+                [112, 65],         # set enable bit high
+                [112, 193],        # set reset high
+                [112, 65],         # set reset low
+                [112, 1],          # set enable low
+                [113, I2C_RB]]     # read phase detector
 
         r = yield dev.runI2C(pkts)
         returnValue((r[0] & 1) > 0)
@@ -1489,13 +1566,14 @@ class FPGAServer(DeviceServer):
         dev = self.selectedDAC(c)
 
         if data is None:
-            pkts = [[112,  1], [113, I2C_RB]]
+            pkts = [[112, 1],
+                    [113, I2C_RB]]
         else:
             sn = int(round(127 + 127*np.sin(data))) & 0xFF
             cs = int(round(127 + 127*np.cos(data))) & 0xFF
             pkts = [[152,  0, sn, 0],
                     [152, 34, cs, 0],
-                    [112,  1],
+                    [112, 1],
                     [113, I2C_RB]]
                    
         r = yield dev.runI2C(pkts)
@@ -1516,7 +1594,8 @@ class FPGAServer(DeviceServer):
     def ain(self, c):
         """Reads the voltage on Ain. (DAC only)"""
         dev = self.selectedDAC(c)
-        pkts = [[144, 0], [145, I2C_RB_ACK, I2C_RB]]
+        pkts = [[144, 0],
+                [145, I2C_RB_ACK, I2C_RB]]
         r = yield dev.runI2C(pkts)
         returnValue(T.Value(((r[0] << 8) + r[1]) / 819.0, 'V'))
 
@@ -1678,7 +1757,7 @@ class FPGAServer(DeviceServer):
                 pkt = [0x0700 + PHOF, 0x8700]
                 reading = long(((yield dev.runSerial(op, pkt))[1] >> 4) & 7)
                 found = True
-            except:
+            except Exception:
                 clkinv = not clkinv
                 yield self.dac_pol(c, chan, clkinv)
 
@@ -1753,7 +1832,8 @@ class FPGAServer(DeviceServer):
         """Recalibrate the analog-to-digital converters. (ADC only)"""
         dev = self.selectedADC(c)
         yield dev.recalibrate()
-        
+    
+    
     @setting(501, 'ADC Filter Func', bytes='s', stretchLen='w', stretchAt='w', returns='')
     def adc_filter_func(self, c, bytes, stretchLen=0, stretchAt=0):
         """Set the filter function to be used with the selected ADC board. (ADC only)
@@ -1769,7 +1849,8 @@ class FPGAServer(DeviceServer):
         d['filterFunc'] = bytes
         d['filterStretchLen'] = stretchLen
         d['filterStretchAt'] = stretchAt
-        
+    
+    
     @setting(502, 'ADC Trig Magnitude', channel='w', sineAmp='w', cosineAmp='w', returns='')
     def adc_trig_magnitude(self, c, channel, sineAmp, cosineAmp):
         """Set the magnitude of sine and cosine functions for a demodulation channel. (ADC only)
@@ -1790,6 +1871,7 @@ class FPGAServer(DeviceServer):
         ch['sine'] = np.floor(sineAmp * np.sin(phi) + 0.5).astype('uint8')
         ch['cosine'] = np.floor(cosineAmp * np.cos(phi) + 0.5).astype('uint8')
     
+    
     @setting(503, 'ADC Demod Phase', channel='w', dphi='i', phi0='i', returns='')
     def adc_demod_frequency(self, c, channel, dphi, phi0=0):
         """Set the phase difference and initial phase for a demodulation channel. (ADC only)
@@ -1803,6 +1885,7 @@ class FPGAServer(DeviceServer):
         ch = d.setdefault(channel, {})
         ch['dphi'] = dphi
         ch['phi0'] = phi0
+    
     
     @setting(600, 'ADC Run Average', returns='*(i{I} i{Q})')
     def adc_run_average(self, c, channel, sineAmp, cosineAmp):
@@ -1820,6 +1903,7 @@ class FPGAServer(DeviceServer):
         demods = dict((i, info[i]) for i in range(ADC_DEMOD_CHANNELS) if i in info)
         ans = yield dev.runAverage(filterFunc, filterStretchLen, filterStretchAt, demods)
         returnValue(ans)
+    
     
     @setting(601, 'ADC Run Demod', returns='*(i{I} i{Q}), (i{Imax} i{Imin} i{Qmax} i{Qmin})')
     def adc_run_demod(self, c, channel, sineAmp, cosineAmp):
@@ -1865,9 +1949,15 @@ def dacMAC(board):
     """Get the MAC address of a DAC board as a string."""
     return '00:01:CA:AA:00:' + ('0'+hex(int(board))[2:])[-2:].upper()
 
+def isDacMAC(mac):
+    return mac.startswith('00:01:CA:AA:00:')
+
 def adcMAC(board):
     """Get the MAC address of an ADC board as a string."""
     return '00:01:CA:AA:01:' + ('0'+hex(int(board))[2:])[-2:].upper()
+
+def isAdcMAC(mac):
+    return mac.startswith('00:01:CA:AA:01:')
 
 def listify(data):
     """Ensure that a piece of data is a list."""
