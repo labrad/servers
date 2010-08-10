@@ -1,3 +1,5 @@
+import numpy as np
+
 def adcMAC(board):
     """Get the MAC address of an ADC board as a string."""
     return '00:01:CA:AA:01:' + ('0'+hex(int(board))[2:])[-2:].upper()

@@ -1,3 +1,4 @@
+import numpy as np
 
 DAC_SRAM_LEN = 10240 #words
 DAC_SRAM_PAGE_LEN = 256 #words

@@ -59,7 +59,7 @@ SRAM_DELAY_LEN = 1024
 SRAM_BLOCK0_LEN = 8192
 SRAM_BLOCK1_LEN = 2048
 SRAM_WRITE_PKT_LEN = 256 # number of words in each SRAM write packet
-SRAM_WRITE_PAGES = SRAM_LEN / SRAW_WRITE_PKT_LEN # number of pages for writing SRAM
+SRAM_WRITE_PAGES = SRAM_LEN / SRAM_WRITE_PKT_LEN # number of pages for writing SRAM
 
 MASTER_SRAM_DELAY = 2 # microseconds for master to delay before SRAM to ensure synchronization
 
@@ -229,6 +229,11 @@ def pktWriteMem(page, data):
 
 # functions to register packets for ADC boards
 
+def regAdcPing():
+    regs = np.zeros(ADC_REG_PACKET_LEN, dtype='<u1')
+    regs[0] = 1
+    return regs
+
 def regAdcPllQuery():
     regs = np.zeros(ADC_REG_PACKET_LEN, dtype='<u1')
     regs[0] = 1
@@ -327,7 +332,7 @@ class AdcDevice(DeviceWrapper):
             start = ADC_SRAM_WRITE_LEN * page
             end = start + ADC_SRAM_WRITE_LEN
             pkt = pktWriteSramAdc(page, data[start:end])
-            p.write(pkt)
+            p.write(pkt.tostring())
     
     def makeTrigLookups(self, demods, p):
         """Update a packet for the ethernet server with SRAM commands to upload Trig lookup tables."""
@@ -345,7 +350,7 @@ class AdcDevice(DeviceWrapper):
                     data.append(d)
             data = np.hstack(data)
             pkt = pktWriteSramAdc(page, data)
-            p.write(pkt)            
+            p.write(pkt.tostring())            
             channel += 2 # two channels per sram packet
             page += 1 # each sram packet writes one page
 
@@ -407,7 +412,7 @@ class AdcDevice(DeviceWrapper):
         p = self.makePacket()
         self.makeFilter(filterFunc, p) # upload filter function
         self.makeTrigLookups(demods, p) # upload trig lookup tables
-        p.write(regs) # send registry packet
+        p.write(regs.tostring()) # send registry packet
         p.timeout(T.Value(1, 's')) # set a conservative timeout
         p.read(ADC_AVERAGE_PACKETS) # read back all packets from average buffer
         
@@ -430,7 +435,7 @@ class AdcDevice(DeviceWrapper):
         p = self.makePacket()
         self.makeFilter(filterFunc, p) # upload filter function
         self.makeTrigLookups(demods, p) # upload trig lookup tables
-        p.write(regs) # send registry packet
+        p.write(regs.tostring()) # send registry packet
         p.timeout(T.Value(1, 's')) # set a conservative timeout
         p.read(1) # read back one demodulation packet
         
@@ -492,7 +497,7 @@ class DacDevice(DeviceWrapper):
             chunk, data = data[:SRAM_WRITE_PKT_LEN*4], data[SRAM_WRITE_PKT_LEN*4:]
             chunk = np.fromstring(chunk, dtype='<u4')
             pkt = pktWriteSram(writePage, chunk)
-            p.write(pkt)
+            p.write(pkt.tostring())
             writePage += 1
 
     def makeMemory(self, data, p, page=0):
@@ -504,7 +509,7 @@ class DacDevice(DeviceWrapper):
         if page:
             data = shiftSRAM(data, page)
         pkt = pktWriteMem(page, data)
-        p.write(pkt)
+        p.write(pkt.tostring())
 
     def load(self, mem, sram, page=0):
         """Create a packet to write Memory and SRAM data to the FPGA."""
@@ -1045,7 +1050,7 @@ class FPGAServer(DeviceServer):
                     found.append(skips[i].name)
                 else:
                     p.destination_mac(dacMAC(i))
-                    p.write(regPing())
+                    p.write(regPing().tostring())
             yield p.send(context=ctx)
 
             # get ID packets from DAC boards
@@ -1055,7 +1060,7 @@ class FPGAServer(DeviceServer):
                     src, dst, eth, data = ans
                     info = processReadback(data)
                     board, build = int(src[-2:], 16), info['build']
-                    devName = '%s FPGA %d' % (name, board)
+                    devName = '%s DAC %d' % (name, board)
                     args = de, port, board, build, devName
                     found.append((devName, args))
                 except T.Error:
@@ -1067,7 +1072,7 @@ class FPGAServer(DeviceServer):
                     found.append(skips[i].name)
                 else:
                     p.destination_mac(adcMAC(i))
-                    p.write(regAdcPing())
+                    p.write(regAdcPing().tostring())
             yield p.send(context=ctx)
 
             # get ID packets from ADC boards
@@ -1089,6 +1094,7 @@ class FPGAServer(DeviceServer):
 
     def deviceWrapper(self, *a, **kw):
         """Build a DAC or ADC device wrapper, depending on the device name"""
+        name = a[-1]
         if 'ADC' in name:
             return AdcDevice(*a, **kw)
         else:

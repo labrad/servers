@@ -67,10 +67,11 @@ class EthernetListener(object):
     """
     def __init__(self, packetFunc):
         self.packetFunc = packetFunc
+        self.listening = False
         self.filters = []
     
     def __call__(self, packet):
-        if all(filter(packet) for filter in self.filters):
+        if self.listening and all(filter(packet) for filter in self.filters):
             self.packetFunc(packet)
     
     def addFilter(self, filter):
@@ -188,16 +189,15 @@ class DirectEthernetProxy(LabradServer):
         except KeyError:
             raise Exception('Adapter not found: %s' % key)
         if 'adapter' in c:
-            raise Exception('cannot connect to new adapter in same context')
+            c['adapter'].removeListener(listener)
+        adapter.addListener(c['listener'])
         c['adapter'] = adapter
         return adapter.name
 
     @setting(3, 'Listen', returns='')
     def listen(self, c):
         """Starts listening for SRAM packets"""
-        adapter = self.getAdapter(c)
-        adapter.addListener(c['listener'])
-        c['listening'] = True
+        c['listener'].listening = True
 
 
     # packet control and buffering
@@ -276,7 +276,6 @@ class DirectEthernetProxy(LabradServer):
         if isinstance(data, str):
             data = np.fromstring(data, dtype='uint8')
         else:
-            raise Exception('not allowed.  unclear how real direct ethernet handles words.')
             data = data.asarray.astype('uint8')
         pkt = (src, dest, typ, data)
         adapter.send(pkt)
