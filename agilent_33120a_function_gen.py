@@ -39,7 +39,7 @@ from struct import unpack
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 class AgilentFunctionGenerator(GPIBManagedServer):
-    name = 'Agilent 33120A Function Generator'
+    name = 'Agilent 33120A Generator'
     deviceName = 'HEWLETT-PACKARD 33120A'
     @setting(11,'Set DC', f='v[Volts]', returns='')
     def set_dc_waveform(self, c,f=0):
