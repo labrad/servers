@@ -18,7 +18,7 @@
 """
 ### BEGIN NODE INFO
 [info]
-name = Agilent 33120a function generator
+name = Agilent 33120a generator
 version = 1.0
 description = Controls Agilent 33120a function generator
 
@@ -39,7 +39,7 @@ from struct import unpack
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 class AgilentFunctionGenerator(GPIBManagedServer):
-    name = 'Agilent 33120A Generator'
+    name = 'Agilent 33120a generator'
     deviceName = 'HEWLETT-PACKARD 33120A'
     @setting(11,'Set DC', f='v[Volts]', returns='')
     def set_dc_waveform(self, c,f=0):
