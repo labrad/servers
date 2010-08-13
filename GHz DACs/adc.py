@@ -3,6 +3,7 @@ import numpy as np
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 from labrad.devices import DeviceWrapper
+from labrad import types as T
 
 
 DEMOD_CHANNELS = 4
@@ -93,7 +94,7 @@ class AdcDevice(DeviceWrapper):
     """
     
     @inlineCallbacks
-    def connect(self, de, port, board, build, name):
+    def connect(self, name, de, port, board, build):
         """Establish a connection to the board."""
         print 'connecting to ADC board: %s (build #%d)' % (macFor(board), build)
 

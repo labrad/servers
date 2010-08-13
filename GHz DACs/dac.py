@@ -3,6 +3,7 @@ import numpy as np
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 from labrad.devices import DeviceWrapper
+from labrad import types as T
 
 
 REG_PACKET_LEN = 56
@@ -176,7 +177,7 @@ class DacDevice(DeviceWrapper):
     """
     
     @inlineCallbacks
-    def connect(self, de, port, board, build, name):
+    def connect(self, name, de, port, board, build):
         """Establish a connection to the board."""
         print 'connecting to DAC board: %s (build #%d)' % (macFor(board), build)
 
@@ -194,7 +195,7 @@ class DacDevice(DeviceWrapper):
         # set up our context with the ethernet server
         p = self.makePacket()
         p.connect(port)
-        p.require_length(DAC_READBACK_LEN)
+        p.require_length(READBACK_LEN)
         p.destination_mac(self.MAC)
         p.require_source_mac(self.MAC)
         p.timeout(self.timeout)
