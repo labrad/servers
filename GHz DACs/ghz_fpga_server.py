@@ -46,6 +46,8 @@ from labrad.server import setting
 
 import adc
 import dac
+from util import TimedLock
+
 
 NUM_PAGES = 2
 
@@ -98,517 +100,6 @@ ADC_SRAM_WRITE_LEN = 1024
 # TODO: when running adc boards in demodulation (streaming mode) it will be extremely important to check counters to verify that there is no packet loss
 
 
-def littleEndian(data, bytes=4):
-    return [(data >> ofs) & 0xFF for ofs in (0, 8, 16, 24)[:bytes]]
-
-# functions to register packets for DAC boards
-
-def regPing():
-    regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
-    regs[0] = 0
-    regs[1] = 1
-    return regs    
-
-def regDebug(word1, word2, word3, word4):
-    regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
-    regs[0] = 2
-    regs[1] = 1
-    regs[13:17] = littleEndian(word1)
-    regs[17:21] = littleEndian(word2)
-    regs[21:25] = littleEndian(word3)
-    regs[25:29] = littleEndian(word4)
-    return regs
-    
-def regRunSram(startAddr, endAddr, loop=True, blockDelay=0, sync=249):
-    regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
-    regs[0] = (3 if loop else 4)
-    regs[1] = 0
-    regs[13:16] = littleEndian(startAddr, 3)
-    regs[16:19] = littleEndian(endAddr-1 + SRAM_DELAY_LEN * blockDelay, 3)
-    regs[19] = blockDelay
-    regs[45] = sync
-    return regs
-
-def regClockPolarity(chan, invert):
-    ofs = getCommand({'A': (4, 0), 'B': (5, 1)}, chan)
-    regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
-    regs[0] = 0
-    regs[1] = 1
-    regs[46] = (1 << ofs[0]) + ((invert & 1) << ofs[1])
-    return regs
-
-def regPllReset():
-    regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
-    regs[0] = 0
-    regs[1] = 1
-    regs[46] = 0x80
-    return regs
-
-def regPllQuery():
-    return regPing()
-
-def regSerial(op, data):
-    regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
-    regs[0] = 0
-    regs[1] = 1
-    regs[47] = op
-    regs[48:51] = littleEndian(data, 3)
-    return regs
-
-def regI2C(data, read, ack):
-    assert len(data) == len(read) == len(ack), "data, read and ack must have same length for I2C"
-    assert len(data) <= 8, "Cannot send more than 8 I2C data bytes"
-    regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
-    regs[0] = 0
-    regs[1] = 2
-    regs[2] = 1 << (8 - len(data))
-    regs[3] = sum(((r & 1) << (7 - i)) for i, r in enumerate(read))
-    regs[4] = sum(((a & a) << (7 - i)) for i, a in enumerate(ack))
-    regs[12:12-len(data):-1] = data
-    return regs
-
-def regRun(page, slave, delay, blockDelay=None, sync=249):
-    regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
-    regs[0] = 1 + (page << 7) # run memory in specified page
-    regs[1] = 3 # stream timing data
-    regs[13:15] = littleEndian(reps, 2)
-    if blockDelay is not None:
-        regs[19] = blockDelay # for boards running multi-block sequences
-    regs[43] = int(slave)
-    regs[44] = int(delay)
-    regs[45] = sync
-    return regs
-
-def regIdle(delay):
-    regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
-    regs[0] = 0 # do not start
-    regs[1] = 0 # no readback
-    regs[43] = 3 # IDLE mode
-    regs[44] = int(delay) # board delay
-    return regs
-
-def processReadback(resp):
-    a = np.fromstring(resp, dtype='<u1')
-    return {
-        'build': a[51],
-        'serDAC': a[56],
-        'noPllLatch': (a[58] & 0x80) > 0,
-        'ackoutI2C': a[61],
-        'I2Cbytes': a[69:61:-1],
-    }
-
-def pktWriteSram(page, data):
-    assert 0 <= page < SRAM_WRITE_PAGES, "SRAM page out of range: %d" % page 
-    data = np.asarray(data)
-    pkt = np.zeros(1026, dtype='<u1')
-    pkt[0] = (page >> 0) & 0xFF
-    pkt[1] = (page >> 8) & 0xFF
-    pkt[2:2+len(data)*4:4] = (data >> 0) & 0xFF
-    pkt[3:3+len(data)*4:4] = (data >> 8) & 0xFF
-    pkt[4:4+len(data)*4:4] = (data >> 16) & 0xFF
-    pkt[5:5+len(data)*4:4] = (data >> 24) & 0xFF
-    #a, b, c, d = littleEndian(data)
-    #pkt[2:2+len(data)*4:4] = a
-    #pkt[3:3+len(data)*4:4] = b
-    #pkt[4:4+len(data)*4:4] = c
-    #pkt[5:5+len(data)*4:4] = d
-    return pkt
-
-def pktWriteMem(page, data):
-    data = np.asarray(data)
-    pkt = np.zeros(769, dtype='<u1')
-    pkt[0] = page
-    pkt[1:1+len(data)*3:3] = (data >> 0) & 0xFF
-    pkt[2:2+len(data)*3:3] = (data >> 8) & 0xFF
-    pkt[3:3+len(data)*3:3] = (data >> 16) & 0xFF
-    #a, b, c = littleEndian(data, 3)
-    #pkt[1:1+len(data)*3:3] = a
-    #pkt[2:2+len(data)*3:3] = b
-    #pkt[3:3+len(data)*3:3] = c
-    return pkt
-
-
-# functions to register packets for ADC boards
-
-def regAdcPing():
-    regs = np.zeros(ADC_REG_PACKET_LEN, dtype='<u1')
-    regs[0] = 1
-    return regs
-
-def regAdcPllQuery():
-    regs = np.zeros(ADC_REG_PACKET_LEN, dtype='<u1')
-    regs[0] = 1
-    return regs
-
-def regAdcSerial(bits):
-    regs = np.zeros(ADC_REG_PACKET_LEN, dtype='<u1')
-    regs[0] = 6
-    regs[3:6] = littleEndian(bits, 3)
-    return regs
-
-def regAdcRecalibrate():
-    regs = np.zeros(ADC_REG_PACKET_LEN, dtype='<u1')
-    regs[0] = 7
-    return regs
-
-def regAdcRun(mode, reps, filterFunc, filterStretchAt, filterStretchLen, demods):
-    regs = np.zeros(ADC_REG_PACKET_LEN, dtype='<u1')
-    regs[0] = mode # average mode, autostart
-    regs[7:9] = littleEndian(reps, 2)
-    
-    regs[9:11] = littleEndian(len(filterFunc), 2)
-    regs[11:13] = littleEndian(filterStretchAt, 2)
-    regs[13:15] = littleEndian(filterStretchLen, 2)
-    
-    for i in range(ADC_DEMOD_CHANNELS):
-        if i not in demods:
-            continue
-        addr = 15 + 4*i
-        regs[addr:addr+2] = littleEndian(demods[i]['dphi'], 2)
-        regs[addr+2:addr+4] = littleEndian(demods[i]['phi0'], 2)
-    return regs
-
-
-def processReadbackAdc(resp):
-    a = np.fromstring(resp, dtype='<u1')
-    return {
-        'build': a[0],
-        'noPllLatch': a[1] > 0,
-    }
-
-def pktWriteSramAdc(page, data):
-    assert 0 <= page < ADC_SRAM_WRITE_PAGES, 'SRAM page out of range: %d' % page 
-    data = np.asarray(data)
-    pkt = np.zeros(1026, dtype='<u1')
-    pkt[0:2] = littleEndian(page, 2)
-    pkt[2:2+len(data)] = data
-    return pkt
-
-
-# device wrappers
-
-class AdcDevice(DeviceWrapper):
-    """Manages communication with a single GHz ADC board.
-    
-    All communication happens through the direct ehternet server,
-    and we set up one unique context to use for talking to each board.
-    """
-    
-    @inlineCallbacks
-    def connect(self, de, port, board, build, name):
-        """Establish a connection to the board."""
-        print 'connecting to ADC board: %s (build #%d)' % (adcMAC(board), build)
-
-        self.server = de
-        self.ctx = de.context()
-        self.port = port
-        self.board = board
-        self.build = build
-        self.MAC = adcMAC(board)
-        self.devName = name
-        self.serverName = de._labrad_name
-        self.timeout = T.Value(1, 's')
-
-        # set up our context with the ethernet server
-        p = self.makePacket()
-        p.connect(port)
-        #p.require_length(70)
-        # ADC boards send packets with different lengths:
-        # - register readback: 46 bytes
-        # - demodulator output: 48 bytes
-        # - average readout: 1024 bytes
-        p.destination_mac(self.MAC)
-        p.require_source_mac(self.MAC)
-        p.timeout(self.timeout)
-        p.listen()
-        yield p.send()
-    
-    def makePacket(self):
-        """Create a new packet to be sent to the ethernet server for this device."""
-        return self.server.packet(context=self.ctx)
-    
-    def makeFilter(self, data, p):
-        """Update a packet for the ethernet server with SRAM commands to upload the filter function."""
-        for page in range(4):
-            start = ADC_SRAM_WRITE_LEN * page
-            end = start + ADC_SRAM_WRITE_LEN
-            pkt = pktWriteSramAdc(page, data[start:end])
-            p.write(pkt.tostring())
-    
-    def makeTrigLookups(self, demods, p):
-        """Update a packet for the ethernet server with SRAM commands to upload Trig lookup tables."""
-        page = 4
-        channel = 0
-        while channel < ADC_DEMOD_CHANNELS:
-            data = []
-            for ofs in [0, 1]:
-                ch = channel + ofs
-                for func in ['cosine', 'sine']:
-                    if ch in demods:
-                        d = demods[ch][func]
-                    else:
-                        d = np.zeros(256, dtype='<u1')
-                    data.append(d)
-            data = np.hstack(data)
-            pkt = pktWriteSramAdc(page, data)
-            p.write(pkt.tostring())            
-            channel += 2 # two channels per sram packet
-            page += 1 # each sram packet writes one page
-
-    
-    @inlineCallbacks
-    def sendSRAM(self, filter, demods={}):
-        """Write SRAM data to the FPGA."""
-        p = self.makePacket()
-        self.makeFilter(filter, p)
-        self.makeTrigLookups(demods, p)
-        yield p.send()
-    
-    
-    @inlineCallbacks
-    def sendRegisters(self, regs, readback=True):
-        """Send a register packet and optionally readback the result.
-
-        If readback is True, the result packet is returned as a string of bytes.
-        """
-        if not isinstance(regs, np.ndarray):
-            regs = np.asarray(regs, dtype='<u1')
-        p = self.makePacket()
-        p.write(regs.tostring())
-        if readback:
-            p.read()
-        ans = yield p.send()
-        if readback:
-            src, dst, eth, data = ans.read
-            returnValue(data)
-    
-    @inlineCallbacks
-    def runSerial(self, data):
-        """Run a command or list of commands through the serial interface."""
-        for d in listify(data):
-            regs = regAdcSerial(data)
-            yield self.sendRegisters(regs)
-    
-    @inlineCallbacks
-    def recalibrate(self):
-        regs = regAdcRecalibrate()
-        yield self.sendRegisters(regs, readback=False)
-    
-    @inlineCallbacks
-    def initPLL(self):
-        yield self.runSerial([0x1FC093, 0x1FC092, 0x100004, 0x000C11])
-        
-    @inlineCallbacks
-    def queryPLL(self):
-        regs = regAdcPllQuery()
-        r = yield self.sendRegisters(pkt)
-        returnValue(processReadbackAdc(r)['noPllLatch'])
-        
-    @inlineCallbacks
-    def runAverage(filterFunc, filterStretchLen, filterStretchAt, demods):
-        # build registry packet
-        regs = regAdcRun(2, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
-
-        # create packet for the ethernet server
-        p = self.makePacket()
-        self.makeFilter(filterFunc, p) # upload filter function
-        self.makeTrigLookups(demods, p) # upload trig lookup tables
-        p.write(regs.tostring()) # send registry packet
-        p.timeout(T.Value(1, 's')) # set a conservative timeout
-        p.read(ADC_AVERAGE_PACKETS) # read back all packets from average buffer
-        
-        ans = yield p.send()
-                
-        # parse the packets out and return data
-        vals = []
-        for src, dst, eth, data in ans.read:
-            vals.append(np.fromstring(data, dtype='<i2'))
-        IQs = np.hstack(vals).reshape(-1, 2)
-        returnValue(IQs)
-        
-    
-    @inlineCallbacks
-    def runDemod(filterFunc, filterStretchLen, filterStretchAt, demods):
-        # build registry packet
-        regs = regAdcRun(4, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
-
-        # create packet for the ethernet server
-        p = self.makePacket()
-        self.makeFilter(filterFunc, p) # upload filter function
-        self.makeTrigLookups(demods, p) # upload trig lookup tables
-        p.write(regs.tostring()) # send registry packet
-        p.timeout(T.Value(1, 's')) # set a conservative timeout
-        p.read(1) # read back one demodulation packet
-        
-        ans = yield p.send()
-                
-        # parse the packets out and return data
-        src, dst, eth, data = ans.read
-        vals = np.fromstring(data[:44], dtype='<i2')
-        IQs = vals.reshape(-1, 2)
-        Irng, Qrng = [ord(i) for i in data[46:48]]
-        twosComp = lambda i: i if i < 0x8 else i - 0x10
-        Imax = twosComp((Irng >> 4) & 0xF) # << 12
-        Imin = twosComp((Irng >> 0) & 0xF) # << 12
-        Qmax = twosComp((Qrng >> 4) & 0xF) # << 12
-        Qmin = twosComp((Qrng >> 0) & 0xF) # << 12
-        returnValue((IQs, (Imax, Imin, Qmax, Qmin)))
-
-
-class DacDevice(DeviceWrapper):
-    """Manages communication with a single GHz DAC board.
-
-    All communication happens through the direct ethernet server,
-    and we set up one unique context to use for talking to each board.
-    """
-    
-    @inlineCallbacks
-    def connect(self, de, port, board, build, name):
-        """Establish a connection to the board."""
-        print 'connecting to DAC board: %s (build #%d)' % (dacMAC(board), build)
-
-        self.server = de
-        self.ctx = de.context()
-        self.port = port
-        self.board = board
-        self.build = build
-        self.MAC = dacMAC(board)
-        self.devName = name
-        self.serverName = de._labrad_name
-        self.timeout = T.Value(1, 's')
-
-        # set up our context with the ethernet server
-        p = self.makePacket()
-        p.connect(port)
-        p.require_length(DAC_READBACK_LEN)
-        p.destination_mac(self.MAC)
-        p.require_source_mac(self.MAC)
-        p.timeout(self.timeout)
-        p.listen()
-        yield p.send()
-
-    def makePacket(self):
-        """Create a new packet to be sent to the ethernet server for this device."""
-        return self.server.packet(context=self.ctx)
-
-    def makeSRAM(self, data, p, page=0):
-        """Update a packet for the ethernet server with SRAM commands."""
-        writePage = page * SRAM_PAGE_LEN / SRAM_WRITE_PKT_LEN
-        while len(data) > 0:
-            chunk, data = data[:SRAM_WRITE_PKT_LEN*4], data[SRAM_WRITE_PKT_LEN*4:]
-            chunk = np.fromstring(chunk, dtype='<u4')
-            pkt = pktWriteSram(writePage, chunk)
-            p.write(pkt.tostring())
-            writePage += 1
-
-    def makeMemory(self, data, p, page=0):
-        """Update a packet for the ethernet server with Memory commands."""
-        if len(data) > MEM_PAGE_LEN:
-            msg = "Memory length %d exceeds maximum memory length %d (one page)."
-            raise Exception(msg % (len(data), MEM_PAGE_LEN))
-        # translate SRAM addresses for higher pages
-        if page:
-            data = shiftSRAM(data, page)
-        pkt = pktWriteMem(page, data)
-        p.write(pkt.tostring())
-
-    def load(self, mem, sram, page=0):
-        """Create a packet to write Memory and SRAM data to the FPGA."""
-        p = self.makePacket()
-        self.makeMemory(mem, p, page=page)
-        self.makeSRAM(sram, p, page=page)
-        return p
-    
-    def collect(self, nPackets, timeout, triggerCtx):
-        """Create a packet to collect data on the FPGA."""
-        p = self.makePacket()
-        p.timeout(T.Value(timeout, 's'))
-        p.collect(nPackets)
-        # note that if a timeout error occurs the remainder of the packet
-        # is discarded, so that the trigger command will not be sent
-        p.send_trigger(triggerCtx)
-        return p
-    
-    def trigger(self, triggerCtx):
-        """Create a packet to trigger the board group context."""
-        return self.makePacket().send_trigger(triggerCtx)
-    
-    def read(self, nPackets):
-        """Create a packet to read data from the FPGA."""
-        return self.makePacket().read(nPackets)
-            
-    def discard(self, nPackets):
-        """Create a packet to discard data on the FPGA."""
-        return self.makePacket().discard(nPackets)
-
-    def clear(self):
-        """Create a packet to clear the ethernet buffer for this board."""
-        return self.makePacket().clear()
-
-    @inlineCallbacks
-    def sendSRAM(self, data):
-        """Write SRAM data to the FPGA."""
-        p = self.makePacket()
-        self.makeSRAM(data, p)
-        p.send()
-
-    @inlineCallbacks
-    def sendRegisters(self, regs, readback=True):
-        """Send a register packet and optionally readback the result.
-
-        If readback is True, the result packet is returned as a string of bytes.
-        """
-        if not isinstance(regs, np.ndarray):
-            regs = np.asarray(regs, dtype='<u1')
-        p = self.makePacket()
-        p.write(regs.tostring())
-        if readback:
-            p.read()
-        ans = yield p.send()
-        if readback:
-            src, dst, eth, data = ans.read
-            returnValue(data)
-
-    @inlineCallbacks
-    def runI2C(self, pkts):
-        """Run I2C commands on the board."""
-        answer = []
-        for pkt in pkts:
-            while len(pkt):
-                data, pkt = pkt[:8], pkt[8:]
-    
-                bytes = [(b if b <= 0xFF else 0) for b in data]
-                read = [b & I2C_RB for b in data]
-                ack = [b & I2C_ACK for b in data]
-                
-                regs = regI2C(bytes, read, ack)
-                r = yield self.sendRegisters(regs)
-                ansBytes = processReadback(r)['I2Cbytes'][-len(data):] # readout data wrapped around to end
-                
-                answer += [b for b, r in zip(ansBytes, read) if r]
-        returnValue(answer)
-
-    @inlineCallbacks
-    def runSerial(self, op, data):
-        """Run a command or list of commands through the serial interface."""
-        answer = []
-        for d in listify(data):
-            regs = regSerial(op, d)
-            r = yield self.sendRegisters(regs)
-            answer += [processReadback(r)['serDAC']]
-        returnValue(answer)
-        
-    @inlineCallbacks
-    def initPLL(self):
-        yield self.runSerial(1, [0x1FC093, 0x1FC092, 0x100004, 0x000C11])
-        pkt = regRunSram(0, 0, loop=False)
-        yield self.sendRegisters(pkt, readback=False)
-        
-    @inlineCallbacks
-    def queryPLL(self):
-        regs = regPllQuery()
-        r = yield self.sendRegisters(pkt)
-        returnValue(processReadback(r)['noPllLatch'])
 
 
 class TimeoutError(Exception):
@@ -626,14 +117,17 @@ class BoardGroup(object):
     on some set of the boards in the group, new sequence data for the next
     point can be uploaded.
     """
-    def __init__(self, fpgaServer, server, port):
+    Lock = TimedLock
+    
+    def __init__(self, fpgaServer, server, port, name):
         self._nextPage = 0
-        Lock = TimedLock #defer.DeferredLock
-        self.pageLocks = [Lock() for _ in range(NUM_PAGES)]
-        self.runLock = Lock()
-        self.readLock = Lock()
+        self.pageLocks = [self.Lock() for _ in range(NUM_PAGES)]
+        self.runLock = self.Lock()
+        self.readLock = self.Lock()
         self.server = server
         self.port = port
+        self.name = name
+        self.cxn = server._cxn
         self.ctx = server.context()
         self.setupState = set()
         self.runWaitTimes = []
@@ -649,65 +143,126 @@ class BoardGroup(object):
         self.boardOrder = boards
         self.boardDelays = delays
     
+    @inlineCallbacks
+    def detectBoards(self):
+        """Detect boards on the ethernet adapter managed by this board group.
+        
+        The autodetect operation is guarded by board group locks so that it
+        will not conflict with sequences running on this board group.
+        """
+        try:
+            # acquire all locks so we can ping boards without
+            # interfering with board group operations
+            for pageLock in self.pageLocks:
+                yield pageLock.acquire()
+            yield self.runLock.acquire()
+            yield self.readLock.acquire()
+            
+            detections = [func(i) for i in range(256)
+                                  for func in (self.detectDAC, self.detectADC)]
+            answer = yield defer.DeferredList(detections, consumeErrors=True)
+            found = [result for success, result in answer if success]
+            returnValue(found)
+        finally:
+            # release all locks once we're done with autodetection
+            for pageLock in self.pageLocks:
+                pageLock.release()
+            self.runLock.release()
+            self.readLock.release()
+    
+    
+    @inlineCallbacks
+    def detectBoard(self, mac, pkt, readLen, timeout=0.1):
+        """Try to detect a board at a particular MAC address.
+        
+        The given packet will be sent to the specified mac address.
+        We then listen for a response of the specified length.
+        If a response is received within the specified timeout, the packet
+        data will be returned, otherwise, an exception will be raised.
+        A new context is created for this operation and then expired.
+        """
+        ctx = self.server.context()
+        p = self.server.packet()
+        p.connect(self.port)
+        p.require_source_mac(mac)
+        p.require_length(readLen)
+        p.timeout(T.Value(timeout, 's'))
+        p.listen()
+        p.destination_mac(mac)
+        p.write(pkt.tostring())
+        p.read()
+        try:
+            ans = yield p.send(context=ctx)
+        finally:
+            # expire the context, even if there was a timeout error
+            yield self.cxn.manager.expire_context(self.server.ID, context=ctx)
+        src, dst, eth, data = ans.read
+        returnValue((src, dst, eth, data))
+    
+    
+    @inlineCallbacks
+    def detectDAC(self, board):
+        """Try to detect a DAC board on this board group.
+        
+        If the board is detected, the resulting deferred will fire with
+        a tuple containing the device name and arguments to be passed to
+        the DeviceWrapper when it is constructed.
+        """
+        mac = dac.macFor(board)
+        pkt = dac.regPing()
+        len = dac.READBACK_LEN
+        ans = yield self.detectBoard(mac, pkt, len)
+        src, dst, eth, data = ans
+        info = dac.processReadback(data)
+        build = info['build']
+        devName = '%s DAC %d' % (self.name, board)
+        args = self.server, self.port, board, build, devName
+        returnValue((devName, args))
+
+
+    @inlineCallbacks
+    def detectADC(self, board):
+        """Try to detect an ADC board on this board group.
+
+        If the board is detected, the resulting deferred will fire with
+        a tuple containing the device name and arguments to be passed to
+        the DeviceWrapper when it is constructed.
+        """
+        mac = adc.macFor(board)
+        pkt = adc.regAdcPing()
+        len = adc.READBACK_LEN
+        ans = yield self.detectBoard(mac, pkt, len)
+        src, dst, eth, data = ans
+        info = adc.processReadback(data)
+        build = info['build']
+        devName = '%s ADC %d' % (self.name, board)
+        args = self.server, self.port, board, build, devName
+        returnValue((devName, args))
+    
+    
     def nextPage(self):
         """Get the next page to use for memory and SRAM upload."""
         page = self._nextPage
         self._nextPage = (self._nextPage + 1) % NUM_PAGES
         return page
 
-    def makeRunPackets(self, data):
-        """Create a function to make run packets.
-        
-        This allows us to do most of the work in advance,
-        only leaving the final packet creation for the last
-        moment, when we know how many triggers to expect
-        from the previous run.
-        """
-        wait = self.server.packet(context=self.ctx)
-        run = self.server.packet(context=self.ctx)
-        both = self.server.packet(context=self.ctx)
-        # wait for triggers and discard them
-        wait.wait_for_trigger(0, key='nTriggers')
-        both.wait_for_trigger(0, key='nTriggers')
-        # run all boards
-        for MAC, bytes in data:
-            run.destination_mac(MAC)
-            run.write(bytes)
-            both.destination_mac(MAC)
-            both.write(bytes)
-        return wait, run, both
-
-    def makeClearPackets(self, devs, collectResults):
-        """Create packets to recover from a timeout error.
-        
-        We clear the packet buffer for all boards, whether or not
-        they succeeded.  In addition, we create a helpful message
-        to return to the user, indicating which boards failed.
-        """
-        clearPkts = [d[0].clear() for d in devs]
-        results = sorted((d[0].devName, r[0]) for d, r in zip(devs, collectResults))
-        msgs = ['Some boards failed:']
-        for n, s in results:
-            msg = '%s: OK' if s else '%s: timeout!'
-            msgs.append(msg % n)
-        return clearPkts, '\n'.join(msgs)
-
-    def makePackets(self, devs, timingOrder, page, reps, sync=249, multiBlockBoards=[]):
+    def makePackets(self, devs, timingOrder, page, reps, sync=249):
         """Make packets to run a sequence on this board group.
 
         Running a sequence has 4 stages:
         - Load memory and SRAM into all boards in parallel.
           If possible, this is done in the background using a separate
-          page while another sequence is running.  We load in reverse
-          order to ensure that all loads are done before starting.
+          page while another sequence is running.
 
         - Run sequence by firing a single packet that starts all boards.
-          We start the master last, to ensure synchronization.
+          To ensure synchronization the slaves are started first, in
+          daisy-chain order, followed at the end by the master.
 
         - Collect timing data to ensure that the sequence is finished.
           We instruct the direct ethernet server to collect the packets
-          but not send them yet.  Once collected, we can immediately run the
-          next sequence if one was uploaded into the next page.
+          but not send them yet.  Once collected, direct ethernet triggers
+          are used to immediately start the next sequence if one was
+          loaded into the next page.
 
         - Read timing data.
           Having started the next sequence (if one was waiting) we now
@@ -715,7 +270,9 @@ class BoardGroup(object):
           process it and return it.
 
         This function prepares the LabRAD packets that will be sent for
-        each of these steps, but does not actually send anything.
+        each of these steps, but does not actually send anything.  By
+        preparing these packets in advance we save time later when we
+        are in the time-critical pipeline sections
         """
         # dictionary of devices to be run
         deviceInfo = dict((dev[0].devName, dev) for dev in devs)
@@ -724,68 +281,78 @@ class BoardGroup(object):
         loadPkts = []
         for board in self.boardOrder:
             if board in deviceInfo:
-                dev, mem, sram, slave, delay = deviceInfo[board]
+                dev, mem, sram = deviceInfo[board]
                 if not len(loadPkts):
                     # this will be the master, so add delays before SRAM
-                    new_mem = []
-                    cycles = int(MASTER_SRAM_DELAY * 25) & 0x0FFFFF
-                    delay_cmd = 0x300000 + cycles
-                    for cmd in mem:
-                        if getOpcode(cmd) == 0xC: # call SRAM
-                            new_mem.append(delay_cmd) # delay
-                        new_mem.append(cmd)
-                    mem = new_mem
+                    mem = addMasterDelay(mem)
+                if isinstance(sram, tuple):
+                    sram, delay = sram
                 loadPkts.append(dev.load(mem, sram, page))
         
-        # run all boards
-        master = []
-        slaves = []
-        # send a run packet to each board in the board group, in the following order:
-        # - slave and idle boards in daisy-chain order
-        # - master board last
+        # run all boards (master last)
+        boards = []
         for board, delay in zip(self.boardOrder, self.boardDelays):
             if board in deviceInfo:
                 # this board will run
-                dev, mem, sram, slave_dummy, delay_dummy = deviceInfo[board]
-                slave = len(master) > 0 # the first board is master
-                group = slaves if slave else master
+                dev, mem, sram = deviceInfo[board]
                 # check for boards running multi-block sequences
-                if dev in multiBlockBoards:
-                    if isinstance(delay_dummy, tuple):
-                        delay_dummy, blockDelay = delay_dummy
+                if isinstance(sram, tuple):
+                    sram, blockDelay = sram
                 else:
                     blockDelay = None
-                regs = regRun(page, slave, delay, blockDelay=blockDelay, sync=sync)
-                group.append((dev.MAC, regs.tostring()))
+                slave = len(boards) > 0 # the first board is master
+                regs = dac.regRun(page, slave, delay, blockDelay=blockDelay, sync=sync)
+                boards.append((dev, regs))
             elif len(master):
                 # this board is after the master, but will
                 # not itself run, so we put it in idle mode
-                regs = regIdle(delay)
-                # look up the device wrapper for an arbitrary device in the board group
-                dev = self.fpgaServer.devices[board]
-                slaves.append((dev.MAC, regs.tostring()))
-        data = slaves + master # send to the master board at the end
-        runPkts = self.makeRunPackets(data)
+                dev = self.fpgaServer.devices[board] # look up the device wrapper
+                regs = dac.regIdle(delay)
+                boards.append((dev, regs))
+        boards = boards[1:] + boards[0] # move master to the end
+        runPkts = self.makeRunPackets(boards)
         
         # collect and read (or discard) timing results
         collectPkts = []
-        triggerPkts = []
         readPkts = []
-        for dev, mem, sram, slave, delay in devs:
+        for dev, mem, sram in devs:
             nTimers = timerCount(mem)
             N = reps * nTimers / TIMING_PACKET_LEN
             seqTime = TIMEOUT_FACTOR * (sequenceTime(mem) * reps) + 1
-            
-            # if the collect times out (which can happen if a packet is dropped, for example)
-            # we will have to send a trigger signal later to recover from the error, which
-            # is why the trigger packet is created here. 
+             
             collectPkts.append(dev.collect(N, seqTime, self.ctx))
-            triggerPkts.append(dev.trigger(self.ctx))
             
             wantResults = timingOrder is None or dev.devName in timingOrder
             readPkts.append(dev.read(N) if wantResults else dev.discard(N))
 
-        return loadPkts, runPkts, collectPkts, triggerPkts, readPkts
+        return loadPkts, runPkts, collectPkts, readPkts
+
+    def makeRunPackets(self, data):
+        """Create packets to run a set of boards.
+        
+        There are two options as to how this can work, depending on
+        whether the setup state from the previous run is the same as
+        for this run.  If no changes to the setup state are required,
+        then we can wait for triggers and immediately start the next
+        run; this is what the 'both' packet does.  If the setup state
+        has changed, we must wait for triggers, then send setup packets,
+        and then start the next run.  This two-stage operation is what
+        the 'wait' and 'run' packets do.  We create both here because
+        we can't tell until it is our turn in the pipe which method
+        will be used.
+        """
+        wait = self.server.packet(context=self.ctx)
+        run = self.server.packet(context=self.ctx)
+        both = self.server.packet(context=self.ctx)
+        # wait for triggers and discard them
+        wait.wait_for_trigger(0, key='nTriggers')
+        both.wait_for_trigger(0, key='nTriggers')
+        # run all boards
+        for dev, regs in data:
+            mac, bytes = dev.MAC, regs.tostring()
+            run.destination_mac(mac).write(bytes)
+            both.destination_mac(mac).write(bytes)
+        return wait, run, both
 
     @inlineCallbacks
     def sendAll(self, packets, info, infoList=None):
@@ -811,7 +378,7 @@ class BoardGroup(object):
         return np.fromstring(data, dtype='<u2')
 
     @inlineCallbacks
-    def run(self, devs, reps, setupPkts, getTimingData, timingOrder, sync, setupState):
+    def run(self, devs, reps, setupPkts, setupState, sync, getTimingData, timingOrder):
         """Run a sequence on this board group."""
         if not all((d[0].serverName == self.server._labrad_name) and
                    (d[0].port == self.port) for d in devs):
@@ -819,36 +386,28 @@ class BoardGroup(object):
         boardOrder = [d[0].devName for d in devs]
 
         # check whether this is a multiblock sequence
-        multiBlockBoards = [dev for dev, mem, sram, slave, delay in devs
-                                if isinstance(sram, tuple)]
-        if len(multiBlockBoards):
+        if any(isinstance(sram, tuple) for dev, mem, sram in devs):
             print 'Multi-block SRAM sequence'
             # update sram calls in memory sequences to the correct addresses
+            # also pad sram blocks to take up full space and disable paging
             def fixSRAM(dev):
-                dev, mem, sram, slave, delay = dev
-                mem = fixSRAMaddresses(mem, sram, dev)
-                return dev, mem, sram, slave, delay
+                dev, mem, sram = dev
+                mem = fixSRAMaddresses(mem, sram)
+                if isinstance(sram, tuple):
+                    block0, block1, delay = sram
+                    data = '\x00' * (SRAM_BLOCK0_LEN*4 - len(block0)) + block0 + block1
+                    sram = (data, delay)
+                return dev, mem, sram
             devs = [fixSRAM(dev) for dev in devs]
             
-            # pad sram blocks to take up full space (this will disable paging)
-            def padSRAM(dev):
-                dev, mem, sram, slave, delay = dev
-                if isinstance(sram, tuple):
-                    delay = (delay, sram[2])
-                    sram = '\x00' * (SRAM_BLOCK0_LEN*4 - len(sram[0])) + sram[0] + sram[1]
-                return dev, mem, sram, slave, delay
-            devs = [padSRAM(dev) for dev in devs]
-            
         # check whether this sequence will fit in just one page
-        pageable = all(maxSRAM(mem) <= SRAM_PAGE_LEN
-                       for dev, mem, sram, slave, delay in devs)
-        if pageable:
-            # run on just a single page
+        if all(maxSRAM(mem) <= SRAM_PAGE_LEN for dev, mem, sram in devs):
+            # shorten SRAM to at most one page
+            devs = [(dev, mem, sram if sram is None else sram[:SRAM_PAGE_LEN*4])
+                    for dev, mem, sram in devs]
+            # lock just one page
             page = self.nextPage()
             pageLocks = [self.pageLocks[page]]
-            # shorten SRAM to at most one page
-            devs = [(dev, mem, sram if sram is None else sram[:SRAM_PAGE_LEN*4], slave, delay)
-                    for dev, mem, sram, slave, delay in devs]
         else:
             # start on page 0 and lock all pages
             print 'Paging off: SRAM too long.'
@@ -859,32 +418,35 @@ class BoardGroup(object):
         sendAll = self.sendAll
         
         # prepare packets
-        loadPkts, runPkts, collectPkts, triggerPkts, readPkts = self.makePackets(
-            devs, timingOrder, page, reps, sync, multiBlockBoards=multiBlockBoards)
+        pkts = self.makePackets(devs, timingOrder, page, reps, sync)
+        loadPkts, runPkts, collectPkts, readPkts = pkts
         
         try:
-            for pageLock in pageLocks:
-                yield pageLock.acquire()
-
             # stage 1: load
-            sendDone = sendAll(loadPkts, 'Load', boardOrder)
-            runNow = runLock.acquire() # get in line for the runlock
+            for pageLock in pageLocks: # lock pages to be written
+                yield pageLock.acquire()
+            loadDone = sendAll(loadPkts, 'Load', boardOrder)
             
             # stage 2: run
+            runNow = runLock.acquire() # get in line to be the next to run
             try:
-                yield sendDone
+                yield loadDone # wait until load is finished
                 yield runNow # now acquire the run lock
-                needSetup = (not setupState) or (not self.setupState) or (not (setupState <= self.setupState))
+                
+                # set the number of triggers, based on the last executed sequence
                 waitPkt, runPkt, bothPkt = runPkts
                 waitPkt['nTriggers'] = self.prevTriggers
                 bothPkt['nTriggers'] = self.prevTriggers
-                self.prevTriggers = len(devs) # set the number of triggers for the next point to wait for
+                self.prevTriggers = len(devs) # store the number of triggers for the next run
+                
+                needSetup = (not setupState) or (not self.setupState) or (not (setupState <= self.setupState))
                 if needSetup:
+                    # we require changes to the setup state
                     r = yield waitPkt.send() # if this fails, something BAD happened!
                     try:
                         yield sendAll(setupPkts, 'Setup')
                         self.setupState = setupState
-                    except:
+                    except Exception:
                         # if there was an error, clear setup state
                         self.setupState = set()
                         raise
@@ -897,43 +459,30 @@ class BoardGroup(object):
                 if len(self.runWaitTimes) > 100:
                     self.runWaitTimes.pop(0)
                     
-                yield readLock.acquire() # make sure we are next in line to read
+                yield readLock.acquire() # wait for our turn to read data
                
-                # collect appropriate number of packets and then trigger other contexts
+                # collect appropriate number of packets and then trigger the run context
                 collectAll = defer.DeferredList([p.send() for p in collectPkts], consumeErrors=True)
             finally:
-                # note that if a timeout error occurs, the inter-context triggers in the
-                # direct ethernet server are not actually sent, so that the next sequence
-                # is here allowed to get in line to run, but their sequence will not execute
-                # until after we clean up from the timeout and send the necessary triggers
+                # by releasing the runLock, we allow the next sequence to send its run packet.
+                # if our collect fails due to a timeout, however, our triggers will not all
+                # be sent to the run context, so that it will stay blocked until after we cleanup
+                # cleanup and send the necessary triggers
                 runLock.release()
             
-            # wait for the collect packets
+            # wait for data to be collected (or timeout)
             results = yield collectAll
         finally:
             for pageLock in reversed(pageLocks):
                 pageLock.release()
-                
-        if not all(success for success, result in results):
-            # recover from timeout::
-            # - clear any packets collected to this point on all boards
-            # - send triggers to run context so that next sequence can execute
-            # - record the error so we can keep track of how often timeouts happen
-            
-            # clear packets from all boards
-            # FIXME: download packets here and process them, e.g. check counters
-            clearPkts, msg = self.makeClearPackets(devs, results)
-            yield sendAll(clearPkts, 'Timeout Recovery', boardOrder)
-            
-            # send trigger packets to unlock stuck device contexts
-            for (success, result), triggerPkt in zip(results, triggerPkts):
-                if not success:
-                    yield triggerPkt.send()
-                        
-            readLock.release()
-            raise TimeoutError(msg)
         
-        # if we get to this point there was no timeout, so go ahead and read data
+        # check for a timeout and recover if necessary
+        if not all(success for success, result in results):
+            yield self.recoverFromTimeout(devs, results)
+            readLock.release()
+            raise TimeoutError(self.timeoutReport(devs, results))
+        
+        # no timeout, so go ahead and read data
         readAll = sendAll(readPkts, 'Read', boardOrder)
         readLock.release()
         results = yield readAll # wait for read to complete
@@ -947,20 +496,36 @@ class BoardGroup(object):
                 timing = []
             returnValue(timing)
 
+    @inlineCallbacks
+    def recoverFromTimeout(self, devs, results):
+        """Recover from a timeout error so that pipelining can proceed.
+        
+        We clear the packet buffer for all boards, whether or not
+        they succeeded.  For boards that failed, we also send a
+        trigger to unlock the run context.
+        """
+        for dev, (success, result) in zip(devs, results):
+            ctx = None if success else self.ctx
+            yield dev[0].clear(triggerCtx=ctx).send()
+        
+    def timeoutReport(self, devs, results):
+        """Create a nice error message explaining which boards timed out."""
+        lines = ['Some boards failed:']
+        for dev, (success, result) in collectResults:
+            line = dev[0].devName + ': ' + ('OK' if success else 'timeout!')
+            lines.append(line)
+        return '\n'.join(lines)
+
+
 
 class FPGAServer(DeviceServer):
-    name = 'GHz DACs'
+    """Server for GHz DAC and ADC boards.
+    """
+    name = 'GHz FPGAs'
     retries = 5
     
     @inlineCallbacks
     def initServer(self):
-        # load board group definitions from the registry
-        # if the key does not exist, set it to an empty list
-        p = self.client.registry.packet()
-        p.cd(['', 'Servers', 'GHz DACs'], True)
-        p.get('boardGroups', True, [], key='boardGroups')
-        ans = yield p.send()
-        self.boardGroupDefs = ans['boardGroups']
         self.boardGroups = {}
         # finish initializing the server
         yield DeviceServer.initServer(self)
@@ -970,23 +535,47 @@ class FPGAServer(DeviceServer):
         c['start_delay'] = []
         c['timing_order'] = None
         c['master_sync'] = 249
-        
+    
+    @inlineCallbacks
+    def loadBoardGroupConfig(self):
+        print 'Loading board group definitions from registry...'
+        p = self.client.registry.packet()
+        p.cd(['', 'Servers', 'GHz FPGAs'], True)
+        p.get('boardGroups', True, [], key='boardGroups')
+        ans = yield p.send()
+        self.boardGroupDefs = ans['boardGroups']
+        print 'Board group definitions loaded.'
+    
         
     @inlineCallbacks
     def findDevices(self):
-        print 'Refreshing...'
+        print 'Refreshing client connection...'
         cxn = self.client
         yield cxn.refresh()
-        found = []
+        
+        yield self.loadBoardGroupConfig()
+        
+        # todo: remove any existing board groups/devices for which no board group is defined
+        
+        boardGroups = []
         for name, server, port, boards, delays in self.boardGroupDefs:
             if server not in cxn.servers:
-                # server not found, remove all devices on this server
+                print "Server '%s' not found." % server
+                # remove any existing devices on this server
                 names = self.devices.keys()
                 for dname in names:
                     dev = self.devices[dname]
                     if dev.serverName == server:
-                        print 'Removing device %s' % dev.devName
+                        print "Removing device '%s'" % dev.devName
                         del self.devices[dname]
+                # remove any existing board groups on this server
+                removals = []
+                for (bgServer, bgPort) in self.boardGroups:
+                    if bgServer == server:
+                        print "Removing board group '%s'." % name
+                        removals.append((bgServer, bgPort))
+                for bg in removals:
+                    del self.boardGroups[bg]
                 continue
 
             print 'Checking %s...' % name
@@ -998,175 +587,37 @@ class FPGAServer(DeviceServer):
             else:
                 ports, names = [], []
             if port not in ports:
+                print "Port %d not found on server '%s'.  Skipping board group '%s'." % (port, server, name)
                 continue
-            MAC = names[list(ports).index(port)][-17:]
 
             # create board group for this link
             if (server, port) not in self.boardGroups:
-                print 'Making board group:', (server, port)
-                bg = self.boardGroups[server, port] = BoardGroup(self, de, port)
+                print "Creating board group '%s': server='%s', port=%d" % (name, server, port)
+                bg = self.boardGroups[server, port] = BoardGroup(self, de, port, name)
             else:
+                print "Board group '%s' exists: server='%s', port=%d." % (name, server, port)
                 bg = self.boardGroups[server, port]
+                bg.name = name # update name, just in case it has been changed
             boards = ['%s FPGA %d' % (name, board) for board in boards]
             yield bg.init(boards, delays)
 
-            # make a list of the boards currently known
-            skips = {}
-            for dname in self.devices:
-                dev = self.devices[dname]
-                if dev.serverName == de._labrad_name and dev.port == port:
-                    skips[dev.MAC] = dev
-            print 'Skipping:', sorted(skips.keys())
-
-            detections = []
-            for i in xrange(256):
-                mac = dacMAC(i)
-                if mac in skips:
-                    found.append(skips[mac].name)
-                else:
-                    detections.append(self.detectDAC(cxn, name, de, port, mac))
-                mac = adcMAC(i)
-                if mac in skips:
-                    found.append(skips[mac].name)
-                else:
-                    detections.append(self.detectADC(cxn, name, de, port, mac))
+            boardGroups.append(bg)
             
-            answer = yield defer.DeferredList(detections, consumeErrors=True)
-            
-            for success, result in answer:
-                if success:
-                    found.append(result)
+        detections = [bg.detectBoards() for bg in boardGroups]
+        answer = yield defer.DeferredList(detections, consumeErrors=True)
+        
+        found = []
+        for boardGroup, (success, result) in zip(boardGroups, answer):
+            if success:
+                print "Devices detected on board group '%s':" % boardGroup.name
+                for devName in result:
+                    print " ", devName
+                found.extend(result)
+            else:
+                print "Autodetection failed on board group '%s':" % boardGroup.name
+                result.printBriefTraceback(elideFrameworkCode=1)
 
-#            # autodetect DAC boards
-#            p = de.packet()
-#            p.connect(port)
-#            p.require_length(DAC_READBACK_LEN)
-#            p.timeout(T.Value(1, 's'))
-#            for MAC in skips:
-#                # do not listen for packets from boards we want to skip
-#                p.reject_source_mac(MAC)
-#            p.listen()
-#
-#            # ping all DAC boards
-#            for i in xrange(256):
-#                mac = dacMAC(i)
-#                if mac in skips:
-#                    found.append(skips[mac].name)
-#                else:
-#                    p.destination_mac(mac)
-#                    p.write(regPing().tostring())
-#            yield p.send(context=ctx)
-#
-#            # get ID packets from DAC boards
-#            while True:
-#                try:
-#                    ans = yield de.read(context=ctx)
-#                    src, dst, eth, data = ans
-#                    if isDacMAC(src):
-#                        info = processReadback(data)
-#                        board, build = int(src[-2:], 16), info['build']
-#                        devName = '%s DAC %d' % (name, board)
-#                        args = de, port, board, build, devName
-#                        found.append((devName, args))
-#                except T.Error:
-#                    # after all boards have responded
-#                    # a timeout error will be thrown
-#                    break
-#            
-#            # expire this context to stop listening
-#            yield cxn.manager.expire_context(de.ID, context=ctx)
-#
-#
-#            # autodetect ADC boards
-#            p = de.packet()
-#            p.connect(port)
-#            p.require_length(ADC_READBACK_LEN)
-#            p.timeout(T.Value(1, 's'))
-#            for MAC in skips:
-#                # do not listen for packets from boards we want to skip
-#                p.reject_source_mac(MAC)
-#            p.listen()
-#
-#            # ping all ADC boards
-#            for i in xrange(256):
-#                mac = adcMAC(i)
-#                if mac in skips:
-#                    found.append(skips[mac].name)
-#                else:
-#                    p.destination_mac(mac)
-#                    p.write(regAdcPing().tostring())
-#            yield p.send(context=ctx)
-#
-#            # get ID packets from ADC boards
-#            while True:
-#                try:
-#                    ans = yield de.read(context=ctx)
-#                    src, dst, eth, data = ans
-#                    if isAdcMAC(src):
-#                        info = processReadbackAdc(data)
-#                        board, build = int(src[-2:], 16), info['build']
-#                        devName = '%s ADC %d' % (name, board)
-#                        args = de, port, board, build, devName
-#                        found.append((devName, args))
-#                except T.Error:
-#                    # after all boards have responded
-#                    # a timeout error will be thrown
-#                    break
-#
-#            # expire this context to stop listening
-#            yield cxn.manager.expire_context(de.ID, context=ctx)
         returnValue(found)
-
-    @inlineCallbacks
-    def detectDAC(self, cxn, groupName, de, port, mac):
-        ctx = de.context()
-        p = de.packet()
-        p.connect(port)
-        p.destination_mac(mac)
-        p.require_source_mac(mac)
-        p.require_length(DAC_READBACK_LEN)
-        p.timeout(T.Value(1, 's'))
-        p.listen()
-        p.write(regPing().tostring())
-        p.read()
-        try:
-            ans = yield p.send(context=ctx)
-        finally:
-            # expire the context, even if there was a timeout error
-            yield cxn.manager.expire_context(de.ID, context=ctx)
-        src, dst, eth, data = ans.read
-        info = processReadback(data)
-        board, build = int(src[-2:], 16), info['build']
-        devName = '%s DAC %d' % (groupName, board)
-        args = de, port, board, build, devName
-        returnValue((devName, args))
-
-
-    @inlineCallbacks
-    def detectADC(self, cxn, groupName, de, port, mac):
-        # TODO: move autodetection to the board groups
-        # TODO: do not use exceptions to indicate failure to find a device (that should be reserved for real errors)
-        ctx = de.context()
-        p = de.packet()
-        p.connect(port)
-        p.destination_mac(mac)
-        p.require_source_mac(mac)
-        p.require_length(ADC_READBACK_LEN)
-        p.timeout(T.Value(1, 's'))
-        p.listen()
-        p.write(regAdcPing().tostring())
-        p.read()
-        try:
-            ans = yield p.send(context=ctx)
-        finally:
-            # expire the context, even if there was a timeout error
-            yield cxn.manager.expire_context(de.ID, context=ctx)
-        src, dst, eth, data = ans.read
-        info = processReadbackAdc(data)
-        board, build = int(src[-2:], 16), info['build']
-        devName = '%s ADC %d' % (groupName, board)
-        args = de, port, board, build, devName
-        returnValue((devName, args))
 
 
     def deviceWrapper(self, *a, **kw):
@@ -1199,8 +650,36 @@ class FPGAServer(DeviceServer):
         if not isinstance(dev, AdcDevice):
             raise Exception("selected device is not an ADC board")
 
+    ## find a board group by name
+    def getBoardGroup(self, name):
+        for boardGroup in self.boardGroups.values():
+            if boardGroup.name == name:
+                return boardGroup
+        raise Exception("Board group '%s' not found." % name)
+
 
     ## remote settings
+
+    @setting(1, 'List Devices', boardGroup='s', returns='*(ws)')
+    def list_devices(self, c, boardGroup=None):
+        """List available devices.
+        
+        If the optional boardGroup argument is specified, then only those
+        devices beloning to that board group will be included.
+        """
+        IDs, names = self.deviceLists()
+        devices = zip(IDs, names)
+        if boardGroup is not None:
+            bg = self.getBoardGroup(boardGroup) # make sure this board group exists
+            devices = [(id, name) for (id, name) in devices if name.startswith(boardGroup)]
+        return devices
+
+    @setting(10, 'List Board Groups', returns='*s')
+    def list_board_groups(self, c):
+        return sorted(bg.name for bg in self.boardGroups.values())
+
+
+    ## Memory and SRAM upload
 
     @setting(20, 'SRAM Address', addr='w', returns='w')
     def sram_address(self, c, addr=None):
@@ -1301,23 +780,21 @@ class FPGAServer(DeviceServer):
             the setupState might describe the amplitude and frequency of
             the various microwave sources for this sequence.
         """
+        # TODO: also handle ADC boards here
+        
         # Round stats up to multiple of the timing packet length
         reps += TIMING_PACKET_LEN - 1
         reps -= reps % TIMING_PACKET_LEN
         
         if len(c['daisy_chain']):
             # run multiple boards, with first board as master
-            devs = [self.getDevice(c, n) for n in c['daisy_chain']]
-            delays = c['start_delay']
-            delays = [0]*len(c['daisy_chain'])
+            devs = [self.getDevice(c, name) for name in c['daisy_chain']]
         else:
             # run the selected device only
             devs = [self.selectedDAC(c)]
-            delays = [0]
         mems = [c.get(dev, {}).get('mem', None) for dev in devs]
         srams = [c.get(dev, {}).get('sram', None) for dev in devs]
-        slaves = [i != 0 for i in range(len(devs))]
-        devices = zip(devs, mems, srams, slaves, delays)
+        devices = zip(devs, mems, srams)
         if getTimingData:
             if c['timing_order'] is None:
                 timingOrder = [d.devName for d in devs]
@@ -1326,6 +803,7 @@ class FPGAServer(DeviceServer):
         else:
             timingOrder = []
 
+        # build setup requests
         setupReqs = []
         for spCtxt, spServer, spSettings in setupPkts:
             if spCtxt[0] == 0:
@@ -1347,8 +825,7 @@ class FPGAServer(DeviceServer):
         attempt = 1
         while True:
             try:
-                # FIXME: check that it is okay to rerun this function call, since some data can get mutated
-                ans = yield bg.run(devices, reps, setupReqs, getTimingData, timingOrder, c['master_sync'], set(setupState))
+                ans = yield bg.run(devices, reps, setupReqs, set(setupState), c['master_sync'], getTimingData, timingOrder)
                 returnValue(ans)
             except TimeoutError, err:
                 # log attempt to stdout and file
@@ -1661,7 +1138,7 @@ class FPGAServer(DeviceServer):
 
 
     @setting(220, 'DAC Init', chan='s', signed='b', returns='b')
-    def init_dac(self, c, chan, signed=False):
+    def dac_init(self, c, chan, signed=False):
         """Sends an initialization sequence to either DAC. (DAC only)
         
         For unsigned data, this sequence is 0026, 0006, 1603, 0500
@@ -1917,8 +1394,6 @@ class FPGAServer(DeviceServer):
         returnValue(ans)
     
     # TODO: new settings
-    # - run ADC board in average mode
-    # - run ADC board in demodulation mode
     # - set up ADC options for data readout, to be used with the next daisy-chain run
     #   - DAC boards: one number (timing result) per repetition
     #   - ADC boards: either one waveform (averaged) for whole run
@@ -1994,6 +1469,23 @@ def cmdTime(cmd):
     if opcode == 0xC:
         return 25*12 # maximum SRAM length is 12us, with 25 cycles per us
 
+def addMasterDelay(cmds, delay=MASTER_SRAM_DELAY):
+    """Add delays to master board before SRAM calls.
+    
+    Creates a memory sequence with delays added before all SRAM
+    calls to ensure that boards stay properly synchronized by
+    allowing extra time for slave boards to reach the SRAM
+    synchronization point.  The delay is specified in microseconds.
+    """
+    newCmds = []
+    cycles = int(delay * 25) & 0x0FFFFF
+    delayCmd = 0x300000 + cycles
+    for cmd in cmds:
+        if getOpcode(cmd) == 0xC: # call SRAM?
+            newCmds.append(delayCmd) # add delay
+        newCmds.append(cmd)
+    return newCmds
+
 def shiftSRAM(cmds, page):
     """Shift the addresses of SRAM calls for different pages.
 
@@ -2010,7 +1502,7 @@ def shiftSRAM(cmds, page):
             return cmd
     return [shiftAddr(cmd) for cmd in cmds]
 
-def fixSRAMaddresses(mem, sram, dev):
+def fixSRAMaddresses(mem, sram):
     """Set the addresses of SRAM calls for multiblock sequences.
 
     Takes a list of memory commands and an sram sequence (which
@@ -2071,67 +1563,6 @@ def timerCount(cmds):
     """
     return sum(np.asarray(cmds) == 0x400001) # numpy version
     #return cmds.count(0x400001) # python list version
-    
-    
-class TimedLock(object):
-    """
-    A lock that times how long it takes to acquire.
-    """
-
-    TIMES_TO_KEEP = 100
-    locked = 0
-
-    def __init__(self):
-        self.waiting = []
-
-    @property
-    def times(self):
-        if not hasattr(self, '_times'):
-            self._times = []
-        return self._times
-
-    def addTime(self, dt):
-        times = self.times
-        times.append(dt)
-        if len(times) > self.TIMES_TO_KEEP:
-            times.pop(0)
-
-    def meanTime(self):
-        times = self.times
-        if not len(times):
-            return 0
-        return sum(times) / len(times)
-
-    def acquire(self):
-        """Attempt to acquire the lock.
-
-        @return: a Deferred which fires on lock acquisition.
-        """
-        d = defer.Deferred()
-        if self.locked:
-            t = time.time()
-            self.waiting.append((d, t))
-        else:
-            self.locked = 1
-            self.addTime(0)
-            d.callback(0)
-        return d
-
-    def release(self):
-        """Release the lock.
-
-        Should be called by whomever did the acquire() when the shared
-        resource is free.
-        """
-        assert self.locked, "Tried to release an unlocked lock"
-        self.locked = 0
-        if self.waiting:
-            # someone is waiting to acquire lock
-            self.locked = 1
-            d, t = self.waiting.pop(0)
-            dt = time.time() - t
-            self.addTime(dt)
-            d.callback(dt)
     
 
 __server__ = FPGAServer()
