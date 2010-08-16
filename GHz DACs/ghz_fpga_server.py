@@ -145,10 +145,17 @@ class BoardGroup(object):
             yield self.runLock.acquire()
             yield self.readLock.acquire()
             
-            detections = [func(i) for i in range(256)
-                                  for func in (self.detectDAC, self.detectADC)]
+            # detect each board type in its own context
+            detections = [self.detectDACs(), self.detectADCs()]
             answer = yield defer.DeferredList(detections, consumeErrors=True)
-            found = [result for success, result in answer if success]
+            found = []
+            for success, results in answer:
+                if success:
+                    found.extend(results)
+                else:
+                    print 'autodetect error:'
+                    results.printTraceback()
+            
             returnValue(found)
         finally:
             # release all locks once we're done with autodetection
@@ -156,70 +163,70 @@ class BoardGroup(object):
                 pageLock.release()
             self.runLock.release()
             self.readLock.release()
-    
-    @inlineCallbacks
-    def detectBoard(self, mac, pkt, readLen, timeout=1.0):
-        """Try to detect a board at a particular MAC address.
-        
-        The given packet will be sent to the specified mac address.
-        We then listen for a response of the specified length.
-        If a response is received within the specified timeout, the packet
-        data will be returned, otherwise, an exception will be raised.
-        A new context is created for this operation and then expired.
-        """
-        ctx = self.server.context()
-        p = self.server.packet()
-        p.connect(self.port)
-        p.require_source_mac(mac)
-        p.require_length(readLen)
-        p.timeout(T.Value(timeout, 's'))
-        p.listen()
-        p.destination_mac(mac)
-        p.write(pkt.tostring())
-        p.read()
-        try:
-            ans = yield p.send(context=ctx)
-        finally:
-            # expire the context, even if there was a timeout error
-            yield self.cxn.manager.expire_context(self.server.ID, context=ctx)
-        src, dst, eth, data = ans.read
-        returnValue(data)
-    
-    @inlineCallbacks
-    def detectDAC(self, board):
-        """Try to detect a DAC board on this board group.
-        
-        If the board is detected, the resulting deferred will fire with
-        a tuple containing the device name and arguments to be passed to
-        the DeviceWrapper when it is constructed.
-        """
-        mac = dac.macFor(board)
-        pkt = dac.regPing()
-        len = dac.READBACK_LEN
-        data = yield self.detectBoard(mac, pkt, len)
-        info = dac.processReadback(data)
-        build = info['build']
-        devName = '%s DAC %d' % (self.name, board)
-        args = devName, self.server, self.port, board, build
-        returnValue((devName, args))
-    
-    @inlineCallbacks
-    def detectADC(self, board):
-        """Try to detect an ADC board on this board group.
 
-        If the board is detected, the resulting deferred will fire with
-        a tuple containing the device name and arguments to be passed to
-        the DeviceWrapper when it is constructed.
+    def detectDACs(self, timeout=1.0):
+        """Try to detect DAC boards on this board group."""
+        def callback(src, data):
+            board = int(src[-2:], 16)
+            info = dac.processReadback(data)
+            build = info['build']
+            devName = '%s DAC %d' % (self.name, board)
+            args = devName, self.server, self.port, board, build
+            return (devName, args)
+        macs = [dac.macFor(board) for board in range(256)]
+        return self.doDetection(macs, dac.regPing(), dac.READBACK_LEN, callback)
+    
+    def detectADCs(self, timeout=1.0):
+        """Try to detect ADC boards on this board group."""
+        def callback(src, data):
+            board = int(src[-2:], 16)
+            info = adc.processReadback(data)
+            build = info['build']
+            devName = '%s ADC %d' % (self.name, board)
+            args = devName, self.server, self.port, board, build
+            return (devName, args)
+        macs = [adc.macFor(board) for board in range(256)]
+        return self.doDetection(macs, adc.regAdcPing(), adc.READBACK_LEN, callback)
+
+    @inlineCallbacks
+    def doDetection(self, macs, packet, respLength, callback, timeout=1.0):
+        """Try to detect a boards at the specified mac addresses.
+        
+        For each response of the correct length received within the timeout from
+        one of the given mac addresses, the callback function will be called and
+        should return data to be added to the list of found devices. 
         """
-        mac = adc.macFor(board)
-        pkt = adc.regAdcPing()
-        len = adc.READBACK_LEN
-        data = yield self.detectBoard(mac, pkt, len)
-        info = adc.processReadback(data)
-        build = info['build']
-        devName = '%s ADC %d' % (self.name, board)
-        args = devName, self.server, self.port, board, build
-        returnValue((devName, args))
+        try:
+            ctx = self.server.context()
+            
+            # prepare and send detection packets
+            p = self.server.packet()
+            p.connect(self.port)
+            p.require_length(respLength)
+            p.timeout(T.Value(timeout, 's'))
+            p.listen()
+            for mac in macs:
+                p.destination_mac(mac)
+                p.write(packet.tostring())
+            yield p.send(context=ctx)
+            
+            # listen for responses
+            start = time.time()
+            found = []
+            while (len(found) < len(macs)) and (time.time() - start < timeout):
+                try:
+                    ans = yield self.server.read(context=ctx)
+                    src, dst, eth, data = ans
+                    if src in macs:
+                        devInfo = callback(src, data)
+                        found.append(devInfo)
+                except T.Error:
+                    break
+        finally:
+            # expire the detection context
+            yield self.cxn.manager.expire_context(self.server.ID, context=ctx)
+        returnValue(found)
+
 
     def makePackets(self, devs, page, reps, timingOrder, sync=249):
         """Make packets to run a sequence on this board group.
