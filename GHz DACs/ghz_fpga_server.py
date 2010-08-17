@@ -312,14 +312,18 @@ class BoardGroup(object):
         collectPkts = []
         readPkts = []
         for dev, mem, sram in devs:
-            nTimers = timerCount(mem)
-            N = reps * nTimers / TIMING_PACKET_LEN
-            seqTime = TIMEOUT_FACTOR * (sequenceTime(mem) * reps) + 1
+            if isinstance(dev, dac.DacDevice):
+                nTimers = timerCount(mem)
+                N = reps * nTimers / TIMING_PACKET_LEN
+                seqTime = TIMEOUT_FACTOR * (sequenceTime(mem) * reps) + 1
+                
+                collectPkts.append(dev.collect(N, seqTime, self.ctx))
+                
+                wantResults = timingOrder is None or dev.devName in timingOrder
+                readPkts.append(dev.read(N) if wantResults else dev.discard(N))
             
-            collectPkts.append(dev.collect(N, seqTime, self.ctx))
-            
-            wantResults = timingOrder is None or dev.devName in timingOrder
-            readPkts.append(dev.read(N) if wantResults else dev.discard(N))
+            elif isinstance(dev, adc.AdcDevice):
+                raise Exception('adc data collection is not implemented yet')
 
         return loadPkts, runPkts, collectPkts, readPkts
 
@@ -523,7 +527,7 @@ class FPGAServer(DeviceServer):
     """Server for GHz DAC and ADC boards.
     """
     name = 'GHz FPGAs'
-    retries = 1 #5
+    retries = 5
     
     @inlineCallbacks
     def initServer(self):
@@ -824,6 +828,16 @@ class FPGAServer(DeviceServer):
         ch['phi0'] = phi0
 
 
+    @setting(43, 'ADC Run Mode', mode='s', returns='')
+    def adc_demod_frequency(self, c, mode):
+        """Set the run mode for the current ADC board, 'average' or 'demodulate'. (ADC only)
+        """
+        assert mode.lower() in ['average', 'demodulate'], 'unknown mode: "%s"' % mode
+        dev = self.selectedADC(c)
+        d = c.setdefault(dev, {})
+        d['runMode'] = mode
+
+
     @setting(50, 'Run Sequence', reps='w', getTimingData='b',
                                  setupPkts='?{(((ww), s, ((s?)(s?)(s?)...))...)}',
                                  setupState='*s',
@@ -938,6 +952,19 @@ class FPGAServer(DeviceServer):
         
         This specifies the boards from which you want to receive timing
         data, and the order in which the timing data should be returned.
+        In addition, this will determine what kind of boards will return
+        data (ADCs or DACs) and, for ADC boards, what mode will be used
+        (Average or Demodulate).
+        
+        To get DAC timing data or ADC data in average mode, specify the
+        device name as a string.  To get ADC data in demodulation mode,
+        specify a string in the form "<device name> | <channel>" where
+        channel is the demodulation channel number.
+        
+        Note that you can get data from more than one demodulation channel,
+        so that a given ADC board can appear multiple times in the timing
+        order, however each ADC board must be run either in average mode
+        or demodulation mode, not both.
         """
         if boards is None:
             boards = c['timing_order']
@@ -1017,7 +1044,7 @@ class FPGAServer(DeviceServer):
 
 
 
-    @setting(1080, 'DAC Debug Output', data='(wwww)', returns='')
+    @setting(1080, 'DAC Debug Output', data='wwww', returns='')
     def dac_debug_output(self, c, data):
         """Outputs data directly to the output bus. (DAC only)"""
         dev = self.selectedDAC(c)
@@ -1234,11 +1261,11 @@ class FPGAServer(DeviceServer):
                 if MHD == -1 and answer[i*2+1] == 0: MHD = i
             MSD = max(MSD, 0)
             MHD = max(MHD, 0)
-            t = (MHD-MSD)/2 & 15
+            t = (MHD-MSD)/2 & 0xF
         else:
             MSD = 0
             MHD = 0
-            t = data & 15
+            t = data & 0xF
 
         answer = yield dev.runSerial(cmd, [0x0500 + (t<<4)] + pkt)
         answer = [(bool(answer[i*4+2] & 1), bool(answer[i*4+4] & 1))
@@ -1283,7 +1310,7 @@ class FPGAServer(DeviceServer):
             tries -= 1
             pkt =  [0x0700, 0x8700, 0x0701, 0x8700, 0x0702, 0x8700, 0x0703, 0x8700]
             reading = yield dev.runSerial(op, pkt)
-            reading = [(reading[i]>>4) & 15 for i in [1, 3, 5, 7]]
+            reading = [(reading[i]>>4) & 0xF for i in [1, 3, 5, 7]]
             try:
                 PHOF = reading.index(3)
                 pkt = [0x0700 + PHOF, 0x8700]
@@ -1299,7 +1326,7 @@ class FPGAServer(DeviceServer):
         # return to old lvds setting
         pkt = range(newlvds, oldlvds, -32)[1:] + [oldlvds]
         yield dev.runSerial(op, pkt)
-        ans = (oldlvds >> 4) & 15, (newlvds >> 4) & 15, clkinv, PHOF, reading
+        ans = (oldlvds >> 4) & 0xF, (newlvds >> 4) & 0xF, clkinv, PHOF, reading
         returnValue(ans)
 
 
