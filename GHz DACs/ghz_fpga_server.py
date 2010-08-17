@@ -149,12 +149,25 @@ class BoardGroup(object):
             detections = [self.detectDACs(), self.detectADCs()]
             answer = yield defer.DeferredList(detections, consumeErrors=True)
             found = []
-            for success, results in answer:
+            for success, result in answer:
                 if success:
-                    found.extend(results)
+                    found.extend(result)
                 else:
                     print 'autodetect error:'
-                    results.printTraceback()
+                    result.printTraceback()
+            
+            # clear any detection packets which may be buffered in device contexts
+            # TODO: better way of determining board group membership
+            devices = [dev for dev in self.fpgaServer.devices.values()
+                           if dev.devName.startswith(self.name)]
+            clears = []
+            for dev in devices:
+                clears.append(dev.clear().send())
+            answer = yield defer.DeferredList(detections, consumeErrors=True)
+            for success, result in answer:
+                if not success:
+                    print 'autodetect error:'
+                    result.printTraceback()
             
             returnValue(found)
         finally:
@@ -221,11 +234,11 @@ class BoardGroup(object):
                         devInfo = callback(src, data)
                         found.append(devInfo)
                 except T.Error:
-                    break
+                    break # read timeout
+            returnValue(found)
         finally:
             # expire the detection context
             yield self.cxn.manager.expire_context(self.server.ID, context=ctx)
-        returnValue(found)
 
 
     def makePackets(self, devs, page, reps, timingOrder, sync=249):
@@ -283,16 +296,16 @@ class BoardGroup(object):
                 else:
                     blockDelay = None
                 slave = len(boards) > 0 # the first board is master
-                regs = dac.regRun(page, slave, delay, blockDelay=blockDelay, sync=sync)
+                regs = dac.regRun(reps, page, slave, delay, blockDelay=blockDelay, sync=sync)
                 boards.append((dev, regs))
-            elif len(master):
+            elif len(boards):
                 # this board is after the master, but will
                 # not itself run, so we put it in idle mode
                 # TODO: how do we put ADC boards in idle mode?
                 dev = self.fpgaServer.devices[board] # look up the device wrapper
                 regs = dac.regIdle(delay)
                 boards.append((dev, regs))
-        boards = boards[1:] + boards[0] # move master to the end
+        boards = boards[1:] + boards[:1] # move master to the end
         runPkts = self.makeRunPackets(boards)
         
         # collect and read (or discard) timing results
@@ -302,7 +315,7 @@ class BoardGroup(object):
             nTimers = timerCount(mem)
             N = reps * nTimers / TIMING_PACKET_LEN
             seqTime = TIMEOUT_FACTOR * (sequenceTime(mem) * reps) + 1
-             
+            
             collectPkts.append(dev.collect(N, seqTime, self.ctx))
             
             wantResults = timingOrder is None or dev.devName in timingOrder
@@ -435,6 +448,9 @@ class BoardGroup(object):
         
         # check for a timeout and recover if necessary
         if not all(success for success, result in results):
+            for success, result in results:
+                if not success:
+                    result.printTraceback()
             yield self.recoverFromTimeout(devs, results)
             self.readLock.release()
             raise TimeoutError(self.timeoutReport(devs, results))
@@ -446,10 +462,11 @@ class BoardGroup(object):
 
         if getTimingData:
             if timingOrder is not None:
-                if timingMode == 'DAC' or timingMode == 'AVERAGE':
-                    results = [results[boardOrder.index(board)] for board in timingOrder]
-                elif timingMode == 'DEMOD':
-                    results = [results[boardOrder.index(board)] for board, channel in timingOrder]
+                results = [results[boardOrder.index(board)] for board in timingOrder]
+                #if timingMode == 'DAC' or timingMode == 'AVERAGE':
+                #    results = [results[boardOrder.index(board)] for board in timingOrder]
+                #elif timingMode == 'DEMOD':
+                #    results = [results[boardOrder.index(board)] for board, channel in timingOrder]
             results = [[data for src, dst, eth, data in r['read']] for r in results]
             if len(results):
                 timing = np.vstack(self.extractTiming(result) for result in results)
@@ -478,7 +495,7 @@ class BoardGroup(object):
     def extractTiming(self, packets):
         """Extract timing data coming back from a readPacket."""
         data = ''.join(data[3:63] for data in packets)
-        return np.fromstring(data, dtype='<u2')
+        return np.fromstring(data, dtype='<u2').astype('u4')
 
     @inlineCallbacks
     def recoverFromTimeout(self, devs, results):
@@ -495,7 +512,7 @@ class BoardGroup(object):
     def timeoutReport(self, devs, results):
         """Create a nice error message explaining which boards timed out."""
         lines = ['Some boards failed:']
-        for dev, (success, result) in collectResults:
+        for dev, (success, result) in zip(devs, results):
             line = dev[0].devName + ': ' + ('OK' if success else 'timeout!')
             lines.append(line)
         return '\n'.join(lines)
@@ -506,7 +523,7 @@ class FPGAServer(DeviceServer):
     """Server for GHz DAC and ADC boards.
     """
     name = 'GHz FPGAs'
-    retries = 5
+    retries = 1 #5
     
     @inlineCallbacks
     def initServer(self):
@@ -522,7 +539,6 @@ class FPGAServer(DeviceServer):
         ans = yield p.send()
         print 'Board group definitions loaded.'
         # validate board group definitions
-        print 'Validating board group definitions.'
         valid = True
         names = set()
         adapters = set()
@@ -611,7 +627,7 @@ class FPGAServer(DeviceServer):
             boardGroup = BoardGroup(self, de, port)
             yield boardGroup.init()
             self.boardGroups[server, port] = boardGroup
-            
+        print self.boardGroups
         
         # update configuration of all board groups and detect devices
         detections = []
@@ -659,13 +675,15 @@ class FPGAServer(DeviceServer):
     ## allow selecting different kinds of devices in each context
     def selectedDAC(self, context):
         dev = self.selectedDevice(context)
-        if not isinstance(dev, DacDevice):
+        if not isinstance(dev, dac.DacDevice):
             raise Exception("selected device is not a DAC board")
+        return dev
         
     def selectedADC(self, context):
         dev = self.selectedDevice(context)
-        if not isinstance(dev, AdcDevice):
+        if not isinstance(dev, adc.AdcDevice):
             raise Exception("selected device is not an ADC board")
+        return dev
 
     def getBoardGroup(self, name):
         """Find a board group by name."""
@@ -1148,9 +1166,9 @@ class FPGAServer(DeviceServer):
         returnValue(T.Value(((r[0] << 8) + r[1]) / 819.0, 'V'))
 
 
-    @setting(1200, 'DAC PLL', data=['w', '*w'], returns='*w')
+    @setting(1200, 'DAC PLL', data='*w', returns='*w')
     def dac_pll(self, c, data):
-        """Sends a command or a sequence of commands to the PLL. (DAC only)
+        """Sends a sequence of commands to the PLL. (DAC only)
 
         The returned WordList contains any read-back values.
         It has the same length as the sent list.
@@ -1158,9 +1176,9 @@ class FPGAServer(DeviceServer):
         dev = self.selectedDAC(c)
         return dev.runSerial(1, data)
 
-    @setting(1204, 'DAC Serial Command', chan='s', data=['w', '*w'], returns='*w')
+    @setting(1204, 'DAC Serial Command', chan='s', data='*w', returns='*w')
     def dac_cmd(self, c, chan, data):
-        """Send a command or sequence of commands to either DAC. (DAC only)
+        """Send a sequence of commands to either DAC. (DAC only)
 
         The DAC channel must be either 'A' or 'B'.
         The returned list of words contains any read-back values.
@@ -1348,8 +1366,8 @@ class FPGAServer(DeviceServer):
         yield dev.recalibrate()
     
     
-    @setting(2600, 'ADC Run Average', returns='*(i{I} i{Q})')
-    def adc_run_average(self, c, channel, sineAmp, cosineAmp):
+    @setting(2600, 'ADC Run Average', returns='*i{I}, *i{Q}')
+    def adc_run_average(self, c):
         """Run the selected ADC board once in average mode. (ADC only)
         
         The board will start immediately using the trig lookup and demod
@@ -1366,8 +1384,8 @@ class FPGAServer(DeviceServer):
         returnValue(ans)
     
     
-    @setting(2601, 'ADC Run Demod', returns='*(i{I} i{Q}), (i{Imax} i{Imin} i{Qmax} i{Qmin})')
-    def adc_run_demod(self, c, channel, sineAmp, cosineAmp):
+    @setting(2601, 'ADC Run Demod', returns='*i{I}, *i{Q}, (i{Imax} i{Imin} i{Qmax} i{Qmin})')
+    def adc_run_demod(self, c):
         dev = self.selectedADC(c)
         info = c.setdefault(dev, {})
         filterFunc = info.get('filterFunc', np.array([255], dtype='<u1'))
@@ -1452,22 +1470,6 @@ def addMasterDelay(cmds, delay=MASTER_SRAM_DELAY):
         newCmds.append(cmd)
     return newCmds
 
-def shiftSRAM(cmds, page):
-    """Shift the addresses of SRAM calls for different pages.
-
-    Takes a list of memory commands and a page number and
-    modifies the commands for calling SRAM to point to the
-    appropriate page.
-    """
-    def shiftAddr(cmd):
-        opcode, address = getOpcode(cmd), getAddress(cmd)
-        if opcode in [0x8, 0xA]: 
-            address += page * SRAM_PAGE_LEN
-            return (opcode << 20) + address
-        else:
-            return cmd
-    return [shiftAddr(cmd) for cmd in cmds]
-
 def fixSRAMaddresses(mem, sram):
     """Set the addresses of SRAM calls for multiblock sequences.
 
@@ -1505,18 +1507,6 @@ def maxSRAM(cmds):
         return address if opcode in [0x8, 0xA] else 0
     return max(addr(cmd) for cmd in cmds)
 
-def rangeSRAM(cmds):
-    """Determines the min and max SRAM address used in a memory sequence.
-
-    This is used to determine what portion of the SRAM sequence needs to be
-    uploaded before running the board.
-    """
-    def addr(cmd):
-        opcode, address = (cmd >> 20) & 0xF, cmd & 0xFFFFF
-        return address if opcode in [0x8, 0xA] else 0
-    addrs = [addr(cmd) for cmd in cmds]
-    return min(addrs), max(addrs)
-
 def timerCount(cmds):
     """Return the number of timer stops in a memory sequence.
 
@@ -1527,7 +1517,7 @@ def timerCount(cmds):
     user's responsibility at this point (if using the qubit server,
     these things are automatically checked).
     """
-    return sum(np.asarray(cmds) == 0x400001) # numpy version
+    return int(sum(np.asarray(cmds) == 0x400001)) # numpy version
     #return cmds.count(0x400001) # python list version
     
 

@@ -5,6 +5,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad.devices import DeviceWrapper
 from labrad import types as T
 
+from util import littleEndian
 
 REG_PACKET_LEN = 56
 
@@ -107,7 +108,7 @@ def regI2C(data, read, ack):
     regs[12:12-len(data):-1] = data
     return regs
 
-def regRun(page, slave, delay, blockDelay=None, sync=249):
+def regRun(reps, page, slave, delay, blockDelay=None, sync=249):
     regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = 1 + (page << 7) # run memory in specified page
     regs[1] = 3 # stream timing data
@@ -132,7 +133,7 @@ def processReadback(resp):
     return {
         'build': a[51],
         'serDAC': a[56],
-        'noPllLatch': (a[58] & 0x80) > 0,
+        'noPllLatch': bool((a[58] & 0x80) > 0),
         'ackoutI2C': a[61],
         'I2Cbytes': a[69:61:-1],
     }
@@ -275,7 +276,7 @@ class DacDevice(DeviceWrapper):
         p.send()
 
     @inlineCallbacks
-    def sendRegisters(self, regs, readback=True):
+    def sendRegisters(self, regs, readback=True, timeout=T.Value(10, 's')):
         """Send a register packet and optionally readback the result.
 
         If readback is True, the result packet is returned as a string of bytes.
@@ -285,6 +286,7 @@ class DacDevice(DeviceWrapper):
         p = self.makePacket()
         p.write(regs.tostring())
         if readback:
+            p.timeout(timeout)
             p.read()
         ans = yield p.send()
         if readback:
@@ -314,7 +316,7 @@ class DacDevice(DeviceWrapper):
     def runSerial(self, op, data):
         """Run a command or list of commands through the serial interface."""
         answer = []
-        for d in listify(data):
+        for d in data:
             regs = regSerial(op, d)
             r = yield self.sendRegisters(regs)
             answer += [processReadback(r)['serDAC']]
@@ -323,13 +325,36 @@ class DacDevice(DeviceWrapper):
     @inlineCallbacks
     def initPLL(self):
         yield self.runSerial(1, [0x1FC093, 0x1FC092, 0x100004, 0x000C11])
-        pkt = regRunSram(0, 0, loop=False)
-        yield self.sendRegisters(pkt, readback=False)
+        regs = regRunSram(0, 0, loop=False)
+        yield self.sendRegisters(regs, readback=False)
         
     @inlineCallbacks
     def queryPLL(self):
         regs = regPllQuery()
-        r = yield self.sendRegisters(pkt)
+        r = yield self.sendRegisters(regs)
         returnValue(processReadback(r)['noPllLatch'])
+
+
+def shiftSRAM(cmds, page):
+    """Shift the addresses of SRAM calls for different pages.
+
+    Takes a list of memory commands and a page number and
+    modifies the commands for calling SRAM to point to the
+    appropriate page.
+    """
+    def shiftAddr(cmd):
+        opcode, address = getOpcode(cmd), getAddress(cmd)
+        if opcode in [0x8, 0xA]: 
+            address += page * SRAM_PAGE_LEN
+            return (opcode << 20) + address
+        else:
+            return cmd
+    return [shiftAddr(cmd) for cmd in cmds]
+
+def getOpcode(cmd):
+    return (cmd & 0xF00000) >> 20
+
+def getAddress(cmd):
+    return (cmd & 0x0FFFFF)
 
 

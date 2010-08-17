@@ -5,6 +5,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad.devices import DeviceWrapper
 from labrad import types as T
 
+from util import littleEndian
 
 DEMOD_CHANNELS = 4
 DEMOD_PACKET_LEN = 46 # length of result packets in demodulation mode
@@ -72,7 +73,7 @@ def processReadback(resp):
     a = np.fromstring(resp, dtype='<u1')
     return {
         'build': a[0],
-        'noPllLatch': a[1] > 0,
+        'noPllLatch': bool(a[1] > 0),
     }
 
 def pktWriteSram(page, data):
@@ -134,8 +135,8 @@ class AdcDevice(DeviceWrapper):
     def makeFilter(self, data, p):
         """Update a packet for the ethernet server with SRAM commands to upload the filter function."""
         for page in range(4):
-            start = ADC_SRAM_WRITE_LEN * page
-            end = start + ADC_SRAM_WRITE_LEN
+            start = SRAM_WRITE_LEN * page
+            end = start + SRAM_WRITE_LEN
             pkt = pktWriteSram(page, data[start:end])
             p.write(pkt.tostring())
     
@@ -143,7 +144,7 @@ class AdcDevice(DeviceWrapper):
         """Update a packet for the ethernet server with SRAM commands to upload Trig lookup tables."""
         page = 4
         channel = 0
-        while channel < ADC_DEMOD_CHANNELS:
+        while channel < DEMOD_CHANNELS:
             data = []
             for ofs in [0, 1]:
                 ch = channel + ofs
@@ -159,6 +160,13 @@ class AdcDevice(DeviceWrapper):
             channel += 2 # two channels per sram packet
             page += 1 # each sram packet writes one page
 
+    def clear(self, triggerCtx=None):
+        """Create a packet to clear the ethernet buffer for this board."""
+        p = self.makePacket().clear()
+        if triggerCtx is not None:
+            p.send_trigger(triggerCtx)
+        return p
+
     
     @inlineCallbacks
     def sendSRAM(self, filter, demods={}):
@@ -170,7 +178,7 @@ class AdcDevice(DeviceWrapper):
     
     
     @inlineCallbacks
-    def sendRegisters(self, regs, readback=True):
+    def sendRegisters(self, regs, readback=True, timeout=T.Value(10, 's')):
         """Send a register packet and optionally readback the result.
 
         If readback is True, the result packet is returned as a string of bytes.
@@ -180,6 +188,7 @@ class AdcDevice(DeviceWrapper):
         p = self.makePacket()
         p.write(regs.tostring())
         if readback:
+            p.timeout(timeout)
             p.read()
         ans = yield p.send()
         if readback:
@@ -189,9 +198,9 @@ class AdcDevice(DeviceWrapper):
     @inlineCallbacks
     def runSerial(self, data):
         """Run a command or list of commands through the serial interface."""
-        for d in listify(data):
-            regs = regAdcSerial(data)
-            yield self.sendRegisters(regs)
+        for d in data:
+            regs = regAdcSerial(d)
+            yield self.sendRegisters(regs, readback=False)
     
     @inlineCallbacks
     def recalibrate(self):
@@ -205,11 +214,11 @@ class AdcDevice(DeviceWrapper):
     @inlineCallbacks
     def queryPLL(self):
         regs = regAdcPllQuery()
-        r = yield self.sendRegisters(pkt)
+        r = yield self.sendRegisters(regs)
         returnValue(processReadback(r)['noPllLatch'])
         
     @inlineCallbacks
-    def runAverage(filterFunc, filterStretchLen, filterStretchAt, demods):
+    def runAverage(self, filterFunc, filterStretchLen, filterStretchAt, demods):
         # build registry packet
         regs = regAdcRun(2, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
 
@@ -218,8 +227,8 @@ class AdcDevice(DeviceWrapper):
         self.makeFilter(filterFunc, p) # upload filter function
         self.makeTrigLookups(demods, p) # upload trig lookup tables
         p.write(regs.tostring()) # send registry packet
-        p.timeout(T.Value(1, 's')) # set a conservative timeout
-        p.read(ADC_AVERAGE_PACKETS) # read back all packets from average buffer
+        p.timeout(T.Value(10, 's')) # set a conservative timeout
+        p.read(AVERAGE_PACKETS) # read back all packets from average buffer
         
         ans = yield p.send()
                 
@@ -227,12 +236,12 @@ class AdcDevice(DeviceWrapper):
         vals = []
         for src, dst, eth, data in ans.read:
             vals.append(np.fromstring(data, dtype='<i2'))
-        IQs = np.hstack(vals).reshape(-1, 2)
-        returnValue(IQs)
+        Is, Qs = np.hstack(vals).reshape(-1, 2).astype(int).T
+        returnValue((Is, Qs))
         
     
     @inlineCallbacks
-    def runDemod(filterFunc, filterStretchLen, filterStretchAt, demods):
+    def runDemod(self, filterFunc, filterStretchLen, filterStretchAt, demods):
         # build registry packet
         regs = regAdcRun(4, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
 
@@ -241,20 +250,20 @@ class AdcDevice(DeviceWrapper):
         self.makeFilter(filterFunc, p) # upload filter function
         self.makeTrigLookups(demods, p) # upload trig lookup tables
         p.write(regs.tostring()) # send registry packet
-        p.timeout(T.Value(1, 's')) # set a conservative timeout
+        p.timeout(T.Value(10, 's')) # set a conservative timeout
         p.read(1) # read back one demodulation packet
         
         ans = yield p.send()
                 
         # parse the packets out and return data
-        src, dst, eth, data = ans.read
+        src, dst, eth, data = ans.read[0]
         vals = np.fromstring(data[:44], dtype='<i2')
-        IQs = vals.reshape(-1, 2)
+        Is, Qs = vals.reshape(-1, 2).astype(int).T
         Irng, Qrng = [ord(i) for i in data[46:48]]
-        twosComp = lambda i: i if i < 0x8 else i - 0x10
+        twosComp = lambda i: int(i if i < 0x8 else i - 0x10)
         Imax = twosComp((Irng >> 4) & 0xF) # << 12
         Imin = twosComp((Irng >> 0) & 0xF) # << 12
         Qmax = twosComp((Qrng >> 4) & 0xF) # << 12
         Qmin = twosComp((Qrng >> 0) & 0xF) # << 12
-        returnValue((IQs, (Imax, Imin, Qmax, Qmin)))
+        returnValue((Is, Qs, (Imax, Imin, Qmax, Qmin)))
 
