@@ -14,6 +14,45 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # Version 2.1	pomalley	7/23/2010	Added reading of calibrations from LabRAD registry.
+# Version 2.2	pomalley	8/17/2010	Fixed some issues with above, added reading of Read Order from registry.
+
+# How to set your Lakeshore 370's Resistance vs. Temperature Curve:
+# Previously, conversion of a resistance to a temperature happened with a hard coded function.
+# Now that we have two DRs, and thus (at least) two different kinds of Ruox thermometers,
+# a single hard coded function will not be sufficient.
+# Information for the calibration curves will be stored in the registry; there can be different
+# curves for each Lakeshore device, as well as different curves for each channel on a given device.
+# The registry entries for a given device are stored in the following path:
+# >> Servers >> Lakeshore 370 >> [gpib address]
+# where [gpib address] is, for example, GPIB0::12 for the Vince lakeshore and GPIB1::12 for Jules.
+# A given calibration consists of three keys:
+# "Calibration Type" must either be "Interpolation" or "Function"
+# 	For an interpolation, there must be two more keys:
+#		"Resistances", an array of resistance values, and
+#		"Temperatures", an array of corresponding temperatures.
+#		In this case, the server will do a log-log interpolation of the given data to convert a
+#		resistance to a temperature.
+#	For a function, there must be one more key:
+#		"Function", which is a string of a Python expression for converting a res to a temp, and
+#		"Inverse", which is also a Python expression, but inverted (for converting a temp to a res).
+#		In the Function, the resistance variable is r; in the Inverse, the temperature variable is t.
+#		In both cases, math functions are imported in the namespace	math (e.g. use math.log(r) to take the log).
+#		The server will run the Function code to convert a resistance to a temperature. For example, the
+# 		function that is used for Jules' resistors is: '((math.log(r) - 6.02) / 1.76) ** (-1/.345)'
+#		The Inverse code is used for temperature regulation. (Note that for interpolation calibrations
+#		the server can simply reverse the arguments of the interpolation to convert a temp to a res).
+# The best way to understand these is by example. Look in >> Servers >> Lakeshore 370 >> GPIB0::12 for
+# an example of a function, and >> Servers >> Lakeshore 370 >> GPIB1::12 for an interpolation example.
+# Finally, if you need to have different calibrations for different resistors on the same device,
+# this can easily be accomplished by creating another folder called "Channel X" where X is one of
+# 1 - 5, and then put the appropriate keys in that folder. That calibration will be used for that channel,
+# and the calibration for the device will only be used if there is no calibration for a given channel.
+# In this way, you can have an interpolation for channel 1, a different interpolation for channel 2,
+# and a function for the device, which would be used for channels 3, 4, and 5, for example.
+# For an example of this, see >> Servers >> Lakeshore 370 >> GPIB1::12.
+
+# Also note that the read order for a given device now can be stored in the registry as well.
+# If not, it defaults to [1, 2, 1, 3, 1, 4, 1, 5]
 
 """
 ### BEGIN NODE INFO
@@ -69,7 +108,8 @@ class RuOxWrapper(GPIBDeviceWrapper):
 	# returns a list: [regType, parameters...]
 	# for regType == DEFAULT, then there are no parameters (len(returnValue) = 1)
 	# for regType == FUNCTION, then the returnValue [1] is a string of python code to be eval'd
-	#							in a place where r (float) is a resistance, in ohms
+	#							in a place where r (float) is a resistance, in ohms,
+	#							and returnValue[2] is the inverse of the function, where t (float) is a temp, in kelvin
 	# for regType == INTERPOLATION, then returnValue[1] is a list of resistances for interpolation,
 	#								and returnValue[2] is a list of temperatures
 	@inlineCallbacks
@@ -90,8 +130,9 @@ class RuOxWrapper(GPIBDeviceWrapper):
 				p = reg.packet()
 				p.cd(path)
 				p.get("Function", key="fun")
+				p.get("Inverse", key="inv")
 				ans = yield p.send()
-				returnValue([FUNCTION, ans.fun])
+				returnValue([FUNCTION, ans.fun, ans.inv])
 			else:
 				returnValue([DEFAULT])
 		except Exception:
@@ -134,6 +175,16 @@ class RuOxWrapper(GPIBDeviceWrapper):
 				print "%s -- found FUNCTION calibration for channel %d." % (self.addr, i+1)
 			else:
 				raise Exception("Calibration loader messed up. This shouldn't have happened.")
+		
+		# now get the read order from the registry
+		try:
+			p = reg.packet()
+			p.cd(dir)
+			p.get("Read Order", key="ro")
+			ans = yield p.send()
+			self.readOrder = ans["ro"]
+		except Exception as e:
+			self.readOrder = READ_ORDER
 		
 		# also we should set the box settings here
 		yield self.write('RDGRNG 0,0,04,15,1,0')
@@ -186,18 +237,24 @@ class RuOxWrapper(GPIBDeviceWrapper):
 				self.readings[chan-1] = float(r), datetime.now()
 			# scan over channels
 			else:   
-				chan = READ_ORDER[idx]
+				chan = self.readOrder[idx]
 				yield self.selectChannel(chan)
 				yield util.wakeupCall(SETTLE_TIME)
 				r = yield self.query('RDGR? %d' % chan)
 				self.readings[chan-1] = float(r), datetime.now()
-				idx = (idx + 1) % len(READ_ORDER)
+				idx = (idx + 1) % len(self.readOrder)
 	
 	# get a single temperature for a given channel
 	# use that channel's calibration, or if it's default, the device calibration
 	# (and if that's zero, the default function)
-	def getSingleTemp(self, channel, calIndex):
-		#try:
+	# the first argument is the channel
+	# the second argument is the channel to use for the calibration, where 0 means use device default calibration
+	# if we don't find a calibration on the given channel, we try again with 0
+	# if that doesn't work, we use the old-fashioned res2temp
+	def getSingleTemp(self, channel, calIndex=-1):
+		if calIndex == -1:
+			calIndex = channel
+		try:
 			if self.calibrations[calIndex][0] == INTERPOLATION:
 				# log-log interpolation
 				return (np.exp(np.interp(np.log(self.readings[channel-1][0]),
@@ -215,17 +272,43 @@ class RuOxWrapper(GPIBDeviceWrapper):
 				if calIndex > 0:
 					return self.getSingleTemp(channel, 0) # use calibration 0--the device calibration
 				else:
-					return res2temp(self.readings[channel-1][0])
-		#except Exception as e:
-		#	print e
-		#	return 0.0
+					return res2temp(self.readings[channel-1][0]) # if there is no calibration at all, use old-fashioned res2temp
+		except Exception as e:
+			print e
+			return 0.0
 	
 	def getTemperatures(self):
 		# we now do this channel by channel. oh yeah.
 		result = []
 		for i in range(5):
-			result.append((self.getSingleTemp(i+1, i+1), self.readings[i][1]))
+			result.append((self.getSingleTemp(i+1), self.readings[i][1]))
 		return result
+		
+	# get the resistance that corresponds to a temperature
+	# you need to provide the channel because different channels can have different calibrations
+	# this function is essentially the inverse of getSingleTemp above
+	def singleTempToRes (self, temp, channel, calIndex=-1):
+		if calIndex = -1:
+			calIndex = channel
+		try:
+			if self.calibrations[calIndex][0] == INTERPOLATION:
+				# do the log-log interpolation in reverse
+				return (np.exp(np.interp(np.log(temp),
+											np.log(np.array(self.calibrations[calIndex][2])),
+											np.log(np.array(self.calibrations[calIndex][1]))
+											)))
+			elif self.calibrations[calIndex][0] == FUNCTION:
+				# same as getSingleTemp, but use inverse instead of function
+				t = temp
+				return eval(self.calibrations[calIndex][2])
+			elif eslf.calibrations[calIndex][0] == DEFAULT:
+				if calIndex > 0:
+					return self.singleTempToRes(temp, channel, 0) # use calibration 0
+				else:
+					return temp2res(temp) # if no calibration for the device either, use old-fashioned temp2res
+		except Exception as e:
+			print e
+			return 0.0
 			
 class LakeshoreRuOxServer(GPIBManagedServer):
 	name = 'Lakeshore RuOx'
@@ -248,7 +331,7 @@ class LakeshoreRuOxServer(GPIBManagedServer):
 		Returns temperature in Kelvin, and time of measurement.
 		"""
 		dev = self.selectedDevice(c)
-		return (dev.getSingleTemp(channel, channel), dev.readings[channel-1][1])
+		return (dev.getSingleTemp(channel), dev.readings[channel-1][1])
 
 	@setting(11, 'Resistances', returns='*(v[Ohm], t)')
 	def resistances(self, c):
@@ -280,7 +363,9 @@ class LakeshoreRuOxServer(GPIBManagedServer):
 		Use "Heater Range" to turn on heater and start regulation."""
 		if channel not in range(1,17):
 			raise Exception('Channel needs to be between 1 and 16')
-		res = temp2res(float(temperature))
+		#res = temp2res(float(temperature))
+		# we now do it intelligently
+		res = dev.singleTempToRes(float(temperature), channel)
 		if res == 0.0:
 			raise Exception('Invalid temperature')
 		loadresistor = float(loadresistor)
