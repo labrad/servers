@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Resonator Fit
-version = 0.4
+version = 0.5
 description = Fits resonator data to find Q
 
 [startup]
@@ -188,6 +188,9 @@ class ResonatorFit(LabradServer):
         # is given by finding the mean of all these rotated back ave max min values.
         # Note: we only need to rotate a quarter of a turn because anything over
         # that would be redundant.
+        if shunt:
+            zold = z
+            z = zold -1
         
         steps = 100
         centerpoints = array(range(steps),dtype=complex)
@@ -300,7 +303,10 @@ class ResonatorFit(LabradServer):
         
         nPoints = 500
         f = numpy.linspace(frequency[0],frequency[-1],nPoints)
-        maxpower_c = (20 * numpy.log10(abs(-exp(1j*theta)/(1+Qc/Qi) * 1./( 1 + 2j*(1/Qc + 1/Qi)**(-1) * (f - f0)/f0 )))).max()
+        if shunt:
+            maxpower_c = (20 * numpy.log10(abs(1-exp(1j*theta)/(1+Qc/Qi) * 1./( 1 + 2j*(1/Qc + 1/Qi)**(-1) * (f - f0)/f0 )))).max()
+        else:
+            maxpower_c = (20 * numpy.log10(abs(-exp(1j*theta)/(1+Qc/Qi) * 1./( 1 + 2j*(1/Qc + 1/Qi)**(-1) * (f - f0)/f0 )))).max()
 
         fitreturn = (fit, fiterror, maxpower_c)
         return fitreturn
