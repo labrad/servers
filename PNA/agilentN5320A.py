@@ -168,7 +168,7 @@ class AgilentPNAServer(GPIBManagedServer):
             av = long(resp) # and return that number to you
         elif isinstance(av, long): # if you send in a number
             yield dev.write('SENS:AVER:COUN %u' % av) # sets the averaging number
-            yield dev.write('SENS:AVER:MODE POIN') # turns average mode to POINTS
+            yield dev.write('SENS:AVER:MODE SWEEP') # turns average mode to SWEEP
             if av > 1:
                 yield dev.write('SENS:AVER ON') # turns averaging on
             else:
