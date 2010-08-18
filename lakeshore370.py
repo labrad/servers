@@ -140,11 +140,23 @@ class RuOxWrapper(GPIBDeviceWrapper):
 
 	@inlineCallbacks
 	def initialize(self):
-		self.readings = [(0, datetime.now())] * N_CHANNELS
 		self.alive = True
 		self.onlyChannel = 0
 		self.readLoop().addErrback(log.err)
 		
+		# see function def below
+		self.reloadCalibrations()
+		
+		# initialize the readings variable.
+		# len(set(x)) gets the number of unique elements in x
+		self.readings = [(0, datetime.now())] * len(set(self.readOrder))
+		
+		# also we should set the box settings here
+		yield self.write('RDGRNG 0,0,04,15,1,0')
+			
+
+	@inclineCallbacks
+	def reloadCalibrations(self):
 		# load resistance->temperature function from registry
 		# there are actually multiple functions--one for each channel,
 		# and a device default in case any of the channels' are missing
@@ -185,11 +197,8 @@ class RuOxWrapper(GPIBDeviceWrapper):
 			self.readOrder = ans["ro"]
 		except Exception as e:
 			self.readOrder = READ_ORDER
-		
-		# also we should set the box settings here
-		yield self.write('RDGRNG 0,0,04,15,1,0')
-			
 
+			
 	def shutdown(self):
 		self.alive = False
 
@@ -354,6 +363,16 @@ class LakeshoreRuOxServer(GPIBManagedServer):
 		if channel > 0:
 			dev.selectChannel(channel)
 		return channel
+		
+	@setting(14, 'Reload Calibrations')
+	def reload(self, c):
+		"""Reloads the parameters that are stored in the registry. This includes:
+		* Calibration curves/interpolation tables for all channels and the device default
+		* Channel read order
+		Call this after you change something in the registry and want to reload it.
+		"""
+		dev = self.selectedDevice(c)
+		dev.reloadCalibrations()
 
 	@setting(50, 'Regulate Temperature', channel='w', temperature='v[K]', loadresistor='v[Ohm]', returns='v[Ohm]: Target resistance')
 	def regulate(self, c, channel, temperature, loadresistor=30000):
