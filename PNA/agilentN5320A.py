@@ -168,6 +168,10 @@ class AgilentPNAServer(GPIBManagedServer):
             av = long(resp)
         elif isinstance(av, long):
             yield dev.write('SENS:AVER:COUN %u' % av)
+            if av > 1:
+                yield dev.write('SENS:AVER ON')
+            else:
+                yield dev.write('SENS:AVER OFF')
         returnValue(av)
 
     @setting(40, att=['(v[dB], v[dB])'], returns=[''])
