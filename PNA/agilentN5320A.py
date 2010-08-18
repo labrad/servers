@@ -163,15 +163,16 @@ class AgilentPNAServer(GPIBManagedServer):
     def averages(self, c, av=None):
         """Get or set the number of averages."""
         dev = self.selectedDevice(c)
-        if av is None:
-            resp = yield dev.query('SENS:AVER:COUN?')
-            av = long(resp)
-        elif isinstance(av, long):
-            yield dev.write('SENS:AVER:COUN %u' % av)
+        if av is None: # if you don't send a number of averages
+            resp = yield dev.query('SENS:AVER:COUN?') # it will ask the number of averages set on the PNA
+            av = long(resp) # and return that number to you
+        elif isinstance(av, long): # if you send in a number
+            yield dev.write('SENS:AVER:COUN %u' % av) # sets the averaging number
+            yield dev.write('SENS:AVER:MODE POIN') # turns average mode to POINTS
             if av > 1:
-                yield dev.write('SENS:AVER ON')
+                yield dev.write('SENS:AVER ON') # turns averaging on
             else:
-                yield dev.write('SENS:AVER OFF')
+                yield dev.write('SENS:AVER OFF') # turns averaging off
         returnValue(av)
 
     @setting(40, att=['(v[dB], v[dB])'], returns=[''])
