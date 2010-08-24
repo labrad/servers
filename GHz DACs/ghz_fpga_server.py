@@ -79,6 +79,7 @@ I2C_END = 0x400
 # TODO: store memory and SRAM as numpy arrays, rather than lists and strings, respectively
 # TODO: run sequences to verify the daisy-chain order automatically
 # TODO: when running adc boards in demodulation (streaming mode), check counters to verify that there is no packet loss
+# TODO: think about whether page selection and pipe semaphore can interact badly to slow down pipelining
 
 
 
@@ -425,90 +426,92 @@ class BoardGroup(object):
         
         try:
             yield self.pipeSemaphore.acquire()
-            
-            # stage 1: load
-            for pageLock in pageLocks: # lock pages to be written
-                yield pageLock.acquire()
-            loadDone = self.sendAll(loadPkts, 'Load', boardOrder)
-            
-            # stage 2: run
-            runNow = self.runLock.acquire() # get in line to be the next to run
             try:
-                yield loadDone # wait until load is finished
-                yield runNow # now acquire the run lock
+                # stage 1: load
+                for pageLock in pageLocks: # lock pages to be written
+                    yield pageLock.acquire()
+                loadDone = self.sendAll(loadPkts, 'Load', boardOrder)
                 
-                # set the number of triggers, based on the last executed sequence
-                waitPkt, runPkt, bothPkt = runPkts
-                waitPkt['nTriggers'] = self.prevTriggers
-                bothPkt['nTriggers'] = self.prevTriggers
-                self.prevTriggers = len(devs) # store the number of triggers for the next run
-                
-                needSetup = (not setupState) or (not self.setupState) or (not (setupState <= self.setupState))
-                if needSetup:
-                    # we require changes to the setup state
-                    r = yield waitPkt.send() # if this fails, something BAD happened!
-                    try:
-                        yield self.sendAll(setupPkts, 'Setup')
-                        self.setupState = setupState
-                    except Exception:
-                        # if there was an error, clear setup state
-                        self.setupState = set()
-                        raise
-                    yield runPkt.send()
-                else:
-                    r = yield bothPkt.send() # if this fails, something BAD happened!
-                
-                # keep track of how long the packet waited before being able to run
-                self.runWaitTimes.append(float(r['nTriggers']))
-                if len(self.runWaitTimes) > 100:
-                    self.runWaitTimes.pop(0)
+                # stage 2: run
+                runNow = self.runLock.acquire() # get in line to be the next to run
+                try:
+                    yield loadDone # wait until load is finished
+                    yield runNow # now acquire the run lock
                     
-                yield self.readLock.acquire() # wait for our turn to read data
+                    # set the number of triggers, based on the last executed sequence
+                    waitPkt, runPkt, bothPkt = runPkts
+                    waitPkt['nTriggers'] = self.prevTriggers
+                    bothPkt['nTriggers'] = self.prevTriggers
+                    self.prevTriggers = len(devs) # store the number of triggers for the next run
+                    
+                    needSetup = (not setupState) or (not self.setupState) or (not (setupState <= self.setupState))
+                    if needSetup:
+                        # we require changes to the setup state
+                        r = yield waitPkt.send() # if this fails, something BAD happened!
+                        try:
+                            yield self.sendAll(setupPkts, 'Setup')
+                            self.setupState = setupState
+                        except Exception:
+                            # if there was an error, clear setup state
+                            self.setupState = set()
+                            raise
+                        yield runPkt.send()
+                    else:
+                        r = yield bothPkt.send() # if this fails, something BAD happened!
+                    
+                    # keep track of how long the packet waited before being able to run
+                    self.runWaitTimes.append(float(r['nTriggers']))
+                    if len(self.runWaitTimes) > 100:
+                        self.runWaitTimes.pop(0)
+                        
+                    yield self.readLock.acquire() # wait for our turn to read data
+                    
+                    # stage 3: collect
+                    # collect appropriate number of packets and then trigger the run context
+                    collectAll = defer.DeferredList([p.send() for p in collectPkts], consumeErrors=True)
+                finally:
+                    # by releasing the runLock, we allow the next sequence to send its run packet.
+                    # if our collect fails due to a timeout, however, our triggers will not all
+                    # be sent to the run context, so that it will stay blocked until after we
+                    # cleanup and send the necessary triggers
+                    self.runLock.release()
                 
-                # collect appropriate number of packets and then trigger the run context
-                collectAll = defer.DeferredList([p.send() for p in collectPkts], consumeErrors=True)
+                # wait for data to be collected (or timeout)
+                results = yield collectAll
             finally:
-                # by releasing the runLock, we allow the next sequence to send its run packet.
-                # if our collect fails due to a timeout, however, our triggers will not all
-                # be sent to the run context, so that it will stay blocked until after we cleanup
-                # cleanup and send the necessary triggers
-                self.runLock.release()
+                for pageLock in pageLocks:
+                    pageLock.release()
             
-            # wait for data to be collected (or timeout)
-            results = yield collectAll
-        finally:
-            for pageLock in reversed(pageLocks):
-                pageLock.release()
-        
-        # check for a timeout and recover if necessary
-        if not all(success for success, result in results):
-            for success, result in results:
-                if not success:
-                    result.printTraceback()
-            yield self.recoverFromTimeout(devs, results)
+            # check for a timeout and recover if necessary
+            if not all(success for success, result in results):
+                for success, result in results:
+                    if not success:
+                        result.printTraceback()
+                yield self.recoverFromTimeout(devs, results)
+                self.readLock.release()
+                raise TimeoutError(self.timeoutReport(devs, results))
+            
+            # stage 4: read
+            # no timeout, so go ahead and read data
+            readAll = self.sendAll(readPkts, 'Read', boardOrder)
             self.readLock.release()
+            results = yield readAll # wait for read to complete
+    
+            if getTimingData:
+                if timingOrder is not None:
+                    results = [results[boardOrder.index(board)] for board in timingOrder]
+                    #if timingMode == 'DAC' or timingMode == 'AVERAGE':
+                    #    results = [results[boardOrder.index(board)] for board in timingOrder]
+                    #elif timingMode == 'DEMOD':
+                    #    results = [results[boardOrder.index(board)] for board, channel in timingOrder]
+                results = [[data for src, dst, eth, data in r['read']] for r in results]
+                if len(results):
+                    timing = np.vstack(self.extractTiming(result) for result in results)
+                else:
+                    timing = []
+                returnValue(timing)
+        finally:
             self.pipeSemaphore.release()
-            raise TimeoutError(self.timeoutReport(devs, results))
-        
-        # no timeout, so go ahead and read data
-        readAll = self.sendAll(readPkts, 'Read', boardOrder)
-        self.readLock.release()
-        results = yield readAll # wait for read to complete
-        self.pipeSemaphore.release()
-
-        if getTimingData:
-            if timingOrder is not None:
-                results = [results[boardOrder.index(board)] for board in timingOrder]
-                #if timingMode == 'DAC' or timingMode == 'AVERAGE':
-                #    results = [results[boardOrder.index(board)] for board in timingOrder]
-                #elif timingMode == 'DEMOD':
-                #    results = [results[boardOrder.index(board)] for board, channel in timingOrder]
-            results = [[data for src, dst, eth, data in r['read']] for r in results]
-            if len(results):
-                timing = np.vstack(self.extractTiming(result) for result in results)
-            else:
-                timing = []
-            returnValue(timing)
 
     @inlineCallbacks
     def sendAll(self, packets, info, infoList=None):
