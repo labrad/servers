@@ -131,8 +131,8 @@ class RuOxWrapper(GPIBDeviceWrapper):
 				p.cd(path)
 				p.get("Function", key="fun")
 				p.get("Inverse", key="inv")
-				ans = yield p.send()
 				returnValue([FUNCTION, ans.fun, ans.inv])
+				ans = yield p.send()
 			else:
 				returnValue([DEFAULT])
 		except Exception:
@@ -303,8 +303,8 @@ class RuOxWrapper(GPIBDeviceWrapper):
 			if self.calibrations[calIndex][0] == INTERPOLATION:
 				# do the log-log interpolation in reverse
 				return (np.exp(np.interp(np.log(temp),
-											np.log(np.array(self.calibrations[calIndex][2])),
-											np.log(np.array(self.calibrations[calIndex][1]))
+											np.log(np.array(self.calibrations[calIndex][2][::-1])),
+											np.log(np.array(self.calibrations[calIndex][1][::-1]))
 											)))
 			elif self.calibrations[calIndex][0] == FUNCTION:
 				# same as getSingleTemp, but use inverse instead of function
