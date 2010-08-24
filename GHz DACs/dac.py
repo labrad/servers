@@ -5,7 +5,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad.devices import DeviceWrapper
 from labrad import types as T
 
-from util import littleEndian
+from util import littleEndian, TimedLock
 
 REG_PACKET_LEN = 56
 
@@ -192,6 +192,7 @@ class DacDevice(DeviceWrapper):
         self.devName = name
         self.serverName = de._labrad_name
         self.timeout = T.Value(1, 's')
+        self.boardLock = TimedLock()
 
         # set up our context with the ethernet server
         p = self.makePacket()
@@ -321,18 +322,33 @@ class DacDevice(DeviceWrapper):
             r = yield self.sendRegisters(regs)
             answer += [processReadback(r)['serDAC']]
         returnValue(answer)
-        
+    
     @inlineCallbacks
+    def doWithLock(self, func):
+        try:
+            yield self.boardLock.acquire()
+        finally:
+            self.boardLock.release()
+    
+    
+    # chatty functions that require locking the device
+    
     def initPLL(self):
-        yield self.runSerial(1, [0x1FC093, 0x1FC092, 0x100004, 0x000C11])
-        regs = regRunSram(0, 0, loop=False)
-        yield self.sendRegisters(regs, readback=False)
+        @inlineCallbacks
+        def func():
+            yield self.runSerial(1, [0x1FC093, 0x1FC092, 0x100004, 0x000C11])
+            regs = regRunSram(0, 0, loop=False)
+            yield self.sendRegisters(regs, readback=False)
+        return self.doWithLock(func)
         
     @inlineCallbacks
     def queryPLL(self):
-        regs = regPllQuery()
-        r = yield self.sendRegisters(regs)
-        returnValue(processReadback(r)['noPllLatch'])
+        @inlineCallbacks
+        def func():
+            regs = regPllQuery()
+            r = yield self.sendRegisters(regs)
+            returnValue(processReadback(r)['noPllLatch'])
+        return self.doWithLock(func)
 
 
 def shiftSRAM(cmds, page):

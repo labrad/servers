@@ -5,7 +5,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad.devices import DeviceWrapper
 from labrad import types as T
 
-from util import littleEndian
+from util import littleEndian, TimedLock
 
 DEMOD_CHANNELS = 4
 DEMOD_PACKET_LEN = 46 # length of result packets in demodulation mode
@@ -109,6 +109,7 @@ class AdcDevice(DeviceWrapper):
         self.devName = name
         self.serverName = de._labrad_name
         self.timeout = T.Value(1, 's')
+        self.boardLock = TimedLock
 
         # set up our context with the ethernet server
         p = self.makePacket()
@@ -203,67 +204,88 @@ class AdcDevice(DeviceWrapper):
             yield self.sendRegisters(regs, readback=False)
     
     @inlineCallbacks
+    def doWithLock(self, func, *a, **kw):
+        try:
+            yield self.boardLock.acquire()
+            yield func(*a, **kw)
+        finally:
+            self.boardLock.release()
+    
+    
+    # chatty functions that require locking the device
+    
     def recalibrate(self):
-        regs = regAdcRecalibrate()
-        yield self.sendRegisters(regs, readback=False)
+        @inlineCallbacks
+        def func():
+            regs = regAdcRecalibrate()
+            yield self.sendRegisters(regs, readback=False)
+        return self.doWithLock(func)
     
-    @inlineCallbacks
     def initPLL(self):
-        yield self.runSerial([0x1FC093, 0x1FC092, 0x100004, 0x000C11])
-        
-    @inlineCallbacks
+        @inlineCallbacks
+        def func():
+            yield self.runSerial([0x1FC093, 0x1FC092, 0x100004, 0x000C11])
+        return self.doWithLock(func)
+    
     def queryPLL(self):
-        regs = regAdcPllQuery()
-        r = yield self.sendRegisters(regs)
-        returnValue(processReadback(r)['noPllLatch'])
+        @inlineCallbacks
+        def func():
+            regs = regAdcPllQuery()
+            r = yield self.sendRegisters(regs)
+            returnValue(processReadback(r)['noPllLatch'])
+        return self.doWithLock(func)
         
-    @inlineCallbacks
     def runAverage(self, filterFunc, filterStretchLen, filterStretchAt, demods):
-        # build registry packet
-        regs = regAdcRun(2, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
-
-        # create packet for the ethernet server
-        p = self.makePacket()
-        self.makeFilter(filterFunc, p) # upload filter function
-        self.makeTrigLookups(demods, p) # upload trig lookup tables
-        p.write(regs.tostring()) # send registry packet
-        p.timeout(T.Value(10, 's')) # set a conservative timeout
-        p.read(AVERAGE_PACKETS) # read back all packets from average buffer
-        
-        ans = yield p.send()
-                
-        # parse the packets out and return data
-        vals = []
-        for src, dst, eth, data in ans.read:
-            vals.append(np.fromstring(data, dtype='<i2'))
-        Is, Qs = np.hstack(vals).reshape(-1, 2).astype(int).T
-        returnValue((Is, Qs))
+        @inlineCallbacks
+        def func():
+            # build registry packet
+            regs = regAdcRun(2, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
+    
+            # create packet for the ethernet server
+            p = self.makePacket()
+            self.makeFilter(filterFunc, p) # upload filter function
+            self.makeTrigLookups(demods, p) # upload trig lookup tables
+            p.write(regs.tostring()) # send registry packet
+            p.timeout(T.Value(10, 's')) # set a conservative timeout
+            p.read(AVERAGE_PACKETS) # read back all packets from average buffer
+            
+            ans = yield p.send()
+                    
+            # parse the packets out and return data
+            vals = []
+            for src, dst, eth, data in ans.read:
+                vals.append(np.fromstring(data, dtype='<i2'))
+            Is, Qs = np.hstack(vals).reshape(-1, 2).astype(int).T
+            returnValue((Is, Qs))
+        return self.doWithLock(func)
         
     
-    @inlineCallbacks
     def runDemod(self, filterFunc, filterStretchLen, filterStretchAt, demods):
-        # build registry packet
-        regs = regAdcRun(4, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
-
-        # create packet for the ethernet server
-        p = self.makePacket()
-        self.makeFilter(filterFunc, p) # upload filter function
-        self.makeTrigLookups(demods, p) # upload trig lookup tables
-        p.write(regs.tostring()) # send registry packet
-        p.timeout(T.Value(10, 's')) # set a conservative timeout
-        p.read(1) # read back one demodulation packet
-        
-        ans = yield p.send()
-                
-        # parse the packets out and return data
-        src, dst, eth, data = ans.read[0]
-        vals = np.fromstring(data[:44], dtype='<i2')
-        Is, Qs = vals.reshape(-1, 2).astype(int).T
-        Irng, Qrng = [ord(i) for i in data[46:48]]
-        twosComp = lambda i: int(i if i < 0x8 else i - 0x10)
-        Imax = twosComp((Irng >> 4) & 0xF) # << 12
-        Imin = twosComp((Irng >> 0) & 0xF) # << 12
-        Qmax = twosComp((Qrng >> 4) & 0xF) # << 12
-        Qmin = twosComp((Qrng >> 0) & 0xF) # << 12
-        returnValue((Is, Qs, (Imax, Imin, Qmax, Qmin)))
+        @inlineCallbacks
+        def func():
+            # build registry packet
+            regs = regAdcRun(4, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
+    
+            # create packet for the ethernet server
+            p = self.makePacket()
+            self.makeFilter(filterFunc, p) # upload filter function
+            self.makeTrigLookups(demods, p) # upload trig lookup tables
+            p.write(regs.tostring()) # send registry packet
+            p.timeout(T.Value(10, 's')) # set a conservative timeout
+            p.read(1) # read back one demodulation packet
+            
+            ans = yield p.send()
+                    
+            # parse the packets out and return data
+            src, dst, eth, data = ans.read[0]
+            vals = np.fromstring(data[:44], dtype='<i2')
+            Is, Qs = vals.reshape(-1, 2).astype(int).T
+            Irng, Qrng = [ord(i) for i in data[46:48]]
+            twosComp = lambda i: int(i if i < 0x8 else i - 0x10)
+            Imax = twosComp((Irng >> 4) & 0xF) # << 12
+            Imin = twosComp((Irng >> 0) & 0xF) # << 12
+            Qmax = twosComp((Qrng >> 4) & 0xF) # << 12
+            Qmin = twosComp((Qrng >> 0) & 0xF) # << 12
+            returnValue((Is, Qs, (Imax, Imin, Qmax, Qmin)))
+        return self.doWithLock(func)
 

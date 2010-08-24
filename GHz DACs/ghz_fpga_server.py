@@ -105,6 +105,8 @@ class BoardGroup(object):
         self.cxn = server._cxn
         self.ctx = server.context()
         self.pageNums = itertools.cycle(range(NUM_PAGES))
+        self.pipeSemaphore = defer.DeferredSemaphore(NUM_PAGES)
+        self.ownedLocks = set()
         self.pageLocks = [TimedLock() for _ in range(NUM_PAGES)]
         self.runLock = TimedLock()
         self.readLock = TimedLock()
@@ -121,7 +123,12 @@ class BoardGroup(object):
     
     @inlineCallbacks
     def shutdown(self):
-        """When this board group is removed, expire our direct ethernet context."""
+        """Clean up when this board group is removed."""
+        # release all board locks
+        for dev in self.devices():
+            dev.boardLock.release()
+            self.ownedLocks.remove(dev)
+        # expire our context with the manager
         yield self.cxn.manager.expire_context(self.server.ID, context=self.ctx)
         
     def configure(self, name, boards):
@@ -140,6 +147,8 @@ class BoardGroup(object):
         try:
             # acquire all locks so we can ping boards without
             # interfering with board group operations
+            for i in xrange(NUM_PAGES):
+                yield self.pipeSemaphore.acquire()
             for pageLock in self.pageLocks:
                 yield pageLock.acquire()
             yield self.runLock.acquire()
@@ -157,9 +166,7 @@ class BoardGroup(object):
                     result.printTraceback()
             
             # clear any detection packets which may be buffered in device contexts
-            # TODO: better way of determining board group membership
-            devices = [dev for dev in self.fpgaServer.devices.values()
-                           if dev.devName.startswith(self.name)]
+            devices = self.devices()
             clears = []
             for dev in devices:
                 clears.append(dev.clear().send())
@@ -172,10 +179,24 @@ class BoardGroup(object):
             returnValue(found)
         finally:
             # release all locks once we're done with autodetection
+            #for i in xrange(NUM_PAGES):
+            #    self.pipeSemaphore.release()
+            # don't release the 
             for pageLock in self.pageLocks:
                 pageLock.release()
             self.runLock.release()
             self.readLock.release()
+
+    def refreshDone(self):
+        """Acquire locks on all devices after autorefresh is done."""
+        acquisitions = []
+        for dev in self.devices():
+            if dev not in self.ownedLocks:
+                acquisitions.append(dev.boardLock.acquire())
+                self.ownedLocks.add(dev)
+        yield defer.DeferredList(acquisitions, consumeErrors=True)
+        for i in xrange(NUM_PAGES):
+            self.pipeSemaphore.release()
 
     def detectDACs(self, timeout=1.0):
         """Try to detect DAC boards on this board group."""
@@ -239,6 +260,11 @@ class BoardGroup(object):
         finally:
             # expire the detection context
             yield self.cxn.manager.expire_context(self.server.ID, context=ctx)
+
+    def devices(self):
+        """Return a list of known device objects that belong to this board group."""
+        return [dev for dev in self.fpgaServer.devices.values()
+                    if dev.devName.startswith(self.name)]
 
 
     def makePackets(self, devs, page, reps, timingOrder, sync=249):
@@ -355,6 +381,37 @@ class BoardGroup(object):
         return wait, run, both
 
     @inlineCallbacks
+    def startPipe(self):
+        """Called before each pipeline stage starts to run.
+        
+        The main purpose is to grab each pipeline stage, however before
+        that happens, we check to see whether someone is waiting to acquire
+        the locks on any of our devices.  If so, we interrupt the pipeline,
+        relase and then reacquire the device locks, and then continue.
+        """
+        if any(dev.boardLock.waiting for dev in self.devices()):
+            # someone is in line for a board lock
+            devs = [dev for dev in self.devices() if dev.boardLock.waiting]
+            # flush out the pipe by acquiring all semaphore tokens
+            for i in xrange(NUM_PAGES):
+                yield self.pipeSemaphore.acquire()
+            # release and then reacquire all device locks
+            acquisitions = []
+            for dev in devs:
+                dev.boardLock.release()
+                acquisitions.append(dev.boardLock.acquire())
+            yield defer.DeferredList(acquisitions, consumeErrors=True)
+            # release semaphore
+            for i in xrange(NUM_PAGES):
+                self.pipeSemaphore.release()
+        # now get in line for the pipeline
+        yield self.pipeSemaphore.acquire()
+                
+    def endPipe(self):
+        """Called after each pipeline stage has executed."""
+        self.pipeSemaphore.release()
+
+    @inlineCallbacks
     def run(self, devs, reps, setupPkts, setupState, sync, getTimingData, timingOrder):
         """Run a sequence on this board group."""
         if not all((d[0].serverName == self.server._labrad_name) and
@@ -396,6 +453,8 @@ class BoardGroup(object):
         loadPkts, runPkts, collectPkts, readPkts = pkts
         
         try:
+            yield self.startPipe()
+            
             # stage 1: load
             for pageLock in pageLocks: # lock pages to be written
                 yield pageLock.acquire()
@@ -457,12 +516,14 @@ class BoardGroup(object):
                     result.printTraceback()
             yield self.recoverFromTimeout(devs, results)
             self.readLock.release()
+            self.endPipe()
             raise TimeoutError(self.timeoutReport(devs, results))
         
         # no timeout, so go ahead and read data
         readAll = self.sendAll(readPkts, 'Read', boardOrder)
         self.readLock.release()
         results = yield readAll # wait for read to complete
+        self.endPipe()
 
         if getTimingData:
             if timingOrder is not None:
@@ -664,6 +725,19 @@ class FPGAServer(DeviceServer):
             return adc.AdcDevice(guid, name)
         else:
             return dac.DacDevice(guid, name)
+
+
+    @inlineCallbacks
+    def _doRefresh(self):
+        """Override default behavior for refreshing devices.
+        
+        In particular, after a refresh operation is done, we notify each
+        board group so that it can lock all of the appropriate devices.
+        """
+        yield DeviceServer._doRefresh(self)
+        for (server, port), boardGroup in self.boardGroups.items():
+            yield boardGroup.refreshDone()
+        
 
 
     ## Trigger refreshes if a direct ethernet server connects or disconnects
