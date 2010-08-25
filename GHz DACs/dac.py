@@ -177,11 +177,14 @@ class DacDevice(DeviceWrapper):
     and we set up one unique context to use for talking to each board.
     """
     
+    # lifecycle functions for this device wrapper
+    
     @inlineCallbacks
-    def connect(self, name, de, port, board, build):
+    def connect(self, name, group, de, port, board, build):
         """Establish a connection to the board."""
         print 'connecting to DAC board: %s (build #%d)' % (macFor(board), build)
 
+        self.boardGroup = group
         self.server = de
         self.cxn = de._cxn
         self.ctx = de.context()
@@ -192,7 +195,6 @@ class DacDevice(DeviceWrapper):
         self.devName = name
         self.serverName = de._labrad_name
         self.timeout = T.Value(1, 's')
-        self.boardLock = TimedLock()
 
         # set up our context with the ethernet server
         p = self.makePacket()
@@ -206,7 +208,11 @@ class DacDevice(DeviceWrapper):
 
     @inlineCallbacks
     def shutdown(self):
+        """Called when this device is to be shutdown."""
         yield self.cxn.manager.expire_context(self.server.ID, context=self.ctx)
+
+
+    # packet creation functions
 
     def makePacket(self):
         """Create a new packet to be sent to the ethernet server for this device."""
@@ -269,15 +275,18 @@ class DacDevice(DeviceWrapper):
             p.send_trigger(triggerCtx)
         return p
 
+
+    # board communication (can be called from within test mode)
+
     @inlineCallbacks
-    def sendSRAM(self, data):
+    def _sendSRAM(self, data):
         """Write SRAM data to the FPGA."""
         p = self.makePacket()
         self.makeSRAM(data, p)
         p.send()
 
     @inlineCallbacks
-    def sendRegisters(self, regs, readback=True, timeout=T.Value(10, 's')):
+    def _sendRegisters(self, regs, readback=True, timeout=T.Value(10, 's')):
         """Send a register packet and optionally readback the result.
 
         If readback is True, the result packet is returned as a string of bytes.
@@ -295,7 +304,7 @@ class DacDevice(DeviceWrapper):
             returnValue(data)
 
     @inlineCallbacks
-    def runI2C(self, pkts):
+    def _runI2C(self, pkts):
         """Run I2C commands on the board."""
         answer = []
         for pkt in pkts:
@@ -307,48 +316,209 @@ class DacDevice(DeviceWrapper):
                 ack = [b & I2C_ACK for b in data]
                 
                 regs = regI2C(bytes, read, ack)
-                r = yield self.sendRegisters(regs)
+                r = yield self._sendRegisters(regs)
                 ansBytes = processReadback(r)['I2Cbytes'][-len(data):] # readout data wrapped around to end
                 
                 answer += [b for b, r in zip(ansBytes, read) if r]
         returnValue(answer)
 
     @inlineCallbacks
-    def runSerial(self, op, data):
+    def _runSerial(self, op, data):
         """Run a command or list of commands through the serial interface."""
         answer = []
         for d in data:
             regs = regSerial(op, d)
-            r = yield self.sendRegisters(regs)
+            r = yield self._sendRegisters(regs)
             answer += [processReadback(r)['serDAC']]
         returnValue(answer)
     
     @inlineCallbacks
-    def doWithLock(self, func):
-        try:
-            yield self.boardLock.acquire()
-        finally:
-            self.boardLock.release()
+    def _setPolarity(self, chan, invert):
+        regs = regClockPolarity(chan, invert)
+        yield self._sendRegisters(regs)
+        returnValue(invert)
+    
+    def testMode(self, func, *a, **kw):
+        """Run a func in test mode on our board group."""
+        return self.boardGroup.testMode(func, *a, **kw)
     
     
-    # chatty functions that require locking the device
+    # externally-accessible functions that put the board into test mode
     
     def initPLL(self):
         @inlineCallbacks
         def func():
             yield self.runSerial(1, [0x1FC093, 0x1FC092, 0x100004, 0x000C11])
             regs = regRunSram(0, 0, loop=False)
-            yield self.sendRegisters(regs, readback=False)
-        return self.doWithLock(func)
+            yield self._sendRegisters(regs, readback=False)
+        return self.testMode(func)
         
-    @inlineCallbacks
     def queryPLL(self):
         @inlineCallbacks
         def func():
             regs = regPllQuery()
-            r = yield self.sendRegisters(regs)
+            r = yield self._sendRegisters(regs)
             returnValue(processReadback(r)['noPllLatch'])
-        return self.doWithLock(func)
+        return self.testMode(func)
+    
+    def resetPLL(self):
+        @inlineCallbacks
+        def func():
+            regs = regPllReset()
+            yield self._sendRegisters(regs)
+        return self.testMode(func)
+    
+    def debugOutput(self, word1, word2, word3, word4):
+        @inlineCallbacks
+        def func():
+            pkt = regDebug(word1, word2, word3, word4)
+            yield self._sendRegisters(pkt)
+        return self.testMode(func)
+    
+    
+    def runSram(self, data, loop, blockDelay):
+        @inlineCallbacks
+        def func():
+            pkt = regPing()
+            yield self._sendRegisters(pkt)
+                
+            data = np.array(data, dtype='<u4').tostring()
+            yield self._sendSRAM(data)
+            startAddr, endAddr = 0, len(data) / 4
+    
+            pkt = regRunSram(startAddr, endAddr, loop, blockDelay)
+            yield self._sendRegisters(pkt, readback=False)
+        return self.testMode(func)
+    
+    def runI2C(self, pkts):
+        """Run I2C commands on the board."""
+        return self.testMode(self._runI2C, pkts)
+    
+    def runSerial(self, op, data):
+        """Run a command or list of commands through the serial interface."""
+        return self.testMode(self._runSerial, pkts)
+    
+    def setPolarity(self, chan, invert):
+        """Sets the clock polarity for either DAC. (DAC only)"""
+        return self.testMode(self._setPolarity, chan, invert)
+    
+    def setLVDS(self, cmd, data):
+        @inlineCallbacks
+        def func():
+            pkt = [[0x0400 + (i<<4), 0x8500, 0x0400 + i, 0x8500][j]
+                   for i in range(16) for j in range(4)]
+    
+            if data is None:
+                answer = yield self._runSerial(cmd, [0x0500] + pkt)
+                answer = [answer[i*2+2] & 1 for i in range(32)]
+    
+                MSD = -2
+                MHD = -2
+                for i in range(16):
+                    if MSD == -2 and answer[i*2] == 1: MSD = -1
+                    if MSD == -1 and answer[i*2] == 0: MSD = i
+                    if MHD == -2 and answer[i*2+1] == 1: MHD = -1
+                    if MHD == -1 and answer[i*2+1] == 0: MHD = i
+                MSD = max(MSD, 0)
+                MHD = max(MHD, 0)
+                t = (MHD-MSD)/2 & 0xF
+            else:
+                MSD = 0
+                MHD = 0
+                t = data & 0xF
+    
+            answer = yield self._runSerial(cmd, [0x0500 + (t<<4)] + pkt)
+            answer = [(bool(answer[i*4+2] & 1), bool(answer[i*4+4] & 1))
+                      for i in range(16)]
+            returnValue((MSD, MHD, t, answer))
+        return self.testMode(func)
+    
+    def setFIFO(self, chan, op):
+        @inlineCallbacks
+        def func():
+            # set clock polarity to positive
+            clkinv = False
+            yield self._setPolarity(chan, clkinv)
+    
+            pkt = [0x0500, 0x8700] # set LVDS delay and read FIFO counter
+            reading = yield self._runSerial(op, [0x8500] + pkt) # read current LVDS delay and exec pkt
+            oldlvds = (reading[0] & 0xF0) | 0x0500 # grab current LVDS setting
+            reading = reading[2] # get FIFO counter reading
+            base = reading
+            while reading == base: # until we have a clock edge ...
+                pkt[0] += 16 # ... move LVDS
+                if pkt[0] >= 0x0600:
+                    raise Exception('Failed to find clock edge while setting FIFO counter!')
+                reading = (yield self._runSerial(op, pkt))[1]
+    
+            pkt = [pkt[0] + 16*i for i in [2, 4]] # slowly step 6 clicks beyond edge to be centered on bit
+            newlvds = pkt[-1]
+            yield self._runSerial(op, pkt)
+    
+            tries = 5
+            found = False
+    
+            while tries > 0 and not found:
+                tries -= 1
+                pkt =  [0x0700, 0x8700, 0x0701, 0x8700, 0x0702, 0x8700, 0x0703, 0x8700]
+                reading = yield self._runSerial(op, pkt)
+                reading = [(reading[i]>>4) & 0xF for i in [1, 3, 5, 7]]
+                try:
+                    PHOF = reading.index(3)
+                    pkt = [0x0700 + PHOF, 0x8700]
+                    reading = long(((yield self._runSerial(op, pkt))[1] >> 4) & 7)
+                    found = True
+                except Exception:
+                    clkinv = not clkinv
+                    yield self._setPolarity(chan, clkinv)
+    
+            if not found:
+                raise Exception('Cannot find a FIFO offset to get a counter value of 3! Found: ' + repr(reading))
+    
+            # return to old lvds setting
+            pkt = range(newlvds, oldlvds, -32)[1:] + [oldlvds]
+            yield self._runSerial(op, pkt)
+            ans = (oldlvds >> 4) & 0xF, (newlvds >> 4) & 0xF, clkinv, PHOF, reading
+            returnValue(ans)
+        return self.testMode(func)
+    
+    
+    def runBIST(self, cmd, shift, data):
+        """Run a BIST on the given SRAM sequence. (DAC only)"""
+        @inlineCallbacks
+        def func():
+            pkt = regRunSram(0, 0, loop=False)
+            yield self._sendRegisters(pkt, readback=False)
+    
+            dat = [d & 0x3FFF for d in data]
+            data = [0, 0, 0, 0] + [d << shift for d in dat]
+            # make sure data is at least 20 words long by appending 0's
+            data += [0] * (20-len(data))
+            data = np.array(data, dtype='<u4').tostring()
+            yield self._sendSRAM(data)
+            startAddr, endAddr = 0, len(data) / 4
+            yield self._runSerial(cmd, [0x0004, 0x1107, 0x1106])
+    
+            pkt = regRunSram(startAddr, endAddr, loop=False)
+            yield self._sendRegisters(pkt, readback=False)
+    
+            seq = [0x1126, 0x9200, 0x9300, 0x9400, 0x9500,
+                   0x1166, 0x9200, 0x9300, 0x9400, 0x9500,
+                   0x11A6, 0x9200, 0x9300, 0x9400, 0x9500,
+                   0x11E6, 0x9200, 0x9300, 0x9400, 0x9500]
+            theory = tuple(bistChecksum(dat))
+            bist = yield self._runSerial(cmd, seq)
+            reading = [(bist[i+4] <<  0) + (bist[i+3] <<  8) +
+                       (bist[i+2] << 16) + (bist[i+1] << 24)
+                       for i in [0, 5, 10, 15]]
+            lvds, fifo = tuple(reading[0:2]), tuple(reading[2:4])
+    
+            # lvds and fifo may be reversed.  This is okay
+            lvds = lvds[::-1] if lvds[::-1] == theory else lvds
+            fifo = fifo[::-1] if fifo[::-1] == theory else fifo
+            returnValue((lvds == theory and fifo == theory, theory, lvds, fifo))
+        return self.testMode(func)
+    
 
 
 def shiftSRAM(cmds, page):
@@ -372,5 +542,16 @@ def getOpcode(cmd):
 
 def getAddress(cmd):
     return (cmd & 0x0FFFFF)
+
+
+def bistChecksum(data):
+    bist = [0, 0]
+    for i in xrange(0, len(data), 2):
+        for j in xrange(2):
+            if data[i+j] & 0x3FFF != 0:
+                bist[j] = (((bist[j] << 1) & 0xFFFFFFFE) | ((bist[j] >> 31) & 1)) ^ ((data[i+j] ^ 0x3FFF) & 0x3FFF)
+    return bist
+
+
 
 

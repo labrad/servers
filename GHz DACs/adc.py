@@ -94,11 +94,14 @@ class AdcDevice(DeviceWrapper):
     and we set up one unique context to use for talking to each board.
     """
     
+    # lifecycle functions
+    
     @inlineCallbacks
-    def connect(self, name, de, port, board, build):
+    def connect(self, name, group, de, port, board, build):
         """Establish a connection to the board."""
         print 'connecting to ADC board: %s (build #%d)' % (macFor(board), build)
 
+        self.boardGroup = group
         self.server = de
         self.cxn = de._cxn
         self.ctx = de.context()
@@ -109,7 +112,6 @@ class AdcDevice(DeviceWrapper):
         self.devName = name
         self.serverName = de._labrad_name
         self.timeout = T.Value(1, 's')
-        self.boardLock = TimedLock
 
         # set up our context with the ethernet server
         p = self.makePacket()
@@ -127,7 +129,11 @@ class AdcDevice(DeviceWrapper):
     
     @inlineCallbacks
     def shutdown(self):
+        """Called when this device is to be shutdown."""
         yield self.cxn.manager.expire_context(self.server.ID, context=self.ctx)
+    
+    
+    # packet creation functions
     
     def makePacket(self):
         """Create a new packet to be sent to the ethernet server for this device."""
@@ -169,8 +175,10 @@ class AdcDevice(DeviceWrapper):
         return p
 
     
+    # board communication (can be called from within test mode)
+    
     @inlineCallbacks
-    def sendSRAM(self, filter, demods={}):
+    def _sendSRAM(self, filter, demods={}):
         """Write SRAM data to the FPGA."""
         p = self.makePacket()
         self.makeFilter(filter, p)
@@ -179,7 +187,7 @@ class AdcDevice(DeviceWrapper):
     
     
     @inlineCallbacks
-    def sendRegisters(self, regs, readback=True, timeout=T.Value(10, 's')):
+    def _sendRegisters(self, regs, readback=True, timeout=T.Value(10, 's')):
         """Send a register packet and optionally readback the result.
 
         If readback is True, the result packet is returned as a string of bytes.
@@ -197,19 +205,15 @@ class AdcDevice(DeviceWrapper):
             returnValue(data)
     
     @inlineCallbacks
-    def runSerial(self, data):
+    def _runSerial(self, data):
         """Run a command or list of commands through the serial interface."""
         for d in data:
             regs = regAdcSerial(d)
-            yield self.sendRegisters(regs, readback=False)
+            yield self._sendRegisters(regs, readback=False)
     
-    @inlineCallbacks
-    def doWithLock(self, func, *a, **kw):
-        try:
-            yield self.boardLock.acquire()
-            yield func(*a, **kw)
-        finally:
-            self.boardLock.release()
+    def testMode(self, func, *a, **kw):
+        """Run a func in test mode on our board group."""
+        return self.boardGroup.testMode(func, *a, **kw)
     
     
     # chatty functions that require locking the device
@@ -218,22 +222,22 @@ class AdcDevice(DeviceWrapper):
         @inlineCallbacks
         def func():
             regs = regAdcRecalibrate()
-            yield self.sendRegisters(regs, readback=False)
-        return self.doWithLock(func)
+            yield self._sendRegisters(regs, readback=False)
+        return self.testMode(func)
     
     def initPLL(self):
         @inlineCallbacks
         def func():
-            yield self.runSerial([0x1FC093, 0x1FC092, 0x100004, 0x000C11])
-        return self.doWithLock(func)
+            yield self._runSerial([0x1FC093, 0x1FC092, 0x100004, 0x000C11])
+        return self.testMode(func)
     
     def queryPLL(self):
         @inlineCallbacks
         def func():
             regs = regAdcPllQuery()
-            r = yield self.sendRegisters(regs)
+            r = yield self._sendRegisters(regs)
             returnValue(processReadback(r)['noPllLatch'])
-        return self.doWithLock(func)
+        return self.testMode(func)
         
     def runAverage(self, filterFunc, filterStretchLen, filterStretchAt, demods):
         @inlineCallbacks
@@ -257,7 +261,7 @@ class AdcDevice(DeviceWrapper):
                 vals.append(np.fromstring(data, dtype='<i2'))
             Is, Qs = np.hstack(vals).reshape(-1, 2).astype(int).T
             returnValue((Is, Qs))
-        return self.doWithLock(func)
+        return self.testMode(func)
         
     
     def runDemod(self, filterFunc, filterStretchLen, filterStretchAt, demods):
@@ -287,5 +291,5 @@ class AdcDevice(DeviceWrapper):
             Qmax = twosComp((Qrng >> 4) & 0xF) # << 12
             Qmin = twosComp((Qrng >> 0) & 0xF) # << 12
             returnValue((Is, Qs, (Imax, Imin, Qmax, Qmin)))
-        return self.doWithLock(func)
+        return self.testMode(func)
 

@@ -190,7 +190,7 @@ class BoardGroup(object):
             info = dac.processReadback(data)
             build = info['build']
             devName = '%s DAC %d' % (self.name, board)
-            args = devName, self.server, self.port, board, build
+            args = devName, self, self.server, self.port, board, build
             return (devName, args)
         macs = [dac.macFor(board) for board in range(256)]
         return self._doDetection(macs, dac.regPing(), dac.READBACK_LEN, callback)
@@ -202,7 +202,7 @@ class BoardGroup(object):
             info = adc.processReadback(data)
             build = info['build']
             devName = '%s ADC %d' % (self.name, board)
-            args = devName, self.server, self.port, board, build
+            args = devName, self, self.server, self.port, board, build
             return (devName, args)
         macs = [adc.macFor(board) for board in range(256)]
         return self._doDetection(macs, adc.regAdcPing(), adc.READBACK_LEN, callback)
@@ -692,7 +692,6 @@ class FPGAServer(DeviceServer):
                 result.printBriefTraceback(elideFrameworkCode=1)
         returnValue(found)
 
-
     def deviceWrapper(self, guid, name):
         """Build a DAC or ADC device wrapper, depending on the device name"""
         if 'ADC' in name:
@@ -730,13 +729,6 @@ class FPGAServer(DeviceServer):
             if boardGroup.name == name:
                 return boardGroup
         raise Exception("Board group '%s' not found." % name)
-    
-    def deviceBoardGroup(self, dev):
-        """Find the board group for a particular device."""
-        for boardGroup in self.boardGroups.values():
-            if dev.devName.startswith(boardGroup.name):
-                return boardGroup
-        raise Exception("No board group for device '%s'." % dev.devName)
 
 
     def initContext(self, c):
@@ -808,8 +800,7 @@ class FPGAServer(DeviceServer):
         d['sram'] = (block1, block2, delayBlocks)
 
 
-    @setting(30, 'Memory', data='*w: Memory Words to be written',
-                           returns='')
+    @setting(30, 'Memory', data='*w: Memory Words to be written', returns='')
     def dac_memory(self, c, data):
         """Writes data to the Memory at the current starting address."""
         dev = self.selectedDAC(c)
@@ -1062,19 +1053,15 @@ class FPGAServer(DeviceServer):
 
         The sequence is [0x1FC093, 0x1FC092, 0x100004, 0x000C11].
         """
-        #dev = self.selectedDevice(c)
-        #yield dev.initPLL()
         dev = self.selectedDevice(c)
-        bg = self.deviceBoardGroup(dev)
-        yield bg.testMode(dev.initPLL)
+        yield dev.initPLL()
 
 
     @setting(201, 'PLL Reset', returns='')
     def pll_reset(self, c):
         """Resets the FPGA internal GHz serializer PLLs. (DAC only)"""
         dev = self.selectedDAC(c)
-        regs = regPllReset()
-        yield dev.sendRegisters(regs)
+        yield dev.resetPLL()
 
 
     @setting(202, 'PLL Query', returns='b')
@@ -1093,8 +1080,7 @@ class FPGAServer(DeviceServer):
     def dac_debug_output(self, c, data):
         """Outputs data directly to the output bus. (DAC only)"""
         dev = self.selectedDAC(c)
-        pkt = regDebug(*data)
-        yield dev.sendRegisters(pkt)
+        yield dev.debugOutput(*data)
 
 
     @setting(1081, 'DAC Run SRAM', data='*w', loop='b', blockDelay='w', returns='')
@@ -1107,13 +1093,8 @@ class FPGAServer(DeviceServer):
         parameters specifies the number of microseconds to delay
         for a multiblock sequence.
         """
-        dev = self.selectedDAC(c)
-
-        pkt = regPing()
-        yield dev.sendRegisters(pkt)
-
         if not len(data):
-            returnValue((0, 0))
+            return
 
         if loop:
             # make sure data is at least 20 words long by repeating it
@@ -1121,13 +1102,9 @@ class FPGAServer(DeviceServer):
         else:
             # make sure data is at least 20 words long by repeating first value
             data += [data[0]] * (20-len(data))
-            
-        data = np.array(data, dtype='<u4').tostring()
-        yield dev.sendSRAM(data)
-        startAddr, endAddr = 0, len(data) / 4
 
-        pkt = regRunSram(startAddr, endAddr, loop, blockDelay)
-        yield dev.sendRegisters(pkt, readback=False)
+        dev = self.selectedDAC(c)
+        yield dev.runSram(data, loop, blockDelay)
 
 
     @setting(1100, 'DAC I2C', data='*w', returns='*w')
@@ -1264,9 +1241,8 @@ class FPGAServer(DeviceServer):
     @setting(1206, 'DAC Clock Polarity', chan='s', invert='b', returns='b')
     def dac_pol(self, c, chan, invert):
         """Sets the clock polarity for either DAC. (DAC only)"""
-        regs = regClockPolarity(chan, invert)
         dev = self.selectedDAC(c)
-        yield dev.sendRegisters(regs)
+        yield dev.setPolarity(chan, invert)
         returnValue(invert)
 
 
@@ -1285,40 +1261,16 @@ class FPGAServer(DeviceServer):
         returnValue(signed)
 
 
-    @setting(1221, 'DAC LVDS', chan='s', data='w', returns='(www*(bb))')
+    @setting(1221, 'DAC LVDS', chan='s', data='w', returns='www*(bb)')
     def dac_lvds(self, c, chan, data=None):
         """Set or determine DAC LVDS phase shift and return y, z check data. (DAC only)"""
         cmd = getCommand({'A': 2, 'B': 3}, chan)
         dev = self.selectedDAC(c)
-        pkt = [[0x0400 + (i<<4), 0x8500, 0x0400 + i, 0x8500][j]
-               for i in range(16) for j in range(4)]
-
-        if data is None:
-            answer = yield dev.runSerial(cmd, [0x0500] + pkt)
-            answer = [answer[i*2+2] & 1 for i in range(32)]
-
-            MSD = -2
-            MHD = -2
-            for i in range(16):
-                if MSD == -2 and answer[i*2] == 1: MSD = -1
-                if MSD == -1 and answer[i*2] == 0: MSD = i
-                if MHD == -2 and answer[i*2+1] == 1: MHD = -1
-                if MHD == -1 and answer[i*2+1] == 0: MHD = i
-            MSD = max(MSD, 0)
-            MHD = max(MHD, 0)
-            t = (MHD-MSD)/2 & 0xF
-        else:
-            MSD = 0
-            MHD = 0
-            t = data & 0xF
-
-        answer = yield dev.runSerial(cmd, [0x0500 + (t<<4)] + pkt)
-        answer = [(bool(answer[i*4+2] & 1), bool(answer[i*4+4] & 1))
-                  for i in range(16)]
-        returnValue((MSD, MHD, t, answer))
+        ans = yield dev.setLVDS(cmd, data)
+        returnValue(ans)
 
 
-    @setting(1222, 'DAC FIFO', chan='s', returns='(wwbww)')
+    @setting(1222, 'DAC FIFO', chan='s', returns='wwbww')
     def dac_fifo(self, c, chan):
         """Adjust FIFO buffer. (DAC only)
         
@@ -1328,50 +1280,7 @@ class FPGAServer(DeviceServer):
         """
         op = getCommand({'A': 2, 'B': 3}, chan)
         dev = self.selectedDAC(c)
-
-        # set clock polarity to positive
-        clkinv = False
-        yield self.dac_pol(c, chan, clkinv)
-
-        pkt = [0x0500, 0x8700] # set LVDS delay and read FIFO counter
-        reading = yield dev.runSerial(op, [0x8500] + pkt) # read current LVDS delay and exec pkt
-        oldlvds = (reading[0] & 0xF0) | 0x0500 # grab current LVDS setting
-        reading = reading[2] # get FIFO counter reading
-        base = reading
-        while reading == base: # until we have a clock edge ...
-            pkt[0] += 16 # ... move LVDS
-            if pkt[0] >= 0x0600:
-                raise Exception('Failed to find clock edge while setting FIFO counter!')
-            reading = (yield dev.runSerial(op, pkt))[1]
-
-        pkt = [pkt[0] + 16*i for i in [2, 4]] # slowly step 6 clicks beyond edge to be centered on bit
-        newlvds = pkt[-1]
-        yield dev.runSerial(op, pkt)
-
-        tries = 5
-        found = False
-
-        while tries > 0 and not found:
-            tries -= 1
-            pkt =  [0x0700, 0x8700, 0x0701, 0x8700, 0x0702, 0x8700, 0x0703, 0x8700]
-            reading = yield dev.runSerial(op, pkt)
-            reading = [(reading[i]>>4) & 0xF for i in [1, 3, 5, 7]]
-            try:
-                PHOF = reading.index(3)
-                pkt = [0x0700 + PHOF, 0x8700]
-                reading = long(((yield dev.runSerial(op, pkt))[1] >> 4) & 7)
-                found = True
-            except Exception:
-                clkinv = not clkinv
-                yield self.dac_pol(c, chan, clkinv)
-
-        if not found:
-            raise Exception('Cannot find a FIFO offset to get a counter value of 3! Found: ' + repr(reading))
-
-        # return to old lvds setting
-        pkt = range(newlvds, oldlvds, -32)[1:] + [oldlvds]
-        yield dev.runSerial(op, pkt)
-        ans = (oldlvds >> 4) & 0xF, (newlvds >> 4) & 0xF, clkinv, PHOF, reading
+        ans = yield dev.setFIFO(chan, op)
         returnValue(ans)
 
 
@@ -1391,43 +1300,13 @@ class FPGAServer(DeviceServer):
         returnValue(delay)
 
 
-    @setting(1225, 'DAC BIST', chan='s', data='*w', returns='(b(ww)(ww)(ww))')
+    @setting(1225, 'DAC BIST', chan='s', data='*w', returns='b(ww)(ww)(ww)')
     def dac_bist(self, c, chan, data):
         """Run a BIST on the given SRAM sequence. (DAC only)"""
         cmd, shift = getCommand({'A': (2, 0), 'B': (3, 14)}, chan)
         dev = self.selectedDAC(c)
-        pkt = regRunSram(0, 0, loop=False)
-        yield dev.sendRegisters(pkt, readback=False)
-
-        dat = [d & 0x3FFF for d in data]
-        data = [0, 0, 0, 0] + [d << shift for d in dat]
-        # make sure data is at least 20 words long by appending 0's
-        data += [0] * (20-len(data))
-        data = np.array(data, dtype='<u4').tostring()
-        yield dev.sendSRAM(data)
-        startAddr, endAddr = 0, len(data) / 4
-        yield dev.runSerial(cmd, [0x0004, 0x1107, 0x1106])
-
-        pkt = regRunSram(startAddr, endAddr, loop=False)
-        yield dev.sendRegisters(pkt, readback=False)
-
-        seq = [0x1126, 0x9200, 0x9300, 0x9400, 0x9500,
-               0x1166, 0x9200, 0x9300, 0x9400, 0x9500,
-               0x11A6, 0x9200, 0x9300, 0x9400, 0x9500,
-               0x11E6, 0x9200, 0x9300, 0x9400, 0x9500]
-        theory = tuple(bistChecksum(dat))
-        bist = yield dev.runSerial(cmd, seq)
-        reading = [(bist[i+4] <<  0) + (bist[i+3] <<  8) +
-                   (bist[i+2] << 16) + (bist[i+1] << 24)
-                   for i in [0, 5, 10, 15]]
-        lvds, fifo = tuple(reading[0:2]), tuple(reading[2:4])
-
-        # lvds and fifo may be reversed.  This is okay
-        if tuple(reversed(lvds)) == theory:
-            lvds = tuple(reversed(lvds))
-        if tuple(reversed(fifo)) == theory:
-            fifo = tuple(reversed(fifo))
-        returnValue((lvds == theory and fifo == theory, theory, lvds, fifo))
+        ans = yield dev.runBIST(cmd, shift, data)
+        returnValue(ans)
 
 
 
@@ -1486,13 +1365,7 @@ def getCommand(cmds, chan):
     except:
         raise Exception("Allowed channels are %s." % sorted(cmds.keys()))
 
-def bistChecksum(data):
-    bist = [0, 0]
-    for i in xrange(0, len(data), 2):
-        for j in xrange(2):
-            if data[i+j] & 0x3FFF != 0:
-                bist[j] = (((bist[j] << 1) & 0xFFFFFFFE) | ((bist[j] >> 31) & 1)) ^ ((data[i+j] ^ 0x3FFF) & 0x3FFF)
-    return bist
+
 
 
 # commands for analyzing and manipulating FPGA memory sequences
