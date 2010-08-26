@@ -33,16 +33,6 @@ timeout = 5
 from labrad.devices import DeviceServer, DeviceWrapper
 from labrad.server import setting, inlineCallbacks, returnValue
 
-# registry (for info about where to connect)
-# Servers -> CP2800 Compressor
-# -> Serial Links = [(server, port),...]
-# -> Logs -> <deviceName> -> YYYY -> MM -> DD ->
-
-# data vault (for logging of numerical data)
-# Logs -> CP2800 Compressor -> <deviceName> -> {YYYY} -> {MM} -> {DD} ->
-#      -> Vince -> {YYYY} -> {MM} -> {DD} ->
-#      -> Jules -> {YYYY} -> {MM} -> {DD} ->
-
 class HeatSwitchDevice(DeviceWrapper):
     @inlineCallbacks
     def connect(self, server, port):
@@ -55,7 +45,8 @@ class HeatSwitchDevice(DeviceWrapper):
         p.open(port)
         p.baudrate(2400)
         p.read() # clear out the read buffer
-        p.timeout(TIMEOUT)
+        p.timeout(5)
+#        p.timeout(TIMEOUT)
         yield p.send()
         print 'done.'
 
