@@ -45,8 +45,7 @@ class HeatSwitchDevice(DeviceWrapper):
         p.open(port)
         p.baudrate(2400)
         p.read() # clear out the read buffer
-        p.timeout(5)
-#        p.timeout(TIMEOUT)
+        p.timeout(TIMEOUT)
         yield p.send()
         print 'done.'
 
