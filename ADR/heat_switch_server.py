@@ -117,6 +117,8 @@ class HeatSwitchServer(DeviceServer):
         yield dev.close()
 
 
+TIMEOUT = 1 # serial read timeout
+
 #####
 # Create a server instance and run it
 
