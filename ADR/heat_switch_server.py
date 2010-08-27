@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Heat Switch
-version = 1.0
+version = 1.0.1
 description = Heat switch for the ADR.
 
 [startup]
