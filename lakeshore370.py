@@ -131,31 +131,45 @@ class RuOxWrapper(GPIBDeviceWrapper):
 				p.cd(path)
 				p.get("Function", key="fun")
 				p.get("Inverse", key="inv")
-				returnValue([FUNCTION, ans.fun, ans.inv])
 				ans = yield p.send()
+				returnValue([FUNCTION, ans.fun, ans.inv])
 			else:
 				returnValue([DEFAULT])
-		except Exception:
+		except Exception as e:
+			#print e
 			returnValue([DEFAULT])
 
+	def printCalibration(self, channel):
+		str = ''
+		try:
+			if self.calibrations[channel][0] == INTERPOLATION:
+				str = "INTERPOLATION --  Resistances: %s -- Temperatures: %s" % (self.calibrations[0][1], self.calibrations[0][2])
+			elif self.calibrations[channel][0] == FUNCTION:
+				str = "FUNCTION: %s -- Inverse: %s" % (self.calibrations[0][1], self.calibrations[0][2])
+			elif self.calibrations[channel][0] == DEFAULT:
+				str = "DEFAULT"
+			else:
+				raise Exception('Invalid calibration for channel %s: "%s"' % (channel, str))
+		except Exception as e:
+			str += e.__str__()
+		return str
+			
 	@inlineCallbacks
 	def initialize(self):
-		self.alive = True
+		self.alive = False
 		self.onlyChannel = 0
-		self.readLoop().addErrback(log.err)
+		
+		print self.name
 		
 		# see function def below
 		self.reloadCalibrations()
 		
-		# initialize the readings variable.
-		# len(set(x)) gets the number of unique elements in x
-		self.readings = [(0, datetime.now())] * len(set(self.readOrder))
-		
 		# also we should set the box settings here
 		yield self.write('RDGRNG 0,0,04,15,1,0')
-			
+		self.alive = True
+		self.readLoop().addErrback(log.err)	
 
-	@inclineCallbacks
+	@inlineCallbacks
 	def reloadCalibrations(self):
 		# load resistance->temperature function from registry
 		# there are actually multiple functions--one for each channel,
@@ -163,9 +177,18 @@ class RuOxWrapper(GPIBDeviceWrapper):
 		# self.calibrations[0] = device default calibration, self.calibrations[1-5] for channels 1-5
 		# see comment above loadSingleCalibration 
 		self.calibrations = []
+		self.readOrder = []
 		reg = self.gpib._cxn.registry
+		# determine if we're jules or vince based on the beginning of the name string
+		# name string is usually "Vince GPIB Bus - GPIB0::12" or "DR GPIB Bus - GPIB0::12"
+		if self.name.lower().startswith("vince"):
+			name = 'Vince'
+		elif self.name.lower().startswith("dr") or self.name.lower().startswith("jules"):
+			name = 'Jules'
+		else:
+			name = self.name.partition(' ')[0]
 		# first do the default one
-		dir = ["", "Servers", "Lakeshore 370", self.addr]
+		dir = ["", "Servers", "Lakeshore 370", name]
 		calib = yield self.loadSingleCalibration(reg, dir)
 		self.calibrations.append(calib)
 		if self.calibrations[0][0] == DEFAULT:
@@ -197,6 +220,11 @@ class RuOxWrapper(GPIBDeviceWrapper):
 			self.readOrder = ans["ro"]
 		except Exception as e:
 			self.readOrder = READ_ORDER
+		
+		# initialize the readings variable.
+		# len(set(x)) gets the number of unique elements in x
+		self.readings = [(0, datetime.now())] * len(set(self.readOrder))
+		print "READINGS %s" % self.readings.__str__()
 
 			
 	def shutdown(self):
@@ -245,8 +273,12 @@ class RuOxWrapper(GPIBDeviceWrapper):
 				r = yield self.query('RDGR? %d' % chan)
 				self.readings[chan-1] = float(r), datetime.now()
 			# scan over channels
-			else:   
-				chan = self.readOrder[idx]
+			else:
+				if len(self.readOrder) > 0:
+					chan = self.readOrder[idx]
+				else:
+					yield util.wakeupCall(SETTLE_TIME)
+					continue
 				yield self.selectChannel(chan)
 				yield util.wakeupCall(SETTLE_TIME)
 				r = yield self.query('RDGR? %d' % chan)
@@ -297,7 +329,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
 	# you need to provide the channel because different channels can have different calibrations
 	# this function is essentially the inverse of getSingleTemp above
 	def singleTempToRes (self, temp, channel, calIndex=-1):
-		if calIndex = -1:
+		if calIndex == -1:
 			calIndex = channel
 		try:
 			if self.calibrations[calIndex][0] == INTERPOLATION:
@@ -316,7 +348,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
 				else:
 					return temp2res(temp) # if no calibration for the device either, use old-fashioned temp2res
 		except Exception as e:
-			print e
+			print "Exception converting temp to res: %s" % e.__str__()
 			return 0.0
 			
 class LakeshoreRuOxServer(GPIBManagedServer):
@@ -373,6 +405,17 @@ class LakeshoreRuOxServer(GPIBManagedServer):
 		"""
 		dev = self.selectedDevice(c)
 		dev.reloadCalibrations()
+		
+	@setting(15, 'Print Settings', returns='s')
+	def print_settings(self, c):
+		"""Prints the settings loaded from the registry for this device."""
+		dev = self.selectedDevice(c)
+		string = ''
+		string += "Read order: %s  \n  " % dev.readOrder.__str__()
+		string += "Device default calibration: %s  \n  " % dev.printCalibration(0)
+		for i in range(1, 6):
+			string += "Channel %s calibration: %s  \n  " % (i, dev.printCalibration(i))
+		return string
 
 	@setting(50, 'Regulate Temperature', channel='w', temperature='v[K]', loadresistor='v[Ohm]', returns='v[Ohm]: Target resistance')
 	def regulate(self, c, channel, temperature, loadresistor=30000):
