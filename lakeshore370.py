@@ -46,7 +46,7 @@
 # an example of a function, and >> Servers >> Lakeshore 370 >> Vince for an interpolation example.
 # Finally, if you need to have different calibrations for different resistors on the same device,
 # this can easily be accomplished by creating another folder called "Channel X" where X is one of
-# 1 - 5, and then put the appropriate keys in that folder. That calibration will be used for that channel,
+# 1 - N, and then put the appropriate keys in that folder. That calibration will be used for that channel,
 # and the calibration for the device will only be used if there is no calibration for a given channel.
 # In this way, you can have an interpolation for channel 1, a different interpolation for channel 2,
 # and a function for the device, which would be used for channels 3, 4, and 5, for example.
@@ -85,7 +85,7 @@ from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 import numpy as np
 
 READ_ORDER = [1, 2, 1, 3, 1, 4, 1, 5]
-N_CHANNELS = 5
+#N_CHANNELS = 5
 SETTLE_TIME = 8
 DEFAULT, FUNCTION, INTERPOLATION = range(3)
 
@@ -144,9 +144,9 @@ class RuOxWrapper(GPIBDeviceWrapper):
 		str = ''
 		try:
 			if self.calibrations[channel][0] == INTERPOLATION:
-				str = "INTERPOLATION --  Resistances: %s -- Temperatures: %s" % (self.calibrations[0][1], self.calibrations[0][2])
+				str = "INTERPOLATION --  Resistances: %s -- Temperatures: %s" % (self.calibrations[channel][1], self.calibrations[channel][2])
 			elif self.calibrations[channel][0] == FUNCTION:
-				str = "FUNCTION: %s -- Inverse: %s" % (self.calibrations[0][1], self.calibrations[0][2])
+				str = "FUNCTION: %s -- Inverse: %s" % (self.calibrations[channel][1], self.calibrations[channel][2])
 			elif self.calibrations[channel][0] == DEFAULT:
 				str = "DEFAULT"
 			else:
@@ -173,10 +173,10 @@ class RuOxWrapper(GPIBDeviceWrapper):
 
 	@inlineCallbacks
 	def reloadCalibrations(self):
-		# load resistance->temperature function from registry
+		# load read order and resistance->temperature function from registry
 		# there are actually multiple functions--one for each channel,
 		# and a device default in case any of the channels' are missing
-		# self.calibrations[0] = device default calibration, self.calibrations[1-5] for channels 1-5
+		# self.calibrations[0] = device default calibration, self.calibrations[1-N] for channels 1-N
 		# see comment above loadSingleCalibration 
 		self.calibrations = []
 		self.readOrder = []
@@ -191,29 +191,6 @@ class RuOxWrapper(GPIBDeviceWrapper):
 			name = self.name.partition(' ')[0]
 		# where in the registry are we looking?
 		dir = ["", "Servers", "Lakeshore 370", name]
-		# first get the default one
-		calib = yield self.loadSingleCalibration(reg, dir)
-		self.calibrations.append(calib)
-		if self.calibrations[0][0] == DEFAULT:
-			print "WARNING: %s -- no calibration found for device default. Using server default calibration." % (self.addr)
-		elif self.calibrations[0][0] == INTERPOLATION:
-			print "%s -- found INTERPOLATION calibration for device default." % (self.addr)
-		elif self.calibrations[0][0] == FUNCTION:
-			print "%s -- found FUNCTION calibration for device default." % (self.addr)
-		else:
-			raise Exception("Calibration loader messed up. This shouldn't have happened.")
-		# now do all 5 channels
-		for i in range(5):
-			calib = yield self.loadSingleCalibration(reg, dir + ['Channel %d' % (i+1)])
-			self.calibrations.append(calib)
-			if self.calibrations[i+1][0] == DEFAULT:
-				print "WARNING: %s -- no calibration found for channel %d. Using device default calibration." % (self.addr, i+1)
-			elif self.calibrations[i+1][0] == INTERPOLATION:
-				print "%s -- found INTERPOLATION calibration for channel %d." % (self.addr, i+1)
-			elif self.calibrations[i+1][0] == FUNCTION:
-				print "%s -- found FUNCTION calibration for channel %d." % (self.addr, i+1)
-			else:
-				raise Exception("Calibration loader messed up. This shouldn't have happened.")
 		
 		# now get the read order from the registry
 		try:
@@ -228,7 +205,33 @@ class RuOxWrapper(GPIBDeviceWrapper):
 		# initialize the readings variable.
 		# len(set(x)) gets the number of unique elements in x
 		self.readings = [(0, datetime.now())] * len(set(self.readOrder))
-		print "READINGS %s" % self.readings.__str__()
+		
+		# now start with the calibrations
+		# first get the default one
+		calib = yield self.loadSingleCalibration(reg, dir)
+		self.calibrations.append(calib)
+		if self.calibrations[0][0] == DEFAULT:
+			print "WARNING: %s -- no calibration found for device default. Using server default calibration." % (self.addr)
+		elif self.calibrations[0][0] == INTERPOLATION:
+			print "%s -- found INTERPOLATION calibration for device default." % (self.addr)
+		elif self.calibrations[0][0] == FUNCTION:
+			print "%s -- found FUNCTION calibration for device default." % (self.addr)
+		else:
+			raise Exception("Calibration loader messed up. This shouldn't have happened.")
+		# now do all channels
+		for i in range(max(self.readOrder)):
+			calib = yield self.loadSingleCalibration(reg, dir + ['Channel %d' % (i+1)])
+			self.calibrations.append(calib)
+			if self.calibrations[i+1][0] == DEFAULT:
+				print "WARNING: %s -- no calibration found for channel %d. Using device default calibration." % (self.addr, i+1)
+			elif self.calibrations[i+1][0] == INTERPOLATION:
+				print "%s -- found INTERPOLATION calibration for channel %d." % (self.addr, i+1)
+			elif self.calibrations[i+1][0] == FUNCTION:
+				print "%s -- found FUNCTION calibration for channel %d." % (self.addr, i+1)
+			else:
+				raise Exception("Calibration loader messed up. This shouldn't have happened.")
+		
+
 
 			
 	def shutdown(self):
@@ -325,7 +328,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
 	def getTemperatures(self):
 		# we now do this channel by channel. oh yeah.
 		result = []
-		for i in range(5):
+		for i in range(max(self.readOrder)):
 			result.append((self.getSingleTemp(i+1), self.readings[i][1]))
 		return result
 		
