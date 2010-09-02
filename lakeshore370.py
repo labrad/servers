@@ -135,7 +135,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
 				returnValue([FUNCTION, ans.fun, ans.inv])
 			else:
 				returnValue([DEFAULT])
-		except Exception as e:
+		except Exception:
 			#print e
 			returnValue([DEFAULT])
 
@@ -150,8 +150,9 @@ class RuOxWrapper(GPIBDeviceWrapper):
 				str = "DEFAULT"
 			else:
 				raise Exception('Invalid calibration for channel %s: "%s"' % (channel, str))
-		except Exception as e:
-			str += e.__str__()
+		except Exception:
+			#str += e.__str__()
+                        str += "exception"
 		return str
 			
 	@inlineCallbacks
@@ -218,7 +219,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
 			p.get("Read Order", key="ro")
 			ans = yield p.send()
 			self.readOrder = ans["ro"]
-		except Exception as e:
+		except Exception:
 			self.readOrder = READ_ORDER
 		
 		# initialize the readings variable.
@@ -314,8 +315,8 @@ class RuOxWrapper(GPIBDeviceWrapper):
 					return self.getSingleTemp(channel, 0) # use calibration 0--the device calibration
 				else:
 					return res2temp(self.readings[channel-1][0]) # if there is no calibration at all, use old-fashioned res2temp
-		except Exception as e:
-			print e
+		except Exception:
+			#print e
 			return 0.0
 	
 	def getTemperatures(self):
@@ -347,8 +348,8 @@ class RuOxWrapper(GPIBDeviceWrapper):
 					return self.singleTempToRes(temp, channel, 0) # use calibration 0
 				else:
 					return temp2res(temp) # if no calibration for the device either, use old-fashioned temp2res
-		except Exception as e:
-			print "Exception converting temp to res: %s" % e.__str__()
+		except Exception:
+			print "Exception converting temp to res"#: %s" % e.__str__()
 			return 0.0
 			
 class LakeshoreRuOxServer(GPIBManagedServer):
