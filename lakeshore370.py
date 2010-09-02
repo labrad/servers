@@ -23,8 +23,9 @@
 # Information for the calibration curves will be stored in the registry; there can be different
 # curves for each Lakeshore device, as well as different curves for each channel on a given device.
 # The registry entries for a given device are stored in the following path:
-# >> Servers >> Lakeshore 370 >> [gpib address]
-# where [gpib address] is, for example, GPIB0::12 for the Vince lakeshore and GPIB1::12 for Jules.
+# >> Servers >> Lakeshore 370 >> [node name]
+# where [node name] is usually Vince or DR (but at some point we may change it to Jules)
+# (note that the node name is actually taken from the first word of the device wrapper's self.name)
 # A given calibration consists of three keys:
 # "Calibration Type" must either be "Interpolation" or "Function"
 # 	For an interpolation, there must be two more keys:
@@ -41,15 +42,15 @@
 # 		function that is used for Jules' resistors is: '((math.log(r) - 6.02) / 1.76) ** (-1/.345)'
 #		The Inverse code is used for temperature regulation. (Note that for interpolation calibrations
 #		the server can simply reverse the arguments of the interpolation to convert a temp to a res).
-# The best way to understand these is by example. Look in >> Servers >> Lakeshore 370 >> GPIB0::12 for
-# an example of a function, and >> Servers >> Lakeshore 370 >> GPIB1::12 for an interpolation example.
+# The best way to understand these is by example. Look in >> Servers >> Lakeshore 370 >> Jules for
+# an example of a function, and >> Servers >> Lakeshore 370 >> Vince for an interpolation example.
 # Finally, if you need to have different calibrations for different resistors on the same device,
 # this can easily be accomplished by creating another folder called "Channel X" where X is one of
 # 1 - 5, and then put the appropriate keys in that folder. That calibration will be used for that channel,
 # and the calibration for the device will only be used if there is no calibration for a given channel.
 # In this way, you can have an interpolation for channel 1, a different interpolation for channel 2,
 # and a function for the device, which would be used for channels 3, 4, and 5, for example.
-# For an example of this, see >> Servers >> Lakeshore 370 >> GPIB1::12.
+# For an example of this, see >> Servers >> Lakeshore 370 >> Vince.
 
 # Also note that the read order for a given device now can be stored in the registry as well.
 # If not, it defaults to [1, 2, 1, 3, 1, 4, 1, 5]
@@ -135,8 +136,8 @@ class RuOxWrapper(GPIBDeviceWrapper):
 				returnValue([FUNCTION, ans.fun, ans.inv])
 			else:
 				returnValue([DEFAULT])
-		except Exception:
-			#print e
+		except Exception, e:
+			print e
 			returnValue([DEFAULT])
 
 	def printCalibration(self, channel):
@@ -150,9 +151,9 @@ class RuOxWrapper(GPIBDeviceWrapper):
 				str = "DEFAULT"
 			else:
 				raise Exception('Invalid calibration for channel %s: "%s"' % (channel, str))
-		except Exception:
-			#str += e.__str__()
-                        str += "exception"
+		except Exception, e:
+			str += e.__str__()
+			
 		return str
 			
 	@inlineCallbacks
@@ -160,7 +161,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
 		self.alive = False
 		self.onlyChannel = 0
 		
-		print self.name
+		print "Initializing %s" % self.name
 		
 		# see function def below
 		self.reloadCalibrations()
@@ -188,8 +189,9 @@ class RuOxWrapper(GPIBDeviceWrapper):
 			name = 'Jules'
 		else:
 			name = self.name.partition(' ')[0]
-		# first do the default one
+		# where in the registry are we looking?
 		dir = ["", "Servers", "Lakeshore 370", name]
+		# first get the default one
 		calib = yield self.loadSingleCalibration(reg, dir)
 		self.calibrations.append(calib)
 		if self.calibrations[0][0] == DEFAULT:
@@ -200,6 +202,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
 			print "%s -- found FUNCTION calibration for device default." % (self.addr)
 		else:
 			raise Exception("Calibration loader messed up. This shouldn't have happened.")
+		# now do all 5 channels
 		for i in range(5):
 			calib = yield self.loadSingleCalibration(reg, dir + ['Channel %d' % (i+1)])
 			self.calibrations.append(calib)
@@ -315,8 +318,8 @@ class RuOxWrapper(GPIBDeviceWrapper):
 					return self.getSingleTemp(channel, 0) # use calibration 0--the device calibration
 				else:
 					return res2temp(self.readings[channel-1][0]) # if there is no calibration at all, use old-fashioned res2temp
-		except Exception:
-			#print e
+		except Exception, e:
+			print e
 			return 0.0
 	
 	def getTemperatures(self):
@@ -348,8 +351,8 @@ class RuOxWrapper(GPIBDeviceWrapper):
 					return self.singleTempToRes(temp, channel, 0) # use calibration 0
 				else:
 					return temp2res(temp) # if no calibration for the device either, use old-fashioned temp2res
-		except Exception:
-			print "Exception converting temp to res"#: %s" % e.__str__()
+		except Exception, e:
+			print "Exception converting temp to res: %s" % e.__str__()
 			return 0.0
 			
 class LakeshoreRuOxServer(GPIBManagedServer):
