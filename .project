@@ -11,18 +11,17 @@
 			</arguments>
 		</buildCommand>
 		<buildCommand>
-			<name>ch.epfl.lamp.sdt.core.scalabuilder</name>
+			<name>edu.umd.cs.findbugs.plugin.eclipse.findbugsBuilder</name>
 			<arguments>
 			</arguments>
 		</buildCommand>
 		<buildCommand>
-			<name>edu.umd.cs.findbugs.plugin.eclipse.findbugsBuilder</name>
+			<name>org.eclipse.jdt.core.javabuilder</name>
 			<arguments>
 			</arguments>
 		</buildCommand>
 	</buildSpec>
 	<natures>
-		<nature>ch.epfl.lamp.sdt.core.scalanature</nature>
 		<nature>org.eclipse.jdt.core.javanature</nature>
 		<nature>org.python.pydev.pythonNature</nature>
 		<nature>edu.umd.cs.findbugs.plugin.eclipse.findbugsNature</nature>
