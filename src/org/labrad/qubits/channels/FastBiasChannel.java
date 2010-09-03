@@ -56,6 +56,10 @@ public class FastBiasChannel implements FiberChannel {
     return board;
   }
 
+  public DcRackFiberId getDcFiberId() {
+  	return fbChannel;
+  }
+  
   public DacFiberId getFiberId() {
     return fb.getFiber(fbChannel);
   }
@@ -68,4 +72,5 @@ public class FastBiasChannel implements FiberChannel {
   public void clearConfig() {
     // nothing to do here
   }
+
 }

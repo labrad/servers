@@ -5,11 +5,13 @@ import org.labrad.qubits.enums.BiasCommandType;
 
 public class FastBiasCommands {
   public static SendFiberCommand get(BiasCommandType type, FastBiasChannel fb, double v) {
+  	double gain = fb.getFastBias().getGain(fb.getDcFiberId());
+  	double vSend = v/gain;
     switch (type) {
-      case DAC0: return setDac0(fb, v);
-      case DAC0_NOSELECT: return setDac0NoSelect(fb, v);
-      case DAC1: return setDac1Fast(fb, v);
-      case DAC1_SLOW: return setDac1Slow(fb, v);
+      case DAC0: return setDac0(fb, vSend);
+      case DAC0_NOSELECT: return setDac0NoSelect(fb, vSend);
+      case DAC1: return setDac1Fast(fb, vSend);
+      case DAC1_SLOW: return setDac1Slow(fb, vSend);
       default: throw new RuntimeException("Unknown bias command type: " + type);
     }
   }

@@ -1,5 +1,6 @@
 package org.labrad.qubits.resources;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -45,17 +46,16 @@ public class Resources {
    * @param name
    * @return
    */
-  public static Resource create(DeviceType type, String name) {
+  public static Resource create(DeviceType type, String name, List<Data> properties) {
     switch (type) {
       case UWAVEBOARD: return MicrowaveBoard.create(name);
       case ANALOGBOARD: return AnalogBoard.create(name);
-      case FASTBIAS: return FastBias.create(name);
+      case FASTBIAS: return FastBias.create(name, properties);
       case PREAMP: return PreampBoard.create(name);
       case UWAVESRC: return MicrowaveSource.create(name);
       default: throw new RuntimeException("Invalid resource type: " + type);
     }
   }
-
   /**
    * Create new wiring configuration and update the current config.
    * @param resources
@@ -63,14 +63,19 @@ public class Resources {
    * @param microwaves
    */
   public static void updateWiring(List<Data> resources, List<Data> fibers, List<Data> microwaves) {
+  	/*
+  	 * resources - [(String type, String id),...]
+  	 * fibers - [((dacName, fiber),(cardName, channel)),...]
+  	 */
     // build resources for all objects
     Map<String, Resource> map = Maps.newHashMap();
     for (Data elem : resources) {
-      String type = elem.get(0).getString();
-      String name = elem.get(1).getString();
-
+  		String type = elem.get(0).getString();
+  		String name = elem.get(1).getString();
+      List<Data> properties = (elem.getClusterSize() == 3) ? elem.get(2).getClusterAsList()
+      		                                                 : new ArrayList<Data>();
       DeviceType dt = DeviceType.fromString(type);
-      map.put(name, create(dt, name));
+      map.put(name, create(dt, name, properties));
     }
     Resources r = new Resources(map);
 
