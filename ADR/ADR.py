@@ -45,7 +45,7 @@ import numpy as np
 #Registry path to ADR configurations
 CONFIG_PATH = ['','Servers','ADR']
 
-class Peripheral(object):
+class Peripheral(object): #Probably should subclass DeviceWrapper here.
     
     def __init__(self,name,server,ID,ctxt):
         self.name = name
@@ -209,7 +209,7 @@ class ADRServer(DeviceServer):
 
     @setting(32, 'echo PNA', data=['?'], returns=['?'])
     def echo_PNA(self,c,data):
-        dev = self.selectedDevice(c)
+        dev = self.selectedDevice(c) #Selects the appropriate ADR device ie. Quaid or Hauser.
         if 'PNA' in dev.peripheralsConnected.keys():
             PNA = dev.peripheralsConnected['PNA']
             resp = yield PNA.server.echo(data, context=PNA.ctxt)
@@ -224,3 +224,5 @@ __server__ = ADRServer()
 if __name__ == '__main__':
     from labrad import util
     util.runServer(__server__)
+
+
