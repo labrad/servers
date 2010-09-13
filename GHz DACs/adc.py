@@ -56,9 +56,10 @@ def regAdcRecalibrate():
     regs[0] = 7
     return regs
 
-def regAdcRun(mode, reps, filterFunc, filterStretchAt, filterStretchLen, demods):
+def regAdcRun(mode, reps, filterFunc, filterStretchAt, filterStretchLen, demods, startDelay=0):
     regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = mode # average mode, autostart
+    regs[1:3] = littleEndian(startDelay, 2)
     regs[7:9] = littleEndian(reps, 2)
     
     regs[9:11] = littleEndian(len(filterFunc), 2)

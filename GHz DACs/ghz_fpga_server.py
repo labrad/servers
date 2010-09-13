@@ -865,7 +865,16 @@ class FPGAServer(DeviceServer):
         d = c.setdefault(dev, {})
         d['runMode'] = mode
 
-    @setting(44, 'ADC Demod Range', returns='i{Imax}, i{Imin}, i{Qmax}, i{Qmin}')
+    @setting(44, 'ADC Start Delay', delay='w', returns='')
+    def adc_start_delay(self, c, delay):
+        """Specify the time to delay before starting ADC acquisition.  (ADC only)
+        
+        The delay is specified in nanoseconds from the start of SRAM.
+        """
+        dev = self.selectedADC(c)
+        c.setdefault(dev, {})['startDelay'] = delay
+
+    @setting(45, 'ADC Demod Range', returns='i{Imax}, i{Imin}, i{Qmax}, i{Qmin}')
     def adc_demod_range(self, c):
         """Get the demodulation ranges for the last sequence run in this context. (ADC only)
         """
@@ -945,11 +954,15 @@ class FPGAServer(DeviceServer):
                 except KeyError:
                     raise Exception("No runmode specified for ADC board '%s'" % dev.devName)
                 try:
+                    startDelay = info['startDelay']
+                except KeyError:
+                    raise Exception("No start delay specified for ADC board '%s'" % dev.devName)
+                try:
                     filter = (info['filterFunc'], info['filterStretchLen'], info['filterStretchAt'])
                 except KeyError:
                     raise Exception("No filter function specified for ADC board '%s'" % dev.devName)
                 channels = dict((i, info[i]) for i in range(adc.DEMOD_CHANNELS) if i in info)
-                runner = AdcRunner(dev, reps, runMode, filter, channels)
+                runner = AdcRunner(dev, reps, runMode, startDelay, filter, channels)
             else:
                 raise Exception("Unknown device type: %s" % dev) 
             runners.append(runner)       
@@ -1468,10 +1481,11 @@ class DacRunner(object):
         return np.fromstring(data, dtype='<u2').astype('u4')
 
 class AdcRunner(object):
-    def __init__(self, dev, reps, runMode, filter, channels):
+    def __init__(self, dev, reps, runMode, startDelay, filter, channels):
         self.dev = dev
         self.reps = reps
         self.runMode = runMode
+        self.startDelay = startDelay
         self.filter = filter
         self.channels = channels
         
@@ -1502,7 +1516,8 @@ class AdcRunner(object):
     def runPacket(self, reps, page, slave, delay, sync):
         """Create run packet."""
         filterFunc, filterStretchLen, filterStretchAt = self.filter
-        regs = adc.regAdcRun(self.mode, reps, filterFunc, filterStretchLen, filterStretchAt, self.channels)
+        startDelay = self.startDelay + delay
+        regs = adc.regAdcRun(self.mode, reps, filterFunc, filterStretchLen, filterStretchAt, self.channels, startDelay)
         return regs
     
     def collectPacket(self, seqTime, ctx):
