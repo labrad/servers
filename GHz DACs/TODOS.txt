@@ -1,0 +1,23 @@
+software only:
+- write test scripts to test board group configuration changes and device autodetection
+- write test scripts to test all aspects of datataking and running multiple boards (using FpgaEmulators)
+- update FpgaEmulators so they will recognize when a registry command is received while a command is still executing
+  (this indicates an error somewhere, e.g. a conflict between run mode and test mode commands)
+  (note that this is impossible using the current single-threaded design, so would have to go multi-threaded
+   or at least break up the execution of a sequence using an event loop so that commands can be received while still
+   sending back results from a previous sequence.)
+- write test scripts to test for run mode/test mode conflicts, as mentioned in the last item
+
+
+with hardware:
+- test new version of server on existing DACs, including bringup
+- update bringup scripts to be board-group aware
+
+
+difficult but would be really nice:
+- update FpgaEmulators to accept all bringup commands and respond in a way that allows the bringup to complete successfully
+- then, fully test interactions between bringup and run mode using scripts
+
+finally:
+- rewrite ghz_fpga_server in java.  Don't attempt this until we have a comprehensive and automatic
+  test suite so we can maintain compatibility
