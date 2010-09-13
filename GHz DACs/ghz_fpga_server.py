@@ -869,7 +869,9 @@ class FPGAServer(DeviceServer):
     def adc_start_delay(self, c, delay):
         """Specify the time to delay before starting ADC acquisition.  (ADC only)
         
-        The delay is specified in nanoseconds from the start of SRAM.
+        The delay is specified in nanoseconds from the start of SRAM.  Note that
+        just as for DAC boards, the daisy-chain delays are compensated automatically,
+        so this delay should be relative to the start of the programmed SRAM sequence.
         """
         dev = self.selectedADC(c)
         c.setdefault(dev, {})['startDelay'] = delay
