@@ -62,8 +62,6 @@ SRAM_WRITE_PAGES = SRAM_LEN / SRAM_WRITE_PKT_LEN # number of pages for writing S
 
 MASTER_SRAM_DELAY = 2 # microseconds for master to delay before SRAM to ensure synchronization
 
-TIMING_PACKET_LEN = 30
-
 TIMEOUT_FACTOR = 10 # timing estimates are multiplied by this factor to determine sequence timeout
 
 I2C_RB = 0x100
@@ -249,7 +247,7 @@ class BoardGroup(object):
     def devices(self):
         """Return a list of known device objects that belong to this board group."""
         return [dev for dev in self.fpgaServer.devices.values()
-                    if dev.devName.startswith(self.name)]
+                    if dev.boardGroup == self]
         
     @inlineCallbacks
     def testMode(self, func, *a, **kw):
@@ -270,7 +268,7 @@ class BoardGroup(object):
                 self.pipeSemaphore.release()
 
 
-    def makePackets(self, devs, page, reps, timingOrder, sync=249):
+    def makePackets(self, runners, page, reps, timingOrder, sync=249):
         """Make packets to run a sequence on this board group.
 
         Running a sequence has 4 stages:
@@ -299,62 +297,53 @@ class BoardGroup(object):
         are in the time-critical pipeline sections
         """
         # dictionary of devices to be run
-        deviceInfo = dict((dev[0].devName, dev) for dev in devs)
+        runnerInfo = dict((runner.dev.devName, runner) for runner in runners)
         
-        # load memory and SRAM
+        # upload sequence data (pipelined)
         loadPkts = []
         for board in self.boardOrder:
-            if board in deviceInfo:
-                dev, mem, sram = deviceInfo[board]
-                if not len(loadPkts):
-                    # this will be the master, so add delays before SRAM
-                    mem = addMasterDelay(mem)
-                if isinstance(sram, tuple):
-                    sram, delay = sram
-                loadPkts.append(dev.load(mem, sram, page))
+            if board in runnerInfo:
+                runner = runnerInfo[board]
+                isMaster = len(loadPkts) == 0
+                p = runner.loadPacket(page, isMaster)
+                if p is not None:
+                    loadPkts.append(p)
+        
+        # setup board state (not pipelined)
+        setupPkts = []
+        for board in self.boardOrder:
+            if board in runnerInfo:
+                runner = runnerInfo[board]
+                p = runner.setupPacket()
+                if p is not None:
+                    setupPkts.append(p)
         
         # run all boards (master last)
         boards = []
         for board, delay in zip(self.boardOrder, self.boardDelays):
-            if board in deviceInfo:
-                # this board will run
-                dev, mem, sram = deviceInfo[board]
-                # check for boards running multi-block sequences
-                if isinstance(sram, tuple):
-                    sram, blockDelay = sram
-                else:
-                    blockDelay = None
-                slave = len(boards) > 0 # the first board is master
-                regs = dac.regRun(reps, page, slave, delay, blockDelay=blockDelay, sync=sync)
-                boards.append((dev, regs))
+            if board in runnerInfo:
+                runner = runnerInfo[board]
+                regs = runner.runPacket(reps, page, slave, delay, sync)
+                boards.append((runner.dev, regs))
             elif len(boards):
                 # this board is after the master, but will
                 # not itself run, so we put it in idle mode
-                # TODO: how do we put ADC boards in idle mode?
                 dev = self.fpgaServer.devices[board] # look up the device wrapper
-                regs = dac.regIdle(delay)
-                boards.append((dev, regs))
+                if isinstance(dev, dac.DacDevice):
+                    regs = dac.regIdle(delay)
+                    boards.append((dev, regs))
+                elif isinstance(dev, adc.AdcDevice):
+                    # FIXME: how do we put ADC boards in idle mode?
+                    pass
         boards = boards[1:] + boards[:1] # move master to the end
         runPkts = self.makeRunPackets(boards)
         
         # collect and read (or discard) timing results
-        collectPkts = []
-        readPkts = []
-        for dev, mem, sram in devs:
-            if isinstance(dev, dac.DacDevice):
-                nTimers = timerCount(mem)
-                N = reps * nTimers / TIMING_PACKET_LEN
-                seqTime = TIMEOUT_FACTOR * (sequenceTime(mem) * reps) + 1
-                
-                collectPkts.append(dev.collect(N, seqTime, self.ctx))
-                
-                wantResults = timingOrder is None or dev.devName in timingOrder
-                readPkts.append(dev.read(N) if wantResults else dev.discard(N))
+        seqTime = max(runner.seqTime for runner in runners)
+        collectPkts = [runner.collectPacket(seqTime, self.ctx) for runner in runners]
+        readPkts = [runner.readPacket(timingOrder) for runner in runners]
             
-            elif isinstance(dev, adc.AdcDevice):
-                raise Exception('adc data collection is not implemented yet')
-
-        return loadPkts, runPkts, collectPkts, readPkts
+        return loadPkts, setupPkts, runPkts, collectPkts, readPkts
 
     def makeRunPackets(self, data):
         """Create packets to run a set of boards.
@@ -384,33 +373,11 @@ class BoardGroup(object):
         return wait, run, both
 
     @inlineCallbacks
-    def run(self, devs, reps, setupPkts, setupState, sync, getTimingData, timingOrder):
+    def run(self, runners, adcs, reps, setupPkts, setupState, sync, getTimingData, timingOrder):
         """Run a sequence on this board group."""
-        if not all((d[0].serverName == self.server._labrad_name) and
-                   (d[0].port == self.port) for d in devs):
-            raise Exception('All boards must belong to the same board group!')
-        boardOrder = [d[0].devName for d in devs]
-
-        # check whether this is a multiblock sequence
-        if any(isinstance(sram, tuple) for dev, mem, sram in devs):
-            print 'Multi-block SRAM sequence'
-            # update sram calls in memory sequences to the correct addresses
-            # also pad sram blocks to take up full space and disable paging
-            def fixSRAM(dev):
-                dev, mem, sram = dev
-                mem = fixSRAMaddresses(mem, sram)
-                if isinstance(sram, tuple):
-                    block0, block1, delay = sram
-                    data = '\x00' * (SRAM_BLOCK0_LEN*4 - len(block0)) + block0 + block1
-                    sram = (data, delay)
-                return dev, mem, sram
-            devs = [fixSRAM(dev) for dev in devs]
             
         # check whether this sequence will fit in just one page
-        if all(maxSRAM(mem) <= SRAM_PAGE_LEN for dev, mem, sram in devs):
-            # shorten SRAM to at most one page
-            devs = [(dev, mem, sram if sram is None else sram[:SRAM_PAGE_LEN*4])
-                    for dev, mem, sram in devs]
+        if all(dev.pageable() for dev in runners):
             # lock just one page
             page = self.pageNums.next()
             pageLocks = [self.pageLocks[page]]
@@ -421,8 +388,12 @@ class BoardGroup(object):
             pageLocks = self.pageLocks
         
         # prepare packets
-        pkts = self.makePackets(devs, page, reps, timingOrder, sync)
-        loadPkts, runPkts, collectPkts, readPkts = pkts
+        pkts = self.makePackets(runners, page, reps, timingOrder, sync)
+        loadPkts, boardSetupPkts, runPkts, collectPkts, readPkts = pkts
+        
+        # add setup packets from boards (ADCs) to that provided in the args
+        setupPkts.extend(pkt for pkt, state in boardSetupPkts) # this is a list
+        setupState.update(state for pkt, state in boardSetupPkts) # this is a set
         
         try:
             yield self.pipeSemaphore.acquire()
@@ -430,7 +401,7 @@ class BoardGroup(object):
                 # stage 1: load
                 for pageLock in pageLocks: # lock pages to be written
                     yield pageLock.acquire()
-                loadDone = self.sendAll(loadPkts, 'Load', boardOrder)
+                loadDone = self.sendAll(loadPkts, 'Load')
                 
                 # stage 2: run
                 runNow = self.runLock.acquire() # get in line to be the next to run
@@ -442,7 +413,7 @@ class BoardGroup(object):
                     waitPkt, runPkt, bothPkt = runPkts
                     waitPkt['nTriggers'] = self.prevTriggers
                     bothPkt['nTriggers'] = self.prevTriggers
-                    self.prevTriggers = len(devs) # store the number of triggers for the next run
+                    self.prevTriggers = len(runners) # store the number of triggers for the next run
                     
                     needSetup = (not setupState) or (not self.setupState) or (not (setupState <= self.setupState))
                     if needSetup:
@@ -487,29 +458,50 @@ class BoardGroup(object):
                 for success, result in results:
                     if not success:
                         result.printTraceback()
-                yield self.recoverFromTimeout(devs, results)
+                yield self.recoverFromTimeout(runners, results)
                 self.readLock.release()
-                raise TimeoutError(self.timeoutReport(devs, results))
+                raise TimeoutError(self.timeoutReport(runners, results))
             
             # stage 4: read
             # no timeout, so go ahead and read data
+            boardOrder = [runner.dev.devName for runner in runners]
             readAll = self.sendAll(readPkts, 'Read', boardOrder)
             self.readLock.release()
             results = yield readAll # wait for read to complete
     
             if getTimingData:
-                if timingOrder is not None:
-                    results = [results[boardOrder.index(board)] for board in timingOrder]
-                    #if timingMode == 'DAC' or timingMode == 'AVERAGE':
-                    #    results = [results[boardOrder.index(board)] for board in timingOrder]
-                    #elif timingMode == 'DEMOD':
-                    #    results = [results[boardOrder.index(board)] for board, channel in timingOrder]
-                results = [[data for src, dst, eth, data in r['read']] for r in results]
-                if len(results):
-                    timing = np.vstack(self.extractTiming(result) for result in results)
+                allDacs = True
+                answers = []
+                boardResults = {}
+                for board in timingOrder:
+                    channel = None
+                    if '::' in board:
+                        board, channel = board.split('::')
+                        channel = int(channel)
+                    
+                    # extract data from ethernet packets if we have not already
+                    if board in boardResults:
+                        answer = boardResults[board]
+                    else:
+                        idx = boardOrder.index(board)
+                        runner = runners[idx]
+                        allDacs &= isinstance(runner, DacRunner)
+                        result = [data for src, dest, eth, data in results[idx]['read']]
+                        answer = runner.extract(result)
+                        boardResults[board] = answer
+                        
+                    # add extracted data to the list of timing results
+                    if channel is not None:
+                        answer = answer[channel]
+                    answers.append(answer)
+                
+                if allDacs and len(set(len(answer) for answer in answers)) == 1:
+                    # make a 2D list for backward compatibility
+                    answers = np.vstack(answers)
                 else:
-                    timing = []
-                returnValue(timing)
+                    # otherwise make a tuple
+                    answers = tuple(answers)
+                returnValue(answers)
         finally:
             self.pipeSemaphore.release()
 
@@ -537,22 +529,22 @@ class BoardGroup(object):
         return np.fromstring(data, dtype='<u2').astype('u4')
 
     @inlineCallbacks
-    def recoverFromTimeout(self, devs, results):
+    def recoverFromTimeout(self, runners, results):
         """Recover from a timeout error so that pipelining can proceed.
         
         We clear the packet buffer for all boards, whether or not
         they succeeded.  For boards that failed, we also send a
         trigger to unlock the run context.
         """
-        for dev, (success, result) in zip(devs, results):
+        for runner, (success, result) in zip(runners, results):
             ctx = None if success else self.ctx
-            yield dev[0].clear(triggerCtx=ctx).send()
+            yield runner.dev.clear(triggerCtx=ctx).send()
         
-    def timeoutReport(self, devs, results):
+    def timeoutReport(self, runners, results):
         """Create a nice error message explaining which boards timed out."""
         lines = ['Some boards failed:']
-        for dev, (success, result) in zip(devs, results):
-            line = dev[0].devName + ': ' + ('OK' if success else 'timeout!')
+        for runner, (success, result) in zip(runners, results):
+            line = runner.dev.devName + ': ' + ('OK' if success else 'timeout!')
             lines.append(line)
         return '\n'.join(lines)
 
@@ -761,7 +753,6 @@ class FPGAServer(DeviceServer):
 
     ## Memory and SRAM upload
 
-
     @setting(20, 'SRAM', data='*w: SRAM Words to be written', returns='')
     def dac_sram(self, c, data):
         """Writes data to the SRAM at the current starting address.
@@ -808,6 +799,8 @@ class FPGAServer(DeviceServer):
         d['mem'] = data
 
 
+    # ADC configuration
+
     @setting(40, 'ADC Filter Func', bytes='s', stretchLen='w', stretchAt='w', returns='')
     def adc_filter_func(self, c, bytes, stretchLen=0, stretchAt=0):
         """Set the filter function to be used with the selected ADC board. (ADC only)
@@ -841,7 +834,8 @@ class FPGAServer(DeviceServer):
         ch = d.setdefault(channel, {})
         ch['sineAmp'] = sineAmp
         ch['cosineAmp'] = cosineAmp
-        phi = np.pi/2 * (np.arange(256) + 0.5) / 256
+        N = adc.LOOKUP_TABLE_LEN
+        phi = np.pi/2 * (np.arange(N) + 0.5) / N
         ch['sine'] = np.floor(sineAmp * np.sin(phi) + 0.5).astype('uint8')
         ch['cosine'] = np.floor(cosineAmp * np.cos(phi) + 0.5).astype('uint8')
     
@@ -862,19 +856,30 @@ class FPGAServer(DeviceServer):
 
 
     @setting(43, 'ADC Run Mode', mode='s', returns='')
-    def adc_demod_frequency(self, c, mode):
+    def adc_run_mode(self, c, mode):
         """Set the run mode for the current ADC board, 'average' or 'demodulate'. (ADC only)
         """
-        assert mode.lower() in ['average', 'demodulate'], 'unknown mode: "%s"' % mode
+        mode = mode.lower()
+        assert mode in ['average', 'demodulate'], 'unknown mode: "%s"' % mode
         dev = self.selectedADC(c)
         d = c.setdefault(dev, {})
         d['runMode'] = mode
 
+    @setting(44, 'ADC Demod Range', returns='i{Imax}, i{Imin}, i{Qmax}, i{Qmin}')
+    def adc_demod_range(self, c):
+        """Get the demodulation ranges for the last sequence run in this context. (ADC only)
+        """
+        dev = self.selectedADC(c)
+        return c[dev]['ranges']
+
+
+
+    # multiboard sequence execution
 
     @setting(50, 'Run Sequence', reps='w', getTimingData='b',
                                  setupPkts='?{(((ww), s, ((s?)(s?)(s?)...))...)}',
                                  setupState='*s',
-                                 returns=['*2w', ''])
+                                 returns=['*2w', '?', ''])
     def sequence_run(self, c, reps=30, getTimingData=True, setupPkts=[], setupState=[]):
         """Executes a sequence on one or more boards.
 
@@ -898,53 +903,84 @@ class FPGAServer(DeviceServer):
             the setup packets will not be sent for this point.  For example,
             the setupState might describe the amplitude and frequency of
             the various microwave sources for this sequence.
+            
+        If only DAC boards are run and all boards return the same number of
+        results (because all boards have the same number of timer calls),
+        then a 2D list of results of type *2w will be returned.  Otherwise,
+        a cluster of results will be returned, in the order specified by
+        timing order.  Individual DAC boards always return *w; ADC boards in
+        average mode return (*i,{I} *i{Q}); and ADC boards in demodulate
+        mode also return (*i,{I} *i{Q}) for each channel.
         """
         # TODO: also handle ADC boards here
         
         # Round stats up to multiple of the timing packet length
-        reps += TIMING_PACKET_LEN - 1
-        reps -= reps % TIMING_PACKET_LEN
+        reps += dac.TIMING_PACKET_LEN - 1
+        reps -= reps % dac.TIMING_PACKET_LEN
         
         if len(c['daisy_chain']):
             # run multiple boards, with first board as master
             devs = [self.getDevice(c, name) for name in c['daisy_chain']]
         else:
-            # run the selected device only
+            # run the selected device only (must be a DAC)
             devs = [self.selectedDAC(c)]
-        mems = [c.get(dev, {}).get('mem', None) for dev in devs]
-        srams = [c.get(dev, {}).get('sram', None) for dev in devs]
-        devices = zip(devs, mems, srams)
+
+        # check to make sure that all boards are in the same board group
+        if len(set(dev.boardGroup for dev in devs)) > 1:
+            raise Exception("Can only run multiboard sequence if all boards are in the same board group!")
+        bg = devs[0].boardGroup
+        
+        # build a list of runners which have necessary sequence information for each board
+        runners = []
+        for dev in devs:
+            if isinstance(dev, dac.DacDevice):
+                info = c.get(dev, {})
+                mem = info.get('mem', None)
+                sram = info.get('sram', None)
+                runner = DacRunner(dev, reps, mem, sram)
+            elif isinstance(dev, adc.AdcDevice):
+                info = c.get(dev, {})
+                try:
+                    runMode = info['runMode']
+                except KeyError:
+                    raise Exception("No runmode specified for ADC board '%s'" % dev.devName)
+                try:
+                    filter = (info['filterFunc'], info['filterStretchLen'], info['filterStretchAt'])
+                except KeyError:
+                    raise Exception("No filter function specified for ADC board '%s'" % dev.devName)
+                channels = dict((i, info[i]) for i in range(adc.DEMOD_CHANNELS) if i in info)
+                runner = AdcRunner(dev, reps, runMode, filter, channels)
+            else:
+                raise Exception("Unknown device type: %s" % dev) 
+            runners.append(runner)       
+        
+        # determine timing order
         if getTimingData:
             if c['timing_order'] is None:
-                timingOrder = [d.devName for d in devs]
+                if len(c['daisy_chain']):
+                    # changed in this version: require timing order to be specified for multiple boards
+                    raise Exception('You must specify a timing order to get data back from multiple boards')
+                else:
+                    # only running one board, which must be a DAC, so just get timing from it
+                    timingOrder = [d.devName for d in devs]
             else:
                 timingOrder = c['timing_order']
         else:
             timingOrder = []
 
         # build setup requests
-        setupReqs = []
-        for spCtxt, spServer, spSettings in setupPkts:
-            if spCtxt[0] == 0:
-                print 'Using a context with high ID = 0 for packet requests might not do what you want!!!'
-            p = self.client[spServer].packet(context=spCtxt)
-            for spRec in spSettings:
-                if len(spRec) == 2:
-                    spSetting, spData = spRec
-                    p[spSetting](spData)
-                elif len(spRec) == 1:
-                    spSetting, = spRec
-                    p[spSetting]()
-                else:
-                    raise Exception('Malformed setup packet: ctx=%s, server=%s, settings=%s' % (spCtxt, spServer, spSettings))
-            setupReqs.append(p)
+        setupReqs = processSetupPackets(self.client, setupPkts)
 
-        bg = self.boardGroups[devs[0].serverName, devs[0].port]
+        # run the sequence, with possible retries if it fails
         retries = self.retries
         attempt = 1
         while True:
             try:
-                ans = yield bg.run(devices, reps, setupReqs, set(setupState), c['master_sync'], getTimingData, timingOrder)
+                ans = yield bg.run(runners, reps, setupReqs, set(setupState), c['master_sync'], getTimingData, timingOrder)
+                # for ADCs in demodulate mode, store their I and Q ranges to check for possible clipping
+                for runner in runners:
+                    if isinstance(runner, AdcRunner) and runner.runMode == 'demodulate':
+                        c[runner.dev]['ranges'] = runner.ranges
                 returnValue(ans)
             except TimeoutError, err:
                 # log attempt to stdout and file
@@ -986,12 +1022,12 @@ class FPGAServer(DeviceServer):
         This specifies the boards from which you want to receive timing
         data, and the order in which the timing data should be returned.
         In addition, this will determine what kind of boards will return
-        data (ADCs or DACs) and, for ADC boards, what mode will be used
-        (Average or Demodulate).
+        data (ADCs or DACs).  For ADC boards, the data specified here must
+        agree with the selection made for run mode for that board.
         
         To get DAC timing data or ADC data in average mode, specify the
         device name as a string.  To get ADC data in demodulation mode,
-        specify a string in the form "<device name> | <channel>" where
+        specify a string in the form "<device name>::<channel>" where
         channel is the demodulation channel number.
         
         Note that you can get data from more than one demodulation channel,
@@ -1037,8 +1073,7 @@ class FPGAServer(DeviceServer):
         and the experiment is running at full capacity.
         """
         ans = []
-        for server, port in sorted(self.boardGroups.keys()):
-            group = self.boardGroups[server, port]
+        for (server, port), group in sorted(self.boardGroups.items()):
             pageTimes = [lock.times for lock in group.pageLocks]
             runTime = group.runLock.times
             runWaitTime = group.runWaitTimes
@@ -1335,7 +1370,7 @@ class FPGAServer(DeviceServer):
         returnValue(ans)
     
     
-    @setting(2601, 'ADC Run Demod', returns='*i{I}, *i{Q}, (i{Imax} i{Imin} i{Qmax} i{Qmin})')
+    @setting(2601, 'ADC Run Demod', returns='*(*i{I}, *i{Q}), (i{Imax} i{Imin} i{Qmax} i{Qmin})')
     def adc_run_demod(self, c):
         dev = self.selectedADC(c)
         info = c.setdefault(dev, {})
@@ -1353,6 +1388,142 @@ class FPGAServer(DeviceServer):
     #                 or one demodulation packet for each repetition
 
 
+
+# Runners contain information for running a sequence on a particular board
+#
+# other info these should provide:
+# - what to upload
+# - whether upload is optional (based on setup state)
+# - how many packets to expect, based on repetitions
+# - whether discard is possible
+
+class DacRunner(object):
+    def __init__(self, dev, reps, mem, sram):
+        self.dev = dev
+        self.reps = reps
+        self.mem = mem
+        self.sram = sram
+        self.blockDelay = None
+        self._fixDualBlockSram()
+        
+        if self.pageable():
+            # shorten our sram data so that it fits in one page
+            self.sram = self.sram[:SRAM_PAGE_LEN*4]
+        
+        # calculate memory sequence time
+        self.memTime = sequenceTime(self.mem)
+        self.nTimers = timerCount(self.mem)
+        self.nPackets = self.reps * self.nTimers / dac.TIMING_PACKET_LEN
+        self.seqTime = TIMEOUT_FACTOR * (self.memTime * self.reps) + 1
+    
+    def pageable(self):
+        """Check whether sequence fits in one page, based on SRAM addresses called by mem commands"""
+        return maxSRAM(self.mem) <= SRAM_PAGE_LEN
+    
+    def _fixDualBlockSram(self):
+        """If this sequence is for dual-block sram, fix memory addresses and build sram.
+        
+        Note that because the sram sequence will be padded to take up the entire first block
+        of SRAM (before the delay section), this will automatically disable paging.
+        """
+        if isinstance(self.sram, tuple):
+            # update addresses in memory commands that call into SRAM
+            self.mem = fixSRAMaddresses(self.mem, self.sram)
+            
+            # combine blocks into one sram sequence to be uploaded
+            block0, block1, delay = self.sram
+            data = '\x00' * (SRAM_BLOCK0_LEN*4 - len(block0)) + block0 + block1
+            self.sram = data
+            self.blockDelay = delay
+    
+    def loadPacket(self, page, isMaster):
+        """Create pipelined load packet.  For DAC, upload mem and SRAM."""
+        if isMaster:
+            # this will be the master, so add delays before SRAM
+            self.mem = addMasterDelay(self.mem)
+            self.memTime = sequenceTime(self.mem) # recalculate sequence time
+        return self.dev.load(mem, sram, page)
+    
+    def setupPacket(self):
+        """Create non-pipelined setup packet.  For DAC, does nothing."""
+        return None
+    
+    def runPacket(self, page, slave, delay, sync):
+        """Create run packet."""
+        regs = dac.regRun(self.reps, page, slave, delay, blockDelay=self.blockDelay, sync=sync)
+        return regs
+    
+    def collectPacket(self, seqTime, ctx):
+        """Collect appropriate number of ethernet packets for this sequence, then trigger run context."""
+        return self.dev.collect(self.nPackets, seqTime, ctx)
+            
+    def readPacket(self, timingOrder):
+        """Read (or discard) appropriate number of ethernet packets, depending on whether timing results are wanted."""
+        keep = any(s.startswith(self.dev.devName) for s in timingOrder)
+        return self.dev.read(self.nPackets) if keep else self.dev.discard(self.nPackets)
+    
+    def extract(self, packets):
+        """Extract timing data coming back from a readPacket."""
+        data = ''.join(data[3:63] for data in packets)
+        return np.fromstring(data, dtype='<u2').astype('u4')
+
+class AdcRunner(object):
+    def __init__(self, dev, reps, runMode, filter, channels):
+        self.dev = dev
+        self.reps = reps
+        self.runMode = runMode
+        self.filter = filter
+        self.channels = channels
+        
+        if self.runMode == 'average':
+            self.mode = adc.RUN_MODE_AVERAGE_DAISY
+            self.nPackets = adc.AVERAGE_PACKETS
+        elif self.runMode == 'demodulate':
+            self.mode = adc.RUN_MODE_DEMOD_DAISY
+            self.nPackets = reps
+        else:
+            raise Exception("Unknown run mode '%s' for board '%s'" % (self.runMode, self.dev.devName))
+        self.seqTime = 0 # cannot estimate sequence time for ADC boards; DAC boards do this
+        
+    def pageable(self):
+        """ADC sequence alone will never disable paging"""
+        return True
+    
+    def loadPacket(self, page, isMaster):
+        """Create pipelined load packet.  For ADC, nothing to do."""
+        if isMaster:
+            raise Exception("Cannot use ADC board '%s' as master." % self.dev.devName)
+        return None
+
+    def setupPacket(self):
+        """Create non-pipelined setup packet.  For ADC, upload filter func and trig lookup tables."""
+        return self.dev.setup(self.filter, self.channels)
+    
+    def runPacket(self, reps, page, slave, delay, sync):
+        """Create run packet."""
+        filterFunc, filterStretchLen, filterStretchAt = self.filter
+        regs = adc.regAdcRun(self.mode, reps, filterFunc, filterStretchLen, filterStretchAt, self.channels)
+        return regs
+    
+    def collectPacket(self, seqTime, ctx):
+        """Collect appropriate number of ethernet packets for this sequence, then trigger run context."""
+        return self.dev.collect(self.nPackets, seqTime, ctx)
+            
+    def readPacket(self, timingOrder):
+        """Read (or discard) appropriate number of ethernet packets, depending on whether timing results are wanted."""
+        keep = any(s.startswith(self.dev.devName) for s in timingOrder)
+        return self.dev.read(self.nPackets) if keep else self.dev.discard(self.nPackets)
+
+    def extract(self, packets):
+        """Extract timing data coming back from a readPacket."""
+        if self.runMode == 'average':
+            return adc.extractAverage(packets)
+        elif self.runMode == 'demodulate':
+            IQs, ranges = adc.extractDemod(packets)
+            self.ranges = ranges # save this for possible access later
+            return IQs
+
+
 # some helper methods
 
 def getCommand(cmds, chan):
@@ -1365,6 +1536,25 @@ def getCommand(cmds, chan):
     except:
         raise Exception("Allowed channels are %s." % sorted(cmds.keys()))
 
+
+def processSetupPackets(cxn, setupPkts):
+    """Process packets sent in flattened form into actual labrad packets on the given connection."""
+    pkts = []
+    for ctxt, server, settings in setupPkts:
+        if ctxt[0] == 0:
+            print 'Using a context with high ID = 0 for packet requests might not do what you want!!!'
+        p = cxn[server].packet(context=ctxt)
+        for rec in settings:
+            if len(rec) == 2:
+                setting, data = rec
+                p[setting](data)
+            elif len(rec) == 1:
+                setting, = rec
+                p[setting]()
+            else:
+                raise Exception('Malformed setup packet: ctx=%s, server=%s, settings=%s' % (ctxt, server, settings))
+        pkts.append(p)
+    return pkts
 
 
 
@@ -1384,16 +1574,12 @@ def getAddress(cmd):
 def cmdTime(cmd):
     """A conservative estimate of the number of cycles a given command takes."""
     opcode = getOpcode(cmd)
-    abcde  = getAddress(cmd)
-    xy     = (cmd & 0x00FF00) >> 8
-    ab     = (cmd & 0x0000FF)
-
     if opcode in [0x0, 0x1, 0x2, 0x4, 0x8, 0xA]:
         return 1
     if opcode == 0xF:
         return 2
     if opcode == 0x3:
-        return abcde + 1 # delay
+        return getAddress(cmd) + 1 # delay
     if opcode == 0xC:
         # TODO: incorporate SRAMoffset when calculating sequence time.  This gives a max of up to 12 + 255 us
         return 25*12 # maximum SRAM length is 12us, with 25 cycles per us
@@ -1448,8 +1634,7 @@ def maxSRAM(cmds):
     since only half of the available SRAM can be used when paging.
     """
     def addr(cmd):
-        opcode, address = (cmd >> 20) & 0xF, cmd & 0xFFFFF
-        return address if opcode in [0x8, 0xA] else 0
+        return getAddress(cmd) if getOpcode(cmd) in [0x8, 0xA] else 0
     return max(addr(cmd) for cmd in cmds)
 
 def timerCount(cmds):

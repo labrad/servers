@@ -13,12 +13,17 @@ AVERAGE_PACKETS = 32 # number of packets that
 AVERAGE_PACKET_LEN = 1024
 
 TRIG_AMP = 255
+LOOKUP_TABLE_LEN = 256
 REG_PACKET_LEN = 59
 READBACK_LEN = 46
 FILTER_LEN = 4096
 SRAM_WRITE_PAGES = 9
 SRAM_WRITE_LEN = 1024
 
+RUN_MODE_AVERAGE_AUTO = 2
+RUN_MODE_AVERAGE_DAISY = 3
+RUN_MODE_DEMOD_AUTO = 4
+RUN_MODE_DEMOD_DAISY = 5
 
 def macFor(board):
     """Get the MAC address of an ADC board as a string."""
@@ -159,13 +164,30 @@ class AdcDevice(DeviceWrapper):
                     if ch in demods:
                         d = demods[ch][func]
                     else:
-                        d = np.zeros(256, dtype='<u1')
+                        d = np.zeros(LOOKUP_TABLE_LEN, dtype='<u1')
                     data.append(d)
             data = np.hstack(data)
             pkt = pktWriteSram(page, data)
             p.write(pkt.tostring())            
             channel += 2 # two channels per sram packet
             page += 1 # each sram packet writes one page
+    
+    
+    def setup(self, filter, demods):
+        filterFunc, filterStretchLen, filterStretchAt = filter
+        p = self.makePacket()
+        self.makeFilter(filterFunc, p)
+        self.makeTrigLookups(demods, p)
+        amps = ''
+        for ch in xrange(DEMOD_CHANNELS):
+            if ch in demods:
+                cosineAmp = demods[ch]['cosineAmp']
+                sineAmp = demods[ch]['sineAmp'] 
+            else:
+                cosineAmp = sineAmp = 0
+            amps += '%s,%s;' % (cosineAmp, sineAmp) 
+        setupState = '%s: filter=%s, trigAmps=%s' % (self.devName, filterFunc.tostring(), amps)
+        return p, setupState
 
     def clear(self, triggerCtx=None):
         """Create a packet to clear the ethernet buffer for this board."""
@@ -243,7 +265,7 @@ class AdcDevice(DeviceWrapper):
         @inlineCallbacks
         def func():
             # build registry packet
-            regs = regAdcRun(2, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
+            regs = regAdcRun(RUN_MODE_AVERAGE_AUTO, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
     
             # create packet for the ethernet server
             p = self.makePacket()
@@ -256,19 +278,15 @@ class AdcDevice(DeviceWrapper):
             ans = yield p.send()
                     
             # parse the packets out and return data
-            vals = []
-            for src, dst, eth, data in ans.read:
-                vals.append(np.fromstring(data, dtype='<i2'))
-            Is, Qs = np.hstack(vals).reshape(-1, 2).astype(int).T
-            returnValue((Is, Qs))
+            packets = [data for src, dst, eth, data in ans.read]
+            returnValue(extractAverage(packets))
         return self.testMode(func)
-        
     
     def runDemod(self, filterFunc, filterStretchLen, filterStretchAt, demods):
         @inlineCallbacks
         def func():
             # build registry packet
-            regs = regAdcRun(4, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
+            regs = regAdcRun(RUN_MODE_DEMOD_AUTO, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
     
             # create packet for the ethernet server
             p = self.makePacket()
@@ -281,15 +299,40 @@ class AdcDevice(DeviceWrapper):
             ans = yield p.send()
                     
             # parse the packets out and return data
-            src, dst, eth, data = ans.read[0]
-            vals = np.fromstring(data[:44], dtype='<i2')
-            Is, Qs = vals.reshape(-1, 2).astype(int).T
-            Irng, Qrng = [ord(i) for i in data[46:48]]
-            twosComp = lambda i: int(i if i < 0x8 else i - 0x10)
-            Imax = twosComp((Irng >> 4) & 0xF) # << 12
-            Imin = twosComp((Irng >> 0) & 0xF) # << 12
-            Qmax = twosComp((Qrng >> 4) & 0xF) # << 12
-            Qmin = twosComp((Qrng >> 0) & 0xF) # << 12
-            returnValue((Is, Qs, (Imax, Imin, Qmax, Qmin)))
+            packets = [data for src, dst, eth, data in ans.read]
+            returnValue(extractDemod(packets))
         return self.testMode(func)
+
+
+def extractAverage(packets):
+    """Extract Average waveform from a list of packets (byte strings)."""
+    data = ''.join(packets)
+    Is, Qs = np.fromstring(data, dtype='<i2').reshape(-1, 2).astype(int).T
+    returnValue((Is, Qs))
+    
+def extractDemod(packets, nDemod=DEMOD_CHANNELS):
+    """Extract Demodulation data from a list of packets (byte strings)."""
+    data = ''.join(data[:44] for data in packets)
+    vals = np.fromstring(data, dtype='<i2')
+    Is, Qs = vals.reshape(-1, 2).astype(int).T
+    
+    data = [(Is[i::nDemod], Qs[i::nDemod]) for i in xrange(nDemod)]
+    
+    # compute overall max and min for I and Q
+    def getRange(data):
+        Irng, Qrng = [ord(i) for i in data[46:48]]
+        twosComp = lambda i: int(i if i < 0x8 else i - 0x10)
+        Imax = twosComp((Irng >> 4) & 0xF) # << 12
+        Imin = twosComp((Irng >> 0) & 0xF) # << 12
+        Qmax = twosComp((Qrng >> 4) & 0xF) # << 12
+        Qmin = twosComp((Qrng >> 0) & 0xF) # << 12
+        return Imax, Imin, Qmax, Qmin
+    ranges = np.array([getRange(data) for data in packets]).T
+    Imax = int(max(ranges[0]))
+    Imin = int(min(ranges[1]))
+    Qmax = int(max(ranges[2]))
+    Qmin = int(min(ranges[3]))
+        
+    returnValue((Is, Qs, (Imax, Imin, Qmax, Qmin)))
+
 
