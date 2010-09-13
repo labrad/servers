@@ -45,7 +45,6 @@ import numpy as np
 #Registry path to ADR configurations
 CONFIG_PATH = ['','Servers','ADR']
 
-class Peripheral(object):
 class Peripheral(object): #Probably should subclass DeviceWrapper here.
 	
 	def __init__(self,name,server,ID,ctxt):
@@ -229,10 +228,6 @@ class ADRServer(DeviceServer):
 			PNA = dev.peripheralsConnected['PNA']
 			resp = yield PNA.server.echo(data, context=PNA.ctxt)
 			returnValue(resp)
-
-	#################
-	#TED, START HERE#
-	#################
 	
 	@setting(40, 'Voltages', returns=['*v[V]'])
 	def voltages(self, c):
@@ -265,6 +260,18 @@ class ADRServer(DeviceServer):
 			returnValue((current, voltage))
 		else:
 			returnValue((0, 0))
+			
+	@setting(43, 'Compressor Status', returns=['b'])
+	def compressor_status(self, c):
+		""" Returns True if the compressor is running, false otherwise. """
+		dev = self.selectedDevice(c)
+		if 'compressor' in dev.peripheralsConnected.keys():
+			comp = dev.peripheralsConnected['compressor']
+			stat = yield comp.server.status(context=comp.ctxt)
+			returnValue(stat)
+		else:
+			#raise Exception("No compressor selected")
+			returnValue(False)
 	
 	
 	
