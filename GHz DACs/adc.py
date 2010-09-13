@@ -8,6 +8,7 @@ from labrad import types as T
 from util import littleEndian, TimedLock
 
 DEMOD_CHANNELS = 4
+DEMOD_CHANNELS_PER_PACKET = 11
 DEMOD_PACKET_LEN = 46 # length of result packets in demodulation mode
 AVERAGE_PACKETS = 32 # number of packets that
 AVERAGE_PACKET_LEN = 1024
@@ -311,7 +312,7 @@ def extractAverage(packets):
     Is, Qs = np.fromstring(data, dtype='<i2').reshape(-1, 2).astype(int).T
     returnValue((Is, Qs))
     
-def extractDemod(packets, nDemod=DEMOD_CHANNELS):
+def extractDemod(packets, nDemod=DEMOD_CHANNELS_PER_PACKET):
     """Extract Demodulation data from a list of packets (byte strings)."""
     data = ''.join(data[:44] for data in packets)
     vals = np.fromstring(data, dtype='<i2')

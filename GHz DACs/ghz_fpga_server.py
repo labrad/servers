@@ -333,7 +333,7 @@ class BoardGroup(object):
                     regs = dac.regIdle(delay)
                     boards.append((dev, regs))
                 elif isinstance(dev, adc.AdcDevice):
-                    # FIXME: how do we put ADC boards in idle mode?
+                    # ADC boards always pass through signals, so no need for Idle mode
                     pass
         boards = boards[1:] + boards[:1] # move master to the end
         runPkts = self.makeRunPackets(boards)
