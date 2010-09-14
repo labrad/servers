@@ -169,7 +169,7 @@ class FPGADevice(DeviceWrapper):
         self.devName = name
         self.serverName = de._labrad_name
 
-        self.DACclocks = 0
+        self.DACclocks = 0 #clock polarity
         self.timeout = T.Value(1, 's')
 
         # set up our context with the ethernet server
