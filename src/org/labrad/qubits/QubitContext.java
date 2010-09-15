@@ -705,7 +705,6 @@ public class QubitContext extends AbstractServerContext {
             Data.valueOf(fpga.getSramDualBlock2()),
             Data.valueOf(fpga.getSramDualBlockDelay()));
       } else {
-        runRequest.add("SRAM Address", Data.valueOf(0L));
         runRequest.add("SRAM", Data.valueOf(fpga.getSram()));
       }
     }  

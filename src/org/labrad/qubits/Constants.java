@@ -27,7 +27,7 @@ public class Constants {
   public static final String REGISTRY_SERVER = "Registry";
   public static final String ANRITSU_SERVER = "Anritsu Server";
   public static final String DC_RACK_SERVER = "DC Rack";
-  public static final String GHZ_DAC_SERVER = "GHz DACs";
+  public static final String GHZ_DAC_SERVER = "GHz FPGAs";
   
   /*
    * Registry information
