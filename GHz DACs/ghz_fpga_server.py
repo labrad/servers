@@ -16,8 +16,8 @@
 """
 ### BEGIN NODE INFO
 [info]
-name = GHz FPGA Server
-version = 3.0.0
+name = GHz FPGAs
+version = 3.0.1
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -52,7 +52,7 @@ from util import TimedLock
 
 NUM_PAGES = 2
 
-SRAM_LEN = 10240 #10240 words = 8192
+SRAM_LEN = 10240
 SRAM_PAGE_LEN = 5120 #4096
 SRAM_DELAY_LEN = 1024
 SRAM_BLOCK0_LEN = 8192
@@ -89,7 +89,7 @@ class TimeoutError(Exception):
 class BoardGroup(object):
     """Manages a group of GHz DAC boards that can be run simultaneously.
     
-    All the servers must be daisy-chained to allow for synchronization,
+    All the fpga boards must be daisy-chained to allow for synchronization,
     and also must be connected to the same network card.  Currently, one
     board group is created automatically for each detected network card.
     Only one sequence at a time can be run on a board group, but memory
@@ -173,9 +173,8 @@ class BoardGroup(object):
             returnValue(found)
         finally:
             # release all locks once we're done with autodetection
-            #for i in xrange(NUM_PAGES):
-            #    self.pipeSemaphore.release()
-            # don't release the 
+            for i in xrange(NUM_PAGES):
+                self.pipeSemaphore.release()
             for pageLock in self.pageLocks:
                 pageLock.release()
             self.runLock.release()
@@ -323,7 +322,8 @@ class BoardGroup(object):
         for board, delay in zip(self.boardOrder, self.boardDelays):
             if board in runnerInfo:
                 runner = runnerInfo[board]
-                regs = runner.runPacket(reps, page, slave, delay, sync)
+                slave = len(boards) > 0
+                regs = runner.runPacket(page, slave, delay, sync)
                 boards.append((runner.dev, regs))
             elif len(boards):
                 # this board is after the master, but will
@@ -373,7 +373,7 @@ class BoardGroup(object):
         return wait, run, both
 
     @inlineCallbacks
-    def run(self, runners, adcs, reps, setupPkts, setupState, sync, getTimingData, timingOrder):
+    def run(self, runners, reps, setupPkts, setupState, sync, getTimingData, timingOrder):
         """Run a sequence on this board group."""
             
         # check whether this sequence will fit in just one page
@@ -790,6 +790,14 @@ class FPGAServer(DeviceServer):
             block2 = block2 + block2[-4:] * endPad
         d['sram'] = (block1, block2, delayBlocks)
 
+    @setting(22, 'SRAM Address', addr='w', returns='')
+    def dac_sram_address(self, c, addr):
+        """Sets address for next SRAM write.
+        
+        DEPRECATED: This function no longer does anything and you should not call it!
+        """
+        dev = self.selectedDAC(c)
+        print 'Deprecation warning: SRAM Address called unnecessarily'
 
     @setting(30, 'Memory', data='*w: Memory Words to be written', returns='')
     def dac_memory(self, c, data):
@@ -1457,7 +1465,7 @@ class DacRunner(object):
             # this will be the master, so add delays before SRAM
             self.mem = addMasterDelay(self.mem)
             self.memTime = sequenceTime(self.mem) # recalculate sequence time
-        return self.dev.load(mem, sram, page)
+        return self.dev.load(self.mem, self.sram, page)
     
     def setupPacket(self):
         """Create non-pipelined setup packet.  For DAC, does nothing."""

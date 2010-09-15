@@ -71,7 +71,7 @@ def regRunSram(startAddr, endAddr, loop=True, blockDelay=0, sync=249):
     return regs
 
 def regClockPolarity(chan, invert):
-    ofs = getCommand({'A': (4, 0), 'B': (5, 1)}, chan)
+    ofs = {'A': (4, 0), 'B': (5, 1)}[chan]
     regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = 0
     regs[1] = 1
@@ -278,7 +278,6 @@ class DacDevice(DeviceWrapper):
 
     # board communication (can be called from within test mode)
 
-    @inlineCallbacks
     def _sendSRAM(self, data):
         """Write SRAM data to the FPGA."""
         p = self.makePacket()
@@ -329,7 +328,7 @@ class DacDevice(DeviceWrapper):
         for d in data:
             regs = regSerial(op, d)
             r = yield self._sendRegisters(regs)
-            answer += [processReadback(r)['serDAC']]
+            answer += [int(processReadback(r)['serDAC'])] # turn these into python ints, instead of numpy ints
         returnValue(answer)
     
     @inlineCallbacks
@@ -348,7 +347,7 @@ class DacDevice(DeviceWrapper):
     def initPLL(self):
         @inlineCallbacks
         def func():
-            yield self.runSerial(1, [0x1FC093, 0x1FC092, 0x100004, 0x000C11])
+            yield self._runSerial(1, [0x1FC093, 0x1FC092, 0x100004, 0x000C11])
             regs = regRunSram(0, 0, loop=False)
             yield self._sendRegisters(regs, readback=False)
         return self.testMode(func)
@@ -376,13 +375,13 @@ class DacDevice(DeviceWrapper):
         return self.testMode(func)
     
     
-    def runSram(self, data, loop, blockDelay):
+    def runSram(self, dataIn, loop, blockDelay):
         @inlineCallbacks
         def func():
             pkt = regPing()
             yield self._sendRegisters(pkt)
                 
-            data = np.array(data, dtype='<u4').tostring()
+            data = np.array(dataIn, dtype='<u4').tostring()
             yield self._sendSRAM(data)
             startAddr, endAddr = 0, len(data) / 4
     
@@ -396,7 +395,7 @@ class DacDevice(DeviceWrapper):
     
     def runSerial(self, op, data):
         """Run a command or list of commands through the serial interface."""
-        return self.testMode(self._runSerial, pkts)
+        return self.testMode(self._runSerial, op, data)
     
     def setPolarity(self, chan, invert):
         """Sets the clock polarity for either DAC. (DAC only)"""
@@ -483,14 +482,14 @@ class DacDevice(DeviceWrapper):
         return self.testMode(func)
     
     
-    def runBIST(self, cmd, shift, data):
+    def runBIST(self, cmd, shift, dataIn):
         """Run a BIST on the given SRAM sequence. (DAC only)"""
         @inlineCallbacks
         def func():
             pkt = regRunSram(0, 0, loop=False)
             yield self._sendRegisters(pkt, readback=False)
     
-            dat = [d & 0x3FFF for d in data]
+            dat = [d & 0x3FFF for d in dataIn]
             data = [0, 0, 0, 0] + [d << shift for d in dat]
             # make sure data is at least 20 words long by appending 0's
             data += [0] * (20-len(data))
