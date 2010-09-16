@@ -32,7 +32,12 @@ timeout = 20
 
 ### TODO
 #   Nail down error handling during startup
-#   
+#	misc error handling in some other functions. not a huge deal (i think).
+#   PNA functions
+#	implement heat switch open/closing + attendant logic
+#	logic to figure out what status we should be in given peripheral readings on startup
+#	someone who knows how to use an ADR should check over the logic in the state management functions.
+#	test this bitch!
 
 
 from labrad.devices import DeviceServer, DeviceWrapper
@@ -90,9 +95,9 @@ class ADRWrapper(DeviceWrapper):
 							'waitToMagDown': False,
 							'autoControl': False,
 							'switchPosition': 2,
-							'timeMaggedDown': None,			# time when we finished magging down
-							'scheduledMagDownTime': None,	# time to start magging down
-							'scheduledMagUpTime': None,		# time to start magging up
+							'timeMaggedDown': None,					# time when we finished magging down 
+							'scheduledMagDownTime': time.time(),	# time to start magging down	| set these to now so that the user doesn't have 
+							'scheduledMagUpTime': time.time(),		# time to start magging up		| to choose today and can just choose the time
 							'alive': False,
 						}
 		# different possible statuses
@@ -104,7 +109,7 @@ class ADRWrapper(DeviceWrapper):
 		self.ruoxCoefs = [-0.3199412, 5.74884e-8, -8.8409e-11]
 		self.highTempRuoxCurve = lambda r, p: 1 / (p[0] + p[1] * r**2 * np.log(r) + p[2] * r**3)
 		self.lowTempRuoxCurve = lambda r, p: 1 / (p[0] + p[1] * r * np.log(r) + p[2] * r**2 * np.log(r))
-		self.voltToResCalibs = [0.26, 26.03, 25.91, 25.87, 26.36, 26.53] # in mV / kOhm, or microamps
+		self.voltToResCalibs = [0.26, 26.03, 25.91, 25.87, 26.36, 26.53] # in mV / kOhm, or microamps (maybe?)
 		self.resistanceCutoff = 1725.78
 		self.ruoxChannel = 4 - 1 # channel 4, index 3
 		# find our peripherals
@@ -203,8 +208,10 @@ class ADRWrapper(DeviceWrapper):
 			newCurrent = PS_MAX_CURRENT
 		ps = self.peripheralsConnected['magnet']
 		if HANDSOFF:
-			self.log("%s magnet current -> %s" % (self.name, newCurrent))
+			print "would set %s magnet current -> %s" % (self.name, newCurrent)
+			self.log("would set %s magnet current -> %s" % (self.name, newCurrent))
 		else:
+			self.log("%s magnet current -> %s" % (self.name, newCurrent))
 			magnet.server.current(newCurrent, context=magnet.ctxt)
 	
 	@inlineCallbacks
@@ -215,13 +222,17 @@ class ADRWrapper(DeviceWrapper):
 		p.voltage(0)
 		p.current(0)
 		if HANDSOFF:
-			self.log(p.__str__())
+			print "would set %s magnet voltage, current -> 0" % self.name
+			self.log("would set %s magnet voltage, current -> 0" % self.name)
 		else:
+			self.log("magnet voltage, current -> 0")
 			yield p.send()
 		yield util.wakeupCall(0.5)
 		if HANDSOFF:
-			self.log("%s magnet output_state -> false" % self.name)
+			print "would set %s magnet output_state -> false" % self.name
+			self.log("would set magnet output_state -> false" % self.name)
 		else:
+			self.log("magnet output_state -> false" % self.name)
 			yield ps.output_state(False)
 		
 	@inlineCallbacks
@@ -235,8 +246,10 @@ class ADRWrapper(DeviceWrapper):
 		p.current(newCurrent)
 		p.output_state(True)
 		if HANDSOFF:
-			self.log(p.__str__())
+			print "would set %s magnet current -> %s\nmagnet output state -> %s" % (self.name, newCurrent, True)
+			self.log("would set magnet current -> %s\nmagnet output state -> %s" % (newCurrent, True))
 		else:
+			self.log("magnet current -> %s\nmagnet output state -> %s" % (newCurrent, True))
 			yield p.send()
 	
 	@inlineCallbacks
@@ -257,11 +270,46 @@ class ADRWrapper(DeviceWrapper):
 			else:
 				newVoltage -= self.state('voltageStepDown')
 		if HANDSOFF:
-			self.log("%s magnet voltage -> %s" % (self.name, newVoltage))
+			print "would set %s magnet voltage -> %s" % (self.name, newVoltage)
+			self.log("would set %s magnet voltage -> %s" % (self.name, newVoltage))
 		else:
+			self.log("%s magnet voltage -> %s" % (self.name, newVoltage))
 			yield ps.server.voltage(newVoltage, context=ps.context)
 		returnValue((quenched, targetReached))
-		
+	
+	def setHeatSwitch(self, open):
+		""" open the heat switch (when open=True), or close it (when open=False) """
+		if open:
+			if HANDSOFF:
+				print "would open %s heat switch" % self.name
+				self.log('would open heat switch')
+			else:
+				self.log("open heat switch")
+		else:
+			if HANDSOFF:
+				print "would close %s heat switch" % self.name
+				self.log('would close heat switch')
+			else:
+				self.log("close heat switch")
+	
+	def setCompressor(self, start):
+		""" if start==true, start compressor. if start==false, stop compressor """
+		if start:
+			if HANDSOFF:
+				print "would start %s compressor" % self.name
+				self.log('would start compressor')
+			else:
+				cp = self.peripheralsConnected['compressor']
+				cp.server.start(context=cp.ctxt)
+				self.log("start compressor")
+		else:
+			if HANDSOFF:
+				print "would stop %s compressor" % self.name
+				self.log('would stop compressor')
+			else:
+				cp = self.peripheralsConnected['compressor']
+				cp.server.stop(context=cp.ctxt)
+				self.log("stop compressor")
 	
 	#########################
 	# DATA OUTPUT FUNCTIONS #
@@ -274,6 +322,7 @@ class ADRWrapper(DeviceWrapper):
 			# check for scheduled mag up time
 			if var == 'scheduledMagUpTime' and self.currentStatus == 'ready':
 				self.status('waiting to mag up')
+			self.log('Set %s to %s' % (var, str(newValue)))
 		return self.stateVars[var]
 	# clear a state variable
 	def clear(self, var):
@@ -318,7 +367,7 @@ class ADRWrapper(DeviceWrapper):
 				# low temp (0.05 to 2 K)
 				temp = self.lowTempRuoxCurve(resistance, self.ruoxCoefs)
 			returnValue((temp, resistance))
-		except Exception, e:
+		except Exception, e: # the main exception i expect is when there's no lakeshore connected
 			print e
 			returnValue((0.0, 0.0))
 			
@@ -549,6 +598,21 @@ class ADRServer(DeviceServer):
 		""" Returns the temperature and resistance measured at the cold stage. """
 		dev = self.selectedDevice(c)
 		return dev.ruoxStatus()
+		
+	@setting(45, 'Set Compressor', value='b')
+	def set_compressor(self, c, value):
+		""" True starts the compressor, False stops it. """
+		dev = self.selectedDevice(c)
+		dev.setCompressor(value)
+		
+	@setting(46, 'Set Heat Switch', value='b')
+	def set_heat_switch(self, c, value):
+		""" 
+		True opens the heat switch, False closes it.
+		There is no confirmation! Don't fuck up.
+		"""
+		dev = self.selectedDevice(c)
+		dev.setHeatSwitch(value)
 	
 	@setting(50, 'List State Variables', returns=['*s'])
 	def list_state_variables(self, c):
