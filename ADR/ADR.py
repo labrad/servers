@@ -69,6 +69,8 @@ class Peripheral(object): #Probably should subclass DeviceWrapper here.
 
 class ADRWrapper(DeviceWrapper):
 
+	# INITIALIZATION #
+
 	@inlineCallbacks
 	def connect(self, *args, **peripheralDict):
 		"""     
@@ -655,6 +657,12 @@ class ADRServer(DeviceServer):
 		""" Gets this ADR's log. """
 		dev = self.selectedDevice(c)
 		return dev.getLog()
+		
+	@setting(57, "Write Log", value='s')
+	def write_log(self, c, value):
+		""" Writes a single entry to the log. """
+		dev = self.selectedDevice(c)
+		log(value)
 	
 __server__ = ADRServer()
 
