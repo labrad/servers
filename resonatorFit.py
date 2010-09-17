@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Resonator Fit
-version = 0.5
+version = 0.5.1
 description = Fits resonator data to find Q
 
 [startup]
@@ -146,21 +146,21 @@ class ResonatorFit(LabradServer):
             
             # Determine which indices (given by fcut) are within the background subraction range
             fcut = numpy.logical_and(f>frange[0],f<frange[1])
+            if fcut[0]==True and fcut[-1]==True:
+                order = 1
             if fcut[0] == True:
-                fcut = fcut[1:]
-                order = 1
+                fcut[0] = False
             if fcut[-1] == True:
-                fcut = fcut[:-1]
-                order = 1
+                fcut[-1] = False
             fout = numpy.logical_not(fcut)
                 
             # Fit real part of s21 and subract from actual (calibrated) data
-            pr = numpy.polyfit(f[fout],sr[fout],order)
-            srfit = numpy.polyval(pr,f)
+            polyr = numpy.polyfit(f[fout],sr[fout],order)
+            srfit = numpy.polyval(polyr,f)
                 
             # Fit imaginary part of s21 and subract from actual (calibrated) data
-            pi = numpy.polyfit(f[fout],si[fout],order)
-            sifit = numpy.polyval(pi,f)
+            polyi = numpy.polyfit(f[fout],si[fout],order)
+            sifit = numpy.polyval(polyi,f)
             
             # Combine real & imag parts
             sfit = srfit + 1j * sifit
