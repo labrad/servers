@@ -382,7 +382,7 @@ class BoardGroup(object):
             page = self.pageNums.next()
             pageLocks = [self.pageLocks[page]]
         else:
-            # start on page 0 and lock all pages
+            # start on page 0 and set pageLocks to all pages.
             print 'Paging off: SRAM too long.'
             page = 0
             pageLocks = self.pageLocks
@@ -401,13 +401,13 @@ class BoardGroup(object):
                 # stage 1: load
                 for pageLock in pageLocks: # lock pages to be written
                     yield pageLock.acquire()
-                loadDone = self.sendAll(loadPkts, 'Load')
+                loadDone = self.sendAll(loadPkts, 'Load') #Send load packets. Do not wait for response.
                 
                 # stage 2: run
-                runNow = self.runLock.acquire() # get in line to be the next to run
+                runNow = self.runLock.acquire() # Send a request for the run lock, do not wait for response.
                 try:
                     yield loadDone # wait until load is finished
-                    yield runNow # now acquire the run lock
+                    yield runNow # Wait for acquisition of the run lock.
                     
                     # set the number of triggers, based on the last executed sequence
                     waitPkt, runPkt, bothPkt = runPkts
@@ -508,7 +508,7 @@ class BoardGroup(object):
     @inlineCallbacks
     def sendAll(self, packets, info, infoList=None):
         """Send a list of packets and wrap them up in a deferred list."""
-        results = yield defer.DeferredList([p.send() for p in packets], consumeErrors=True)
+        results = yield defer.DeferredList([p.send() for p in packets], consumeErrors=True)#[(success, result)...]
         if all(s for s, r in results):
             # return the list of results
             returnValue([r for s, r in results])
@@ -760,7 +760,7 @@ class FPGAServer(DeviceServer):
         Data can be specified as a list of 32-bit words, or a pre-flattened byte string.
         """
         dev = self.selectedDAC(c)
-        d = c.setdefault(dev, {})
+        d = c.setdefault(dev, {}) #If c has a dev, return its value, otherwise insert do: c['dev']={} and return {}
         if not isinstance(data, str):
             data = data.asarray.tostring()
         d['sram'] = data
@@ -953,7 +953,7 @@ class FPGAServer(DeviceServer):
         runners = []
         for dev in devs:
             if isinstance(dev, dac.DacDevice):
-                info = c.get(dev, {})
+                info = c.get(dev, {}) #Default to empty dictionary if c['dev'] doesn't exist.
                 mem = info.get('mem', None)
                 sram = info.get('sram', None)
                 runner = DacRunner(dev, reps, mem, sram)
