@@ -227,7 +227,7 @@ class FPGAServer(DeviceServer):
     #retryStats = [0] * NUMRETRIES
 
     # possible links: name, server, port
-    possibleLinks = [('ADR Lab', 'adr_direct_ethernet', 0)]
+    possibleLinks = [('ADR Lab', 'kimble_direct_ethernet', 1)]
 
     def initContext(self, c):
         c.update(daisy_chain=[], start_delay=[])
