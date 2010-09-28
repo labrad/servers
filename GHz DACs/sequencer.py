@@ -223,11 +223,26 @@ class FPGADevice(DeviceWrapper):
 class FPGAServer(DeviceServer):
     name = 'Sequencer'
     deviceWrapper = FPGADevice
+    possibleLinks = []
 
     #retryStats = [0] * NUMRETRIES
+    @inlineCallbacks
+    def initServer(self):
+        print 'loading config info...',
+        yield self.loadConfigInfo()
+        print 'done.'
+        yield DeviceServer.initServer(self)
 
-    # possible links: name, server, port
-    possibleLinks = [('ADR Lab', 'kimble_direct_ethernet', 1)]
+    @inlineCallbacks
+    def loadConfigInfo(self):
+        """Load configuration information from the registry."""
+        reg = self.client.registry
+        p = reg.packet()
+        p.cd(['', 'Servers', 'GHz DACs'], True)
+        p.get('sequencer', key='links')
+        ans = yield p.send()
+        self.possibleLinks = ans['links'] #[(<name>, <EthernetServerName>, port),...]
+
 
     def initContext(self, c):
         c.update(daisy_chain=[], start_delay=[])
@@ -236,6 +251,7 @@ class FPGAServer(DeviceServer):
     def findDevices(self):
         cxn = self.client
         found = []
+        print self.possibleLinks
         for name, server, port in self.possibleLinks:
             if server not in cxn.servers:
                 continue
