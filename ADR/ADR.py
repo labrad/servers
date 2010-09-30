@@ -43,7 +43,9 @@ timeout = 20
 from labrad.devices import DeviceServer, DeviceWrapper
 from labrad import types as T, util
 from labrad.server import setting
+from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
+import twisted.internet.error
 
 import numpy as np
 import time, exceptions, labrad.util
@@ -101,6 +103,19 @@ class ADRWrapper(DeviceWrapper):
 							'scheduledMagDownTime': time.time(),	# time to start magging down	| set these to now so that the user doesn't have 
 							'scheduledMagUpTime': time.time(),		# time to start magging up		| to choose today and can just choose the time
 							'alive': False,
+							'recordTemp': False,		# whether we're recording right now
+							'recordFast': False,		# whether we're recording fast.
+							'recordingTemp': 250,		# start recording temps below this value
+							'tempDatasetName': None,	# name of the dataset we're currently recording temperature to
+							'datavaultPath': ["", "ADR", self.name],
+							'autoRecord': True,				# whether to start recording automatically
+							'tempDelayedCall': None,		# will be the twisted IDelayedCall object that the recording cycle is waiting on
+							'tempRecordDelay':	600,		# every X seconds we record temp
+							'fastTempRecordDelay': 10,		# every X seconds we record temp when in fast mode
+							'fastTempMaxT': 4,				# when T > X, stop fast recording
+							'fastTempMaxTime': 12*60,		# after we've been recording fast for X minutes, stop
+							'fastTempHSStop': True,			# whether to stop when the heat switch opens
+							'fastRecordingStartTime': None,	# time when we started fast recording
 						}
 		# different possible statuses
 		self.possibleStatuses = ['cooling down', 'ready', 'waiting at field', 'waiting to mag up', 'magging up', 'magging down', 'ready to mag down']
@@ -135,6 +150,14 @@ class ADRWrapper(DeviceWrapper):
 		"""
 		self.state('alive', True)
 		while self.state('alive'):
+			# check to see if we should start recording temp
+			#print "%s recordtemp: %s -- autoRecord: %s -- shouldStartRecording: %s" % (self.name, self.state('recordTemp'), self.state('autoRecord'), (yield self.shouldStartRecording()))
+			if (not self.state('recordTemp')) and self.state('autoRecord') and (yield self.shouldStartRecording()):
+				self.startRecording()
+			# should we start recording fast?
+			if (not self.state('recordFast')) and self.state('autoRecord') and (yield self.shouldStartFastRecording()):
+				self.startFastRecording()
+			# now check through the different statuses
 			if self.currentStatus == 'cooling down':
 				yield util.wakeupCall(self.sleepTime)
 				# check if we're at base, then set status -> ready
@@ -276,9 +299,10 @@ class ADRWrapper(DeviceWrapper):
 			self.log("would set %s magnet voltage -> %s" % (self.name, newVoltage))
 		else:
 			self.log("%s magnet voltage -> %s" % (self.name, newVoltage))
-			yield ps.server.voltage(newVoltage, context=ps.context)
+			yield ps.server.voltage(newVoltage, context=ps.ctxt)
 		returnValue((quenched, targetReached))
 	
+	@inlineCallbacks
 	def setHeatSwitch(self, open):
 		""" open the heat switch (when open=True), or close it (when open=False) """
 		if open:
@@ -286,12 +310,18 @@ class ADRWrapper(DeviceWrapper):
 				print "would open %s heat switch" % self.name
 				self.log('would open heat switch')
 			else:
+				hs = self.peripheralsConnected['heatswitch']
+				yield hs.server.open(context=hs.ctxt)
 				self.log("open heat switch")
+			if self.state('autoRecord') and self.state('recordFast') and self.state('fastRecordHSStop'):
+				self.stopFastRecording()
 		else:
 			if HANDSOFF:
 				print "would close %s heat switch" % self.name
 				self.log('would close heat switch')
 			else:
+				hs = self.peripheralsConnected['heatswitch']
+				yield hs.server.close(context=hs.ctxt)
 				self.log("close heat switch")
 	
 	def setCompressor(self, start):
@@ -373,6 +403,147 @@ class ADRWrapper(DeviceWrapper):
 			print e
 			returnValue((0.0, 0.0))
 			
+	###################################
+	# TEMPERATURE RECORDING FUNCTIONS #
+	###################################
+	
+	# overall plan here:
+	# once the temp dips below 250 K, take data every 10 min;
+	# in critical periods, do it every 10 s.
+	# a "critical period" would be triggered when you start magging up or on user command
+	# it would end when the heat switch closes, when temp > (some value), after X hours, or on user command
+	
+	@inlineCallbacks
+	def recordTemp(self):
+		"""
+		writes to the data vault.
+		independent variable: time
+		dependent variables: 50 K temperature (lakeshore 1), 4 K temperature (lakeshore 2), magnet temp (lakeshore 3),
+			ruox voltage (lakeshore 4), ruox temp (converted--keep calibration as well?), and power supply V and I
+		"""
+		dv = self.cxn.data_vault
+		if not self.state('tempDatasetName'):
+			# we need to create a new dataset
+			dv.cd(self.state('datavaultPath'), context=self.ctxt)
+			indeps = [('time', 's')]
+			deps = [('temperature', 'ch1: 50K', 'K'),
+					('temperature', 'ch2: 4K', 'K'),
+					('temperature', 'ch3: mag', 'K'),
+					('voltage', 'ruox', 'V'),
+					('resistance', 'ruox', 'Ohm'),
+					('temperature', 'ruox', 'K'),
+					('voltage', 'magnet', 'V'),
+					('current', 'magnet', 'Amp'),]
+			name = "Temperature Log - %s" % time.strftime("%Y-%m-%d %H:%M")
+			dv.new(name, indeps, deps, context=self.ctxt)
+			self.state('tempDatasetName', name)
+		# assemble the info
+		ls = self.peripheralsConnected['lakeshore']
+		temps = yield ls.server.temperatures(context=ls.ctxt)
+		volts = yield ls.server.voltages(context=ls.ctxt)
+		ruox = yield self.ruoxStatus()
+		mag = self.peripheralsConnected['magnet']
+		I, V = ((yield mag.server.current(context=mag.ctxt)), (yield mag.server.voltage(context=mag.ctxt)))
+		t = int(time.time())
+		# save the data
+		dv.add([t, temps[0].value, temps[1].value, temps[2].value, volts[3].value, ruox[1], ruox[0], V, I], context=self.ctxt)
+		# log!
+		self.log("Temperature log recorded: %s" % time.strftime("%Y-%m-%d %H:%M", time.localtime(t)))
+		
+	@inlineCallbacks
+	def tempCycle(self):
+		"""
+		this function should be called when the temperature recording starts, and will return when it stops.
+		it will loop every either 10s or 10 min and then call record temp.
+		this also checks each time to see if we should continue recording.
+		"""
+		while self.state('recordTemp'):
+			# make the record
+			self.recordTemp()
+			# check if we should still be recording fast.
+			if self.state('recordFast') and self.state('autoRecord') and self.shouldStopFastRecording():
+				self.stopFastRecording()
+			# check if we should stop recording altogether
+			if self.state('autoRecord') and (yield self.shouldStopRecording()):
+				self.stopRecording()
+			# set up a deferred to run in either 10 min or 10 s
+			if self.state('recordFast'):
+				delay = self.state('fastTempRecordDelay')
+			else:
+				delay = self.state('tempRecordDelay')
+			d = defer.Deferred()	# we use a blank deferred, so nothing will actually happen when we finish
+			e = reactor.callLater(delay, d.callback, None)
+			self.state('tempDelayedCall', e)
+			# and now, we wait.
+			yield d
+			# note that we can interrupt the waiting by messing with the e object (saved in a state variable)
+			
+	def startRecording(self):
+		self.state('recordTemp', True)
+		self.tempCycle()
+	
+	def stopRecording(self):
+		self.state('recordTemp', False)
+		#self.state('tempDatasetName', None)
+		e = self.state('tempDelayedCall')
+		if e:
+			try:
+				e.reset(0) # reset the counter
+			except twisted.internet.error.AlreadyCalled:
+				pass
+	
+	def startFastRecording(self):
+		self.state('recordFast', True)
+		self.state('fastRecordingStartTime', time.time())
+		e = self.state('tempDelayedCall')
+		if e:
+			try:
+				e.reset(0) # reset the counter
+			except twisted.internet.error.AlreadyCalled:
+				pass
+		if not self.state('recordTemp'):
+			self.startRecording()
+	
+	def stopFastRecording(self):
+		self.state('recordFast', False)
+		# on the next cycle we'll stop fast recording
+	
+	def shouldStartFastRecording(self):
+		return self.status() == 'magging up'
+		
+	def shouldStopFastRecording(self):
+		(t, r) = self.ruoxStatus()
+		return (t > self.state('fastRecordingMaxT') or (time.time() - self.state('fastRecordingStartTime') > self.state('fastRecordingMaxTime') * 60))
+	
+	@inlineCallbacks
+	def shouldStartRecording(self):
+		"""
+		determines whether we should start recording.
+		"""
+		try:
+			ls = self.peripheralsConnected['lakeshore']
+			temp = (yield ls.server.temperatures(context=ls.ctxt))[0].value
+			returnValue(temp < self.state('recordingTemp'))
+		except Exception, e:
+			#print e
+			returnValue(False)
+		
+	@inlineCallbacks
+	def shouldStopRecording(self):
+		"""
+		determines whether to stop recording.
+		conditions: temp > 250K, --???
+		"""
+		try:
+			ls = self.peripheralsConnected['lakeshore']
+			temp = (yield ls.server.temperatures(context=ls.ctxt))[0].value
+			#print "%s %s" % (temp, self.state('recordingTemp'))
+			returnValue(temp > self.state('recordingTemp'))
+		except Exception, e:
+			#print e
+			returnValue(True)
+		
+		
 	#################################
 	# PERIPHERAL HANDLING FUNCTIONS	#
 	#################################
@@ -481,9 +652,9 @@ class ADRWrapper(DeviceWrapper):
 	
 # (end of ADRWrapper)
 
-############################
-##### ADR SERVER CLASS #####
-############################
+######################################
+########## ADR SERVER CLASS ##########
+######################################
 
 class ADRServer(DeviceServer):
 	name = 'ADR Server'
@@ -662,7 +833,35 @@ class ADRServer(DeviceServer):
 	def write_log(self, c, value):
 		""" Writes a single entry to the log. """
 		dev = self.selectedDevice(c)
-		log(value)
+		dev.log(value)
+		
+	# the 60's settings are for controlling the temp recording
+	@setting(60, "Start Recording")
+	def start_recording(self, c):
+		""" Start recording temp. """
+		self.selectedDevice(c).startRecording()
+	@setting(61, "Stop Recording")
+	def stop_recording(self, c):
+		""" Stop recording temp. """
+		self.selectedDevice(c).stopRecording()
+	@setting(62, "Start Fast Recording")
+	def start_fast_recording(self, c):
+		""" Start fast recording temperature. Will start recording temperature if not before. """
+		self.selectedDevice(c).startFastRecording()
+	@setting(63, "Stop Fast Recording")
+	def stop_fast_recording(self, c):
+		""" Stop fast recording temperature. Regular temperature recording will continue. """
+		self.selectedDevice(c).stopFastRecording()
+	@setting(64, "Recording Status")
+	def recording_status(self, c):
+		""" Returns whether recording, recording fast, or not recording at all. """
+		dev = self.selectedDevice(c)
+		if dev.state('recordFast'):
+			return "Fast Recording"
+		elif dev.state('recordTemp'):
+			return "Recording"
+		else:
+			return "Not Recording"
 	
 __server__ = ADRServer()
 
