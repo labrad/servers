@@ -344,6 +344,15 @@ class DacDevice(DeviceWrapper):
     
     # externally-accessible functions that put the board into test mode
     
+    def buildNumber(self):
+        @inlineCallbacks
+        def func():
+            regs = regPing()
+            r = yield self._sendRegisters(regs)
+            returnValue(processReadback(r)['build'])
+        return self.testMode(func)
+
+    
     def initPLL(self):
         @inlineCallbacks
         def func():

@@ -1136,7 +1136,7 @@ class FPGAServer(DeviceServer):
     def build_number(self, c):
         """Gets the build number of selected device (DAC and ADC)"""
         dev = self.selectedDevice(c)
-        buildNumber = yield dev.getBuildNumber()
+        buildNumber = yield dev.buildNumber()
         returnValue(buildNumber)
 
     @setting(1080, 'DAC Debug Output', data='wwww', returns='')

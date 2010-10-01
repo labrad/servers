@@ -263,10 +263,10 @@ class AdcDevice(DeviceWrapper):
             returnValue(processReadback(r)['noPllLatch'])
         return self.testMode(func)
 
-    def getBuildNumber(self):
+    def buildNumber(self):
         @inlineCallbacks
         def func():
-            regs = regAcdPllQuesy()
+            regs = regAdcPing()
             r = yield self._sendRegisters(regs)
             returnValue(processReadback(r)['build'])
         return self.testMode(func)
