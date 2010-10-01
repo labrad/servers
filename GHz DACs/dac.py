@@ -46,8 +46,8 @@ def isMac(mac):
 
 def regPing():
     regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
-    regs[0] = 0
-    regs[1] = 1
+    regs[0] = 0 #No sequence start
+    regs[1] = 1 #Readback after 2us
     return regs    
 
 def regDebug(word1, word2, word3, word4):
@@ -62,10 +62,10 @@ def regDebug(word1, word2, word3, word4):
     
 def regRunSram(startAddr, endAddr, loop=True, blockDelay=0, sync=249):
     regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
-    regs[0] = (3 if loop else 4)
-    regs[1] = 0
-    regs[13:16] = littleEndian(startAddr, 3)
-    regs[16:19] = littleEndian(endAddr-1 + SRAM_DELAY_LEN * blockDelay, 3)
+    regs[0] = (3 if loop else 4) #3: continuous, 4: single run
+    regs[1] = 0 #No register readback
+    regs[13:16] = littleEndian(startAddr, 3) #SRAM start address
+    regs[16:19] = littleEndian(endAddr-1 + SRAM_DELAY_LEN * blockDelay, 3) #SRAM end
     regs[19] = blockDelay
     regs[45] = sync
     return regs
@@ -82,7 +82,7 @@ def regPllReset():
     regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = 0
     regs[1] = 1
-    regs[46] = 0x80
+    regs[46] = 0x80 #Set d[7..0] to 10000000 = reset 1GHz PLL pulse
     return regs
 
 def regPllQuery():
@@ -90,10 +90,10 @@ def regPllQuery():
 
 def regSerial(op, data):
     regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
-    regs[0] = 0
-    regs[1] = 1
-    regs[47] = op
-    regs[48:51] = littleEndian(data, 3)
+    regs[0] = 0 #Start mode = no start
+    regs[1] = 1 #Readback = readback after 2us to allow for serial
+    regs[47] = op #Set serial operation mode to op
+    regs[48:51] = littleEndian(data, 3) #Serial data
     return regs
 
 def regI2C(data, read, ack):
@@ -132,7 +132,7 @@ def processReadback(resp):
     a = np.fromstring(resp, dtype='<u1')
     return {
         'build': a[51],
-        'serDAC': a[56],
+        '': a[56],
         'noPllLatch': bool((a[58] & 0x80) > 0),
         'ackoutI2C': a[61],
         'I2Cbytes': a[69:61:-1],
@@ -348,7 +348,7 @@ class DacDevice(DeviceWrapper):
         @inlineCallbacks
         def func():
             yield self._runSerial(1, [0x1FC093, 0x1FC092, 0x100004, 0x000C11])
-            regs = regRunSram(0, 0, loop=False)
+            regs = regRunSram(0, 0, loop=False) #Run sram with startAddress=endAddress=0. Run once, no loop.
             yield self._sendRegisters(regs, readback=False)
         return self.testMode(func)
         

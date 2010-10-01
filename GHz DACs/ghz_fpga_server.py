@@ -1132,7 +1132,12 @@ class FPGAServer(DeviceServer):
         unlocked = yield dev.queryPLL()
         returnValue(unlocked)
 
-
+    @setting(203, 'Build Number', returns='s')
+    def build_number(self, c):
+        """Gets the build number of selected device (DAC and ADC)"""
+        dev = self.selectedDevice(c)
+        buildNumber = yield dev.getBuildNumber()
+        returnValue(buildNumber)
 
     @setting(1080, 'DAC Debug Output', data='wwww', returns='')
     def dac_debug_output(self, c, data):
@@ -1382,12 +1387,15 @@ class FPGAServer(DeviceServer):
         The board will start immediately using the trig lookup and demod
         settings already specified in this context.  Returns the acquired
         I and Q waveforms.
+        
+        Returns:
+        (I: np.array(int), Q: np.array(int))
         """
         dev = self.selectedADC(c)
         info = c.setdefault(dev, {})
-        filterFunc = info.get('filterFunc', np.array([255], dtype='<u1'))
-        filterStretchLen = info.get('filterStretchLen', 0)
-        filterStretchAt = info.get('filterStretchAt', 0)
+        filterFunc = info.get('filterFunc', np.array([255], dtype='<u1'))   #Default to [255]
+        filterStretchLen = info.get('filterStretchLen', 0)                  #Default to no stretch
+        filterStretchAt = info.get('filterStretchAt', 0)                    #Default to stretch at 0
         demods = dict((i, info[i]) for i in range(adc.DEMOD_CHANNELS) if i in info)
         ans = yield dev.runAverage(filterFunc, filterStretchLen, filterStretchAt, demods)
         returnValue(ans)

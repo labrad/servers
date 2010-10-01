@@ -60,12 +60,12 @@ def regAdcRecalibrate():
 def regAdcRun(mode, reps, filterFunc, filterStretchAt, filterStretchLen, demods, startDelay=0):
     regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = mode # average mode, autostart
-    regs[1:3] = littleEndian(startDelay, 2)
-    regs[7:9] = littleEndian(reps, 2)
+    regs[1:3] = littleEndian(startDelay, 2) #Daisychain delay
+    regs[7:9] = littleEndian(reps, 2)       #Number of repetitions
     
-    regs[9:11] = littleEndian(len(filterFunc), 2)
-    regs[11:13] = littleEndian(filterStretchAt, 2)
-    regs[13:15] = littleEndian(filterStretchLen, 2)
+    regs[9:11] = littleEndian(len(filterFunc), 2)   #Filter function end address
+    regs[11:13] = littleEndian(filterStretchAt, 2)  #Stretch address for filter
+    regs[13:15] = littleEndian(filterStretchLen, 2) #Filter function stretch length
     
     for i in range(DEMOD_CHANNELS):
         if i not in demods:
@@ -262,22 +262,29 @@ class AdcDevice(DeviceWrapper):
             r = yield self._sendRegisters(regs)
             returnValue(processReadback(r)['noPllLatch'])
         return self.testMode(func)
-        
+
+    def getBuildNumber(self):
+        @inlineCallbacks
+        def func():
+            regs = regAcdPllQuesy()
+            r = yield self._sendRegisters(regs)
+            returnValue(processReadback(r)['build'])
+        return self.testMode(func)
+    
     def runAverage(self, filterFunc, filterStretchLen, filterStretchAt, demods):
         @inlineCallbacks
         def func():
             # build registry packet
             regs = regAdcRun(RUN_MODE_AVERAGE_AUTO, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
-    
-            # create packet for the ethernet server
-            p = self.makePacket()
-            self.makeFilter(filterFunc, p) # upload filter function
-            self.makeTrigLookups(demods, p) # upload trig lookup tables
-            p.write(regs.tostring()) # send registry packet
-            p.timeout(T.Value(10, 's')) # set a conservative timeout
-            p.read(AVERAGE_PACKETS) # read back all packets from average buffer
             
-            ans = yield p.send()
+            p = self.makePacket()           # create packet for the ethernet server
+            self.makeFilter(filterFunc, p)  # upload filter function
+            self.makeTrigLookups(demods, p) # upload trig lookup tables
+            p.write(regs.tostring())        # send register packet
+            p.timeout(T.Value(10, 's'))     # set a conservative timeout
+            p.read(AVERAGE_PACKETS)         # read back all packets from average buffer
+            
+            ans = yield p.send()    #Actually send the packet. 
                     
             # parse the packets out and return data
             packets = [data for src, dst, eth, data in ans.read]
