@@ -72,7 +72,7 @@ def measurePower(spec,fpga,a,b):
     """returns signal power from the spectrum analyzer"""
     dac = [makeSample(a,b)]*64
     dac[0] |= trigger
-    yield fpga.run_sram(dac,True)
+    yield fpga.dac_run_sram(dac,True)
     returnValue((yield signalPower(spec)))
 
 def datasetNumber(dataset):
@@ -139,7 +139,7 @@ def zero(anr, spec, fpga, freq):
 
 @inlineCallbacks
 def zeroFixedCarrier(cxn, boardname):
-    fpga = cxn.ghz_dacs
+    fpga = cxn.ghz_fpgas
     yield fpga.select_device(boardname)
     yield cxn.microwave_switch.switch(boardname)
     anr = cxn.anritsu_server
@@ -172,7 +172,7 @@ def zeroFixedCarrier(cxn, boardname):
 @inlineCallbacks
 def zeroScanCarrier(cxn, scanparams, boardname):
     """Measures the DAC zeros in function of the carrier frequency."""
-    fpga = cxn.ghz_dacs
+    fpga = cxn.ghz_fpgas
     yield fpga.select_device(boardname)
     yield cxn.microwave_switch.switch(boardname)
     anr = cxn.anritsu_server
@@ -235,7 +235,7 @@ def measureImpulseResponse(fpga, scope, baseline, pulse, dacoffsettime=6, pulsel
     data = np.resize(baseline, looplength)
     data[pulseindex:pulseindex+pulselength] = pulse
     data[0] |= trigger
-    yield fpga.run_sram(data,True)
+    yield fpga.dac_run_sram(data,True)
     data = (yield scope.get_trace(1)).asarray
     data[0] -= triggerdelay*1e-9
     returnValue(data)
@@ -276,7 +276,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     trigger_positive()
     yield p.send()
 
-    fpga = cxn.ghz_dacs
+    fpga = cxn.ghz_fpgas
     yield fpga.select_device(boardname)
     offsettime = yield reg.get(keys.TIMEOFFSET)
 
@@ -302,7 +302,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
         Did you change settings on the scope during the measurement?"""
         exit
     #set output to zero    
-    yield fpga.run_sram([baseline]*4)
+    yield fpga.dac_run_sram([baseline]*4)
     yield anr.output(False)
     
     ds = cxn.data_vault
@@ -338,7 +338,7 @@ def calibrateDCPulse(cxn,boardname,channel):
     reg = cxn.registry
     yield reg.cd(['',keys.SESSIONNAME,boardname])
 
-    fpga = cxn.ghz_dacs
+    fpga = cxn.ghz_fpgas
     fpga.select_device(boardname)
 
     dac_baseline = -0x2000
@@ -376,7 +376,7 @@ def calibrateDCPulse(cxn,boardname,channel):
         dacoffsettime=offsettime['ns'], pulselength=100)
     # set the output to zero so that the fridge does not warm up when the
     # cable is plugged back in
-    yield fpga.run_sram([makeSample(dac_neutral, dac_neutral)]*4,False)
+    yield fpga.dac_run_sram([makeSample(dac_neutral, dac_neutral)]*4,False)
     ds = cxn.data_vault
     yield ds.cd(['', keys.SESSIONNAME, boardname],True)
     dataset = yield ds.new(keys.CHANNELNAMES[channel], [('Time','ns')],
@@ -402,7 +402,7 @@ def measureOppositeSideband(spec, fpga, corrector,
                             0.5 * np.exp(arg) + 0.5 * compensation * np.exp(-arg), \
                             loop=True, iqcor=False, rescale=True)
     signal[0] = signal[0] | trigger
-    yield fpga.run_sram(signal,True)
+    yield fpga.dac_run_sram(signal,True)
     returnValue((yield signalPower(spec)) / corrector.last_rescale_factor)
 
 @inlineCallbacks 
@@ -452,7 +452,7 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
     """Determines relative I and Q amplitudes by canceling the undesired
        sideband at different sideband frequencies."""
 
-    fpga = cxn.ghz_dacs
+    fpga = cxn.ghz_fpgas
     yield fpga.select_device(boardname)
     anr = cxn.anritsu_server
     spec = cxn.spectrum_analyzer_server
