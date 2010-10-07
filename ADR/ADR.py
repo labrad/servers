@@ -55,7 +55,7 @@ CONFIG_PATH = ['','Servers','ADR']
 # 9 Amps is the max, ladies and gentlemen
 PS_MAX_CURRENT = 9.0
 # if HANDSOFF, don't actually do anything
-HANDSOFF = True
+HANDSOFF = False
 
 class Peripheral(object): #Probably should subclass DeviceWrapper here.
 	
@@ -96,7 +96,7 @@ class ADRWrapper(DeviceWrapper):
 							'maxCurrent': 9,			# A
 							'fieldWaitTime': 2.0,		# min
 							'ruoxSwitch': 2,
-							'waitToMagDown': False,
+							'waitToMagDown': True,
 							'autoControl': False,
 							'switchPosition': 2,
 							'timeMaggedDown': None,					# time when we finished magging down 
@@ -123,7 +123,8 @@ class ADRWrapper(DeviceWrapper):
 		self.sleepTime = 1.0
 		# functions and coefficients for converting ruox res to temp
 		# these should probably be exported to the registry at some point
-		self.ruoxCoefs = [-0.3199412, 5.74884e-8, -8.8409e-11]
+		self.ruoxCoefsHigh = [-0.3199412, 5.74884e-8, -8.8409e-11]
+		self.ruoxCoefsLow = [-0.77127, 1.0068e-4, -1.072e-9]
 		self.highTempRuoxCurve = lambda r, p: 1 / (p[0] + p[1] * r**2 * np.log(r) + p[2] * r**3)
 		self.lowTempRuoxCurve = lambda r, p: 1 / (p[0] + p[1] * r * np.log(r) + p[2] * r**2 * np.log(r))
 		self.voltToResCalibs = [0.26, 26.03, 25.91, 25.87, 26.36, 26.53] # in mV / kOhm, or microamps (maybe?)
@@ -231,13 +232,13 @@ class ADRWrapper(DeviceWrapper):
 		newCurrent = min(PS_MAX_CURRENT, self.state('maxCurrent'))
 		if newCurrent < 0:
 			newCurrent = PS_MAX_CURRENT
-		ps = self.peripheralsConnected['magnet']
+		magnet = self.peripheralsConnected['magnet']
 		if HANDSOFF:
 			print "would set %s magnet current -> %s" % (self.name, newCurrent)
 			self.log("would set %s magnet current -> %s" % (self.name, newCurrent))
 		else:
 			self.log("%s magnet current -> %s" % (self.name, newCurrent))
-			magnet.server.current(newCurrent, context=magnet.ctxt)
+                        magnet.server.current(newCurrent, context=magnet.ctxt)
 	
 	@inlineCallbacks
 	def psOutputOff(self):
@@ -255,10 +256,10 @@ class ADRWrapper(DeviceWrapper):
 		yield util.wakeupCall(0.5)
 		if HANDSOFF:
 			print "would set %s magnet output_state -> false" % self.name
-			self.log("would set magnet output_state -> false" % self.name)
+			self.log("would set magnet output_state -> false")
 		else:
-			self.log("magnet output_state -> false" % self.name)
-			yield ps.output_state(False)
+			self.log("magnet output_state -> false")
+			yield ps.server.output_state(False, context=ps.ctxt)
 		
 	@inlineCallbacks
 	def psOutputOn(self):
@@ -284,16 +285,21 @@ class ADRWrapper(DeviceWrapper):
 		temps = yield ls.server.temperatures(context = ls.ctxt)
 		volts = yield ls.server.voltages(context = ls.ctxt)
 		ps = self.peripheralsConnected['magnet']
-		current = yield ps.server.current(context=ps.ctxt)
-		voltage = yield ps.server.voltage(context=ps.ctxt)
+		current = (yield ps.server.current(context=ps.ctxt)).value
+		voltage = (yield ps.server.voltage(context=ps.ctxt)).value
 		quenched = temps[1].value > self.state('quenchLimit') and current > 0.5
-		targetReached = (up and self.state('targetCurrent') - current < 0.001) or (not up and self.state('targetCurrent') > current)
+		targetReached = (up and self.state('targetCurrent') - current < 0.001) or (not up and 0.01 > current)
 		newVoltage = voltage
-		if not quenched and not targetReached and volts[6] < self.state('voltageLimit'):
-			if up:
-				newVoltage += self.state('voltageStepUp')
-			else:
-				newVoltage -= self.state('voltageStepDown')
+		print "  volts[6]: %s\n  volts[7]: %s\n  voltageLimit: %s" % (volts[6].value, volts[7].value, self.state('voltageLimit'))
+		if (not quenched) and up and (volts[7].value < self.state('voltageLimit')) and (volts[6].value > (self.state('voltageLimit') * -1)):
+                        print "changing voltage"
+                        newVoltage += self.state('voltageStepUp')
+                elif (not quenched) and (not up) and (volts[6].value < self.state('voltageLimit')) and (volts[7].value > (self.state('voltageLimit') * -1)):
+                        print "changing voltage"
+                        newVoltage -= self.state('voltageStepDown')
+		else:
+                        print "not changing voltage"
+                        
 		if HANDSOFF:
 			print "would set %s magnet voltage -> %s" % (self.name, newVoltage)
 			self.log("would set %s magnet voltage -> %s" % (self.name, newVoltage))
@@ -377,7 +383,7 @@ class ADRWrapper(DeviceWrapper):
 				if self.state('scheduledMagUpTime') > time.time():
 					self.status('waiting to mag up')
 			elif newStatus == 'waiting at field':
-				self.scheduledMagDownTime = time.time() + self.fieldWaitTime * 60
+				self.scheduledMagDownTime = time.time() + self.state("fieldWaitTime") * 60
 			self.log("ADR %s status is now: %s" % (self.name, self.currentStatus))
 		return self.currentStatus
 	
@@ -390,14 +396,14 @@ class ADRWrapper(DeviceWrapper):
 			calib = self.voltToResCalibs[self.state('switchPosition') - 1]
 			ls = self.peripheralsConnected['lakeshore']
 			voltage = (yield ls.server.voltages(context=ls.ctxt))[self.ruoxChannel].value
-			resistance = voltage / (calib )#* 10**6) # may or may not need this factor of 10^6
+			resistance = voltage / (calib)* 10**6 # may or may not need this factor of 10^6
 			temp = 0.0
 			if resistance < self.resistanceCutoff:
 				# high temp (2 to 20 K)
-				temp = self.highTempRuoxCurve(resistance, self.ruoxCoefs)
+				temp = self.highTempRuoxCurve(resistance, self.ruoxCoefsHigh)
 			else:
 				# low temp (0.05 to 2 K)
-				temp = self.lowTempRuoxCurve(resistance, self.ruoxCoefs)
+				temp = self.lowTempRuoxCurve(resistance, self.ruoxCoefsLow)
 			returnValue((temp, resistance))
 		except Exception, e: # the main exception i expect is when there's no lakeshore connected
 			print e
