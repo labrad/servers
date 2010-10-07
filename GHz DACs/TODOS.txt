@@ -16,6 +16,7 @@ with hardware:
 
 difficult but would be really nice:
 - update FpgaEmulators to accept all bringup commands and respond in a way that allows the bringup to complete successfully
+  - we've now tested bringup on actual devices, so this seems to work.  But test scripts would be nice so that we can test java port
 - then, fully test interactions between bringup and run mode using scripts
 
 finally:
