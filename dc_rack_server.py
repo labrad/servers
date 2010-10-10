@@ -49,6 +49,7 @@ class PreampServer(LabradServer):
 
     @inlineCallbacks
     def findLinks(self):
+        """Check registry listing for expected links and if they actually exist add to our list of links"""
         # load from the registry
         reg = self.client.registry()
         yield reg.cd(['', 'Servers', 'DC Rack', 'Links'], True)
