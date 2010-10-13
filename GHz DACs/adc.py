@@ -10,6 +10,7 @@ from util import littleEndian, TimedLock
 DEMOD_CHANNELS = 4
 DEMOD_CHANNELS_PER_PACKET = 11
 DEMOD_PACKET_LEN = 46 # length of result packets in demodulation mode
+DEMOD_TIME_STEP = 2 #ns
 AVERAGE_PACKETS = 32 # number of packets that
 AVERAGE_PACKET_LEN = 1024
 
@@ -59,7 +60,7 @@ def regAdcRecalibrate():
 
 def regAdcRun(mode, reps, filterFunc, filterStretchAt, filterStretchLen, demods, startDelay=0):
     regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
-    regs[0] = mode # average mode, autostart
+    regs[0] = mode
     regs[1:3] = littleEndian(startDelay, 2) #Daisychain delay
     regs[7:9] = littleEndian(reps, 2)       #Number of repetitions
     
@@ -71,7 +72,7 @@ def regAdcRun(mode, reps, filterFunc, filterStretchAt, filterStretchLen, demods,
         if i not in demods:
             continue
         addr = 15 + 4*i
-        regs[addr:addr+2] = littleEndian(demods[i]['dphi'], 2)
+        regs[addr:addr+2] = littleEndian(demods[i]['dAddr'], 2)
         regs[addr+2:addr+4] = littleEndian(demods[i]['phi0'], 2)
     return regs
 
@@ -278,8 +279,8 @@ class AdcDevice(DeviceWrapper):
             regs = regAdcRun(RUN_MODE_AVERAGE_AUTO, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
             
             p = self.makePacket()           # create packet for the ethernet server
-            self.makeFilter(filterFunc, p)  # upload filter function
-            self.makeTrigLookups(demods, p) # upload trig lookup tables
+            self.makeFilter(filterFunc, p)  # upload filter function, adds a p.write()
+            self.makeTrigLookups(demods, p) # upload trig lookup tables adds a p.write()
             p.write(regs.tostring())        # send register packet
             p.timeout(T.Value(10, 's'))     # set a conservative timeout
             p.read(AVERAGE_PACKETS)         # read back all packets from average buffer
@@ -290,7 +291,16 @@ class AdcDevice(DeviceWrapper):
             packets = [data for src, dst, eth, data in ans.read]
             returnValue(extractAverage(packets))
         return self.testMode(func)
-    
+
+#    def averageMultiAsSlave(self, averages):
+#        @inlineCallbacks
+#        def func():
+#            regs = regAdcRun(RUN_MODE_AVERAGE_DAISY, averages, filterFunc, filterStretchLen, filterStretchAt, demods)
+#            p = self.makePacket()
+#            p.write(regs.tostring())            
+#            p.send()    #Sets up the ADC. The ADC won't do anything until the daisychain fires
+#        return self.testMode(func)
+
     def runDemod(self, filterFunc, filterStretchLen, filterStretchAt, demods):
         @inlineCallbacks
         def func():
