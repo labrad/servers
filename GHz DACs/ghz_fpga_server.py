@@ -842,38 +842,50 @@ class FPGAServer(DeviceServer):
         ch = d.setdefault(channel, {})
         ch['sineAmp'] = sineAmp
         ch['cosineAmp'] = cosineAmp
-        N = adc.LOOKUP_TABLE_LEN
+        N = adc.LOOKUP_TABLE_LEN #256
         phi = np.pi/2 * (np.arange(N) + 0.5) / N
         ch['sine'] = np.floor(sineAmp * np.sin(phi) + 0.5).astype('uint8')
         ch['cosine'] = np.floor(cosineAmp * np.cos(phi) + 0.5).astype('uint8')
     
     
-    @setting(42, 'ADC Demod Phase', channel='w', dphi='i', phi0='i', returns='')
-    def adc_demod_frequency(self, c, channel, dphi, phi0=0):
-        """Set the phase difference and initial phase for a demodulation channel. (ADC only)
+    @setting(42, 'ADC Demod Phase', channel='w', dAddr='i', phi0='i', returns='')
+    def adc_demod_frequency(self, c, channel, dAddr, phi0=0):
+        """Set the trig table address step and initial phase for a demodulation channel. (ADC only)
         
-        The phase difference gives the phase change per 2ns.
+        dAddr: number of trig table addresses to step through each time sample (2ns for first version of board).
+        
+        The trig lookup table address is stored in a 16 bit accumulator. The lookup table has 1024
+        addresses. The six least significant bits are ignored when accessing the accululator to read
+        the lookup table. This gives sub-address timing resolution.
+        
+        The demodulation frequency is related to dAddr as follows:
+        2^6 = 64 steps in the accumulator are needed to produce one step in the lookup table address.
+        If we incriment the accumulator by 1 each time step then we go through
+        (1/64*Address)*(1 cycle/1024 Address) = (2**-16)cycle
+        This happens every 2ns, so we have 2**-16 cycle/2ns = 2**-17 GHz = 7.629 KHz
+        Therefore, dAddr = desiredFrequency/7629Hz.
+                
         """
-        assert -2**15 <= dphi < 2**15, 'delta phi out of range'
+        assert -2**15 <= dAddr < 2**15, 'delta phi out of range' #16 bit 2's compliment number for demod trig function
         assert -2**15 <= phi0 < 2**15, 'phi0 out of range'
         dev = self.selectedADC(c)
         d = c.setdefault(dev, {})
         ch = d.setdefault(channel, {})
-        ch['dphi'] = dphi
+        ch['dAddr'] = dAddr
         ch['phi0'] = phi0
+        
 
-
-    @setting(43, 'ADC Run Mode', mode='s', returns='')
+    @setting(44, 'ADC Run Mode', mode='s', returns='')
     def adc_run_mode(self, c, mode):
         """Set the run mode for the current ADC board, 'average' or 'demodulate'. (ADC only)
         """
         mode = mode.lower()
         assert mode in ['average', 'demodulate'], 'unknown mode: "%s"' % mode
         dev = self.selectedADC(c)
-        d = c.setdefault(dev, {})
-        d['runMode'] = mode
+        d = c.setdefault(dev, {})   # if c[dev] exists, d = c[dev]. Otherwise d = {} and c[dev] = {} 
+        d['runMode'] = mode         # d points to the same object as c[dev], which is MUTABLE. Mutating d mutates c[dev]!!!
 
-    @setting(44, 'ADC Start Delay', delay='w', returns='')
+    @setting(45, 'ADC Start Delay', delay='w', returns='')
     def adc_start_delay(self, c, delay):
         """Specify the time to delay before starting ADC acquisition.  (ADC only)
         
@@ -884,7 +896,7 @@ class FPGAServer(DeviceServer):
         dev = self.selectedADC(c)
         c.setdefault(dev, {})['startDelay'] = delay
 
-    @setting(45, 'ADC Demod Range', returns='i{Imax}, i{Imin}, i{Qmax}, i{Qmin}')
+    @setting(46, 'ADC Demod Range', returns='i{Imax}, i{Imin}, i{Qmax}, i{Qmin}')
     def adc_demod_range(self, c):
         """Get the demodulation ranges for the last sequence run in this context. (ADC only)
         """
@@ -1057,10 +1069,13 @@ class FPGAServer(DeviceServer):
         so that a given ADC board can appear multiple times in the timing
         order, however each ADC board must be run either in average mode
         or demodulation mode, not both.
+        
+        Parameters:
+        boards: INSERT EXAMPLE!!!
         """
-        if boards is None:
+        if boards is None:              #Get timing order
             boards = c['timing_order']
-        else:
+        else:                           #Set timing order
             c['timing_order'] = boards
         return boards
 
@@ -1148,7 +1163,7 @@ class FPGAServer(DeviceServer):
 
     @setting(1081, 'DAC Run SRAM', data='*w', loop='b', blockDelay='w', returns='')
     def dac_run_sram(self, c, data, loop=False, blockDelay=0):
-        """Loads data into the SRAM and executes. (DAC only)
+        """Loads data into the SRAM and executes as master. (DAC only)
 
         If loop is True, the sequence will be repeated forever,
         otherwise it will be executed just once.  Sending
@@ -1372,7 +1387,6 @@ class FPGAServer(DeviceServer):
         returnValue(ans)
 
 
-
     @setting(2500, 'ADC Recalibrate', returns='')
     def adc_recalibrate(self, c):
         """Recalibrate the analog-to-digital converters. (ADC only)"""
@@ -1400,8 +1414,7 @@ class FPGAServer(DeviceServer):
         ans = yield dev.runAverage(filterFunc, filterStretchLen, filterStretchAt, demods)
         returnValue(ans)
     
-    
-    @setting(2601, 'ADC Run Demod', returns='*(*i{I}, *i{Q}), (i{Imax} i{Imin} i{Qmax} i{Qmin})')
+    @setting(2602, 'ADC Run Demod', returns='*(*i{I}, *i{Q}), (i{Imax} i{Imin} i{Qmax} i{Qmin})')
     def adc_run_demod(self, c):
         dev = self.selectedADC(c)
         info = c.setdefault(dev, {})
