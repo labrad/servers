@@ -81,6 +81,7 @@ class ADRWrapper(DeviceWrapper):
 		#Give the ADR a client connection to LabRAD.
 		#ADR's use the same connection as the ADR server.
 		#Each ADR makes LabRAD requests in its own context.
+
 		self.cxn = args[0]
 		self.ctxt = self.cxn.context()
 		# give us a blank log
@@ -291,12 +292,18 @@ class ADRWrapper(DeviceWrapper):
 		targetReached = (up and self.state('targetCurrent') - current < 0.001) or (not up and 0.01 > current)
 		newVoltage = voltage
 		print "  volts[6]: %s\n  volts[7]: %s\n  voltageLimit: %s" % (volts[6].value, volts[7].value, self.state('voltageLimit'))
-		if (not quenched) and up and (volts[7].value < self.state('voltageLimit')) and (volts[6].value > (self.state('voltageLimit') * -1)):
+		#if (not quenched) and up and (volts[7].value < self.state('voltageLimit')) and (volts[6].value > (self.state('voltageLimit') * -1)):
+                #        print "changing voltage"
+                #        newVoltage += self.state('voltageStepUp')
+                #elif (not quenched) and (not up) and (volts[6].value < self.state('voltageLimit')) and (volts[7].value > (self.state('voltageLimit') * -1)):
+                #        print "changing voltage"
+                #        newVoltage -= self.state('voltageStepDown')
+                if (not quenched) and (not targetReached) and abs(volts[6] < self.state('voltageLimit')) and abs(volts[7] < self.state('voltageLimit')):
                         print "changing voltage"
-                        newVoltage += self.state('voltageStepUp')
-                elif (not quenched) and (not up) and (volts[6].value < self.state('voltageLimit')) and (volts[7].value > (self.state('voltageLimit') * -1)):
-                        print "changing voltage"
-                        newVoltage -= self.state('voltageStepDown')
+                        if up:
+                                newVoltage += self.state('voltageStepUp')
+                        else:
+                                newVoltage -= self.state('voltageStepDown')
 		else:
                         print "not changing voltage"
                         
@@ -557,6 +564,7 @@ class ADRWrapper(DeviceWrapper):
 	@inlineCallbacks
 	def refreshPeripherals(self):
 		self.allPeripherals = yield self.findPeripherals()
+		print self.allPeripherals
 		self.peripheralOrphans = {}
 		self.peripheralsConnected = {}
 		for peripheralName, idTuple in self.allPeripherals.items():
@@ -600,7 +608,6 @@ class ADRWrapper(DeviceWrapper):
 		peripheralName = peripheralTuple[0]
 		serverName = peripheralTuple[1][0]
 		peripheralID = peripheralTuple[1][1]
-
 		#If the peripheral's server exists, get it,
 		if serverName in self.cxn.servers:
 			server = self.cxn.servers[serverName]
@@ -685,7 +692,8 @@ class ADRServer(DeviceServer):
 		resp = yield reg.dir()
 		ADRNames = resp[0].aslist
 		for name in ADRNames:
-			deviceList.append((name,(self.client,)))
+                        if name != 'defaults':
+                		deviceList.append((name,(self.client,)))
 		returnValue(deviceList)
 
 
