@@ -87,6 +87,11 @@ class ADRWrapper(DeviceWrapper):
 		# give us a blank log
 		self.logData = []
 		# set the defaults of our state variables
+		# note that the defaults are actually read FROM THE REGISTRY
+		# the defaults here are the original defaults and will be overwritten
+		# I've left them here for posterity.
+		# Some of the values don't actually have defaults in the registry:
+		# the times (scheduled mag down time, etc)
 		self.stateVars= {	'quenchLimit': 4.0,			# K
 							'cooldownLimit': 3.9,		# K
 							'rampWaitTime': 0.2,		# s
@@ -117,6 +122,8 @@ class ADRWrapper(DeviceWrapper):
 							'fastTempMaxTime': 12*60,		# after we've been recording fast for X minutes, stop
 							'fastTempHSStop': True,			# whether to stop when the heat switch opens
 							'fastRecordingStartTime': None,	# time when we started fast recording
+							'logfile': 'N:\servers\ADR\log.txt',	# the log file
+							'loglimit': 20,					# max # lines held in the log variable (i.e. in memory)
 						}
 		# different possible statuses
 		self.possibleStatuses = ['cooling down', 'ready', 'waiting at field', 'waiting to mag up', 'magging up', 'magging down', 'ready to mag down']
@@ -137,6 +144,37 @@ class ADRWrapper(DeviceWrapper):
 		self.log("Initialization completed. Beginning cycle.")
 		self.cycle()
 
+	
+	@inlineCallbacks
+	def loadDefaultsFromRegistry(self):
+		reg = self.cxn.registry
+		yield reg.cd(CONFIG_PATH)
+		yield reg.cd("defaults")
+		# load the vars about ruox calibration
+		p = reg.packet()
+		p.get("high temp ruox curve", key="htrc")
+		p.get("low temp ruox curve", key="ltrc")
+		p.get("resistance cutoff", key="rescut")
+		p.get("ruox channel", key="ruoxchan")
+		p.get("ruox coefs high", key="rch")
+		p.get("ruox coefs low", key="rcl")
+		p.get("volt to resistance calibrations", key="vtrc")
+		ans = yield p.send()
+		self.ruoxCoefsHigh = map(lambda x: x.value, ans.rch)
+		self.ruoxCoefsLow = map(lambda x: x.value, ans.rcl)
+		self.highTempRuoxCurve = lambda r, p: eval(ans.htrc)
+		self.lowTempRuoxCurve = lambda r, p: eval(ans.ltrc)
+		self.voltToResCalibs = map(lambda x: x.value, ans.ctrc)
+		self.resistanceCutoff = ans.rescut.value
+		self.ruoxChannel = ans.ruoxchan - 1
+		# now do the state variables
+		yield reg.cd("state variables")
+		(dirs, keys) = yield reg.dir()
+		for key in keys:
+			val = yield reg.get(key)
+			if isinstance(val, labrad.units.Value):
+				val = val.value
+			self.state(key, val)
 	
 	##############################
 	# STATE MANAGEMENT FUNCTIONS #
@@ -658,7 +696,17 @@ class ADRWrapper(DeviceWrapper):
 	#####################
 	
 	def log(self, str):
+		# write to log file
+		try:
+			f = open(self.state('logfile'), 'a')
+			f.write('%s -- %s\n' % (time.strftime("%Y-%m-%d %H:%M:%S"), str))
+		finally:
+			f.close()
+		# append to log variable
 		self.logData.append((time.strftime("%Y-%m-%d %H:%M:%S"), str))
+		# check to truncate log to last X entries
+		if len(self.logData) > self.state('loglimit'):
+			self.logData = self.logData[-self.state('loglimit'):]
 	
 	def getLog(self):
 		return self.logData
@@ -848,6 +896,12 @@ class ADRServer(DeviceServer):
 		""" Writes a single entry to the log. """
 		dev = self.selectedDevice(c)
 		dev.log(value)
+		
+	@setting(58, "Revert to Defaults")
+	def revert_to_defaults(self, c):
+		""" Reverts the state variables to the defaults in the registry. """
+		dev = self.selectedDevice(c)
+		dev.loadDefaultsFromRegistry()
 		
 	# the 60's settings are for controlling the temp recording
 	@setting(60, "Start Recording")
