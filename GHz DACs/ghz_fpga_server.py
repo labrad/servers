@@ -864,7 +864,11 @@ class FPGAServer(DeviceServer):
         (1/64*Address)*(1 cycle/1024 Address) = (2**-16)cycle
         This happens every 2ns, so we have 2**-16 cycle/2ns = 2**-17 GHz = 7.629 KHz
         Therefore, dAddr = desiredFrequency/7629Hz.
-                
+        
+        Note that the same thing applies to the phase variable, as it is given in trig lookup address
+        units. The lookup table is 1024 addresses wide so the formula for phi0 is
+        phi0 = 1024*phaseCycles
+        where phaseCycles is the desired phase in cycles, not radians!
         """
         assert -2**15 <= dAddr < 2**15, 'delta phi out of range' #16 bit 2's compliment number for demod trig function
         assert -2**15 <= phi0 < 2**15, 'phi0 out of range'
