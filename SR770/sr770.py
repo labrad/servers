@@ -32,12 +32,25 @@ timeout = 20
 
 from labrad import types as T, util
 from labrad import units as U
+from labrad.units import Value
+from labrad.units import Hz
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 from struct import unpack
 import numpy
+
+SPANS = [(0,0.191*Hz),
+         (1,0.328*Hz),
+         (2,0.763*Hz),
+         (3,1.5*Hz),
+         (4,3.1*Hz),
+         (5,6.1*Hz),
+         (6,12.2*Hz),
+         (7,24.4*Hz),
+         (8,48.85*Hz)]
+
 
 class SR770Wrapper(GPIBDeviceWrapper):
     pass
@@ -71,7 +84,8 @@ class SR770Server(GPIBManagedServer):
     @setting(10, sp=['w'], returns=['v[Hz]'])
     def span(self, c, sp=None):
         """Get or set the current frequency span.
-        The span is specified by an integer from 0 to 19. The spans corresponding to each integer are given here:
+        The span is specified by an integer from 0 to 19. The spans
+        corresponding to each integer are given here:
         (i,   span)
         (0,   191mHz)
         (1,   382mHz)
@@ -100,14 +114,12 @@ class SR770Server(GPIBManagedServer):
                  25000.0,50000.0,100000.0]
         
         dev = self.selectedDevice(c)
-        if sp is None:
-            resp = yield dev.query('SPAN?\n')
-            sp = T.Value(float(spans[int(resp)]), 'Hz')
-        else:
-        #    if not (sp<20 and sp>=0):
-        #        raise Exception('Span must be an integer between 0 and 19.')
-            yield dev.write('SPAN, %f\n' % sp)
-            sp = T.Value(float(spans[int(sp)]),'Hz')
+        if sp is not None:
+            if not (sp>-1 and sp<20):
+                raise Exception('span must be in [0,19]')
+            yield dev.write('SPAN%d\n' % sp)
+        resp = yield dev.query('SPAN?\n')
+        sp = T.Value(float(spans[int(resp)]), 'Hz')
         returnValue(sp)
 
     @setting(11, cf=['v[Hz]'], returns=['v[Hz]'])
@@ -129,7 +141,7 @@ class SR770Server(GPIBManagedServer):
             resp = yield dev.query('STRF?\n')
             fs = T.Value(float(resp), 'Hz')
         else:
-            yield dev.write('STRF,%f\n' % fs.value)
+            yield dev.write('STRF,%f\n' % fs['Hz'])
         returnValue(fs)
         
     @setting(17, avg=['w', 's'], returns=['w'])
