@@ -73,7 +73,7 @@ class RFMuxDevice(DeviceWrapper):
 
     def set_channel(self, channel):
         set_chan = chr(channel + ord('A'))
-        return self.write('CODEC') # queries sent to RF Mux are in ASCII, channel 0 = 'A', channel 1 = 'B' etc
+        return self.write(set_chan) # queries sent to RF Mux are in ASCII, channel 0 = 'A', channel 1 = 'B' etc
 
 class RFMuxServer(DeviceServer):
     name = 'RF Mux'
