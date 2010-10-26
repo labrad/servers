@@ -91,7 +91,6 @@ class RFMuxServer(DeviceServer):
         p.get('Serial Links', '*(ss)', key='links')
         ans = yield p.send()
         self.serialLinks = ans['links']
-        print ans['links']
 
     @inlineCallbacks
     def findDevices(self):
@@ -99,13 +98,16 @@ class RFMuxServer(DeviceServer):
         devs = []
         for name, port in self.serialLinks:
             if name not in self.client.servers:
+                print name, "not in", self.client.servers
                 continue
             server = self.client[name]
             ports = yield server.list_serial_ports()
             if port not in ports:
+                print port, "not in", ports
                 continue
             devName = '%s - %s' % (name, port)
             devs += [(devName, (server, port))]
+        print "devs:", devs
         returnValue(devs)
     
     @setting(100, 'get_channel', returns='w')
