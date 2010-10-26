@@ -113,7 +113,7 @@ class RFMuxServer(DeviceServer):
         dev = self.selectedDevice(c)
         yield dev.get_channel()
 
-    @setting(200, 'set_channel', channel = None, returns='')
+    @setting(200, 'set_channel', channel = 'w', returns='')
     def set_channel(self, c, channel):
         """Sets RF Mux channel."""
         dev = self.selectedDevice(c)
