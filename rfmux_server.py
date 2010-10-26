@@ -91,6 +91,7 @@ class RFMuxServer(DeviceServer):
         p.get('Serial Links', '*(ss)', key='links')
         ans = yield p.send()
         self.serialLinks = ans['links']
+        print ans
 
     @inlineCallbacks
     def findDevices(self):
