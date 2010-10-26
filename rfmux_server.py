@@ -62,9 +62,10 @@ class RFMuxDevice(DeviceWrapper):
         """Write a data value to the RF Mux."""
         yield self.packet().write(code).send()
     
+    @inlineCallbacks
     def read(self):
         """Read data from the RF Mux"""
-        return self.packet.read().send()
+        yield self.packet.read().send()
 
     def get_channel(self):
         self.write('?')
