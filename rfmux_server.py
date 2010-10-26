@@ -66,7 +66,7 @@ class RFMuxDevice(DeviceWrapper):
     def read(self):
         """Read data from the RF Mux"""
         print 'trying to read 1'
-        return self.packet().read().send()
+        yield self.read()
 
     def get_channel(self):
         self.write('?')
