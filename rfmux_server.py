@@ -65,10 +65,12 @@ class RFMuxDevice(DeviceWrapper):
     @inlineCallbacks
     def read(self):
         """Read data from the RF Mux"""
+        print 'trying to read 1'
         yield self.packet().read().send()
 
     def get_channel(self):
         self.write('?')
+        print 'trying to read 2'
         read_chan = self.read()
         print read_chan
         return ord(read_chan) - ord('A') # queries received from RF Mux are in ASCII, channel 0 = 'A', channel 1 = 'B' etc
