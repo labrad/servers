@@ -60,19 +60,22 @@ class RFMuxDevice(DeviceWrapper):
     @inlineCallbacks
     def write(self, code, index=0):
         """Write a data value to the RF Mux."""
-        yield self.packet().write(code).send()
+        yield self.server.write(code, context = self.ctx)
+        #yield self.packet().write(code).send()
     
     @inlineCallbacks
     def read(self):
         """Read data from the RF Mux"""
-        val = yield self.server.read(context=self.ctx)
-        print val
-        returnValue(val)
+        ans = yield self.server.read(context = self.ctx)
+        returnValue(ans)
+        #val = yield self.server.read(context=self.ctx)
+        #print val
+        #returnValue(val)
     
     @inlineCallbacks
     def get_channel(self):
-        yield self.write('?')
-        read_chan = yield self.read()
+        self.write('?')
+        read_chan = self.read()
         print read_chan
         returnValue(ord(read_chan) - ord('A')) # queries received from RF Mux are in ASCII, channel 0 = 'A', channel 1 = 'B' etc
 
