@@ -29,7 +29,7 @@ message = 987654321
 timeout = 5
 ### END NODE INFO
 """
-
+import time
 from labrad.devices import DeviceServer, DeviceWrapper
 from labrad.server import setting, inlineCallbacks, returnValue
 
@@ -66,9 +66,8 @@ class RFMuxDevice(DeviceWrapper):
     #@inlineCallbacks
     def read(self):
         """Read data from the RF Mux"""
-        #ans = yield self.server.read(context = self.ctx)
-        #returnValue(ans)
-        return self.server.read(context = self.ctx)
+        ans = yield self.server.read(context = self.ctx)
+        returnValue(ans)
     
         #val = yield self.server.read(context=self.ctx)
         #print val
@@ -77,6 +76,7 @@ class RFMuxDevice(DeviceWrapper):
     @inlineCallbacks
     def get_channel(self):
         self.write('?')
+        time.sleep(2)
         read_chan = yield self.read()
         print read_chan
         returnValue(ord(read_chan) - ord('A')) # queries received from RF Mux are in ASCII, channel 0 = 'A', channel 1 = 'B' etc
