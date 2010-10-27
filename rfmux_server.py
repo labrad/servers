@@ -120,13 +120,13 @@ class RFMuxServer(DeviceServer):
     def get_channel(self, c):
         """Gets current RF Mux Channel."""
         dev = self.selectedDevice(c)
-        yield dev.get_channel()
+        return dev.get_channel()
 
     @setting(200, 'set_channel', channel = 'w', returns='')
     def set_channel(self, c, channel):
         """Sets RF Mux channel."""
         dev = self.selectedDevice(c)
-        yield dev.set_channel(channel)
+        dev.set_channel(channel)
 
 
 TIMEOUT = 1 # serial read timeout
