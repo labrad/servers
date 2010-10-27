@@ -44,7 +44,7 @@ class RFMuxDevice(DeviceWrapper):
         p = self.packet()
         p.open(port)
         p.baudrate(9600)
-        # p.read() # clear out the read buffer
+        p.read() # clear out the read buffer
         p.timeout(TIMEOUT)
         yield p.send()
         print 'done.'
@@ -65,12 +65,12 @@ class RFMuxDevice(DeviceWrapper):
     @inlineCallbacks
     def read(self):
         """Read data from the RF Mux"""
-        yield self.packet().read().send()
+        val = yield self.packet().read().send()
+        returnValue(val)
 
     def get_channel(self):
         self.write('?')
         read_chan = self.read()
-        print read_chan
         return ord(read_chan) - ord('A') # queries received from RF Mux are in ASCII, channel 0 = 'A', channel 1 = 'B' etc
 
     def set_channel(self, channel):
