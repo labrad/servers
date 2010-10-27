@@ -65,10 +65,9 @@ class RFMuxDevice(DeviceWrapper):
     @inlineCallbacks
     def read(self):
         """Read data from the RF Mux"""
-        val = yield server.read()
+        val = yield self.server.read()
         print val
-        print val.read
-        returnValue(val.read)
+        returnValue(val)
     
     def get_channel(self):
         self.write('?')
