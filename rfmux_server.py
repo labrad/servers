@@ -75,7 +75,7 @@ class RFMuxDevice(DeviceWrapper):
     @inlineCallbacks
     def get_channel(self):
         self.write('?')
-        read_chan = self.read()
+        read_chan = yield self.read()
         print read_chan
         returnValue(ord(read_chan) - ord('A')) # queries received from RF Mux are in ASCII, channel 0 = 'A', channel 1 = 'B' etc
 
