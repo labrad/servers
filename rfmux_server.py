@@ -44,6 +44,7 @@ class RFMuxDevice(DeviceWrapper):
         p = self.packet()
         p.open(port)
         p.baudrate(9600)
+        p.read() # clear out the read buffer
         p.timeout(TIMEOUT)
         yield p.send()
         print 'done.'
@@ -73,6 +74,7 @@ class RFMuxDevice(DeviceWrapper):
     
     @inlineCallbacks
     def get_channel(self):
+        self.read()
         self.write('?')
         read_chan = yield self.read()
         print read_chan
