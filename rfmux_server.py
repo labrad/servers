@@ -44,7 +44,6 @@ class RFMuxDevice(DeviceWrapper):
         p = self.packet()
         p.open(port)
         p.baudrate(9600)
-        p.read() # clear out the read buffer
         p.timeout(TIMEOUT)
         yield p.send()
         print 'done.'
