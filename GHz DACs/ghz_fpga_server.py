@@ -31,7 +31,8 @@ timeout = 20
 """
 
 from __future__ import with_statement
-
+import sys
+import os
 import itertools
 import struct
 import time
@@ -84,8 +85,7 @@ I2C_END = 0x400
 
 class TimeoutError(Exception):
     """Error raised when boards timeout."""
-
-
+    
 class BoardGroup(object):
     """Manages a group of GHz DAC boards that can be run simultaneously.
     
@@ -103,6 +103,7 @@ class BoardGroup(object):
         self.port = port
         self.cxn = server._cxn
         self.ctx = server.context()
+        self.sourceMac = getLocalMac(port)
         self.pipeSemaphore = defer.DeferredSemaphore(NUM_PAGES)
         self.pageNums = itertools.cycle(range(NUM_PAGES))
         self.pageLocks = [TimedLock() for _ in range(NUM_PAGES)]
@@ -195,7 +196,7 @@ class BoardGroup(object):
     def detectADCs(self, timeout=1.0):
         """Try to detect ADC boards on this board group."""
         def callback(src, data):
-            board = int(src[-2:], 16)
+            board = int(src[-2:], 16) #16 indicates number base for conversion from string to integer
             info = adc.processReadback(data)
             build = info['build']
             devName = '%s ADC %d' % (self.name, board)
@@ -218,6 +219,7 @@ class BoardGroup(object):
             # prepare and send detection packets
             p = self.server.packet()
             p.connect(self.port)
+            p.source_mac(self.sourceMac)
             p.require_length(respLength)
             p.timeout(T.Value(timeout, 's'))
             p.listen()
@@ -225,14 +227,12 @@ class BoardGroup(object):
                 p.destination_mac(mac)
                 p.write(packet.tostring())
             yield p.send(context=ctx)
-            
             # listen for responses
             start = time.time()
             found = []
             while (len(found) < len(macs)) and (time.time() - start < timeout):
                 try:
-                    ans = yield self.server.read(context=ctx)
-                    src, dst, eth, data = ans
+                    src, dst, eth, data = yield self.server.read(context=ctx)
                     if src in macs:
                         devInfo = callback(src, data)
                         found.append(devInfo)
@@ -612,7 +612,7 @@ class FPGAServer(DeviceServer):
         yield cxn.refresh()
         
         # reload the board group configuration from the registry
-        yield self.loadBoardGroupConfig()
+        yield self.loadBoardGroupConfig() #Creates self.boardGroups
         config = dict(((server, port), (name, boards))
                       for name, server, port, boards in self.boardGroupDefs)
         
@@ -666,7 +666,7 @@ class FPGAServer(DeviceServer):
         for (server, port), boardGroup in self.boardGroups.items():
             name, boards = config[server, port]
             boardGroup.configure(name, boards)
-            detections.append(boardGroup.detectBoards())
+            detections.append(boardGroup.detectBoards())        #Board detection#
             groupNames.append(name)
         answer = yield defer.DeferredList(detections, consumeErrors=True)
         found = []
@@ -1576,6 +1576,15 @@ class AdcRunner(object):
 
 # some helper methods
 
+def getLocalMac(port):
+    macs=[]
+    if sys.platform == 'win32':
+        for line in os.popen("ipconfig /all"):
+            if line.lstrip().startswith('Physical Address'):
+                macs.append(line.split(':')[1].strip().replace('-',':'))
+    mac = macs[port]
+    return mac
+
 def getCommand(cmds, chan):
     """Get a command from a dictionary of commands.
 
@@ -1585,7 +1594,6 @@ def getCommand(cmds, chan):
         return cmds[chan]
     except:
         raise Exception("Allowed channels are %s." % sorted(cmds.keys()))
-
 
 def processSetupPackets(cxn, setupPkts):
     """Process packets sent in flattened form into actual labrad packets on the given connection."""
