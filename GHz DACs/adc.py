@@ -131,6 +131,7 @@ class AdcDevice(DeviceWrapper):
         # - average readout: 1024 bytes
         p.destination_mac(self.MAC)
         p.require_source_mac(self.MAC)
+        p.source_mac(self.boardGroup.sourceMac)
         p.timeout(self.timeout)
         p.listen()
         yield p.send()
@@ -269,7 +270,7 @@ class AdcDevice(DeviceWrapper):
         def func():
             regs = regAdcPing()
             r = yield self._sendRegisters(regs)
-            returnValue(processReadback(r)['build'])
+            returnValue(str(processReadback(r)['build']))
         return self.testMode(func)
     
     def runAverage(self, filterFunc, filterStretchLen, filterStretchAt, demods):
@@ -327,7 +328,7 @@ def extractAverage(packets):
     """Extract Average waveform from a list of packets (byte strings)."""
     data = ''.join(packets)
     Is, Qs = np.fromstring(data, dtype='<i2').reshape(-1, 2).astype(int).T
-    returnValue((Is, Qs))
+    return (Is, Qs)
     
 def extractDemod(packets, nDemod=DEMOD_CHANNELS_PER_PACKET):
     """Extract Demodulation data from a list of packets (byte strings)."""
