@@ -132,7 +132,7 @@ def processReadback(resp):
     a = np.fromstring(resp, dtype='<u1')
     return {
         'build': a[51],
-        '': a[56],
+        'serDAC': a[56],
         'noPllLatch': bool((a[58] & 0x80) > 0),
         'ackoutI2C': a[61],
         'I2Cbytes': a[69:61:-1],
