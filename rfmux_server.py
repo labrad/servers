@@ -29,7 +29,7 @@ message = 987654321
 timeout = 5
 ### END NODE INFO
 """
-import time
+
 from labrad.devices import DeviceServer, DeviceWrapper
 from labrad.server import setting, inlineCallbacks, returnValue
 
@@ -43,7 +43,7 @@ class RFMuxDevice(DeviceWrapper):
         self.port = port
         p = self.packet()
         p.open(port)
-        p.baudrate(9600)
+        p.baudrate(38400)
         p.read() # clear out the read buffer
         p.timeout(TIMEOUT)
         yield p.send()
@@ -63,7 +63,7 @@ class RFMuxDevice(DeviceWrapper):
         yield self.server.write(code, context = self.ctx)
         #yield self.packet().write(code).send()
     
-    #@inlineCallbacks
+    @inlineCallbacks
     def read(self):
         """Read data from the RF Mux"""
         ans = yield self.server.read(context = self.ctx)
@@ -74,9 +74,8 @@ class RFMuxDevice(DeviceWrapper):
         #returnValue(val)
     
     @inlineCallbacks
-    def get_channel(self):
-        self.write('?')
-        time.sleep(2)
+    def get_channel(self): # found that when stringing together commands in the serial server, need about a 20ms delay between write and read for the mux board to operate properly. Either add a delay or change the baud rate
+        self.write('?')    # this command is currently not working properly
         read_chan = yield self.read()
         print read_chan
         returnValue(ord(read_chan) - ord('A')) # queries received from RF Mux are in ASCII, channel 0 = 'A', channel 1 = 'B' etc
