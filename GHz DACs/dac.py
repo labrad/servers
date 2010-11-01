@@ -202,7 +202,6 @@ class DacDevice(DeviceWrapper):
         p.require_length(READBACK_LEN)
         p.destination_mac(self.MAC)
         p.require_source_mac(self.MAC)
-        p.source_mac(self.boardGroup.sourceMac)
         p.timeout(self.timeout)
         p.listen()
         yield p.send()

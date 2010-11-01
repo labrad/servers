@@ -103,7 +103,6 @@ class BoardGroup(object):
         self.port = port
         self.cxn = server._cxn
         self.ctx = server.context()
-        self.sourceMac = getLocalMac(port)
         self.pipeSemaphore = defer.DeferredSemaphore(NUM_PAGES)
         self.pageNums = itertools.cycle(range(NUM_PAGES))
         self.pageLocks = [TimedLock() for _ in range(NUM_PAGES)]
@@ -1575,15 +1574,6 @@ class AdcRunner(object):
 
 
 # some helper methods
-
-def getLocalMac(port):
-    macs=[]
-    if sys.platform == 'win32':
-        for line in os.popen("ipconfig /all"):
-            if line.lstrip().startswith('Physical Address'):
-                macs.append(line.split(':')[1].strip().replace('-',':'))
-    mac = macs[port]
-    return mac
 
 def getCommand(cmds, chan):
     """Get a command from a dictionary of commands.

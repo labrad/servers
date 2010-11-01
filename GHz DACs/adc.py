@@ -131,7 +131,6 @@ class AdcDevice(DeviceWrapper):
         # - average readout: 1024 bytes
         p.destination_mac(self.MAC)
         p.require_source_mac(self.MAC)
-        p.source_mac(self.boardGroup.sourceMac)
         p.timeout(self.timeout)
         p.listen()
         yield p.send()
