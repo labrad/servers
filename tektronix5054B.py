@@ -30,13 +30,13 @@ timeout = 20
 ### END NODE INFO
 """
 
-# FYI haven't really tested functions other than get trace
+
 
 from labrad import types as T, util
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
-
+from labrad.units import Unit
 from struct import unpack
 
 import numpy, re
@@ -51,8 +51,8 @@ class Tektronix5054BWrapper(GPIBDeviceWrapper):
 
 class Tektronix5054BServer(GPIBManagedServer):
     name = 'TEKTRONIX 5054B OSCILLOSCOPE'
-    deviceName = 'TEKTRONIX TDS 5054B'
-    deviceWrapper = Tektronix2014BWrapper
+    deviceName = 'TEKTRONIX TDS5054B'
+    deviceWrapper = Tektronix5054BWrapper
         
     @setting(11, returns=[])
     def reset(self, c):
@@ -186,15 +186,16 @@ class Tektronix5054BServer(GPIBManagedServer):
         yield dev.write('DAT:STOP %d' %stop)
         #Transfer waveform preamble
         preamble = yield dev.query('WFMP?')
+        position = yield float(dev.query('CH%d:POSITION?' %channel)) # in units of divisions
         #Transfer waveform data
         binary = yield dev.query('CURV?')
         #Parse waveform preamble
-        voltsPerDiv, secPerDiv = _parsePreamble(preamble)
+        voltsPerDiv, secPerDiv, voltUnits, timeUnits = _parsePreamble(preamble)
         #Parse binary
         trace = _parseBinaryData(binary,wordLength = wordLength)
         #Convert from binary to volts
-        traceVolts = trace * (1/32768.0) * VERT_DIVISIONS/2 * voltsPerDiv
-        time = numpy.linspace(0,HORZ_DIVISIONS*secPerDiv,recordLength)
+        traceVolts = trace * (1/32768.0) * VERT_DIVISIONS/2 * voltsPerDiv * Unit(voltUnits) - position * voltsPerDiv * Unit(voltUnits)
+        time = numpy.linspace(0,HORZ_DIVISIONS*secPerDiv * Unit(timeUnits),recordLength)
 
         returnValue((time,traceVolts))
 
@@ -203,12 +204,14 @@ def _parsePreamble(preamble):
     preamble = preamble.split(';')
     vertInfo = preamble[5].split(',')
     
-    # add units to parseStr to pass into labrad 
-    parseStr = lambda str: re.sub(r'.*?([\d\.]+).*', r'\1', str) # regular expressions that pull out the number from the string
+    def parseString(string): # use 'regular expressions' to parse the string
+        number = re.sub(r'.*?([\d\.]+).*', r'\1', string)
+        units = re.sub(r'.*?([a-zA-z]+)/.*', r'\1', string)
+        return float(number), units
     
-    voltsPerDiv = float(parseStr(vertInfo[2]))
-    secPerDiv = float(parseStr(vertInfo[3]))
-    return (voltsPerDiv,secPerDiv)
+    voltsPerDiv, voltUnits = parseString(vertInfo[2])
+    secPerDiv, timeUnits = parseString(vertInfo[3])
+    return (voltsPerDiv, secPerDiv, voltUnits, timeUnits)
 
 def _parseBinaryData(data, wordLength):
     """Parse binary data packed as string of RIBinary
