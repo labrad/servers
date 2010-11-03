@@ -36,7 +36,7 @@ from labrad import types as T, util
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
-from labrad.units import Unit
+from labrad.types import Value
 from struct import unpack
 
 import numpy, re
@@ -158,7 +158,7 @@ class Tektronix5054BServer(GPIBManagedServer):
         
     
     #Data acquisition settings
-    @setting(41, channel = 'i', start = 'i', stop = 'i', returns='?')
+    @setting(41, channel = 'i', start = 'i', stop = 'i', returns='*v[ns] {time axis} *v[mV] {scope trace}')
     def get_trace(self, c, channel, start=1, stop=5000):
         """Get a trace from the scope.
         OUTPUT - (array voltage in volts, array time in seconds)
@@ -186,18 +186,20 @@ class Tektronix5054BServer(GPIBManagedServer):
         yield dev.write('DAT:STOP %d' %stop)
         #Transfer waveform preamble
         preamble = yield dev.query('WFMP?')
-        position = yield float(dev.query('CH%d:POSITION?' %channel)) # in units of divisions
+        position = yield dev.query('CH%d:POSITION?' %channel) # in units of divisions
         #Transfer waveform data
         binary = yield dev.query('CURV?')
         #Parse waveform preamble
         voltsPerDiv, secPerDiv, voltUnits, timeUnits = _parsePreamble(preamble)
+        voltUnitScaler = Value(1, voltUnits)['mV'] # converts the units out of the scope to mV
+        timeUnitScaler = Value(1, timeUnits)['ns']
         #Parse binary
         trace = _parseBinaryData(binary,wordLength = wordLength)
         #Convert from binary to volts
-        traceVolts = trace * (1/32768.0) * VERT_DIVISIONS/2 * voltsPerDiv * Unit(voltUnits) - position * voltsPerDiv * Unit(voltUnits)
-        time = numpy.linspace(0,HORZ_DIVISIONS*secPerDiv * Unit(timeUnits),recordLength)
+        traceVolts = (trace * (1/32768.0) * VERT_DIVISIONS/2 * voltsPerDiv - float(position) * voltsPerDiv) * voltUnitScaler
+        time = numpy.linspace(0, HORZ_DIVISIONS * secPerDiv * timeUnitScaler,recordLength)
 
-        returnValue((time,traceVolts))
+        returnValue((time, traceVolts))
 
 def _parsePreamble(preamble):
     ###TODO: parse the rest of the preamble and return the results as a useful dictionary
