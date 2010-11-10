@@ -16,7 +16,7 @@
 """
 ### BEGIN NODE INFO
 [info]
-name = GHz FPGAs
+name = GHz FPGAs dev
 version = 3.0.2
 description = Talks to DAC and ADC boards
 
@@ -46,8 +46,8 @@ from labrad import types as T
 from labrad.devices import DeviceServer
 from labrad.server import setting
 
-import adc
-import dac
+import adc_dev as adc
+import dac_dev as dac
 from util import TimedLock
 
 from matplotlib import pyplot as plt
