@@ -557,7 +557,7 @@ class BoardGroup(object):
 class FPGAServer(DeviceServer):
     """Server for GHz DAC and ADC boards.
     """
-    name = 'GHz FPGAs'
+    name = 'GHz FPGAs Dev'
     retries = 1
     
     @inlineCallbacks
@@ -1422,7 +1422,7 @@ class FPGAServer(DeviceServer):
         returnValue(ans)
     
     @setting(2602, 'ADC Run Demod', returns='((*i{I}, *i{Q}), (i{Imax} i{Imin} i{Qmax} i{Qmin}))')
-    #@setting(2602, 'ADC Run Demod', returns='i')
+    #@setting(2602, 'ADC Run Demod', returns='*i')
     def adc_run_demod(self, c):
         dev = self.selectedADC(c)
         info = c.setdefault(dev, {})
@@ -1431,7 +1431,7 @@ class FPGAServer(DeviceServer):
         filterStretchAt = info.get('filterStretchAt', 0)
         demods = dict((i, info[i]) for i in range(adc.DEMOD_CHANNELS) if i in info)
         ans = yield dev.runDemod(filterFunc, filterStretchLen, filterStretchAt, demods)
-        print ans
+        
         returnValue(ans)
     
     # TODO: new settings

@@ -309,12 +309,12 @@ class AdcDevice(DeviceWrapper):
             p.write(regs.tostring())        # send register packet
             p.timeout(T.Value(10, 's'))     # set a conservative timeout
             p.read(AVERAGE_PACKETS)         # read back all packets from average buffer
-            
-            ans = yield p.send()    #Actually send the packet. 
+            ans = yield p.send() #Send the packet to the direct ethernet server
                     
             # parse the packets out and return data
             packets = [data for src, dst, eth, data in ans.read]
             returnValue(extractAverage(packets))
+            
         return self.testMode(func)
 
     def runDemod(self, filterFunc, filterStretchLen, filterStretchAt, demods):
@@ -330,26 +330,28 @@ class AdcDevice(DeviceWrapper):
             p.write(regs.tostring()) # send registry packet
             p.timeout(T.Value(10, 's')) # set a conservative timeout
             p.read(1) # read back one demodulation packet
+            ans = yield p.send() #Send the packet to the direct ethernet server
             
-            ans = yield p.send() #Actually send the packet to the direct ethernet server
             # parse the packets out and return data
             packets = [data for src, dst, eth, data in ans.read] #list of 48-byte strings
             returnValue(extractDemod(packets))
+            
         return self.testMode(func)
 
 
 def extractAverage(packets):
     """Extract Average waveform from a list of packets (byte strings)."""
-    data = ''.join(packets)
+    
+    data = ''.join(packets) #Join all byte strings together into one long string
     Is, Qs = np.fromstring(data, dtype='<i2').reshape(-1, 2).astype(int).T
     return (Is, Qs)
 
 
-    
+
 def extractDemod(packets, nDemod=DEMOD_CHANNELS_PER_PACKET):
     """Extract Demodulation data from a list of packets (byte strings)."""
     data = ''.join(data[:44] for data in packets)   #stick all data strings in packets together, chopping out last 4 bytes from each string
-    vals = np.fromstring(data, dtype='<i2')         #Convert string of bytes into numpy array of 16bit integers
+    vals = np.fromstring(data, dtype='<i2')         #Convert string of bytes into numpy array of 16bit integers. <i2 means little endian 2 byte
     Is, Qs = vals.reshape(-1, 2).astype(int).T      #Is,Qs are numpy arrays like   [I0,I1,...,I_numChannels,    I0,I1,...,I_numChannels]
                                                     #                               1st data run                2nd data run    
     data = [(Is[i::nDemod], Qs[i::nDemod]) for i in xrange(nDemod)]
@@ -370,16 +372,12 @@ def extractDemod(packets, nDemod=DEMOD_CHANNELS_PER_PACKET):
     Qmax = int(max(ranges[2]))
     Qmin = int(min(ranges[3]))
     
-    Is = list(Is)
-    Qs = list(Qs)
-    for i in range(len(Is)):
-        Is[i]=int(Is[i])
-        Qs[i]=int(Qs[i])
-    print type(Imax)
-    print type(Imin)
-    print type(Qmax)
-    print type(Qmin)
-    print type(Is[0])
+#    Is = list(Is)
+#    Qs = list(Qs)
+#    for i in range(len(Is)):
+#        Is[i]=int(Is[i])
+#        Qs[i]=int(Qs[i])
+    #Is = np.array(Is,dtype='int32')
+    #Qs = np.array(Qs,dtype='int32')
     return (Is, Qs), (Imax, Imin, Qmax, Qmin)
-
 
