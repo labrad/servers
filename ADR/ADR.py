@@ -122,7 +122,7 @@ class ADRWrapper(DeviceWrapper):
 							'fastTempMaxTime': 12*60,		# after we've been recording fast for X minutes, stop
 							'fastTempHSStop': True,			# whether to stop when the heat switch opens
 							'fastRecordingStartTime': None,	# time when we started fast recording
-							'logfile': 'N:\servers\ADR\log.txt',	# the log file
+							'logfile': 'N:\servers\ADR\%s-log.txt' % self.name,	# the log file
 							'loglimit': 20,					# max # lines held in the log variable (i.e. in memory)
 						}
 		# different possible statuses
@@ -710,6 +710,12 @@ class ADRWrapper(DeviceWrapper):
 	
 	def getLog(self):
 		return self.logData
+		
+	def getEntireLog(self):
+		s = ''
+		with open(self.state('logfile')) as f:
+			s = f.read()
+		return s
 	
 # (end of ADRWrapper)
 
@@ -902,6 +908,12 @@ class ADRServer(DeviceServer):
 		""" Reverts the state variables to the defaults in the registry. """
 		dev = self.selectedDevice(c)
 		dev.loadDefaultsFromRegistry()
+		
+	@setting(59, "Get Entire Log")
+	def get_entire_log(self):
+		''' Gets the entire log. '''
+		dev = self.selectedDevice(c)
+		return dev.getEntireLog()
 		
 	# the 60's settings are for controlling the temp recording
 	@setting(60, "Start Recording")
