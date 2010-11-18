@@ -122,7 +122,7 @@ class ADRWrapper(DeviceWrapper):
 							'fastRecordingMaxTime': 12*60,		# after we've been recording fast for X minutes, stop
 							'fastRecordingHSStop': True,			# whether to stop when the heat switch opens
 							'fastRecordingStartTime': None,	# time when we started fast recording
-							'logfile': 'N:\servers\ADR\%s-log.txt' % self.name,	# the log file
+							'logfile': '%s-log.txt' % self.name,	# the log file
 							'loglimit': 20,					# max # lines held in the log variable (i.e. in memory)
 						}
 		# different possible statuses
@@ -713,9 +713,10 @@ class ADRWrapper(DeviceWrapper):
 		
 	def getEntireLog(self):
 		s = ''
-		with open(self.state('logfile')) as f:
-			s = f.read()
-		return s
+		f = open(self.state('logfile'))
+		s = f.read()
+		f.close()
+                return s
 	
 # (end of ADRWrapper)
 
