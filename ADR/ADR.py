@@ -117,10 +117,10 @@ class ADRWrapper(DeviceWrapper):
 							'autoRecord': True,				# whether to start recording automatically
 							'tempDelayedCall': None,		# will be the twisted IDelayedCall object that the recording cycle is waiting on
 							'tempRecordDelay':	600,		# every X seconds we record temp
-							'fastTempRecordDelay': 10,		# every X seconds we record temp when in fast mode
-							'fastTempMaxT': 4,				# when T > X, stop fast recording
-							'fastTempMaxTime': 12*60,		# after we've been recording fast for X minutes, stop
-							'fastTempHSStop': True,			# whether to stop when the heat switch opens
+							'fastRecordingRecordDelay': 10,		# every X seconds we record temp when in fast mode
+							'fastRecordingMaxT': 4,				# when T > X, stop fast recording
+							'fastRecordingMaxTime': 12*60,		# after we've been recording fast for X minutes, stop
+							'fastRecordingHSStop': True,			# whether to stop when the heat switch opens
 							'fastRecordingStartTime': None,	# time when we started fast recording
 							'logfile': 'N:\servers\ADR\%s-log.txt' % self.name,	# the log file
 							'loglimit': 20,					# max # lines held in the log variable (i.e. in memory)
@@ -519,7 +519,7 @@ class ADRWrapper(DeviceWrapper):
 				self.stopRecording()
 			# set up a deferred to run in either 10 min or 10 s
 			if self.state('recordFast'):
-				delay = self.state('fastTempRecordDelay')
+				delay = self.state('fastRecordingRecordDelay')
 			else:
 				delay = self.state('tempRecordDelay')
 			d = defer.Deferred()	# we use a blank deferred, so nothing will actually happen when we finish
@@ -564,7 +564,7 @@ class ADRWrapper(DeviceWrapper):
 		
 	def shouldStopFastRecording(self):
 		(t, r) = self.ruoxStatus()
-		return (t > self.state('fastRecordingMaxT') or (time.time() - self.state('fastRecordingStartTime') > self.state('fastRecordingMaxTime') * 60))
+		return ((t is nan) or (t > self.state('fastRecordingMaxT')) or (time.time() - self.state('fastRecordingStartTime') > self.state('fastRecordingMaxTime') * 60))
 	
 	@inlineCallbacks
 	def shouldStartRecording(self):
