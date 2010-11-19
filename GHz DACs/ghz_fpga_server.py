@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 3.0.1
+version = 3.0.2
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -50,6 +50,7 @@ import adc
 import dac
 from util import TimedLock
 
+from matplotlib import pyplot as plt
 
 NUM_PAGES = 2
 
@@ -103,6 +104,7 @@ class BoardGroup(object):
         self.port = port
         self.cxn = server._cxn
         self.ctx = server.context()
+        #self.sourceMac = getLocalMac(port)
         self.pipeSemaphore = defer.DeferredSemaphore(NUM_PAGES)
         self.pageNums = itertools.cycle(range(NUM_PAGES))
         self.pageLocks = [TimedLock() for _ in range(NUM_PAGES)]
@@ -117,6 +119,7 @@ class BoardGroup(object):
         """Set up the direct ethernet server in our own context."""
         p = self.server.packet(context=self.ctx)
         p.connect(self.port)
+        #p.source_mac(self.sourceMac)
         yield p.send()
     
     @inlineCallbacks
@@ -358,6 +361,7 @@ class BoardGroup(object):
         we can't tell until it is our turn in the pipe which method
         will be used.
         """
+
         wait = self.server.packet(context=self.ctx)
         run = self.server.packet(context=self.ctx)
         both = self.server.packet(context=self.ctx)
@@ -374,7 +378,7 @@ class BoardGroup(object):
     @inlineCallbacks
     def run(self, runners, reps, setupPkts, setupState, sync, getTimingData, timingOrder):
         """Run a sequence on this board group."""
-            
+        
         # check whether this sequence will fit in just one page
         if all(dev.pageable() for dev in runners):
             # lock just one page
@@ -425,6 +429,7 @@ class BoardGroup(object):
                             # if there was an error, clear setup state
                             self.setupState = set()
                             raise
+
                         yield runPkt.send()
                     else:
                         r = yield bothPkt.send() # if this fails, something BAD happened!
@@ -611,10 +616,10 @@ class FPGAServer(DeviceServer):
         yield cxn.refresh()
         
         # reload the board group configuration from the registry
-        yield self.loadBoardGroupConfig() #Creates self.boardGroups
-        config = dict(((server, port), (name, boards))
+        yield self.loadBoardGroupConfig() #Creates self.boardGroupDefs
+        config = dict(((server, port), (name, boards)) #The keys here are tuples!
                       for name, server, port, boards in self.boardGroupDefs)
-        
+
         # determine what board groups are to be added, removed and kept as is
         existing = set(self.boardGroups.keys())
         configured = set((server, port) for name, server, port, boards in self.boardGroupDefs)
@@ -836,45 +841,44 @@ class FPGAServer(DeviceServer):
         assert 0 <= channel < adc.DEMOD_CHANNELS, 'channel out of range: %d' % channel
         assert 0 <= sineAmp <= adc.TRIG_AMP, 'sine amplitude out of range: %d' % sineAmp
         assert 0 <= cosineAmp <= adc.TRIG_AMP, 'cosine amplitude out of range: %d' % cosineAmp
-        dev = self.selectedADC(c)
-        d = c.setdefault(dev, {})
+        dev = self.selectedADC(c) #Get the ADC selected in this context. Raise an exception if selected device is not an ADC
+        d = c.setdefault(dev, {}) #d=c[dev] if c[dev] exists, otherwise makes c[dev]={} and returns c[dev]. Gives c its own representation of dev
         ch = d.setdefault(channel, {})
         ch['sineAmp'] = sineAmp
         ch['cosineAmp'] = cosineAmp
         N = adc.LOOKUP_TABLE_LEN #256
         phi = np.pi/2 * (np.arange(N) + 0.5) / N
-        ch['sine'] = np.floor(sineAmp * np.sin(phi) + 0.5).astype('uint8')
-        ch['cosine'] = np.floor(cosineAmp * np.cos(phi) + 0.5).astype('uint8')
+        ch['sine'] = np.floor(sineAmp * np.sin(phi) + 0.5).astype('uint8')      #Sine waveform for this channel
+        ch['cosine'] = np.floor(cosineAmp * np.cos(phi) + 0.5).astype('uint8')  #Cosine waveform for this channel
     
-    
-    @setting(42, 'ADC Demod Phase', channel='w', dAddr='i', phi0='i', returns='')
-    def adc_demod_frequency(self, c, channel, dAddr, phi0=0):
+    @setting(42, 'ADC Demod Phase', channel='w', dPhi='i', phi0='i', returns='')
+    def adc_demod_frequency(self, c, channel, dPhi, phi0=0):
         """Set the trig table address step and initial phase for a demodulation channel. (ADC only)
         
-        dAddr: number of trig table addresses to step through each time sample (2ns for first version of board).
+        dPhi: number of trig table addresses to step through each time sample (2ns for first version of board).
         
         The trig lookup table address is stored in a 16 bit accumulator. The lookup table has 1024
         addresses. The six least significant bits are ignored when accessing the accululator to read
         the lookup table. This gives sub-address timing resolution.
         
-        The demodulation frequency is related to dAddr as follows:
+        The demodulation frequency is related to dPhi as follows:
         2^6 = 64 steps in the accumulator are needed to produce one step in the lookup table address.
         If we incriment the accumulator by 1 each time step then we go through
         (1/64*Address)*(1 cycle/1024 Address) = (2**-16)cycle
         This happens every 2ns, so we have 2**-16 cycle/2ns = 2**-17 GHz = 7.629 KHz
-        Therefore, dAddr = desiredFrequency/7629Hz.
+        Therefore, dPhi = desiredFrequency/7629Hz.
         
         Note that the same thing applies to the phase variable, as it is given in trig lookup address
         units. The lookup table is 1024 addresses wide so the formula for phi0 is
         phi0 = 1024*phaseCycles
         where phaseCycles is the desired phase in cycles, not radians!
         """
-        assert -2**15 <= dAddr < 2**15, 'delta phi out of range' #16 bit 2's compliment number for demod trig function
+        assert -2**15 <= dPhi < 2**15, 'delta phi out of range' #16 bit 2's compliment number for demod trig function
         assert -2**15 <= phi0 < 2**15, 'phi0 out of range'
         dev = self.selectedADC(c)
         d = c.setdefault(dev, {})
         ch = d.setdefault(channel, {})
-        ch['dAddr'] = dAddr
+        ch['dPhi'] = dPhi
         ch['phi0'] = phi0
         
 
@@ -991,7 +995,7 @@ class FPGAServer(DeviceServer):
             else:
                 raise Exception("Unknown device type: %s" % dev) 
             runners.append(runner)       
-        
+
         # determine timing order
         if getTimingData:
             if c['timing_order'] is None:
@@ -1402,8 +1406,8 @@ class FPGAServer(DeviceServer):
         """Run the selected ADC board once in average mode. (ADC only)
         
         The board will start immediately using the trig lookup and demod
-        settings already specified in this context.  Returns the acquired
-        I and Q waveforms.
+        settings already specified in this context (although these settings have
+        no effect in average mode).  Returns the acquired I and Q waveforms.
         
         Returns:
         (I: np.array(int), Q: np.array(int))
@@ -1416,16 +1420,31 @@ class FPGAServer(DeviceServer):
         demods = dict((i, info[i]) for i in range(adc.DEMOD_CHANNELS) if i in info)
         ans = yield dev.runAverage(filterFunc, filterStretchLen, filterStretchAt, demods)
         returnValue(ans)
-    
-    @setting(2602, 'ADC Run Demod', returns='*(*i{I}, *i{Q}), (i{Imax} i{Imin} i{Qmax} i{Qmin})')
+
+    @setting(2601, 'ADC Run Calibrate', returns='')
+    def adc_run_calibrate(self, c):
+        """Recalibrate the ADC chips
+        """
+        dev = self.selectedADC(c)
+        info = c.setdefault(dev, {})
+        filterFunc = info.get('filterFunc', np.array([255], dtype='<u1'))   #Default to [255]
+        filterStretchLen = info.get('filterStretchLen', 0)                  #Default to no stretch
+        filterStretchAt = info.get('filterStretchAt', 0)                    #Default to stretch at 0
+        demods = dict((i, info[i]) for i in range(adc.DEMOD_CHANNELS) if i in info)
+        yield dev.runCalibrate()
+
+        
+    @setting(2602, 'ADC Run Demod', returns='((*i{I}, *i{Q}), (i{Imax} i{Imin} i{Qmax} i{Qmin}))')
+    #@setting(2602, 'ADC Run Demod', returns='*i')
     def adc_run_demod(self, c):
         dev = self.selectedADC(c)
         info = c.setdefault(dev, {})
-        filterFunc = info.get('filterFunc', np.array([255], dtype='<u1'))
+        filterFunc = info.get('filterFunc', np.array(adc.FILTER_LEN*[128], dtype='<u1')) #Default to full length filter with half full scale amplitude
         filterStretchLen = info.get('filterStretchLen', 0)
         filterStretchAt = info.get('filterStretchAt', 0)
         demods = dict((i, info[i]) for i in range(adc.DEMOD_CHANNELS) if i in info)
         ans = yield dev.runDemod(filterFunc, filterStretchLen, filterStretchAt, demods)
+        
         returnValue(ans)
     
     # TODO: new settings
@@ -1503,7 +1522,7 @@ class DacRunner(object):
     def collectPacket(self, seqTime, ctx):
         """Collect appropriate number of ethernet packets for this sequence, then trigger run context."""
         return self.dev.collect(self.nPackets, seqTime, ctx)
-            
+    
     def readPacket(self, timingOrder):
         """Read (or discard) appropriate number of ethernet packets, depending on whether timing results are wanted."""
         keep = any(s.startswith(self.dev.devName) for s in timingOrder)
@@ -1575,6 +1594,16 @@ class AdcRunner(object):
 
 # some helper methods
 
+#def getLocalMac(port):
+#    macs=[]
+#    if sys.platform == 'win32':
+#        for line in os.popen("ipconfig /all"):
+#            if line.lstrip().startswith('Physical Address'):
+#                macs.append(line.split(':')[1].strip().replace('-',':'))
+#    mac = macs[port]
+#    #return mac
+#    return '90:E6:BA:36:55:7B'
+    
 def getCommand(cmds, chan):
     """Get a command from a dictionary of commands.
 
