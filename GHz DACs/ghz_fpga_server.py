@@ -221,7 +221,7 @@ class BoardGroup(object):
             # prepare and send detection packets
             p = self.server.packet()
             p.connect(self.port)
-            p.source_mac(self.sourceMac)
+            #p.source_mac(self.sourceMac)
             p.require_length(respLength)
             p.timeout(T.Value(timeout, 's'))
             p.listen()
