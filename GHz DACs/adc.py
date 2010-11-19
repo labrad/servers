@@ -6,19 +6,20 @@ from labrad.devices import DeviceWrapper
 from labrad import types as T
 
 from util import littleEndian, TimedLock
+from matplotlib import pyplot as plt
 
 DEMOD_CHANNELS = 4
 DEMOD_CHANNELS_PER_PACKET = 11
 DEMOD_PACKET_LEN = 46 # length of result packets in demodulation mode
 DEMOD_TIME_STEP = 2 #ns
-AVERAGE_PACKETS = 32 # number of packets that
+AVERAGE_PACKETS = 32
 AVERAGE_PACKET_LEN = 1024
 
 TRIG_AMP = 255
 LOOKUP_TABLE_LEN = 256
 REG_PACKET_LEN = 59
 READBACK_LEN = 46
-FILTER_LEN = 4096
+FILTER_LEN = 4096 #4096 addresses * 4ns/address = 16384ns = 16us
 SRAM_WRITE_PAGES = 9
 SRAM_WRITE_LEN = 1024
 
@@ -26,6 +27,7 @@ RUN_MODE_AVERAGE_AUTO = 2
 RUN_MODE_AVERAGE_DAISY = 3
 RUN_MODE_DEMOD_AUTO = 4
 RUN_MODE_DEMOD_DAISY = 5
+RUN_MODE_CALIBRATE = 7
 
 def macFor(board):
     """Get the MAC address of an ADC board as a string."""
@@ -64,7 +66,9 @@ def regAdcRun(mode, reps, filterFunc, filterStretchAt, filterStretchLen, demods,
     regs[1:3] = littleEndian(startDelay, 2) #Daisychain delay
     regs[7:9] = littleEndian(reps, 2)       #Number of repetitions
     
-    regs[9:11] = littleEndian(len(filterFunc), 2)   #Filter function end address
+    if len(filterFunc)<=1:
+        raise Exception('Filter function must be at least 2')
+    regs[9:11] = littleEndian(len(filterFunc)-1, 2)   #Filter function end address. -1 because of zero indexing!
     regs[11:13] = littleEndian(filterStretchAt, 2)  #Stretch address for filter
     regs[13:15] = littleEndian(filterStretchLen, 2) #Filter function stretch length
     
@@ -72,8 +76,8 @@ def regAdcRun(mode, reps, filterFunc, filterStretchAt, filterStretchLen, demods,
         if i not in demods:
             continue
         addr = 15 + 4*i
-        regs[addr:addr+2] = littleEndian(demods[i]['dAddr'], 2)
-        regs[addr+2:addr+4] = littleEndian(demods[i]['phi0'], 2)
+        regs[addr:addr+2] = littleEndian(demods[i]['dPhi'], 2)      #Lookup table step per sample
+        regs[addr+2:addr+4] = littleEndian(demods[i]['phi0'], 2)    #Lookup table start address
     return regs
 
 
@@ -131,6 +135,7 @@ class AdcDevice(DeviceWrapper):
         # - average readout: 1024 bytes
         p.destination_mac(self.MAC)
         p.require_source_mac(self.MAC)
+        #p.source_mac(self.boardGroup.sourceMac)
         p.timeout(self.timeout)
         p.listen()
         yield p.send()
@@ -175,7 +180,28 @@ class AdcDevice(DeviceWrapper):
             channel += 2 # two channels per sram packet
             page += 1 # each sram packet writes one page
     
+    def collect(self, nPackets, timeout, triggerCtx):
+        """Create a packet to collect data on the FPGA."""
+        p = self.makePacket()
+        p.timeout(T.Value(timeout, 's'))
+        p.collect(nPackets)
+        # note that if a timeout error occurs the remainder of the packet
+        # is discarded, so that the trigger command will not be sent
+        p.send_trigger(triggerCtx)
+        return p
+
+    def trigger(self, triggerCtx):
+        """Create a packet to trigger the board group context."""
+        return self.makePacket().send_trigger(triggerCtx)
     
+    def read(self, nPackets):
+        """Create a packet to read data from the FPGA."""
+        return self.makePacket().read(nPackets)
+
+    def discard(self, nPackets):
+        """Create a packet to discard data on the FPGA."""
+        return self.makePacket().discard(nPackets)
+
     def setup(self, filter, demods):
         filterFunc, filterStretchLen, filterStretchAt = filter
         p = self.makePacket()
@@ -284,57 +310,68 @@ class AdcDevice(DeviceWrapper):
             p.write(regs.tostring())        # send register packet
             p.timeout(T.Value(10, 's'))     # set a conservative timeout
             p.read(AVERAGE_PACKETS)         # read back all packets from average buffer
-            
-            ans = yield p.send()    #Actually send the packet. 
+            ans = yield p.send() #Send the packet to the direct ethernet server
                     
             # parse the packets out and return data
             packets = [data for src, dst, eth, data in ans.read]
             returnValue(extractAverage(packets))
+            
         return self.testMode(func)
-
-#    def averageMultiAsSlave(self, averages):
-#        @inlineCallbacks
-#        def func():
-#            regs = regAdcRun(RUN_MODE_AVERAGE_DAISY, averages, filterFunc, filterStretchLen, filterStretchAt, demods)
-#            p = self.makePacket()
-#            p.write(regs.tostring())            
-#            p.send()    #Sets up the ADC. The ADC won't do anything until the daisychain fires
-#        return self.testMode(func)
 
     def runDemod(self, filterFunc, filterStretchLen, filterStretchAt, demods):
         @inlineCallbacks
         def func():
-            # build registry packet
+            # build register packet
             regs = regAdcRun(RUN_MODE_DEMOD_AUTO, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
     
             # create packet for the ethernet server
             p = self.makePacket()
             self.makeFilter(filterFunc, p) # upload filter function
-            self.makeTrigLookups(demods, p) # upload trig lookup tables
+            self.makeTrigLookups(demods, p) # upload trig lookup tables, cosine and sine for each demod channel
             p.write(regs.tostring()) # send registry packet
             p.timeout(T.Value(10, 's')) # set a conservative timeout
             p.read(1) # read back one demodulation packet
+            ans = yield p.send() #Send the packet to the direct ethernet server
             
-            ans = yield p.send()
-                    
             # parse the packets out and return data
-            packets = [data for src, dst, eth, data in ans.read]
+            packets = [data for src, dst, eth, data in ans.read] #list of 48-byte strings
             returnValue(extractDemod(packets))
+            
         return self.testMode(func)
 
+    def runCalibrate(self):
+        @inlineCallbacks
+        def func():
+            # build register packet
+            filterFunc=np.zeros(FILTER_LEN,dtype='<u1')
+            filterStretchLen=0
+            filterStretchAt=0
+            demods={}
+            regs = regAdcRun(RUN_MODE_CALIBRATE, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
+    
+            # create packet for the ethernet server
+            p = self.makePacket()
+            p.write(regs.tostring()) # send registry packet
+            yield p.send() #Send the packet to the direct ethernet server
+            returnValue(None)
+        return self.testMode(func)
 
+        
 def extractAverage(packets):
     """Extract Average waveform from a list of packets (byte strings)."""
-    data = ''.join(packets)
+    
+    data = ''.join(packets) #Join all byte strings together into one long string
     Is, Qs = np.fromstring(data, dtype='<i2').reshape(-1, 2).astype(int).T
     return (Is, Qs)
-    
+
+
+
 def extractDemod(packets, nDemod=DEMOD_CHANNELS_PER_PACKET):
     """Extract Demodulation data from a list of packets (byte strings)."""
-    data = ''.join(data[:44] for data in packets)
-    vals = np.fromstring(data, dtype='<i2')
-    Is, Qs = vals.reshape(-1, 2).astype(int).T
-    
+    data = ''.join(data[:44] for data in packets)   #stick all data strings in packets together, chopping out last 4 bytes from each string
+    vals = np.fromstring(data, dtype='<i2')         #Convert string of bytes into numpy array of 16bit integers. <i2 means little endian 2 byte
+    Is, Qs = vals.reshape(-1, 2).astype(int).T      #Is,Qs are numpy arrays like   [I0,I1,...,I_numChannels,    I0,I1,...,I_numChannels]
+                                                    #                               1st data run                2nd data run    
     data = [(Is[i::nDemod], Qs[i::nDemod]) for i in xrange(nDemod)]
     
     # compute overall max and min for I and Q
@@ -346,12 +383,19 @@ def extractDemod(packets, nDemod=DEMOD_CHANNELS_PER_PACKET):
         Qmax = twosComp((Qrng >> 4) & 0xF) # << 12
         Qmin = twosComp((Qrng >> 0) & 0xF) # << 12
         return Imax, Imin, Qmax, Qmin
+    
     ranges = np.array([getRange(data) for data in packets]).T
     Imax = int(max(ranges[0]))
     Imin = int(min(ranges[1]))
     Qmax = int(max(ranges[2]))
     Qmin = int(min(ranges[3]))
-        
-    returnValue((Is, Qs, (Imax, Imin, Qmax, Qmin)))
-
+    
+#    Is = list(Is)
+#    Qs = list(Qs)
+#    for i in range(len(Is)):
+#        Is[i]=int(Is[i])
+#        Qs[i]=int(Qs[i])
+    #Is = np.array(Is,dtype='int32')
+    #Qs = np.array(Qs,dtype='int32')
+    return (Is, Qs), (Imax, Imin, Qmax, Qmin)
 
