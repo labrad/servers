@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 3.0.2
+version = 3.0.3
 description = Talks to DAC and ADC boards
 
 [startup]
