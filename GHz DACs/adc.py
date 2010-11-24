@@ -305,8 +305,8 @@ class AdcDevice(DeviceWrapper):
             regs = regAdcRun(RUN_MODE_AVERAGE_AUTO, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
             
             p = self.makePacket()           # create packet for the ethernet server
-            self.makeFilter(filterFunc, p)  # upload filter function, adds a p.write()
-            self.makeTrigLookups(demods, p) # upload trig lookup tables adds a p.write()
+            #self.makeFilter(filterFunc, p)  # upload filter function, adds a p.write()
+            #self.makeTrigLookups(demods, p) # upload trig lookup tables adds a p.write()
             p.write(regs.tostring())        # send register packet
             p.timeout(T.Value(10, 's'))     # set a conservative timeout
             p.read(AVERAGE_PACKETS)         # read back all packets from average buffer
@@ -332,7 +332,6 @@ class AdcDevice(DeviceWrapper):
             p.timeout(T.Value(10, 's')) # set a conservative timeout
             p.read(1) # read back one demodulation packet
             ans = yield p.send() #Send the packet to the direct ethernet server
-            
             # parse the packets out and return data
             packets = [data for src, dst, eth, data in ans.read] #list of 48-byte strings
             returnValue(extractDemod(packets))
