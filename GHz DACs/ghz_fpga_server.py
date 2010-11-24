@@ -849,7 +849,7 @@ class FPGAServer(DeviceServer):
         N = adc.LOOKUP_TABLE_LEN #256
         phi = np.pi/2 * (np.arange(N) + 0.5) / N
         ch['sine'] = np.floor(sineAmp * np.sin(phi) + 0.5).astype('uint8')      #Sine waveform for this channel
-        ch['cosine'] = np.floor(cosineAmp * np.cos(phi) + 0.5).astype('uint8')  #Cosine waveform for this channel
+        ch['cosine'] = np.floor(cosineAmp * np.sin(phi) + 0.5).astype('uint8')  #Cosine waveform for this channel, note that the function is still a SINE function!
     
     @setting(42, 'ADC Demod Phase', channel='w', dPhi='i', phi0='i', returns='')
     def adc_demod_frequency(self, c, channel, dPhi, phi0=0):
