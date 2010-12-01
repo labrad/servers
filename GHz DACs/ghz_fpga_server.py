@@ -167,11 +167,6 @@ class BoardGroup(object):
             clears = []
             for dev in devices:
                 clears.append(dev.clear().send())
-            answer = yield defer.DeferredList(detections, consumeErrors=True)
-            for success, result in answer:
-                if not success:
-                    print 'autodetect error:'
-                    result.printTraceback()
             
             returnValue(found)
         finally:
