@@ -211,8 +211,15 @@ class SpectrumAnalyzer(GPIBManagedServer):
         """This will set the stopping frequency"""
         dev = self.selectedDevice(c)
         dev.write(':FREQ:STOP %gMHz' % float(f) )
+        
 
-
+    @setting(51, 'Number Of Averages', 'w: Set number of points'], returns=['w'])
+    def num_averages(self, c, n=None):
+        """Set of get the current number of points in the sweep"""
+        dev = self.selectedDevice(c)
+        if n is not None:
+            yield dev.write(':AVER:COUN %d' % n)
+        
 
 ##  Attempt to set average type.  SA does not accept value.
 ##  Gives error: "illegal paramter value"
