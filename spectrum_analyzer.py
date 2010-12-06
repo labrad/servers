@@ -213,7 +213,7 @@ class SpectrumAnalyzer(GPIBManagedServer):
         dev.write(':FREQ:STOP %gMHz' % float(f) )
         
 
-    @setting(51, 'Number Of Averages', 'w: Set number of points'], returns=['w'])
+    @setting(704, 'Number Of Averages', 'w: Set number of averages'], returns=['w'])
     def num_averages(self, c, n=None):
         """Set of get the current number of points in the sweep"""
         dev = self.selectedDevice(c)
