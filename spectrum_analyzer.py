@@ -213,12 +213,14 @@ class SpectrumAnalyzer(GPIBManagedServer):
         dev.write(':FREQ:STOP %gMHz' % float(f) )
         
 
-    @setting(704, 'Number Of Averages', 'w: Set number of averages'], returns=['w'])
+    @setting(704, 'Number Of Averages', n=[':Default, get number of averages','w: Set number of averages'], returns=['w'])
     def num_averages(self, c, n=None):
         """Set of get the current number of points in the sweep"""
         dev = self.selectedDevice(c)
         if n is not None:
             yield dev.write(':AVER:COUN %d' % n)
+        numavs = yield dev.query(':AVER:COUN?')
+        returnValue(int(numavs))
         
 
 ##  Attempt to set average type.  SA does not accept value.
