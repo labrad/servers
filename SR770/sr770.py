@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Signal Analyzer SR770
-version = 1.1
+version = 1.1.1
 description = Talks to the Stanford Research Systems Signal Analyzer
 
 [startup]
@@ -30,26 +30,39 @@ timeout = 20
 ### END NODE INFO
 """
 
-from labrad import types as T, util
-from labrad import units as U
-from labrad.units import Value
-from labrad.units import Hz
+
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 
-from struct import unpack
-import numpy
+from labrad import types as T, util
 
-SPANS = [(0,0.191*Hz),
-         (1,0.328*Hz),
-         (2,0.763*Hz),
-         (3,1.5*Hz),
-         (4,3.1*Hz),
-         (5,6.1*Hz),
-         (6,12.2*Hz),
-         (7,24.4*Hz),
-         (8,48.85*Hz)]
+from labrad.types import Value
+from labrad.units import Hz
+
+from struct import unpack
+import numpy as np
+
+SPANS = {0:0.191,
+              1:0.382,
+              2:0.763,
+              3:1.5,
+              4:3.1,
+              5:6.1,
+              6:12.2,
+              7:24.4,
+              8:48.75,
+              9:97.5,
+              10:195.0,
+              11:390.0,
+              12:780.0,
+              13:1560.0,
+              14:3120.0,
+              15:6250.0,
+              16:12500.0,
+              17:25000.0,
+              18:50000.0,
+              19:100000.0}
 
 
 class SR770Wrapper(GPIBDeviceWrapper):
@@ -81,11 +94,11 @@ class SR770Server(GPIBManagedServer):
             print 'failed:', e
             raise
         
-    @setting(10, sp=['w'], returns=['v[Hz]'])
+    @setting(10, sp=['w','v[Hz]'], returns=['v[Hz]'])
     def span(self, c, sp=None):
         """Get or set the current frequency span.
-        The span is specified by an integer from 0 to 19. The spans
-        corresponding to each integer are given here:
+        The span is specified by an integer from 0 to 19 or by a labrad
+        Value with frequency units. The allowed spans are:
         (i,   span)
         (0,   191mHz)
         (1,   382mHz)
@@ -108,15 +121,18 @@ class SR770Server(GPIBManagedServer):
         (18,  50KHz)
         (19,  100KHz)
         """
-        ### List of allowed frequency spans in Hertz ###
-        spans = [0.191,0.382,0.763,1.5,3.1,6.1,12.2,24.4,48.75,97.5,
-                 195.0,390.0,780.0,1560.0,3120.0,6250.0,12500.0,
-                 25000.0,50000.0,100000.0]
-        
         dev = self.selectedDevice(c)
         if sp is not None:
-            if not (sp>-1 and sp<20):
-                raise Exception('span must be in [0,19]')
+            if type(sp) is int:
+                if not (sp>-1 and sp<20):
+                    raise Exception('span must be in [0,19]')
+            elif type(sp) is Value and sp.isCompatible('Hz'):
+                if sp['Hz']>100000 or sp['Hz']<0.191:
+                    raise Exception('Spans specified in Hertz must be with the range [0.191,100000]')
+                sp = indexOfClosest(SPANS.values(),sp['Hz'])
+            else:
+                raise Exception('Unrecognized span. Span must be an integer or a Value with frequency units')
+                
             yield dev.write('SPAN%d\n' % sp)
         resp = yield dev.query('SPAN?\n')
         sp = T.Value(float(spans[int(resp)]), 'Hz')
@@ -333,13 +349,13 @@ class SR770Server(GPIBManagedServer):
         print "unpacking..."
 
         data = [unpack('<f', data[i*4:i*4+4])[0] for i in range(length)]
-        data = numpy.array(data)
+        data = np.array(data)
         #Calculate frequencies from current span
         resp = yield dev.query('FSTR?0\n')
         fs = T.Value(float(resp), 'Hz')
         resp = yield dev.query('FEND?0\n')
         fe = T.Value(float(resp), 'Hz')
-        freq = numpy.linspace(fs, fe, length)
+        freq = np.linspace(fs, fe, length)
         
         
 
@@ -349,7 +365,7 @@ class SR770Server(GPIBManagedServer):
         dependents = [('Sv', 'PSD', 'Vrms/Hz^1/2')]
         p = dv.packet()
         p.new(name, independents, dependents)
-        p.add(numpy.vstack((freq, data)).T)
+        p.add(np.vstack((freq, data)).T)
         p.add_comment('Autosaved by SR770 server.')
         yield p.send(context=c.ID)
         
@@ -363,6 +379,11 @@ class SR770Server(GPIBManagedServer):
         yield dev.write('STRT\n')
     
 
+def indexOfClosest(collection,target):
+    minVal = min([abs(elem-target)] for elem in collection)     #Find element in collection closest to target
+    index = collection.index(minVal)                            #Get index of that element
+    return index
+    
 __server__ = SR770Server()
 
 if __name__ == '__main__':
