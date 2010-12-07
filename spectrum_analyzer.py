@@ -183,7 +183,7 @@ class SpectrumAnalyzer(GPIBManagedServer):
     @setting(700, 'Trigger Source', setting='s', returns='')
     def set_trigsource(self, c, setting='IMM'):
         """This sets the triger source to Free Run, Video, Power Line, or External"""
-        allowed = ['IMM', 'VID', 'LINE', 'EXT']
+        allowed = ['IMM', 'VID', 'LINE', 'EXT:POS', 'EXT:NEG']
         if setting not in allowed:
             raise Exception('allowed settings are: %s' % allowed)
         dev = self.selectedDevice(c)
