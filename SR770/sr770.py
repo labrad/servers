@@ -37,8 +37,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 
 from labrad import types as T, util
 
-from labrad.types import Value
-from labrad.units import Hz
+from labrad.units import Value, Hz
 
 from struct import unpack
 import numpy as np
@@ -93,8 +92,13 @@ class SR770Server(GPIBManagedServer):
         except Exception, e:
             print 'failed:', e
             raise
+    
+    @setting(9, data='i', returns='')
+    def checkType(self, c, data=None):
+        print 'Type is ',type(data)
         
-    @setting(10, sp=['w','v[Hz]'], returns=['v[Hz]'])
+    
+    @setting(10, sp=['i','v[Hz]'], returns=['v[Hz]'])
     def span(self, c, sp=None):
         """Get or set the current frequency span.
         The span is specified by an integer from 0 to 19 or by a labrad
@@ -123,19 +127,20 @@ class SR770Server(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         if sp is not None:
+            print 'Type is ',type(sp)
             if type(sp) is int:
                 if not (sp>-1 and sp<20):
                     raise Exception('span must be in [0,19]')
-            elif type(sp) is Value and sp.isCompatible('Hz'):
+            elif type(sp)==Value and sp.isCompatible('Hz'):
                 if sp['Hz']>100000 or sp['Hz']<0.191:
-                    raise Exception('Spans specified in Hertz must be with the range [0.191,100000]')
+                    raise Exception('Spans specified in Hertz must be with the range [0.191,10^5]')
                 sp = indexOfClosest(SPANS.values(),sp['Hz'])
             else:
                 raise Exception('Unrecognized span. Span must be an integer or a Value with frequency units')
                 
             yield dev.write('SPAN%d\n' % sp)
         resp = yield dev.query('SPAN?\n')
-        sp = T.Value(float(spans[int(resp)]), 'Hz')
+        sp = T.Value(float(SPANS[int(resp)]), 'Hz')
         returnValue(sp)
 
     @setting(11, cf=['v[Hz]'], returns=['v[Hz]'])
