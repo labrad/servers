@@ -135,7 +135,7 @@ class ADRWrapper(DeviceWrapper):
 		self.ruoxCoefsLow = [-0.77127, 1.0068e-4, -1.072e-9]
 		self.highTempRuoxCurve = lambda r, p: 1 / (p[0] + p[1] * r**2 * np.log(r) + p[2] * r**3)
 		self.lowTempRuoxCurve = lambda r, p: 1 / (p[0] + p[1] * r * np.log(r) + p[2] * r**2 * np.log(r))
-		self.voltToResCalibs = [0.26, 26.03, 25.91, 25.87, 26.36, 26.53] # in mV / kOhm, or microamps (maybe?)
+		self.voltToResCalibs = [0.26, 26.03, 37.5, 25.87, 26.36, 26.53] # in mV / kOhm, or microamps (maybe?)
 		self.resistanceCutoff = 1725.78
 		self.ruoxChannel = 4 - 1 # channel 4, index 3
 		# find our peripherals
@@ -716,7 +716,7 @@ class ADRWrapper(DeviceWrapper):
 		f = open(self.state('logfile'))
 		s = f.read()
 		f.close()
-                return s
+		return s
 	
 # (end of ADRWrapper)
 
@@ -911,7 +911,7 @@ class ADRServer(DeviceServer):
 		dev.loadDefaultsFromRegistry()
 		
 	@setting(59, "Get Entire Log")
-	def get_entire_log(self):
+	def get_entire_log(self, c):
 		''' Gets the entire log. '''
 		dev = self.selectedDevice(c)
 		return dev.getEntireLog()
