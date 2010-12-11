@@ -1,4 +1,5 @@
 # Copyright (C) 2008 Erik Lucero
+# Edits: Daniel Sank - 2010 December
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -97,8 +98,12 @@ class SR770Server(GPIBManagedServer):
     def checkType(self, c, data=None):
         print 'Type is ',type(data)
         
+<<<<<<< .mine
+    @setting(10, sp=['i','v'], returns=['v'])
+=======
     
     @setting(10, sp=['i','v[Hz]'], returns=['v[Hz]'])
+>>>>>>> .r1130
     def span(self, c, sp=None):
         """Get or set the current frequency span.
         The span is specified by an integer from 0 to 19 or by a labrad
@@ -131,6 +136,21 @@ class SR770Server(GPIBManagedServer):
             if type(sp) is int:
                 if not (sp>-1 and sp<20):
                     raise Exception('span must be in [0,19]')
+<<<<<<< .mine
+            elif:
+                try:
+                    if sp.isCompatible('Hz'):
+                except:
+                    raise Exception('Spans specified by value must have frequency units')
+                        
+                    if sp['Hz']>100000 or sp['Hz']<0.191:
+                        raise Exception
+                    else:
+                        print sp['Hz']
+                        sp = indexOfClosest(SPANS.values(),sp['Hz'])
+                        print sp
+
+=======
             elif type(sp)==Value and sp.isCompatible('Hz'):
                 if sp['Hz']>100000 or sp['Hz']<0.191:
                     raise Exception('Spans specified in Hertz must be with the range [0.191,10^5]')
@@ -138,9 +158,15 @@ class SR770Server(GPIBManagedServer):
             else:
                 raise Exception('Unrecognized span. Span must be an integer or a Value with frequency units')
                 
+>>>>>>> .r1130
             yield dev.write('SPAN%d\n' % sp)
+            
         resp = yield dev.query('SPAN?\n')
+<<<<<<< .mine
+        sp = Value(float(SPANS[int(resp)]), 'Hz')
+=======
         sp = T.Value(float(SPANS[int(resp)]), 'Hz')
+>>>>>>> .r1130
         returnValue(sp)
 
     @setting(11, cf=['v[Hz]'], returns=['v[Hz]'])
@@ -384,9 +410,18 @@ class SR770Server(GPIBManagedServer):
         yield dev.write('STRT\n')
     
 
+def findIndexOfMinimum(arr):
+    curr = arr[0]
+    minIndex=0
+    for index,elem in enumerate(arr):
+        if elem<curr:
+            minIndex=index
+            curr=elem
+    return minIndex
+
 def indexOfClosest(collection,target):
-    minVal = min([abs(elem-target)] for elem in collection)     #Find element in collection closest to target
-    index = collection.index(minVal)                            #Get index of that element
+    diffs = [abs(elem-target) for elem in collection]
+    index = findIndexOfMinimum(diffs)
     return index
     
 __server__ = SR770Server()
