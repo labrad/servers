@@ -101,7 +101,7 @@ class ADRWrapper(DeviceWrapper):
 							'targetCurrent': 8,			# A
 							'maxCurrent': 9,			# A
 							'fieldWaitTime': 2.0,		# min
-							'ruoxSwitch': 2,
+							'ruoxSwitch': 3,
 							'waitToMagDown': True,
 							'autoControl': False,
 							'switchPosition': 2,
@@ -419,11 +419,11 @@ class ADRWrapper(DeviceWrapper):
 			self.currentStatus = newStatus
 			if newStatus == 'magging up':
 				if self.state('autoControl'):
-					self.setHeatSwitch(True)
+					self.setHeatSwitch(False)
 				self.psOutputOn()
 			elif newStatus == 'magging down':
 				if self.state('autoControl'):
-					self.setHeatSwitch(False)
+					self.setHeatSwitch(True)
 			elif newStatus == 'ready':
 				if self.state('scheduledMagUpTime') > time.time():
 					self.status('waiting to mag up')
