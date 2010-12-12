@@ -96,7 +96,10 @@ class CSBBoardServer(LabradServer):
                  returns=['s: selected board'])
 
     def select_device(self, c, board):
-        if isinstance(board, (int,long)):
+        print 'Selecting board: ',board
+        if board is None:
+            c['board']=self.boards[0]
+        elif isinstance(board, (int,long)):
             if board >= len(self.boards):
                 raise NoSuchDeviceError()
             c['board'] = self.boards[board]
