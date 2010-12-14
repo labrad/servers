@@ -93,6 +93,9 @@ class ADRWrapper(DeviceWrapper):
 		# Some of the values don't actually have defaults in the registry:
 		# the times (scheduled mag down time, etc)
 		self.stateVars= {	'quenchLimit': 4.0,			# K
+		self.stateVars= {	
+							# magging variables
+							'quenchLimit': 4.0,			# K
 							'cooldownLimit': 3.9,		# K
 							'rampWaitTime': 0.2,		# s
 							'voltageStepUp': 0.004, 	# V
@@ -101,14 +104,24 @@ class ADRWrapper(DeviceWrapper):
 							'targetCurrent': 8,			# A
 							'maxCurrent': 9,			# A
 							'fieldWaitTime': 2.0,		# min
-							'ruoxSwitch': 3,
+							'ruoxSwitch': 2,
 							'waitToMagDown': True,
 							'autoControl': False,
 							'switchPosition': 2,
 							'timeMaggedDown': None,					# time when we finished magging down 
 							'scheduledMagDownTime': time.time(),	# time to start magging down	| set these to now so that the user doesn't have 
 							'scheduledMagUpTime': time.time(),		# time to start magging up		| to choose today and can just choose the time
+							'switchPosition': 2,		# switch position on the lock in amplifier box
+							# scheduling variables
+							'schedulingActive': False,				# whether or not we will auto-mag up or down based on schedule.
+							'scheduledMagDownTime': 0,				# time to start magging down
+							'scheduledMagUpTime': time.time(),		# time to start magging up
+							'magUpCompletedTime': 0,				# time when mag up was completed
+							'magDownCompletedTime': 0,				# time when mag down was completed
+							'fieldWaitTime': 30,					# how long to wait after magging up (min)
+							# not really used, but you could shut it down this way
 							'alive': False,
+							# temperature recording variables
 							'recordTemp': False,		# whether we're recording right now
 							'recordFast': False,		# whether we're recording fast.
 							'recordingTemp': 250,		# start recording temps below this value
@@ -122,6 +135,7 @@ class ADRWrapper(DeviceWrapper):
 							'fastRecordingMaxTime': 12*60,		# after we've been recording fast for X minutes, stop
 							'fastRecordingHSStop': True,			# whether to stop when the heat switch opens
 							'fastRecordingStartTime': None,	# time when we started fast recording
+							# logging variables
 							'logfile': '%s-log.txt' % self.name,	# the log file
 							'loglimit': 20,					# max # lines held in the log variable (i.e. in memory)
 						}
@@ -129,17 +143,10 @@ class ADRWrapper(DeviceWrapper):
 		self.possibleStatuses = ['cooling down', 'ready', 'waiting at field', 'waiting to mag up', 'magging up', 'magging down', 'ready to mag down']
 		self.currentStatus = 'cooling down'
 		self.sleepTime = 1.0
-		# functions and coefficients for converting ruox res to temp
-		# these should probably be exported to the registry at some point
-		self.ruoxCoefsHigh = [-0.3199412, 5.74884e-8, -8.8409e-11]
-		self.ruoxCoefsLow = [-0.77127, 1.0068e-4, -1.072e-9]
-		self.highTempRuoxCurve = lambda r, p: 1 / (p[0] + p[1] * r**2 * np.log(r) + p[2] * r**3)
-		self.lowTempRuoxCurve = lambda r, p: 1 / (p[0] + p[1] * r * np.log(r) + p[2] * r**2 * np.log(r))
-		self.voltToResCalibs = [0.26, 26.03, 37.5, 25.87, 26.36, 26.53] # in mV / kOhm, or microamps (maybe?)
-		self.resistanceCutoff = 1725.78
-		self.ruoxChannel = 4 - 1 # channel 4, index 3
 		# find our peripherals
 		yield self.refreshPeripherals()
+		# load our defaults from the registry
+		self.loadDefaultsFromRegistry()
 		# go!
 		self.log("Initialization completed. Beginning cycle.")
 		self.cycle()
@@ -148,30 +155,36 @@ class ADRWrapper(DeviceWrapper):
 	@inlineCallbacks
 	def loadDefaultsFromRegistry(self):
 		reg = self.cxn.registry
-		yield reg.cd(CONFIG_PATH)
-		yield reg.cd("defaults")
-		# load the vars about ruox calibration
-		p = reg.packet()
+		yield reg.cd(CONFIG_PATH, context=self.ctxt)
+		yield reg.cd("defaults", context=self.ctxt)
+		# look for a specific volt to res calibration
+		keys = (yield reg.dir(context=self.ctxt))[1]
+		if "volt to res %s" % self.name in keys:
+			vtrKey = "volt to res %s" % self.name
+		else:
+			vtrKey = "volt to res"
+		# load the vars about ruox calibration (res to temp)
+		p = reg.packet(context=self.ctxt)
 		p.get("high temp ruox curve", key="htrc")
 		p.get("low temp ruox curve", key="ltrc")
 		p.get("resistance cutoff", key="rescut")
 		p.get("ruox channel", key="ruoxchan")
 		p.get("ruox coefs high", key="rch")
 		p.get("ruox coefs low", key="rcl")
-		p.get("volt to resistance calibrations", key="vtrc")
+		p.get(vtrKey, key="vtr")
 		ans = yield p.send()
-		self.ruoxCoefsHigh = map(lambda x: x.value, ans.rch)
-		self.ruoxCoefsLow = map(lambda x: x.value, ans.rcl)
-		self.highTempRuoxCurve = lambda r, p: eval(ans.htrc)
-		self.lowTempRuoxCurve = lambda r, p: eval(ans.ltrc)
-		self.voltToResCalibs = map(lambda x: x.value, ans.ctrc)
-		self.resistanceCutoff = ans.rescut.value
-		self.ruoxChannel = ans.ruoxchan - 1
+		self.state('ruoxCoefsHigh', map(lambda x: x.value, ans.rch))
+		self.state('ruoxCoefsLow', map(lambda x: x.value, ans.rcl))
+		self.state('highTempRuoxCurve', lambda r, p: eval(ans.htrc))
+		self.state('lowTempRuoxCurve', lambda r, p: eval(ans.ltrc))
+		self.state('voltToResCalibs', map(lambda x: x.value, ans.vtr))
+		self.state('resistanceCutoff', ans.rescut.value)
+		self.state('ruoxChannel', ans.ruoxchan - 1)
 		# now do the state variables
-		yield reg.cd("state variables")
-		(dirs, keys) = yield reg.dir()
+		yield reg.cd("state variables", context=self.ctxt)
+		(dirs, keys) = yield reg.dir(context=self.ctxt)
 		for key in keys:
-			val = yield reg.get(key)
+			val = yield reg.get(key, context=self.ctxt)
 			if isinstance(val, labrad.units.Value):
 				val = val.value
 			self.state(key, val)
@@ -197,48 +210,70 @@ class ADRWrapper(DeviceWrapper):
 			# should we start recording fast?
 			if (not self.state('recordFast')) and self.state('autoRecord') and (yield self.shouldStartFastRecording()):
 				self.startFastRecording()
+				
 			# now check through the different statuses
 			if self.currentStatus == 'cooling down':
 				yield util.wakeupCall(self.sleepTime)
-				# check if we're at base, then set status -> ready
+				# check if we're at base (usually 3.9K), then set status -> ready
 				if (yield self.atBase()):
 					self.status('ready')
+					
 			elif self.currentStatus == 'ready':
 				yield util.wakeupCall(self.sleepTime)
-				# check if we're at base, then set status -> cooling
+				# do we need to cool back down to 3.9K? (i.e. wait)
 				if not (yield self.atBase()):
 					self.status('cooling down')
+				# if scheduling is enabled, go to "waiting to mag up":
+				if self.state('schedulingActive'):
+					self.status('waiting to mag up')
+					
+			elif self.currentStatus == 'waiting to mag up':
+				yield util.wakeupCall(self.sleepTime)
+				# is scheduling still active?
+				if not self.state('schedulingActive'):
+					self.status('ready')
+				# do we need to cool back down to 3.9K? (i.e. wait)
+				if not (yield self.atBase()):
+					self.status('cooling down')
+				# is it time to mag up?
+				if time.time() > self.state('scheduledMagUpTime') and (yield self.atBase()):
+					self.status('magging up')
+					
+			elif self.currentStatus == 'magging up':
+				yield util.wakeupCall(self.state('rampWaitTime'))
+				self.clear('magDownCompletedTime')
+				self.clear('magUpCompletedTime')
+				self.clear('scheduledMagDownTime')
+				(quenched, targetReached) = yield self.adrMagStep(True) # True = mag step up
+				self.log("%s mag step! Quenched: %s -- Target Reached: %s" % (self.name, quenched, targetReached))
+				if quenched:
+					self.log("QUENCHED!")
+					self.status('cooling down')
+				elif targetReached:
+					self.status('waiting at field')
+					self.psMaxCurrent()
+					self.state('magUpCompletedTime', time.time())
+					self.state('scheduledMagDownTime', time.time() + self.state('fieldWaitTime')*60)
+				else:
+					pass # if at first we don't succeed, mag, mag again
+					
 			elif self.currentStatus == 'waiting at field':
 				yield util.wakeupCall(self.sleepTime)
 				# is it time to mag down?
 				if time.time() > self.state('scheduledMagDownTime'):
-					if self.state('waitToMagDown'):
-						self.status('ready')
+					if not self.state('schedulingActive'):
+						self.status('ready to mag down')
 					else:
 						self.status('magging down')
 				else:
-					self.psMaxCurrent() # I think?
-			elif self.currentStatus == 'waiting to mag up':
+					self.psMaxCurrent()
+					
+			elif self.currentStatus == 'ready to mag down':
 				yield util.wakeupCall(self.sleepTime)
-				# is it time to mag up?
-				if time.time() > self.state('scheduledMagUpTime') and (yield self.atBase()):
-					self.status('magging up')
-			elif self.currentStatus == 'magging up':
-				yield util.wakeupCall(self.state('rampWaitTime'))
-				self.clear('timeMaggedDown')
-				(quenched, targetReached) = yield self.adrMagStep(True) # True = mag step up
-				self.log("%s mag step! Quenched: %s -- Target Reached: %s" % (self.name, quenched, targetReached))
-				if quenched:
-					self.log("Quenched!")
-					self.status('cooling down')
-				elif targetReached:
-					self.status('waiting at field')
-					self.psMaxCurrent() # I think?
-				else:
-					pass # if at first we don't succeed, mag, mag again
+				self.psMaxCurrent()
+				
 			elif self.currentStatus == 'magging down':
 				yield util.wakeupCall(self.state('rampWaitTime'))
-				self.clear('scheduledMagDownTime')
 				(quenched, targetReached) = yield self.adrMagStep(False)
 				self.log("%s mag step! Quenched: %s -- Target Reached: %s" % (self.name, quenched, targetReached))
 				if quenched:
@@ -246,13 +281,12 @@ class ADRWrapper(DeviceWrapper):
 					self.status('cooling down')
 				elif targetReached:
 					self.status('ready')
-					self.state('timeMaggedDown', time.time())
+					self.state('magDownCompletedTime', time.time())
 					self.psOutputOff()
-			elif self.currentStatus == 'ready to mag down':
-				yield util.wakeupCall(self.sleepTime)
-				self.psMaxCurrent()
+					
 			else:
 				yield util.wakeupCall(self.sleepTime)
+			
 	
 	# these are copied from the LabView program
 	# TODO: add error checking
@@ -267,7 +301,7 @@ class ADRWrapper(DeviceWrapper):
 			returnValue(False)
 	
 	def psMaxCurrent(self):
-		""" sets the magnet current to the max current. (I think that's what it's supposed to do.) """
+		""" sets the magnet current to the max current. """
 		newCurrent = min(PS_MAX_CURRENT, self.state('maxCurrent'))
 		if newCurrent < 0:
 			newCurrent = PS_MAX_CURRENT
@@ -329,21 +363,15 @@ class ADRWrapper(DeviceWrapper):
 		quenched = temps[1].value > self.state('quenchLimit') and current > 0.5
 		targetReached = (up and self.state('targetCurrent') - current < 0.001) or (not up and 0.01 > current)
 		newVoltage = voltage
-		print "  volts[6]: %s\n  volts[7]: %s\n  voltageLimit: %s" % (volts[6].value, volts[7].value, self.state('voltageLimit'))
-		#if (not quenched) and up and (volts[7].value < self.state('voltageLimit')) and (volts[6].value > (self.state('voltageLimit') * -1)):
-                #        print "changing voltage"
-                #        newVoltage += self.state('voltageStepUp')
-                #elif (not quenched) and (not up) and (volts[6].value < self.state('voltageLimit')) and (volts[7].value > (self.state('voltageLimit') * -1)):
-                #        print "changing voltage"
-                #        newVoltage -= self.state('voltageStepDown')
-                if (not quenched) and (not targetReached) and abs(volts[6] < self.state('voltageLimit')) and abs(volts[7] < self.state('voltageLimit')):
-                        print "changing voltage"
-                        if up:
-                                newVoltage += self.state('voltageStepUp')
-                        else:
-                                newVoltage -= self.state('voltageStepDown')
+		#print "  volts[6]: %s\n  volts[7]: %s\n  voltageLimit: %s" % (volts[6].value, volts[7].value, self.state('voltageLimit'))
+		if (not quenched) and (not targetReached) and abs(volts[6]) < self.state('voltageLimit') and abs(volts[7]) < self.state('voltageLimit'):
+			print "changing voltage"
+			if up:
+				newVoltage += self.state('voltageStepUp')
+			else:
+				newVoltage -= self.state('voltageStepDown')
 		else:
-                        print "not changing voltage"
+			print "not changing voltage"
                         
 		if HANDSOFF:
 			print "would set %s magnet voltage -> %s" % (self.name, newVoltage)
@@ -402,10 +430,11 @@ class ADRWrapper(DeviceWrapper):
 	def state(self, var, newValue = None):
 		if newValue is not None:
 			self.stateVars[var] = newValue
-			# check for scheduled mag up time
-			if var == 'scheduledMagUpTime' and self.currentStatus == 'ready':
-				self.status('waiting to mag up')
 			self.log('Set %s to %s' % (var, str(newValue)))
+			# if we changed the field wait time, we may need to change scheduled mag down time
+			if var == 'fieldWaitTime' and self.state('magUpCompletedTime') > 1:
+				self.state('scheduledMagDownTime', self.state('magUpCompletedTime') + newValue * 60.0)
+				
 		return self.stateVars[var]
 	# clear a state variable
 	def clear(self, var):
@@ -424,11 +453,6 @@ class ADRWrapper(DeviceWrapper):
 			elif newStatus == 'magging down':
 				if self.state('autoControl'):
 					self.setHeatSwitch(True)
-			elif newStatus == 'ready':
-				if self.state('scheduledMagUpTime') > time.time():
-					self.status('waiting to mag up')
-			elif newStatus == 'waiting at field':
-				self.scheduledMagDownTime = time.time() + self.state("fieldWaitTime") * 60
 			self.log("ADR %s status is now: %s" % (self.name, self.currentStatus))
 		return self.currentStatus
 	
@@ -438,17 +462,17 @@ class ADRWrapper(DeviceWrapper):
 	@inlineCallbacks
 	def ruoxStatus(self):
 		try:
-			calib = self.voltToResCalibs[self.state('switchPosition') - 1]
+			calib = self.state('voltToResCalibs')[self.state('switchPosition') - 1]
 			ls = self.peripheralsConnected['lakeshore']
-			voltage = (yield ls.server.voltages(context=ls.ctxt))[self.ruoxChannel].value
+			voltage = (yield ls.server.voltages(context=ls.ctxt))[self.state('ruoxChannel')].value
 			resistance = voltage / (calib)* 10**6 # may or may not need this factor of 10^6
 			temp = 0.0
-			if resistance < self.resistanceCutoff:
+			if resistance < self.state('resistanceCutoff'):
 				# high temp (2 to 20 K)
-				temp = self.highTempRuoxCurve(resistance, self.ruoxCoefsHigh)
+				temp = self.state('highTempRuoxCurve')(resistance, self.state('ruoxCoefsHigh'))
 			else:
 				# low temp (0.05 to 2 K)
-				temp = self.lowTempRuoxCurve(resistance, self.ruoxCoefsLow)
+				temp = self.state('lowTempRuoxCurve')(resistance, self.state('ruoxCoefsLow'))
 			returnValue((temp, resistance))
 		except Exception, e: # the main exception i expect is when there's no lakeshore connected
 			print e
@@ -943,6 +967,12 @@ class ADRServer(DeviceServer):
 			return "Recording"
 		else:
 			return "Not Recording"
+			
+	@setting(70, "Show Calibrations")
+	def show_calibrations(self, c):
+		""" Returns the volt-to-resistance calibrations used with the lock-in. Which one to use is selected by switchPosition. """
+		dev = self.selectedDevice(c)
+		return dev.voltToResCalibs
 	
 __server__ = ADRServer()
 
