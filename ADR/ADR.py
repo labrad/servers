@@ -92,7 +92,6 @@ class ADRWrapper(DeviceWrapper):
 		# I've left them here for posterity.
 		# Some of the values don't actually have defaults in the registry:
 		# the times (scheduled mag down time, etc)
-		self.stateVars= {	'quenchLimit': 4.0,			# K
 		self.stateVars= {	
 							# magging variables
 							'quenchLimit': 4.0,			# K
