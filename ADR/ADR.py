@@ -736,8 +736,8 @@ class ADRServer(DeviceServer):
 		resp = yield reg.dir()
 		ADRNames = resp[0].aslist
 		for name in ADRNames:
-                        if name != 'defaults':
-                		deviceList.append((name,(self.client,)))
+			if name != 'defaults':
+				deviceList.append((name,(self.client,)))
 		returnValue(deviceList)
 
 
