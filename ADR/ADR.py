@@ -139,10 +139,12 @@ class ADRWrapper(DeviceWrapper):
 		# find our peripherals
 		yield self.refreshPeripherals()
 		# load our defaults from the registry
-		self.loadDefaultsFromRegistry()
+		yield self.loadDefaultsFromRegistry()
 		# go!
 		self.log("Initialization completed. Beginning cycle.")
 		reactor.callLater(0.1, self.cycle)
+		print "cycled"
+		self.log('cycled')
 	
 	@inlineCallbacks
 	def loadDefaultsFromRegistry(self):
@@ -194,6 +196,7 @@ class ADRWrapper(DeviceWrapper):
 		each of the statuses will have a sleep for a given amount of time (usually 1s or rampWaitTime).
 		"""
 		self.state('alive', True)
+		self.log("Now cycling.")
 		while self.state('alive'):
 			# check to see if we should start recording temp
 			#print "%s recordtemp: %s -- autoRecord: %s -- shouldStartRecording: %s" % (self.name, self.state('recordTemp'), self.state('autoRecord'), (yield self.shouldStartRecording()))
