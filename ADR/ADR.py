@@ -106,10 +106,6 @@ class ADRWrapper(DeviceWrapper):
 							'ruoxSwitch': 2,
 							'waitToMagDown': True,
 							'autoControl': False,
-							'switchPosition': 2,
-							'timeMaggedDown': None,					# time when we finished magging down 
-							'scheduledMagDownTime': time.time(),	# time to start magging down	| set these to now so that the user doesn't have 
-							'scheduledMagUpTime': time.time(),		# time to start magging up		| to choose today and can just choose the time
 							'switchPosition': 2,		# switch position on the lock in amplifier box
 							# scheduling variables
 							'schedulingActive': False,				# whether or not we will auto-mag up or down based on schedule.
@@ -256,9 +252,8 @@ class ADRWrapper(DeviceWrapper):
 					if not self.state('schedulingActive'):
 						self.status('ready to mag down')
 					else:
+						self.state('schedulingActive', False)
 						self.status('magging down')
-				else:
-					self.psMaxCurrent()
 					
 			elif self.currentStatus == 'ready to mag down':
 				yield util.wakeupCall(self.sleepTime)
@@ -425,7 +420,9 @@ class ADRWrapper(DeviceWrapper):
 			self.log('Set %s to %s' % (var, str(newValue)))
 			# if we changed the field wait time, we may need to change scheduled mag down time
 			if var == 'fieldWaitTime' and self.state('magUpCompletedTime') > 1:
-				self.state('scheduledMagDownTime', self.state('magUpCompletedTime') + newValue * 60.0)		
+				self.state('scheduledMagDownTime', self.state('magUpCompletedTime') + newValue * 60.0)
+			elif var == 'schedulingActive' and newValue:
+				self.state('autoControl', True)
 		return self.stateVars[var]
 		
 	# clear a state variable
@@ -921,12 +918,7 @@ class ADRServer(DeviceServer):
 		""" Returns whether recording or not. """
 		dev = self.selectedDevice(c)
 		return dev.state('recordTemp')
-			
-	@setting(70, "Show Calibrations")
-	def show_calibrations(self, c):
-		""" Returns the volt-to-resistance calibrations used with the lock-in. Which one to use is selected by switchPosition. """
-		dev = self.selectedDevice(c)
-		return dev.voltToResCalibs
+
 	
 __server__ = ADRServer()
 
