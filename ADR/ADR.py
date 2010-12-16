@@ -442,6 +442,7 @@ class ADRWrapper(DeviceWrapper):
 			elif newStatus == 'magging down':
 				if self.state('autoControl'):
 					self.setHeatSwitch(True)
+				self.state('schedulingActive', False)
 			self.log("ADR %s status is now: %s" % (self.name, self.currentStatus))
 		return self.currentStatus
 	
