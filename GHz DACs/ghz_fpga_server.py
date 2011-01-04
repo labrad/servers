@@ -1072,6 +1072,11 @@ class FPGAServer(DeviceServer):
         order, however each ADC board must be run either in average mode
         or demodulation mode, not both.
         
+        Note that the boards parameter must be a list of strings, *s! If you
+        send in a single string, pylabrad will accept it as a *s but it will
+        be treated as a list of single character strings and you'll get unexpected
+        behavior. For example, if you send in 'abcde' it will be treated like ['a','b','c','d','e'].
+        
         Parameters:
         boards: INSERT EXAMPLE!!!
         """
@@ -1079,6 +1084,7 @@ class FPGAServer(DeviceServer):
             boards = c['timing_order']
         else:                           #Set timing order
             c['timing_order'] = boards
+
         return boards
 
     @setting(55, 'Master Sync', sync='w', returns='w')
@@ -1561,11 +1567,17 @@ class AdcRunner(object):
         """Create non-pipelined setup packet.  For ADC, upload filter func and trig lookup tables."""
         return self.dev.setup(self.filter, self.channels)
     
-    def runPacket(self, reps, page, slave, delay, sync):
-        """Create run packet."""
+    def runPacket(self, page, slave, delay, sync):
+        """Create run packet.
+        
+        The unused arguments page, slave, and sync, in the call signature
+        are there so that we could use the same call for DACs and ADCs.
+        This is cheesey and ought to be fixed.
+        """
+        
         filterFunc, filterStretchLen, filterStretchAt = self.filter
         startDelay = self.startDelay + delay
-        regs = adc.regAdcRun(self.mode, reps, filterFunc, filterStretchLen, filterStretchAt, self.channels, startDelay)
+        regs = adc.regAdcRun(self.mode, self.reps, filterFunc, filterStretchLen, filterStretchAt, self.channels, startDelay)
         return regs
     
     def collectPacket(self, seqTime, ctx):
