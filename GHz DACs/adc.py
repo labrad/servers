@@ -80,7 +80,6 @@ def regAdcRun(mode, reps, filterFunc, filterStretchAt, filterStretchLen, demods,
         regs[addr+2:addr+4] = littleEndian(demods[i]['phi0'], 2)    #Lookup table start address
     return regs
 
-
 def processReadback(resp):
     a = np.fromstring(resp, dtype='<u1')
     return {
@@ -224,7 +223,7 @@ class AdcDevice(DeviceWrapper):
         if triggerCtx is not None:
             p.send_trigger(triggerCtx)
         return p
-
+    
     
     # board communication (can be called from within test mode)
     
@@ -355,15 +354,12 @@ class AdcDevice(DeviceWrapper):
             returnValue(None)
         return self.testMode(func)
 
-        
 def extractAverage(packets):
     """Extract Average waveform from a list of packets (byte strings)."""
     
     data = ''.join(packets) #Join all byte strings together into one long string
     Is, Qs = np.fromstring(data, dtype='<i2').reshape(-1, 2).astype(int).T
     return (Is, Qs)
-
-
 
 def extractDemod(packets, nDemod=DEMOD_CHANNELS_PER_PACKET):
     """Extract Demodulation data from a list of packets (byte strings)."""
