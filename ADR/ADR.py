@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = ADR
-version = 0.2
+version = 0.21
 description = Controls an ADR setup
 
 [startup]
@@ -34,10 +34,7 @@ timeout = 20
 #   Nail down error handling during startup
 #	misc error handling in some other functions. not a huge deal (i think).
 #   PNA functions
-#	implement heat switch open/closing + attendant logic
 #	logic to figure out what status we should be in given peripheral readings on startup
-#	someone who knows how to use an ADR should check over the logic in the state management functions.
-#	test this bitch!
 
 
 from labrad.devices import DeviceServer, DeviceWrapper
@@ -86,12 +83,8 @@ class ADRWrapper(DeviceWrapper):
 		self.ctxt = self.cxn.context()
 		# give us a blank log
 		self.logData = []
-		# set the defaults of our state variables
-		# note that the defaults are actually read FROM THE REGISTRY
-		# the defaults here are the original defaults and will be overwritten
-		# I've left them here for posterity.
-		# Some of the values don't actually have defaults in the registry:
-		# the times (scheduled mag down time, etc)
+		# initialize the state variables. most of these will get overwritten
+		# with defaults from the registry.
 		self.stateVars= {	
 							# magging variables
 							'quenchLimit': 4.0,			# K
@@ -127,6 +120,12 @@ class ADRWrapper(DeviceWrapper):
 							# logging variables
 							'logfile': '%s-log.txt' % self.name,	# the log file
 							'loglimit': 20,					# max # lines held in the log variable (i.e. in memory)
+							'voltages': [0]*8,
+							'temperatures': [0]*8,
+							'magVoltage': 0,
+							'magCurrent': 0,
+							'compressorStatus': False,
+							'missingCriticalPeripheral': True,	# if the compressor, lakeshore, or magnet goes missing, we need to hold any mag cycles in process
 						}
 		# different possible statuses
 		self.possibleStatuses = ['cooling down', 'ready', 'waiting at field', 'waiting to mag up', 'magging up', 'magging down', 'ready to mag down']
@@ -194,8 +193,34 @@ class ADRWrapper(DeviceWrapper):
 		self.state('alive', True)
 		self.log("Now cycling.")
 		while self.state('alive'):
+			haveAllPeriphs = True
+			# update our voltages, etc
+			if 'lakeshore' in self.peripheralsConnected.keys():
+				ls = self.peripheralsConnected['lakeshore']
+				self.state('voltages', yield ls.server.voltages(context=self.ctxt))
+				self.state('temperatures', yield ls.server.temperatures(context=self.ctxt))
+			else:
+				haveAllPeriphs = False
+				self.state('voltages', [0]*8)
+				self.state('temperatures', [0]*8)
+			
+			if 'magnet' in self.peripheralsConnected.keys():
+				mag = self.peripheralsConnected['magnet']
+				self.state('magVoltage', yield mag.server.voltage(context=self.ctxt))
+				self.state('magCurrent', yield mag.server.current(context=self.ctxt))
+			else:
+				haveAllPeriphs = False
+				self.state('magVoltage', 0)
+				self.state('magCurrent', 0)
+			
+			if 'compressor' in self.peripheralsConnected.keys():
+				haveAllPeriphs = False
+				comp = self.peripheralsConnected['compressor']
+				self.state('compressorStatus', yield comp.server.status(context=self.ctxt))
+			
+			self.state('missingCriticalPeripheral', not haveAllPeriphs)
+		
 			# check to see if we should start recording temp
-			#print "%s recordtemp: %s -- autoRecord: %s -- shouldStartRecording: %s" % (self.name, self.state('recordTemp'), self.state('autoRecord'), (yield self.shouldStartRecording()))
 			if (not self.state('recordTemp')) and self.state('autoRecord') and (yield self.shouldStartRecording()):
 				self.startRecording()
 				
@@ -228,7 +253,6 @@ class ADRWrapper(DeviceWrapper):
 					self.status('magging up')
 					
 			elif self.currentStatus == 'magging up':
-				yield util.wakeupCall(self.state('rampWaitTime'))
 				self.clear('magDownCompletedTime')
 				self.clear('magUpCompletedTime')
 				self.clear('scheduledMagDownTime')
@@ -244,6 +268,7 @@ class ADRWrapper(DeviceWrapper):
 					self.state('scheduledMagDownTime', time.time() + self.state('fieldWaitTime')*60)
 				else:
 					pass # if at first we don't succeed, mag, mag again
+				yield util.wakeupCall(self.state('rampWaitTime'))
 					
 			elif self.currentStatus == 'waiting at field':
 				yield util.wakeupCall(self.sleepTime)
@@ -260,7 +285,6 @@ class ADRWrapper(DeviceWrapper):
 				self.psMaxCurrent()
 				
 			elif self.currentStatus == 'magging down':
-				yield util.wakeupCall(self.state('rampWaitTime'))
 				(quenched, targetReached) = yield self.adrMagStep(False)
 				self.log("%s mag step! Quenched: %s -- Target Reached: %s" % (self.name, quenched, targetReached))
 				if quenched:
@@ -270,6 +294,7 @@ class ADRWrapper(DeviceWrapper):
 					self.status('ready')
 					self.state('magDownCompletedTime', time.time())
 					self.psOutputOff()
+				yield util.wakeupCall(self.state('rampWaitTime'))
 					
 			else:
 				yield util.wakeupCall(self.sleepTime)
@@ -280,8 +305,7 @@ class ADRWrapper(DeviceWrapper):
 	@inlineCallbacks
 	def atBase(self):
 		try:
-			ls = self.peripheralsConnected['lakeshore']
-			temps = yield ls.server.temperatures(context = ls.ctxt)
+			temps = self.state('temperatures')
 			returnValue( (temps[1].value < self.state('cooldownLimit')) and (temps[2].value < self.state('cooldownLimit')) )
 		except exceptions.KeyError, e:
 			#print "ADR %s has no lakeshore" % self.name
@@ -298,7 +322,7 @@ class ADRWrapper(DeviceWrapper):
 			self.log("would set %s magnet current -> %s" % (self.name, newCurrent))
 		else:
 			self.log("%s magnet current -> %s" % (self.name, newCurrent))
-                        magnet.server.current(newCurrent, context=magnet.ctxt)
+			magnet.server.current(newCurrent, context=magnet.ctxt)
 	
 	@inlineCallbacks
 	def psOutputOff(self):
@@ -341,13 +365,17 @@ class ADRWrapper(DeviceWrapper):
 	@inlineCallbacks
 	def adrMagStep(self, up):
 		""" If up is True, mags up a step. If up is False, mags down a step. """
-		ls = self.peripheralsConnected['lakeshore']
-		temps = yield ls.server.temperatures(context = ls.ctxt)
-		volts = yield ls.server.voltages(context = ls.ctxt)
-		ps = self.peripheralsConnected['magnet']
-		current = (yield ps.server.current(context=ps.ctxt)).value
-		voltage = (yield ps.server.voltage(context=ps.ctxt)).value
-		quenched = temps[1].value > self.state('quenchLimit') and current > 0.5
+		# don't mag if we don't have all the peripherals we need!
+		if self.state('missingCriticalPeripheral'):
+			print "Missing peripheral! Cannot mag! Check lakeshore, compressor, and magnet!"
+			self.log("Missing peripheral! Cannot mag! Check lakeshore, compressor, and magnet!")
+			yield util.wakeupCall(1.0)
+			returnValue((False, False))
+		temps = self.state('temperatures')
+		volts = self.state('voltages')
+		current = self.state('magCurrent')
+		voltage = self.state('magVoltage')
+		quenched = temps[1] > self.state('quenchLimit') and current > 0.5
 		targetReached = (up and self.state('targetCurrent') - current < 0.001) or (not up and 0.01 > current)
 		newVoltage = voltage
 		#print "  volts[6]: %s\n  volts[7]: %s\n  voltageLimit: %s" % (volts[6].value, volts[7].value, self.state('voltageLimit'))
@@ -453,8 +481,7 @@ class ADRWrapper(DeviceWrapper):
 	def ruoxStatus(self):
 		try:
 			calib = self.state('voltToResCalibs')[self.state('switchPosition') - 1]
-			ls = self.peripheralsConnected['lakeshore']
-			voltage = (yield ls.server.voltages(context=ls.ctxt))[self.state('ruoxChannel')].value
+			voltage = self.state('voltages')[self.state('ruoxChannel')].value
 			resistance = voltage / (calib)* 10**6 # may or may not need this factor of 10^6
 			temp = 0.0
 			if resistance < self.state('resistanceCutoff'):
@@ -503,12 +530,11 @@ class ADRWrapper(DeviceWrapper):
 			dv.new(name, indeps, deps, context=self.ctxt)
 			self.state('tempDatasetName', name)
 		# assemble the info
-		ls = self.peripheralsConnected['lakeshore']
-		temps = yield ls.server.temperatures(context=ls.ctxt)
-		volts = yield ls.server.voltages(context=ls.ctxt)
+		temps = self.state('temperatures')
+		volts = self.state('voltages')
 		ruox = yield self.ruoxStatus()
 		mag = self.peripheralsConnected['magnet']
-		I, V = ((yield mag.server.current(context=mag.ctxt)), (yield mag.server.voltage(context=mag.ctxt)))
+		I, V = (self.state('magCurrent'), self.state('magVoltage'))
 		t = int(time.time())
 		# save the data
 		dv.add([t, temps[0].value, temps[1].value, temps[2].value, volts[3].value, ruox[1], ruox[0], V, I], context=self.ctxt)
@@ -559,8 +585,7 @@ class ADRWrapper(DeviceWrapper):
 		determines whether we should start recording.
 		"""
 		try:
-			ls = self.peripheralsConnected['lakeshore']
-			temp = (yield ls.server.temperatures(context=ls.ctxt))[1].value
+			temp = self.state('temperatures')[1].value
 			returnValue(temp < self.state('recordingTemp'))
 		except Exception, e:
 			#print e
@@ -573,8 +598,7 @@ class ADRWrapper(DeviceWrapper):
 		conditions: temp > 250K, --???
 		"""
 		try:
-			ls = self.peripheralsConnected['lakeshore']
-			temp = (yield ls.server.temperatures(context=ls.ctxt))[1].value
+			temp = self.state('temperatures')[1].value
 			#print "%s %s" % (temp, self.state('recordingTemp'))
 			returnValue(temp > self.state('recordingTemp'))
 		except Exception, e:
@@ -782,45 +806,25 @@ class ADRServer(DeviceServer):
 	def voltages(self, c):
 		""" Returns the voltages from this ADR's lakeshore diode server. """
 		dev = self.selectedDevice(c)
-		if 'lakeshore' in dev.peripheralsConnected.keys():
-			volts = yield dev.peripheralsConnected['lakeshore'].server.voltages(context=dev.ctxt)
-			returnValue(volts)
-		else:
-			returnValue([0.0]*8)
+		return dev.state('voltages')
 	
 	@setting(41, 'Temperatures', returns=['*v[K]'])
 	def temperatures(self, c):
 		""" Returns the temperatures from this ADR's lakeshore diode server. """
 		dev = self.selectedDevice(c)
-		if 'lakeshore' in dev.peripheralsConnected.keys():
-			temps = yield dev.peripheralsConnected['lakeshore'].server.temperatures(context=dev.ctxt)
-			returnValue(temps)
-		else:
-			returnValue([0.0]*8)
+		return dev.state('temperatures')
 			
 	@setting(42, 'Magnet Status', returns=['(v[V] v[A])'])
 	def magnet_status(self, c):
 		""" Returns the voltage and current from the magnet power supply. """
 		dev = self.selectedDevice(c)
-		if 'magnet' in dev.peripheralsConnected.keys():
-			mag = dev.peripheralsConnected['magnet']
-			current = yield mag.server.voltage(context=mag.ctxt)
-			voltage = yield mag.server.current(context=mag.ctxt)
-			returnValue((current, voltage))
-		else:
-			returnValue((0, 0))
+		return (dev.state('current'), dev.state('voltage'))
 			
 	@setting(43, 'Compressor Status', returns=['b'])
 	def compressor_status(self, c):
 		""" Returns True if the compressor is running, false otherwise. """
 		dev = self.selectedDevice(c)
-		if 'compressor' in dev.peripheralsConnected.keys():
-			comp = dev.peripheralsConnected['compressor']
-			stat = yield comp.server.status(context=comp.ctxt)
-			returnValue(stat)
-		else:
-			#raise Exception("No compressor selected")
-			returnValue(False)
+		return (dev.state('compressorStatus'))
 			
 	@setting(44, 'Ruox Status', returns=['(v[K] v[Ohm])'])
 	def ruox_status(self, c):
