@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = ADR
-version = 0.21
+version = 0.211
 description = Controls an ADR setup
 
 [startup]
@@ -197,44 +197,43 @@ class ADRWrapper(DeviceWrapper):
 			# update our voltages, etc
 			if 'lakeshore' in self.peripheralsConnected.keys():
 				ls = self.peripheralsConnected['lakeshore']
-				self.state('voltages', yield ls.server.voltages(context=self.ctxt))
-				self.state('temperatures', yield ls.server.temperatures(context=self.ctxt))
+				self.state('voltages', (yield ls.server.voltages(context=self.ctxt)), False)
+				self.state('temperatures', (yield ls.server.temperatures(context=self.ctxt)), False)
 			else:
 				haveAllPeriphs = False
-				self.state('voltages', [0]*8)
-				self.state('temperatures', [0]*8)
+				self.state('voltages', [0]*8, False)
+				self.state('temperatures', [0]*8, False)
 			
 			if 'magnet' in self.peripheralsConnected.keys():
 				mag = self.peripheralsConnected['magnet']
-				self.state('magVoltage', yield mag.server.voltage(context=self.ctxt))
-				self.state('magCurrent', yield mag.server.current(context=self.ctxt))
+				self.state('magVoltage', (yield mag.server.voltage(context=self.ctxt)), False)
+				self.state('magCurrent', (yield mag.server.current(context=self.ctxt)), False)
 			else:
 				haveAllPeriphs = False
-				self.state('magVoltage', 0)
-				self.state('magCurrent', 0)
+				self.state('magVoltage', 0, False)
+				self.state('magCurrent', 0, False)
 			
 			if 'compressor' in self.peripheralsConnected.keys():
-				haveAllPeriphs = False
 				comp = self.peripheralsConnected['compressor']
-				self.state('compressorStatus', yield comp.server.status(context=self.ctxt))
+				self.state('compressorStatus', (yield comp.server.status(context=self.ctxt)), False)
+			else:
+                                haveAllPeriphs = False
 			
-			self.state('missingCriticalPeripheral', not haveAllPeriphs)
-		
+			self.state('missingCriticalPeripheral', not haveAllPeriphs, False)
 			# check to see if we should start recording temp
-			if (not self.state('recordTemp')) and self.state('autoRecord') and (yield self.shouldStartRecording()):
+			if (not self.state('recordTemp')) and self.state('autoRecord') and self.shouldStartRecording():
 				self.startRecording()
-				
 			# now check through the different statuses
 			if self.currentStatus == 'cooling down':
 				yield util.wakeupCall(self.sleepTime)
 				# check if we're at base (usually 3.9K), then set status -> ready
-				if (yield self.atBase()):
+				if self.atBase():
 					self.status('ready')
 					
 			elif self.currentStatus == 'ready':
 				yield util.wakeupCall(self.sleepTime)
 				# do we need to cool back down to 3.9K? (i.e. wait)
-				if not (yield self.atBase()):
+				if not self.atBase():
 					self.status('cooling down')
 				# if scheduling is enabled, go to "waiting to mag up":
 				if self.state('schedulingActive'):
@@ -246,10 +245,10 @@ class ADRWrapper(DeviceWrapper):
 				if not self.state('schedulingActive'):
 					self.status('ready')
 				# do we need to cool back down to 3.9K? (i.e. wait)
-				if not (yield self.atBase()):
+				if not self.atBase():
 					self.status('cooling down')
 				# is it time to mag up?
-				if time.time() > self.state('scheduledMagUpTime') and (yield self.atBase()):
+				if time.time() > self.state('scheduledMagUpTime') and self.atBase():
 					self.status('magging up')
 					
 			elif self.currentStatus == 'magging up':
@@ -298,18 +297,14 @@ class ADRWrapper(DeviceWrapper):
 					
 			else:
 				yield util.wakeupCall(self.sleepTime)
+		self.state('alive', False)
 			
 	
 	# these are copied from the LabView program
 	# TODO: add error checking
-	@inlineCallbacks
 	def atBase(self):
-		try:
-			temps = self.state('temperatures')
-			returnValue( (temps[1].value < self.state('cooldownLimit')) and (temps[2].value < self.state('cooldownLimit')) )
-		except exceptions.KeyError, e:
-			#print "ADR %s has no lakeshore" % self.name
-			returnValue(False)
+		temps = self.state('temperatures')
+		return( (temps[1].value < self.state('cooldownLimit')) and (temps[2].value < self.state('cooldownLimit')) )
 	
 	def psMaxCurrent(self):
 		""" sets the magnet current to the max current. """
@@ -442,10 +437,11 @@ class ADRWrapper(DeviceWrapper):
 	#########################
 	
 	# getter/setter for state variables
-	def state(self, var, newValue = None):
+	def state(self, var, newValue = None, log = True):
 		if newValue is not None:
 			self.stateVars[var] = newValue
-			self.log('Set %s to %s' % (var, str(newValue)))
+			if log:
+        			self.log('Set %s to %s' % (var, str(newValue)))
 			# if we changed the field wait time, we may need to change scheduled mag down time
 			if var == 'fieldWaitTime' and self.state('magUpCompletedTime') > 1:
 				self.state('scheduledMagDownTime', self.state('magUpCompletedTime') + newValue * 60.0)
@@ -477,23 +473,18 @@ class ADRWrapper(DeviceWrapper):
 	# returns the cold stage resistance and temperature
 	# interpreted from "RuOx thermometer.vi" LabView program, such as I can
 	# the voltage reading is from lakeshore channel 4 (i.e. index 3)
-	@inlineCallbacks
 	def ruoxStatus(self):
-		try:
-			calib = self.state('voltToResCalibs')[self.state('switchPosition') - 1]
-			voltage = self.state('voltages')[self.state('ruoxChannel')].value
-			resistance = voltage / (calib)* 10**6 # may or may not need this factor of 10^6
-			temp = 0.0
-			if resistance < self.state('resistanceCutoff'):
-				# high temp (2 to 20 K)
-				temp = self.state('highTempRuoxCurve')(resistance, self.state('ruoxCoefsHigh'))
-			else:
-				# low temp (0.05 to 2 K)
-				temp = self.state('lowTempRuoxCurve')(resistance, self.state('ruoxCoefsLow'))
-			returnValue((temp, resistance))
-		except Exception, e: # the main exception i expect is when there's no lakeshore connected
-			print e
-			returnValue((0.0, 0.0))
+                calib = self.state('voltToResCalibs')[self.state('switchPosition') - 1]
+		voltage = self.state('voltages')[self.state('ruoxChannel')].value
+		resistance = voltage / (calib)* 10**6 # may or may not need this factor of 10^6
+		temp = 0.0
+		if resistance < self.state('resistanceCutoff'):
+			# high temp (2 to 20 K)
+			temp = self.state('highTempRuoxCurve')(resistance, self.state('ruoxCoefsHigh'))
+		else:
+			# low temp (0.05 to 2 K)
+			temp = self.state('lowTempRuoxCurve')(resistance, self.state('ruoxCoefsLow'))
+		return (temp, resistance)
 			
 	###################################
 	# TEMPERATURE RECORDING FUNCTIONS #
@@ -504,8 +495,7 @@ class ADRWrapper(DeviceWrapper):
 	# in critical periods, do it every 10 s.
 	# a "critical period" would be triggered when you start magging up or on user command
 	# it would end when the heat switch closes, when temp > (some value), after X hours, or on user command
-	
-	@inlineCallbacks
+
 	def recordTemp(self):
 		"""
 		writes to the data vault.
@@ -532,12 +522,11 @@ class ADRWrapper(DeviceWrapper):
 		# assemble the info
 		temps = self.state('temperatures')
 		volts = self.state('voltages')
-		ruox = yield self.ruoxStatus()
-		mag = self.peripheralsConnected['magnet']
+		ruox = self.ruoxStatus()
 		I, V = (self.state('magCurrent'), self.state('magVoltage'))
 		t = int(time.time())
 		# save the data
-		dv.add([t, temps[0].value, temps[1].value, temps[2].value, volts[3].value, ruox[1], ruox[0], V, I], context=self.ctxt)
+		dv.add([t, temps[0], temps[1], temps[2], volts[3], ruox[1], ruox[0], V, I], context=self.ctxt)
 		# log!
 		self.log("Temperature log recorded: %s" % time.strftime("%Y-%m-%d %H:%M", time.localtime(t)))
 		
@@ -553,13 +542,13 @@ class ADRWrapper(DeviceWrapper):
 			self.recordTemp()
 
 			# check if we should stop recording
-			if self.state('autoRecord') and (yield self.shouldStopRecording()):
+			if self.state('autoRecord') and self.shouldStopRecording():
 				self.stopRecording()
 				break
 
 			d = defer.Deferred()	# we use a blank deferred, so nothing will actually happen when we finish
 			e = reactor.callLater(self.state('tempRecordDelay'), d.callback, None)
-			self.state('tempDelayedCall', e)
+			self.state('tempDelayedCall', e, False)
 			# and now, we wait.
 			yield d
 			# note that we can interrupt the waiting by messing with the e object (saved in a state variable)
@@ -579,31 +568,21 @@ class ADRWrapper(DeviceWrapper):
 			except twisted.internet.error.AlreadyCalled:
 				pass
 	
-	@inlineCallbacks
 	def shouldStartRecording(self):
 		"""
 		determines whether we should start recording.
 		"""
-		try:
-			temp = self.state('temperatures')[1].value
-			returnValue(temp < self.state('recordingTemp'))
-		except Exception, e:
-			#print e
-			returnValue(False)
+		temp = self.state('temperatures')[1].value
+		return temp < self.state('recordingTemp')
 		
-	@inlineCallbacks
 	def shouldStopRecording(self):
 		"""
 		determines whether to stop recording.
 		conditions: temp > 250K, --???
 		"""
-		try:
-			temp = self.state('temperatures')[1].value
-			#print "%s %s" % (temp, self.state('recordingTemp'))
-			returnValue(temp > self.state('recordingTemp'))
-		except Exception, e:
-			#print e
-			returnValue(True)
+		temp = self.state('temperatures')[1].value
+		return temp > self.state('recordingTemp')
+
 		
 		
 	#################################
@@ -818,7 +797,7 @@ class ADRServer(DeviceServer):
 	def magnet_status(self, c):
 		""" Returns the voltage and current from the magnet power supply. """
 		dev = self.selectedDevice(c)
-		return (dev.state('current'), dev.state('voltage'))
+		return (dev.state('magCurrent'), dev.state('magVoltage'))
 			
 	@setting(43, 'Compressor Status', returns=['b'])
 	def compressor_status(self, c):
