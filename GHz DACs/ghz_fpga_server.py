@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 3.0.3
+version = 3.0.4
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -845,7 +845,8 @@ class FPGAServer(DeviceServer):
         phi = np.pi/2 * (np.arange(N) + 0.5) / N
         ch['sine'] = np.floor(sineAmp * np.sin(phi) + 0.5).astype('uint8')      #Sine waveform for this channel
         ch['cosine'] = np.floor(cosineAmp * np.sin(phi) + 0.5).astype('uint8')  #Cosine waveform for this channel, note that the function is still a SINE function!
-    
+
+        
     @setting(42, 'ADC Demod Phase', channel='w', dPhi='i', phi0='i', returns='')
     def adc_demod_frequency(self, c, channel, dPhi, phi0=0):
         """Set the trig table address step and initial phase for a demodulation channel. (ADC only)
@@ -856,17 +857,20 @@ class FPGAServer(DeviceServer):
         addresses. The six least significant bits are ignored when accessing the accululator to read
         the lookup table. This gives sub-address timing resolution.
         
-        The demodulation frequency is related to dPhi as follows:
-        2^6 = 64 steps in the accumulator are needed to produce one step in the lookup table address.
-        If we incriment the accumulator by 1 each time step then we go through
-        (1/64*Address)*(1 cycle/1024 Address) = (2**-16)cycle
+        The physical demodulation frequency is related to dPhi as follows:
+        Since the least significant bits of the accumulator are dropped, it takes 2^6=64 clicks to
+        increment the lookup table address by one. Therefore, if we incriment the accumulator by 1
+        click each time step then we go through
+        ((1/64)*Address)*(1 cycle/1024 Address) = (2**-16)cycle
         This happens every 2ns, so we have 2**-16 cycle/2ns = 2**-17 GHz = 7.629 KHz
         Therefore, dPhi = desiredFrequency/7629Hz.
         
-        Note that the same thing applies to the phase variable, as it is given in trig lookup address
-        units. The lookup table is 1024 addresses wide so the formula for phi0 is
-        phi0 = 1024*phaseCycles
-        where phaseCycles is the desired phase in cycles, not radians!
+        The initial phase works the same way. We specify a sixteen bit number to determine the initial lookup
+        table address, but only the six least significant bits are dropped. Since the trig table is 2^10
+        addresses long and once trip through the table is one cycle, you have to increment by 2^16 clicks to
+        go through the table once. Therefore, the starting phase is determined as
+        phi0 = phase0*(2^16)
+        where phase0 is the starting phase in CYCLES!
         """
         assert -2**15 <= dPhi < 2**15, 'delta phi out of range' #16 bit 2's compliment number for demod trig function
         assert -2**15 <= phi0 < 2**15, 'phi0 out of range'
@@ -986,6 +990,8 @@ class FPGAServer(DeviceServer):
                 except KeyError:
                     raise Exception("No filter function specified for ADC board '%s'" % dev.devName)
                 channels = dict((i, info[i]) for i in range(adc.DEMOD_CHANNELS) if i in info)
+                #for key,value in channels.items():
+                #    print key,value
                 runner = AdcRunner(dev, reps, runMode, startDelay, filter, channels)
             else:
                 raise Exception("Unknown device type: %s" % dev) 
