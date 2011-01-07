@@ -45,7 +45,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 import twisted.internet.error
 
 import numpy as np
-import time, exceptions, labrad.util
+import time, exceptions, labrad.util, labrad.units
 
 #Registry path to ADR configurations
 CONFIG_PATH = ['','Servers','ADR']
@@ -120,8 +120,8 @@ class ADRWrapper(DeviceWrapper):
 							# logging variables
 							'logfile': '%s-log.txt' % self.name,	# the log file
 							'loglimit': 20,					# max # lines held in the log variable (i.e. in memory)
-							'voltages': [0]*8,
-							'temperatures': [0]*8,
+							'voltages': [0*labrad.units.V]*8,
+							'temperatures': [0*labrad.units.K]*8,
 							'magVoltage': 0,
 							'magCurrent': 0,
 							'compressorStatus': False,
@@ -201,8 +201,8 @@ class ADRWrapper(DeviceWrapper):
 				self.state('temperatures', (yield ls.server.temperatures(context=self.ctxt)), False)
 			else:
 				haveAllPeriphs = False
-				self.state('voltages', [0]*8, False)
-				self.state('temperatures', [0]*8, False)
+				self.state('voltages', [0*labrad.units.V]*8, False)
+				self.state('temperatures', [0*labrad.units.K]*8, False)
 			
 			if 'magnet' in self.peripheralsConnected.keys():
 				mag = self.peripheralsConnected['magnet']
@@ -210,8 +210,8 @@ class ADRWrapper(DeviceWrapper):
 				self.state('magCurrent', (yield mag.server.current(context=self.ctxt)), False)
 			else:
 				haveAllPeriphs = False
-				self.state('magVoltage', 0, False)
-				self.state('magCurrent', 0, False)
+				self.state('magVoltage', 0*labrad.units.V, False)
+				self.state('magCurrent', 0*labrad.units.A, False)
 			
 			if 'compressor' in self.peripheralsConnected.keys():
 				comp = self.peripheralsConnected['compressor']
@@ -304,7 +304,7 @@ class ADRWrapper(DeviceWrapper):
 	# TODO: add error checking
 	def atBase(self):
 		temps = self.state('temperatures')
-		return( (temps[1].value < self.state('cooldownLimit')) and (temps[2].value < self.state('cooldownLimit')) )
+		return( (temps[1] < self.state('cooldownLimit')) and (temps[2] < self.state('cooldownLimit')) )
 	
 	def psMaxCurrent(self):
 		""" sets the magnet current to the max current. """
@@ -388,6 +388,7 @@ class ADRWrapper(DeviceWrapper):
 			self.log("would set %s magnet voltage -> %s" % (self.name, newVoltage))
 		else:
 			self.log("%s magnet voltage -> %s" % (self.name, newVoltage))
+			ps = self.peripheralsConnected['magnet']
 			yield ps.server.voltage(newVoltage, context=ps.ctxt)
 		returnValue((quenched, targetReached))
 	
@@ -572,7 +573,7 @@ class ADRWrapper(DeviceWrapper):
 		"""
 		determines whether we should start recording.
 		"""
-		temp = self.state('temperatures')[1].value
+		temp = self.state('temperatures')[1]
 		return temp < self.state('recordingTemp')
 		
 	def shouldStopRecording(self):
@@ -580,7 +581,7 @@ class ADRWrapper(DeviceWrapper):
 		determines whether to stop recording.
 		conditions: temp > 250K, --???
 		"""
-		temp = self.state('temperatures')[1].value
+		temp = self.state('temperatures')[1]
 		return temp > self.state('recordingTemp')
 
 		
