@@ -16,9 +16,9 @@
 """
 ### BEGIN NODE INFO
 [info]
-name = Hittite ADD_MODEL_NUMBER Server
+name = Hittite T2100 Server
 version = 1.0
-description = 
+description = Microwave function generator
 
 [startup]
 cmdline = %PYTHON% %FILE%
@@ -77,8 +77,8 @@ class HittiteWrapper(GPIBDeviceWrapper):
 
 class HittiteServer(GPIBManagedServer):
     """ADD DOCUMENT STRING"""
-    name = 'Hittite MODEL NUMBER Server'
-    deviceName = 'HITTITE T2100'
+    name = 'Hittite T2100 Server'
+    deviceName = 'HITTITE HMC-T2100'
     deviceWrapper = HittiteWrapper
 
     @setting(10, 'Frequency', f=['v[Hz]'], returns=['v[MHz]'])
