@@ -37,36 +37,37 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 class HittiteWrapper(GPIBDeviceWrapper):
 	@inlineCallbacks
 	def initialize(self):
-		print "initializing!"
 		self.frequency = yield self.getFrequency()
 		self.amplitude = yield self.getAmplitude()
 		self.output = yield self.getOutput()
 
 	@inlineCallbacks
 	def getOutput(self):
-		self.output  = yield self.query('OUTP:STAT?').addCallback(bool)
+		self.output  = yield self.query('OUTP:STAT?')#.addCallback(bool)
 		returnValue(self.output)
 	 
 	@inlineCallbacks 
 	def getFrequency(self):
-		self.frequency = yield self.query('SOUR:FREQ?').addCallback(float)
+		self.frequency = yield self.query('SOUR:FREQ?')#.addCallback(float)
 		returnValue(self.frequency)
 
 	@inlineCallbacks
 	def getAmplitude(self):
-		self.amplitude = yield self.query('SOUR:POW:LEV:AMP?').addCallback(float)
+		self.amplitude = yield self.query('SOUR:POW:LEV:AMPL?')#.addCallback(float)
 		returnValue(self.amplitude)
 
 	@inlineCallbacks
 	def setFrequency(self, f):
+		f = f['Hz']
 		if self.frequency != f:
 			yield self.write('SOUR:FREQ:FIX %f' % f)
 			self.frequency = f
 	
 	@inlineCallbacks
 	def setAmplitude(self, a):
+		a = a['dBm']
 		if self.amplitude != a:
-			yield self.write('SOUR:POW:LEV:IMM:AMP %f' % a)
+			yield self.write('SOUR:POW:LEV:IMM:AMPL %f' % a)
 			self.amplitude = a
 
 	@inlineCallbacks
@@ -104,7 +105,7 @@ class HittiteServer(GPIBManagedServer):
 		dev = self.selectedDevice(c)
 		if os is not None:
 			yield dev.setOutput(os)
-		returnValue(dev.output)
+		returnValue(dev.output == 1)
 
 __server__ = HittiteServer()
 
