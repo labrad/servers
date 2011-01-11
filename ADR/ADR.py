@@ -16,9 +16,9 @@
 """
 ### BEGIN NODE INFO
 [info]
-name = ADR
+name = ADR Server
 version = 0.211
-description = Controls an ADR setup
+description =
 
 [startup]
 cmdline = %PYTHON% %FILE%
@@ -100,6 +100,14 @@ class ADRWrapper(DeviceWrapper):
 							'waitToMagDown': True,
 							'autoControl': False,
 							'switchPosition': 2,		# switch position on the lock in amplifier box
+							# PID variables
+							'PIDsetTemp': 0.0 * labrad.units.K,		# setTemp is the temperature goal for PID control
+							'PIDcp': 2.0 * labrad.units.V / labrad.units.K,
+							'PIDcd': 70.0 * labrad.units.V * labrad.units.s / labrad.units.K,
+							'PIDterr': 0,
+							'PIDloopCount': 0,
+							'PIDout': 0 * labrad.units.V,
+							'PIDstepTimeout': 5,		# max amount of time we will remain in PID stepping loop
 							# scheduling variables
 							'schedulingActive': False,				# whether or not we will auto-mag up or down based on schedule.
 							'scheduledMagDownTime': 0,				# time to start magging down
@@ -128,7 +136,7 @@ class ADRWrapper(DeviceWrapper):
 							'missingCriticalPeripheral': True,	# if the compressor, lakeshore, or magnet goes missing, we need to hold any mag cycles in process
 						}
 		# different possible statuses
-		self.possibleStatuses = ['cooling down', 'ready', 'waiting at field', 'waiting to mag up', 'magging up', 'magging down', 'ready to mag down']
+		self.possibleStatuses = ['cooling down', 'ready', 'waiting at field', 'waiting to mag up', 'magging up', 'magging down', 'ready to mag down', 'pid control']
 		self.currentStatus = 'cooling down'
 		self.sleepTime = 1.0
 		# find our peripherals
@@ -192,115 +200,149 @@ class ADRWrapper(DeviceWrapper):
 		"""
 		self.state('alive', True)
 		self.log("Now cycling.")
+		lastTime = time.time()
 		while self.state('alive'):
-                        try:
-        			haveAllPeriphs = True
-                		# update our voltages, etc
-                        	if 'lakeshore' in self.peripheralsConnected.keys():
-                                	ls = self.peripheralsConnected['lakeshore']
-                                        self.state('voltages', (yield ls.server.voltages(context=self.ctxt)), False)
-        				self.state('temperatures', (yield ls.server.temperatures(context=self.ctxt)), False)
-                                else:
-                                        haveAllPeriphs = False
-                                        self.state('voltages', [0*labrad.units.V]*8, False)
-                                        self.state('temperatures', [0*labrad.units.K]*8, False)
-                                
-                                if 'magnet' in self.peripheralsConnected.keys():
-                                        mag = self.peripheralsConnected['magnet']
-                                        self.state('magVoltage', (yield mag.server.voltage(context=self.ctxt)), False)
-                                        self.state('magCurrent', (yield mag.server.current(context=self.ctxt)), False)
-                                else:
-                                        haveAllPeriphs = False
-                                        self.state('magVoltage', 0*labrad.units.V, False)
-                                        self.state('magCurrent', 0*labrad.units.A, False)
-                                
-                                if 'compressor' in self.peripheralsConnected.keys():
-                                        comp = self.peripheralsConnected['compressor']
-                                        self.state('compressorStatus', (yield comp.server.status(context=self.ctxt)), False)
-                                else:
-                                        haveAllPeriphs = False
-                                
-                                self.state('missingCriticalPeripheral', not haveAllPeriphs, False)
-                                # check to see if we should start recording temp
-                                if (not self.state('recordTemp')) and self.state('autoRecord') and self.shouldStartRecording():
-                                        self.startRecording()
-                                # now check through the different statuses
-                                if self.currentStatus == 'cooling down':
-                                        yield util.wakeupCall(self.sleepTime)
-                                        # check if we're at base (usually 3.9K), then set status -> ready
-                                        if self.atBase():
-                                                self.status('ready')
-                                                
-                                elif self.currentStatus == 'ready':
-                                        yield util.wakeupCall(self.sleepTime)
-                                        # do we need to cool back down to 3.9K? (i.e. wait)
-                                        if not self.atBase():
-                                                self.status('cooling down')
-                                        # if scheduling is enabled, go to "waiting to mag up":
-                                        if self.state('schedulingActive'):
-                                                self.status('waiting to mag up')
-                                                
-                                elif self.currentStatus == 'waiting to mag up':
-                                        yield util.wakeupCall(self.sleepTime)
-                                        # is scheduling still active?
-                                        if not self.state('schedulingActive'):
-                                                self.status('ready')
-                                        # do we need to cool back down to 3.9K? (i.e. wait)
-                                        if not self.atBase():
-                                                self.status('cooling down')
-                                        # is it time to mag up?
-                                        if time.time() > self.state('scheduledMagUpTime') and self.atBase():
-                                                self.status('magging up')
-                                                
-                                elif self.currentStatus == 'magging up':
-                                        self.clear('magDownCompletedTime')
-                                        self.clear('magUpCompletedTime')
-                                        self.clear('scheduledMagDownTime')
-                                        (quenched, targetReached) = yield self.adrMagStep(True) # True = mag step up
-                                        self.log("%s mag step! Quenched: %s -- Target Reached: %s" % (self.name, quenched, targetReached))
-                                        if quenched:
-                                                self.log("QUENCHED!")
-                                                self.status('cooling down')
-                                        elif targetReached:
-                                                self.status('waiting at field')
-                                                self.psMaxCurrent()
-                                                self.state('magUpCompletedTime', time.time())
-                                                self.state('scheduledMagDownTime', time.time() + self.state('fieldWaitTime')*60)
-                                        else:
-                                                pass # if at first we don't succeed, mag, mag again
-                                        yield util.wakeupCall(self.state('rampWaitTime'))
-                                                
-                                elif self.currentStatus == 'waiting at field':
-                                        yield util.wakeupCall(self.sleepTime)
-                                        # is it time to mag down?
-                                        if time.time() > self.state('scheduledMagDownTime'):
-                                                if not self.state('schedulingActive'):
-                                                        self.status('ready to mag down')
-                                                else:
-                                                        self.state('schedulingActive', False)
-                                                        self.status('magging down')
-                                                
-                                elif self.currentStatus == 'ready to mag down':
-                                        yield util.wakeupCall(self.sleepTime)
-                                        self.psMaxCurrent()
-                                        
-                                elif self.currentStatus == 'magging down':
-                                        (quenched, targetReached) = yield self.adrMagStep(False)
-                                        self.log("%s mag step! Quenched: %s -- Target Reached: %s" % (self.name, quenched, targetReached))
-                                        if quenched:
-                                                self.log("%s Quenched!" % self.name)
-                                                self.status('cooling down')
-                                        elif targetReached:
-                                                self.status('ready')
-                                                self.state('magDownCompletedTime', time.time())
-                                                self.psOutputOff()
-                                        yield util.wakeupCall(self.state('rampWaitTime'))
-                                                
-                                else:
-                                        yield util.wakeupCall(self.sleepTime)
-                        except Exception, e:
-                                print "Exception in cycle loop: %s" % e.__str__()
-                                self.log("Exception in cycle loop: %s" % e.__str__())
+			try:
+				if not self.cxn._cxn.connected:
+					self.log('LabRAD connection lost.')
+					self.state('alive', False)
+					break
+				haveAllPeriphs = True
+				# update our voltages, etc
+				if 'lakeshore' in self.peripheralsConnected.keys():
+					ls = self.peripheralsConnected['lakeshore']
+					self.state('voltages', (yield ls.server.voltages(context=self.ctxt)), False)
+					self.state('temperatures', (yield ls.server.temperatures(context=self.ctxt)), False)
+				else:
+					haveAllPeriphs = False
+					self.state('voltages', [0*labrad.units.V]*8, False)
+					self.state('temperatures', [0*labrad.units.K]*8, False)
+			
+				if 'magnet' in self.peripheralsConnected.keys():
+					mag = self.peripheralsConnected['magnet']
+					self.state('magVoltage', (yield mag.server.voltage(context=self.ctxt)), False)
+					self.state('magCurrent', (yield mag.server.current(context=self.ctxt)), False)
+				else:
+					haveAllPeriphs = False
+					self.state('magVoltage', 0*labrad.units.V, False)
+					self.state('magCurrent', 0*labrad.units.A, False)
+				
+				if 'compressor' in self.peripheralsConnected.keys():
+					comp = self.peripheralsConnected['compressor']
+					self.state('compressorStatus', (yield comp.server.status(context=self.ctxt)), False)
+				else:
+					haveAllPeriphs = False
+				
+				self.state('missingCriticalPeripheral', not haveAllPeriphs, False)
+				
+				# check to see if we should start recording temp
+				if (not self.state('recordTemp')) and self.state('autoRecord') and self.shouldStartRecording():
+					self.startRecording()
+				# now check through the different statuses
+				if self.currentStatus == 'cooling down':
+					yield util.wakeupCall(self.sleepTime)
+					# check if we're at base (usually 3.9K), then set status -> ready
+					if self.atBase():
+						self.status('ready')
+								
+				elif self.currentStatus == 'ready':
+					yield util.wakeupCall(self.sleepTime)
+					# do we need to cool back down to 3.9K? (i.e. wait)
+					if not self.atBase():
+						self.status('cooling down')
+					# if scheduling is enabled, go to "waiting to mag up":
+					if self.state('schedulingActive'):
+						self.status('waiting to mag up')
+								
+				elif self.currentStatus == 'waiting to mag up':
+					yield util.wakeupCall(self.sleepTime)
+					# is scheduling still active?
+					if not self.state('schedulingActive'):
+						self.status('ready')
+					# do we need to cool back down to 3.9K? (i.e. wait)
+					if not self.atBase():
+						self.status('cooling down')
+					# is it time to mag up?
+					if time.time() > self.state('scheduledMagUpTime') and self.atBase():
+						self.status('magging up')
+								
+				elif self.currentStatus == 'magging up':
+					self.clear('magDownCompletedTime')
+					self.clear('magUpCompletedTime')
+					self.clear('scheduledMagDownTime')
+					(quenched, targetReached) = yield self.adrMagStep(True) # True = mag step up
+					self.log("%s mag step! Quenched: %s -- Target Reached: %s" % (self.name, quenched, targetReached))
+					if quenched:
+						self.log("QUENCHED!")
+						self.status('cooling down')
+					elif targetReached:
+						self.status('waiting at field')
+						self.psMaxCurrent()
+						self.state('magUpCompletedTime', time.time())
+						self.state('scheduledMagDownTime', time.time() + self.state('fieldWaitTime')*60)
+					else:
+						pass # if at first we don't succeed, mag, mag again
+					yield util.wakeupCall(self.state('rampWaitTime'))
+								
+				elif self.currentStatus == 'waiting at field':
+					yield util.wakeupCall(self.sleepTime)
+					# is it time to mag down?
+					if time.time() > self.state('scheduledMagDownTime'):
+						if not self.state('schedulingActive'):
+							self.status('ready to mag down')
+						else:
+							self.state('schedulingActive', False)
+							self.status('magging down')
+					
+				elif self.currentStatus == 'ready to mag down':
+					yield util.wakeupCall(self.sleepTime)
+						
+				elif self.currentStatus == 'magging down':
+					(quenched, targetReached) = yield self.adrMagStep(False)
+					self.log("%s mag step! Quenched: %s -- Target Reached: %s" % (self.name, quenched, targetReached))
+					if quenched:
+						self.log("%s Quenched!" % self.name)
+						self.status('cooling down')
+					elif targetReached:
+						self.status('ready')
+						self.state('magDownCompletedTime', time.time())
+						self.psOutputOff()
+					yield util.wakeupCall(self.state('rampWaitTime'))
+					
+				elif self.currentStatus == 'pid control':
+					yield util.wakeupCall(self.sleepTime)
+					# try to get to the setTemp state variable with a PID control loop
+					dt = time.time() - lastTime
+					# save old t error
+					terrOld = self.state('PIDterr')
+					# set current t error
+					self.state('PIDterr', self.state('PIDsetTemp') - self.ruoxStatus()[0], False)
+					P = self.state('PIDterr') * self.state('PIDcp')
+					if self.state('PIDloopCount') > 0:
+						D = (self.state('PIDterr') - terrOld) / (dt * labrad.units.s)
+					else:
+						D = 0
+					# target voltage
+					self.state('PIDout', self.state('PIDout') + P + D, False)
+					if self.state('PIDout') < 0:
+						self.state('PIDout', 0, False)
+					self.log('PID: T: %s  V: %s  P: %s  D: %s' % (self.ruoxStatus()[0], self.state('PIDout'), P, D))
+					# now step to it
+					yield self.PIDstep(self.state('PIDout'))
+					
+				else:
+					yield util.wakeupCall(self.sleepTime)
+				# end of if (currentStatus)
+				lastTime = time.time()
+			# end of try
+			except KeyboardInterrupt:#, SystemExit):
+				self.state('alive', False)
+				
+			except Exception, e:
+				print "Exception in cycle loop: %s" % e.__str__()
+				self.log("Exception in cycle loop: %s" % e.__str__())
+				yield util.wakeupCall(self.sleepTime)
+		# end of while loop
 		self.state('alive', False)
 			
 	
@@ -395,6 +437,32 @@ class ADRWrapper(DeviceWrapper):
 			ps = self.peripheralsConnected['magnet']
 			yield ps.server.voltage(newVoltage, context=ps.ctxt)
 		returnValue((quenched, targetReached))
+		
+	@inlineCallbacks
+	def PIDstep(setV):
+		''' step the magnet to a voltage target. Note that this will repeatedly make small steps in the manner of a mag step. '''
+		startTime = time.time()
+		doneStepping = False
+		while not doneStepping:
+			# check current voltages
+			ls = self.peripheralsConnected['lakeshore']
+			self.state('voltages', (yield ls.server.voltages(context=self.ctxt)), False)
+			mag = self.peripheralsConnected['magnet']
+			self.state('magVoltage', (yield mag.server.voltage(context=self.ctxt)), False)
+			volts = self.state('voltages')
+			
+			if abs(volts[6]) < self.state('voltageLimit') and abs(volts[7]) < self.state('voltageLimit'):
+				verr = setV - self.state('magVoltage')
+				if abs(verr) > max(self.state('voltageStepUp'), self.state('voltageStepDown')):
+					vnew = self.state('magVoltage') + np.sign(verr) * max(self.state('voltageStepUp'), self.state('voltageStepDown'))
+					yield mag.server.voltage(vnew['V'], context = self.ctxt)
+				else:
+					doneStepping = True
+				dt = time.time() - startTime
+				if dt > self.state('PIDstepTimeout'):
+					doneStepping = True
+			yield util.wakeupCall(self.state('rampWaitTime'))
+			
 	
 	@inlineCallbacks
 	def setHeatSwitch(self, open):
@@ -472,14 +540,17 @@ class ADRWrapper(DeviceWrapper):
 				if self.state('autoControl'):
 					self.setHeatSwitch(True)
 				self.state('schedulingActive', False)
+			elif newStatus == 'pid control':
+				self.psOutputOn()
 			self.log("ADR %s status is now: %s" % (self.name, self.currentStatus))
+			self.state('PIDloopCount', 0)
 		return self.currentStatus
 	
 	# returns the cold stage resistance and temperature
 	# interpreted from "RuOx thermometer.vi" LabView program, such as I can
 	# the voltage reading is from lakeshore channel 4 (i.e. index 3)
 	def ruoxStatus(self):
-                calib = self.state('voltToResCalibs')[self.state('switchPosition') - 1]
+		calib = self.state('voltToResCalibs')[self.state('switchPosition') - 1]
 		voltage = self.state('voltages')[self.state('ruoxChannel')].value
 		resistance = voltage / (calib)* 10**6 # may or may not need this factor of 10^6
 		temp = 0.0
@@ -724,11 +795,11 @@ class ADRServer(DeviceServer):
 	deviceName = 'ADR'
 	deviceWrapper = ADRWrapper
 	
-	def initServer(self):
-		return DeviceServer.initServer(self)
+	#def initServer(self):
+	#	return DeviceServer.initServer(self)
 	
-	def stopServer(self):
-		return DeviceServer.stopServer(self)
+	#def stopServer(self):
+	#	return DeviceServer.stopServer(self)
 
 	@inlineCallbacks
 	def findDevices(self):
