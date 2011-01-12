@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 3.0.4
+version = 3.0.5
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -891,16 +891,22 @@ class FPGAServer(DeviceServer):
         d = c.setdefault(dev, {})   # if c[dev] exists, d = c[dev]. Otherwise d = {} and c[dev] = {} 
         d['runMode'] = mode         # d points to the same object as c[dev], which is MUTABLE. Mutating d mutates c[dev]!!!
 
-    @setting(45, 'ADC Start Delay', delay='w', returns='')
-    def adc_start_delay(self, c, delay):
-        """Specify the time to delay before starting ADC acquisition.  (ADC only)
+    # @setting(45, 'ADC Start Delay', delay='w', returns='')
+    # def adc_start_delay(self, c, delay):
+        # """Specify the time to delay before starting ADC acquisition.  (ADC only)
         
-        The delay is specified in nanoseconds from the start of SRAM.  Note that
-        just as for DAC boards, the daisy-chain delays are compensated automatically,
-        so this delay should be relative to the start of the programmed SRAM sequence.
-        """
-        dev = self.selectedADC(c)
-        c.setdefault(dev, {})['startDelay'] = delay
+        # The delay is specified in nanoseconds from the start of SRAM.  Note that
+        # just as for DAC boards, the daisy-chain delays are compensated automatically,
+        # so this delay should be relative to the start of the programmed SRAM sequence.
+        # """
+        # dev = self.selectedADC(c)
+        # c.setdefault(dev, {})['startDelay'] = delay
+
+    @setting(45, 'Start Delay', delay='w', returns='')
+    def start_delay(self, c, delay):
+        dev = self.selectedDevice(c)
+        d = c.setdefault(dev, {})
+        d['startDelay'] = delay
 
     @setting(46, 'ADC Demod Range', returns='i{Imax}, i{Imin}, i{Qmax}, i{Qmin}')
     def adc_demod_range(self, c):
@@ -973,8 +979,9 @@ class FPGAServer(DeviceServer):
             if isinstance(dev, dac.DacDevice):
                 info = c.get(dev, {}) #Default to empty dictionary if c['dev'] doesn't exist.
                 mem = info.get('mem', None)
+                startDelay = info.get('startDelay',0)
                 sram = info.get('sram', None)
-                runner = DacRunner(dev, reps, mem, sram)
+                runner = DacRunner(dev, reps, startDelay, mem, sram)
             elif isinstance(dev, adc.AdcDevice):
                 info = c.get(dev, {})
                 try:
@@ -1471,9 +1478,10 @@ class FPGAServer(DeviceServer):
 # - whether discard is possible
 
 class DacRunner(object):
-    def __init__(self, dev, reps, mem, sram):
+    def __init__(self, dev, reps, startDelay, mem, sram):
         self.dev = dev
         self.reps = reps
+        self.startDelay = startDelay
         self.mem = mem
         self.sram = sram
         self.blockDelay = None
@@ -1523,7 +1531,8 @@ class DacRunner(object):
     
     def runPacket(self, page, slave, delay, sync):
         """Create run packet."""
-        regs = dac.regRun(self.reps, page, slave, delay, blockDelay=self.blockDelay, sync=sync)
+        startDelay = self.startDelay + delay
+        regs = dac.regRun(self.reps, page, slave, startDelay, blockDelay=self.blockDelay, sync=sync)
         return regs
     
     def collectPacket(self, seqTime, ctx):
