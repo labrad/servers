@@ -1058,6 +1058,9 @@ class FPGAServer(DeviceServer):
         in the registry for each board group.  This setting controls which set of
         boards to run, but does not determine the order.  Set daisy_chain to an
         empty list to run the currently-selected board only.
+        
+        Boards not listed here will be set to idle mode, and will pass the daisychain
+        pulse through to the next board.
         """
         if boards is None:
             boards = c['daisy_chain']
