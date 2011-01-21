@@ -104,6 +104,9 @@ class ADRWrapper(DeviceWrapper):
 							'PIDsetTemp': 0.0 * labrad.units.K,		# setTemp is the temperature goal for PID control
 							'PIDcp': 2.0 * labrad.units.V / labrad.units.K,
 							'PIDcd': 70.0 * labrad.units.V * labrad.units.s / labrad.units.K,
+							'PIDci': 2.0,
+							'PIDint': 0,
+							'PIDintLimit': 0.4,
 							'PIDterr': 0,
 							'PIDloopCount': 0,
 							'PIDout': 0,
@@ -315,16 +318,20 @@ class ADRWrapper(DeviceWrapper):
 					terrOld = self.state('PIDterr')
 					# set current t error
 					self.state('PIDterr', self.state('PIDsetTemp') - self.ruoxStatus()[0], False)
+					self.state('PIDint', self.state('PIDint') + self.state('PIDterr')*self.sleepTime, False)
+					if abs(self.state('PIDint')) > self.state('PIDintLimit'):
+						self.state('PIDint', self.state('PIDintLimit')*np.sign(self.state('PIDint')/self.state('PIDci')), False)
 					P = self.state('PIDterr') * self.state('PIDcp')
+					I = self.state('PIDci')*self.state('PIDint')
 					if self.state('PIDloopCount') > 0:
 						D = self.state('PIDcd')*(self.state('PIDterr') - terrOld) / (self.sleepTime)
 					else:
 						D = 0
 					# target voltage
-					self.state('PIDout', self.state('PIDout') + P + D, False)
+					self.state('PIDout', self.state('magVoltage') + P + I + D, False)
 					if self.state('PIDout') < 0:
 						self.state('PIDout', 0, False)
-					self.log('PID: T: %s  V: %s  P: %s  D: %s Terr: %s' % (self.ruoxStatus()[0], self.state('PIDout'), P, D, self.state('PIDterr')))
+					self.log('PID: T: %.4f  V: %.4f  P: %.4f  I: %.4f  D: %.4f  PID: %.4f' % (self.ruoxStatus()[0], self.state('PIDout'), P, I, D, P+I+D))
 					self.state('PIDloopCount', self.state('PIDloopCount') + 1, False)
 					# now step to it
 					yield self.PIDstep(self.state('PIDout'))
@@ -414,8 +421,8 @@ class ADRWrapper(DeviceWrapper):
 			returnValue((False, False))
 		temps = self.state('temperatures')
 		volts = self.state('voltages')
-		current = self.state('magCurrent')
-		voltage = self.state('magVoltage')
+		current = self.state('magCurrent').value
+		voltage = self.state('magVoltage').value
 		quenched = temps[1] > self.state('quenchLimit') and current > 0.5
 		targetReached = (up and self.state('targetCurrent') - current < 0.001) or (not up and 0.01 > current)
 		newVoltage = voltage
@@ -540,6 +547,7 @@ class ADRWrapper(DeviceWrapper):
 				self.state('schedulingActive', False)
 			elif newStatus == 'pid control':
 				self.state('PIDout', self.state('magVoltage').value)
+				self.state('PIDint', 0)
 				self.psOutputOn()
 			self.log("ADR %s status is now: %s" % (self.name, self.currentStatus))
 			self.state('PIDloopCount', 0)
