@@ -83,7 +83,7 @@ class HittiteServer(GPIBManagedServer):
 	deviceName = 'Hittite HMC-T2100'
 	deviceWrapper = HittiteWrapper
 
-	@setting(10, 'Frequency', f=['v[Hz]'], returns=['v[MHz]'])
+	@setting(10, 'Frequency', f=['v[Hz]'], returns=['v[Hz]'])
 	def frequency(self, c, f=None):
 		"""Get or set the CW frequency."""
 		dev = self.selectedDevice(c)
