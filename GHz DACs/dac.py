@@ -11,11 +11,11 @@ REG_PACKET_LEN = 56
 
 READBACK_LEN = 70
 
-SRAM_LEN = 10240 #10240 words = 8192
-SRAM_PAGE_LEN = 5120 #4096
+SRAM_LEN = 10240 #8192 words for original design, 32768 for larger SRAM chip
+SRAM_PAGE_LEN = 5120 #Half of SRAM
 SRAM_DELAY_LEN = 1024
-SRAM_BLOCK0_LEN = 8192
-SRAM_BLOCK1_LEN = 2048
+SRAM_BLOCK0_LEN = 8192 #8192 words = 32packets * 256 words/packet
+SRAM_BLOCK1_LEN = 2048 #2048 words = 8 packets  *256 words/packet
 SRAM_WRITE_PKT_LEN = 256 # number of words in each SRAM write packet
 SRAM_WRITE_PAGES = SRAM_LEN / SRAM_WRITE_PKT_LEN # number of pages for writing SRAM
 
