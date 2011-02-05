@@ -54,12 +54,12 @@ from matplotlib import pyplot as plt
 
 NUM_PAGES = 2
 
-SRAM_LEN = 10240
-SRAM_PAGE_LEN = 5120 #4096
+SRAM_LEN = 10240 #Maybe this should be 8192
+SRAM_PAGE_LEN = 5120
 SRAM_DELAY_LEN = 1024
 SRAM_BLOCK0_LEN = 8192
 SRAM_BLOCK1_LEN = 2048
-SRAM_WRITE_PKT_LEN = 256 # number of words in each SRAM write packet
+SRAM_WRITE_PKT_LEN = 256 # number of words in each SRAM write packet. Each word is 4 bytes for a total of 1024 bytes.
 SRAM_WRITE_PAGES = SRAM_LEN / SRAM_WRITE_PKT_LEN # number of pages for writing SRAM
 
 MASTER_SRAM_DELAY = 2 # microseconds for master to delay before SRAM to ensure synchronization
