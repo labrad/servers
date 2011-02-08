@@ -215,6 +215,9 @@ class DacDevice(DeviceWrapper):
         p.timeout(self.timeout)
         p.listen()
         yield p.send()
+        
+        #TODO: Get build specific information about this device
+        
 
     @inlineCallbacks
     def shutdown(self):
