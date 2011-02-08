@@ -11,6 +11,9 @@ REG_PACKET_LEN = 56
 
 READBACK_LEN = 70
 
+# SVN version number test
+# $Rev$
+
 #SRAM definitions
 #The word "page" used to be overloaded. An SRAM "page" referred to a chunk of 256 SRAM
 #words written by one ethernet packet.
@@ -207,6 +210,7 @@ class DacDevice(DeviceWrapper):
         self.timeout = T.Value(1, 's')
 
         # set up our context with the ethernet server
+        # This context is expired when the device shuts down
         p = self.makePacket()
         p.connect(port)
         p.require_length(READBACK_LEN)
@@ -216,8 +220,14 @@ class DacDevice(DeviceWrapper):
         p.listen()
         yield p.send()
         
-        #TODO: Get build specific information about this device
-        
+        # #Get build specific information about this device
+        # #
+        # p = self.boardGroup.fpgaServer.client.registry.packet()
+        # p.cd(['','Servers','GHz FPGAs'])
+        # p.get('build'+str(self.build))
+        # hardwareParams = yield p.send()
+        # print self.devName+' hardware params: '+str(hardwareParams)
+        # self.parseHardwareParameters(hardwareParams)
 
     @inlineCallbacks
     def shutdown(self):
