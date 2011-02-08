@@ -162,6 +162,7 @@ class BoardGroup(object):
                     result.printTraceback()
             
             # clear any detection packets which may be buffered in device contexts
+            #TODO: check that this actually clears packets
             devices = self.devices()
             clears = []
             for dev in devices:
