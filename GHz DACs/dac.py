@@ -11,13 +11,23 @@ REG_PACKET_LEN = 56
 
 READBACK_LEN = 70
 
-SRAM_LEN = 10240 #8192 words for original design, 32768 for larger SRAM chip
+#SRAM definitions
+#The word "page" used to be overloaded. An SRAM "page" referred to a chunk of 256 SRAM
+#words written by one ethernet packet.
+#In the FPGA server coding we use "page" to refer to a section of the physical SRAM used
+#in a sequence, where we have two pages to allow for simultaneous execution and
+#download of next sequence.
+#To clarify this we now call a group of 256 SRAM words written by an ethernet packet a "derp"
+#block0 = normal SRAM. 32 derps
+#block1 = used for extended sequences. 8 derps
+#Total number of packets = 40 -> 40 derps * 256 words per derp = 10240 words
+SRAM_LEN = 10240 #words
 SRAM_PAGE_LEN = 5120 #Half of SRAM
-SRAM_DELAY_LEN = 1024
-SRAM_BLOCK0_LEN = 8192 #8192 words = 32packets * 256 words/packet
-SRAM_BLOCK1_LEN = 2048 #2048 words = 8 packets  *256 words/packet
-SRAM_WRITE_PKT_LEN = 256 # number of words in each SRAM write packet
-SRAM_WRITE_PAGES = SRAM_LEN / SRAM_WRITE_PKT_LEN # number of pages for writing SRAM
+SRAM_DELAY_LEN = 1024 #Number of clock cycles per unit of block delay for extended SRAM output
+SRAM_BLOCK0_LEN = 8192 #8192 words = 32derps * 256 words/derp
+SRAM_BLOCK1_LEN = 2048 #2048 words = 8 packets  *256 words/derp
+SRAM_WRITE_PKT_LEN = 256 # number of words in each SRAM write packet, ie one derp
+SRAM_WRITE_DERPS = SRAM_LEN / SRAM_WRITE_PKT_LEN # number of packets for writing SRAM
 
 MASTER_SRAM_DELAY = 2 # microseconds for master to delay before SRAM to ensure synchronization
 
@@ -138,12 +148,12 @@ def processReadback(resp):
         'I2Cbytes': a[69:61:-1],
     }
 
-def pktWriteSram(page, data):
-    assert 0 <= page < SRAM_WRITE_PAGES, "SRAM page out of range: %d" % page 
+def pktWriteSram(derp, data):
+    assert 0 <= derp < SRAM_WRITE_DERPS, "SRAM derp out of range: %d" % derp 
     data = np.asarray(data)
     pkt = np.zeros(1026, dtype='<u1')
-    pkt[0] = (page >> 0) & 0xFF
-    pkt[1] = (page >> 8) & 0xFF
+    pkt[0] = (derp >> 0) & 0xFF
+    pkt[1] = (derp >> 8) & 0xFF
     pkt[2:2+len(data)*4:4] = (data >> 0) & 0xFF
     pkt[3:3+len(data)*4:4] = (data >> 8) & 0xFF
     pkt[4:4+len(data)*4:4] = (data >> 16) & 0xFF
@@ -220,13 +230,15 @@ class DacDevice(DeviceWrapper):
 
     def makeSRAM(self, data, p, page=0):
         """Update a packet for the ethernet server with SRAM commands."""
-        writePage = page * SRAM_PAGE_LEN / SRAM_WRITE_PKT_LEN
+        #Set starting write derp to the beginning of the chosen SRAM page
+        writeDerp = page * SRAM_PAGE_LEN / SRAM_WRITE_PKT_LEN
+        #Crete SRAM write commands and add them to the packet for the direct ethernet server
         while len(data) > 0:
             chunk, data = data[:SRAM_WRITE_PKT_LEN*4], data[SRAM_WRITE_PKT_LEN*4:]
             chunk = np.fromstring(chunk, dtype='<u4')
-            pkt = pktWriteSram(writePage, chunk)
+            pkt = pktWriteSram(writeDerp, chunk)
             p.write(pkt.tostring())
-            writePage += 1
+            writeDerp += 1
 
     def makeMemory(self, data, p, page=0):
         """Update a packet for the ethernet server with Memory commands."""
