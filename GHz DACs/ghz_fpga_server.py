@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 3.0.5
+version = 3.0.6
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -60,7 +60,6 @@ SRAM_DELAY_LEN = 1024
 SRAM_BLOCK0_LEN = 8192
 SRAM_BLOCK1_LEN = 2048
 SRAM_WRITE_PKT_LEN = 256 # number of words in each SRAM write packet. Each word is 4 bytes for a total of 1024 bytes.
-SRAM_WRITE_PAGES = SRAM_LEN / SRAM_WRITE_PKT_LEN # number of pages for writing SRAM
 
 MASTER_SRAM_DELAY = 2 # microseconds for master to delay before SRAM to ensure synchronization
 
@@ -654,8 +653,8 @@ class FPGAServer(DeviceServer):
             name, boards = config[server, port]
             print "Creating board group '%s': server='%s', port=%d" % (name, server, port)
             de = cxn.servers[server]
-            boardGroup = BoardGroup(self, de, port)
-            yield boardGroup.init()
+            boardGroup = BoardGroup(self, de, port) #Sets attributes
+            yield boardGroup.init()                 #Gets context with direct ethernet
             self.boardGroups[server, port] = boardGroup
         print self.boardGroups
         
@@ -687,8 +686,10 @@ class FPGAServer(DeviceServer):
         """Build a DAC or ADC device wrapper, depending on the device name"""
         if 'ADC' in name:
             return adc.AdcDevice(guid, name)
-        else:
+        elif 'DAC' in name:
             return dac.DacDevice(guid, name)
+        else:
+            raise Exception('Device name does not correspond to a known device type')
 
 
     ## Trigger refreshes if a direct ethernet server connects or disconnects
