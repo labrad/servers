@@ -11,9 +11,6 @@ REG_PACKET_LEN = 56
 
 READBACK_LEN = 70
 
-# SVN version number test
-# $Rev$
-
 #SRAM definitions
 #The word "page" used to be overloaded. An SRAM "page" referred to a chunk of 256 SRAM
 #words written by one ethernet packet.
@@ -24,13 +21,6 @@ READBACK_LEN = 70
 #block0 = normal SRAM. 32 derps
 #block1 = used for extended sequences. 8 derps
 #Total number of packets = 40 -> 40 derps * 256 words per derp = 10240 words
-SRAM_LEN = 10240 #words
-SRAM_PAGE_LEN = 5120 #Half of SRAM
-SRAM_DELAY_LEN = 1024 #Number of clock cycles per unit of block delay for extended SRAM output
-SRAM_BLOCK0_LEN = 8192 #8192 words = 32derps * 256 words/derp
-SRAM_BLOCK1_LEN = 2048 #2048 words = 8 packets  *256 words/derp
-SRAM_WRITE_PKT_LEN = 256 # number of words in each SRAM write packet, ie one derp
-SRAM_WRITE_DERPS = SRAM_LEN / SRAM_WRITE_PKT_LEN # number of packets for writing SRAM
 
 MASTER_SRAM_DELAY = 2 # microseconds for master to delay before SRAM to ensure synchronization
 
@@ -78,7 +68,7 @@ def regRunSram(startAddr, endAddr, loop=True, blockDelay=0, sync=249):
     regs[0] = (3 if loop else 4) #3: continuous, 4: single run
     regs[1] = 0 #No register readback
     regs[13:16] = littleEndian(startAddr, 3) #SRAM start address
-    regs[16:19] = littleEndian(endAddr-1 + SRAM_DELAY_LEN * blockDelay, 3) #SRAM end
+    regs[16:19] = littleEndian(endAddr-1 + self.SRAM_DELAY_LEN * blockDelay, 3) #SRAM end
     regs[19] = blockDelay
     regs[45] = sync
     return regs
@@ -220,14 +210,16 @@ class DacDevice(DeviceWrapper):
         p.listen()
         yield p.send()
         
-        # #Get build specific information about this device
-        # #
-        # p = self.boardGroup.fpgaServer.client.registry.packet()
-        # p.cd(['','Servers','GHz FPGAs'])
-        # p.get('build'+str(self.build))
-        # hardwareParams = yield p.send()
-        # print self.devName+' hardware params: '+str(hardwareParams)
-        # self.parseHardwareParameters(hardwareParams)
+        #Get build specific information about this device
+        reg = self.cxn.registry
+        ctxt = reg.context()
+        p = reg.packet()
+        p.cd(['','Servers','GHz FPGAs'])
+        p.get('build'+str(self.build))
+        hardwareParams = yield p.send()
+        print self.devName+' hardware params: '+str(hardwareParams)
+        self.parseHardwareParameters(hardwareParams)
+        yield self.cxn.manager.expire_context(reg.ID, context=ctxt)
 
     @inlineCallbacks
     def shutdown(self):
@@ -244,10 +236,10 @@ class DacDevice(DeviceWrapper):
     def makeSRAM(self, data, p, page=0):
         """Update a packet for the ethernet server with SRAM commands."""
         #Set starting write derp to the beginning of the chosen SRAM page
-        writeDerp = page * SRAM_PAGE_LEN / SRAM_WRITE_PKT_LEN
+        writeDerp = page * self.SRAM_PAGE_LEN / self.SRAM_WRITE_PKT_LEN
         #Crete SRAM write commands and add them to the packet for the direct ethernet server
         while len(data) > 0:
-            chunk, data = data[:SRAM_WRITE_PKT_LEN*4], data[SRAM_WRITE_PKT_LEN*4:]
+            chunk, data = data[:self.SRAM_WRITE_PKT_LEN*4], data[self.SRAM_WRITE_PKT_LEN*4:]
             chunk = np.fromstring(chunk, dtype='<u4')
             pkt = pktWriteSram(writeDerp, chunk)
             p.write(pkt.tostring())
@@ -377,7 +369,6 @@ class DacDevice(DeviceWrapper):
             returnValue(str(processReadback(r)['build']))
         return self.testMode(func)
 
-    
     def initPLL(self):
         @inlineCallbacks
         def func():
@@ -407,7 +398,6 @@ class DacDevice(DeviceWrapper):
             pkt = regDebug(word1, word2, word3, word4)
             yield self._sendRegisters(pkt)
         return self.testMode(func)
-    
     
     def runSram(self, dataIn, loop, blockDelay):
         @inlineCallbacks
@@ -515,7 +505,6 @@ class DacDevice(DeviceWrapper):
             returnValue(ans)
         return self.testMode(func)
     
-    
     def runBIST(self, cmd, shift, dataIn):
         """Run a BIST on the given SRAM sequence. (DAC only)"""
         @inlineCallbacks
@@ -564,7 +553,7 @@ def shiftSRAM(cmds, page):
     def shiftAddr(cmd):
         opcode, address = getOpcode(cmd), getAddress(cmd)
         if opcode in [0x8, 0xA]: 
-            address += page * SRAM_PAGE_LEN
+            address += page * self.SRAM_PAGE_LEN
             return (opcode << 20) + address
         else:
             return cmd
@@ -576,7 +565,6 @@ def getOpcode(cmd):
 def getAddress(cmd):
     return (cmd & 0x0FFFFF)
 
-
 def bistChecksum(data):
     bist = [0, 0]
     for i in xrange(0, len(data), 2):
@@ -585,6 +573,8 @@ def bistChecksum(data):
                 bist[j] = (((bist[j] << 1) & 0xFFFFFFFE) | ((bist[j] >> 31) & 1)) ^ ((data[i+j] ^ 0x3FFF) & 0x3FFF)
     return bist
 
-
-
+def parseHardwareParameters(parameters, device):
+    for key,value in dict(parameters.)items():
+        device[key]=value
+    device.SRAM_WRITE_DERPS = device.SRAM_LEN / device.SRAM_WRITE_PKT_LEN
 
