@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 3.0.7
+version = 3.1.0
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -54,13 +54,6 @@ from matplotlib import pyplot as plt
 
 NUM_PAGES = 2
 
-SRAM_LEN = dac.SRAM_LEN
-SRAM_PAGE_LEN = dac.SRAM_PAGE_LEN
-SRAM_DELAY_LEN = dac.SRAM_DELAY_LEN
-SRAM_BLOCK0_LEN = dac.SRAM_BLOCK0_LEN
-SRAM_BLOCK1_LEN = dac.SRAM_BLOCK1_LEN
-SRAM_WRITE_PKT_LEN = dac.SRAM_WRITE_PKT_LEN
-
 MASTER_SRAM_DELAY = 2 # microseconds for master to delay before SRAM to ensure synchronization
 
 TIMEOUT_FACTOR = 10 # timing estimates are multiplied by this factor to determine sequence timeout
@@ -79,8 +72,6 @@ I2C_END = 0x400
 # TODO: run sequences to verify the daisy-chain order automatically
 # TODO: when running adc boards in demodulation (streaming mode), check counters to verify that there is no packet loss
 # TODO: think about whether page selection and pipe semaphore can interact badly to slow down pipelining
-
-
 
 
 class TimeoutError(Exception):
@@ -548,7 +539,6 @@ class BoardGroup(object):
         return '\n'.join(lines)
 
 
-
 class FPGAServer(DeviceServer):
     """Server for GHz DAC and ADC boards.
     """
@@ -587,7 +577,6 @@ class FPGAServer(DeviceServer):
         else:
             print 'Please fix the board group configuration.'
     
-
     @inlineCallbacks    
     def adapterExists(self, server, port):
         """Check whether the specified ethernet adapter exists."""
@@ -603,7 +592,6 @@ class FPGAServer(DeviceServer):
                 ports, names = [], []
             returnValue(port in ports)
     
-        
     @inlineCallbacks
     def findDevices(self):
         print 'Refreshing client connection...'
@@ -723,7 +711,6 @@ class FPGAServer(DeviceServer):
                 return boardGroup
         raise Exception("Board group '%s' not found." % name)
 
-
     def initContext(self, c):
         """Initialize a new context."""
         c['daisy_chain'] = []
@@ -781,8 +768,8 @@ class FPGAServer(DeviceServer):
             block1 = block1.asarray.tostring()
         if not isinstance(block2, str):
             block2 = block2.asarray.tostring()
-        delayPad = delay % SRAM_DELAY_LEN
-        delayBlocks = delay / SRAM_DELAY_LEN
+        delayPad = delay % dev.SRAM_DELAY_LEN
+        delayBlocks = delay / dev.SRAM_DELAY_LEN
         # add padding to beginning of block2 to get delay right
         block2 = block1[-4:] * delayPad + block2
         # add padding to end of block2 to ensure that we have a multiple of 4
@@ -1494,7 +1481,7 @@ class DacRunner(object):
         
         if self.pageable():
             # shorten our sram data so that it fits in one page
-            self.sram = self.sram[:SRAM_PAGE_LEN*4]
+            self.sram = self.sram[:self.dev.SRAM_PAGE_LEN*4]
         
         # calculate memory sequence time
         self.memTime = sequenceTime(self.mem)
@@ -1504,7 +1491,7 @@ class DacRunner(object):
     
     def pageable(self):
         """Check whether sequence fits in one page, based on SRAM addresses called by mem commands"""
-        return maxSRAM(self.mem) <= SRAM_PAGE_LEN
+        return maxSRAM(self.mem) <= self.dev.SRAM_PAGE_LEN
     
     def _fixDualBlockSram(self):
         """If this sequence is for dual-block sram, fix memory addresses and build sram.
@@ -1514,11 +1501,11 @@ class DacRunner(object):
         """
         if isinstance(self.sram, tuple):
             # update addresses in memory commands that call into SRAM
-            self.mem = fixSRAMaddresses(self.mem, self.sram)
+            self.mem = fixSRAMaddresses(self.mem, self.sram, self.dev)
             
             # combine blocks into one sram sequence to be uploaded
             block0, block1, delay = self.sram
-            data = '\x00' * (SRAM_BLOCK0_LEN*4 - len(block0)) + block0 + block1
+            data = '\x00' * (self.dev.SRAM_BLOCK0_LEN*4 - len(block0)) + block0 + block1
             self.sram = data
             self.blockDelay = delay
     
@@ -1620,16 +1607,6 @@ class AdcRunner(object):
 
 
 # some helper methods
-
-#def getLocalMac(port):
-#    macs=[]
-#    if sys.platform == 'win32':
-#        for line in os.popen("ipconfig /all"):
-#            if line.lstrip().startswith('Physical Address'):
-#                macs.append(line.split(':')[1].strip().replace('-',':'))
-#    mac = macs[port]
-#    #return mac
-#    return '90:E6:BA:36:55:7B'
     
 def getCommand(cmds, chan):
     """Get a command from a dictionary of commands.
@@ -1659,7 +1636,6 @@ def processSetupPackets(cxn, setupPkts):
                 raise Exception('Malformed setup packet: ctx=%s, server=%s, settings=%s' % (ctxt, server, settings))
         pkts.append(p)
     return pkts
-
 
 
 # commands for analyzing and manipulating FPGA memory sequences
@@ -1705,7 +1681,7 @@ def addMasterDelay(cmds, delay=MASTER_SRAM_DELAY):
         newCmds.append(cmd)
     return newCmds
 
-def fixSRAMaddresses(mem, sram):
+def fixSRAMaddresses(mem, sram, device):
     """Set the addresses of SRAM calls for multiblock sequences.
 
     Takes a list of memory commands and an sram sequence (which
@@ -1721,11 +1697,11 @@ def fixSRAMaddresses(mem, sram):
         opcode, address = getOpcode(cmd), getAddress(cmd)
         if opcode == 0x8:
             # SRAM start address
-            address = SRAM_BLOCK0_LEN - len(sram[0])/4
+            address = device.SRAM_BLOCK0_LEN - len(sram[0])/4
             return (opcode << 20) + address
         elif opcode == 0xA:
             # SRAM end address
-            address = SRAM_BLOCK0_LEN + len(sram[1])/4 + SRAM_DELAY_LEN * sram[2]
+            address = device.SRAM_BLOCK0_LEN + len(sram[1])/4 + device.SRAM_DELAY_LEN * sram[2]
             return (opcode << 20) + address
         else:
             return cmd
