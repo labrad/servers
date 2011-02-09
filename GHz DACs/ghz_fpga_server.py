@@ -13,6 +13,86 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+
+# CHANGELOG:
+#
+# 2011 February 9 - Daniel Sank
+# Removed almost all references to hardcoded hardware parameters, for example
+# the various SRAM lengths. These values are now board specific.
+# As an example of how this is implemented, we used to have something like this:
+# def adc_filter_func(self, c, bytes, stretchLen=0, stretchAt=0):
+    # assert len(bytes) <= FILTER_LEN, 'Filter function max length is %d' % dev.params['FILTER_LEN']
+    # dev = self.selectedADC(c)
+    # ...
+# where FILTER_LEN was a global constant. We now instead have this:
+# def adc_filter_func(self, c, bytes, stretchLen=0, stretchAt=0):
+    # dev = self.selectedADC(c)
+    # assert len(bytes) <= dev.params['FILTER_LEN'], 'Filter function max length is %d' % dev.params['FILTER_LEN']
+    # ...    
+# so that the filter length is board specific. These board specific parameters
+# are loaded by the board objects when they are created, See dac.py and adc.py
+# for details on how these parameters are loaded.
+
+
+# + DOCUMENTATION
+#
+# Communication between the computer and the FPGA boards works over ethernet.
+# This server and the associated board type definition files dac.py and adc.py
+# abstract away this ethernet communication. This means that you don't have
+# to explicitly tell the direct ethernet server to send packets to the boards.
+# Instead you call, for example, this server's Memory command and the server
+# will build the appropriate packets for the board you've selected and the
+# memory sequence you want to send. No packets are actually sent to the boards
+# until you tell them to turn using one of the following commands:
+# DAC Run SRAM      - Runs SRAM on one board without waiting for a daisychain pulse.
+# ADC Run Demod     - Runs ADC demod mode on one board without waiting for a daisychain pulse.
+# ADC Run Average   - Runs ADC average mode on one board without waiting for a daisychain pulse.
+# Run Sequence      - Runs multiple boards synchronously using the daisychain.
+# When one of the one-off (no daisychain) commands is sent, whichever DAC
+# or ADC you have selected in your context will run and return data as appropriate.
+# The use of Run Sequence is slightly more complicated. See below.
+#
+# ++ USING RUN SEQUENCE
+# The Run Sequence command is used to run multiple boards synchronously using
+# daisychain pulses to trigger SRAM execution. Here are the steps to use it:
+# 1. "Daisy Chain" to specify what boards will run
+# 2. "Timing Order" to specify which boards' data you will collect
+# 3. Set up DACS - for each DAC you want to run call Select Device and then:
+#   a. SRAM or SRAM dual block
+#   b. Memory
+#   c. Start Delay
+# 4. Set up ADCs - for each ADC you want to run call Select Device and then:
+#   a. ADC Run Mode
+#   b. ADC Filter Func (set this even if you aren't using demodulation mode)
+#   c. ADC Demod Phase
+#   d. ADC Trig Magnitude
+#   e. Start Delay
+# For information on the format of the data returned by Run Sequence see its
+# docstring.
+#
+# ++ REGISTRY KEYS
+# In order for the server to set up the board groups and fpga devices properly
+# there are a couple of registry entries that need to be set up. Registry keys
+# for this server live in ['','Servers','GHz FPGAs']
+#
+# boardGroups: *(ssw*(sw)), [(groupName,directEthernetServername,portNumber,[(boardName,daisychainDelay),...]),...]
+# This key tells the server what boards groups should exist, what direct ethernet
+# server controlls that group, which ethernet port is connected to the boards
+# (via an ethernet switch) and what boards exist on each group. Board names
+# should be of the form "DAC N" or "ADC N" where N is the number determined by
+# the DIP switches on the board. The number after each board name is the number
+# of clock cycles that board should wait after receiving a daisychain pulse
+# before starting to run its SRAM.
+#
+# dacBuildN: *(s?), [(parameterName,value),(parameterName,value),...]
+# adcBuildN: *(s?), [(parameterName,value),(parameterName,value),...]
+# When FPGA board objects are created they read the registry to find hardware
+# parameter values. For example, the DAC board objects need to know how long
+# their SRAM memory is, and each board may have a different value depending on
+# its specific FPGA chip. Details, lists of necessary parameters and example values
+# for each board type are given in dac.py and adc.py
+
+
 """
 ### BEGIN NODE INFO
 [info]
@@ -754,7 +834,6 @@ class FPGAServer(DeviceServer):
             data = data.asarray.tostring()
         d['sram'] = data
 
-
     @setting(21, 'SRAM dual block',
              block1='*w: SRAM Words for first block',
              block2='*w: SRAM Words for second block',
@@ -907,7 +986,6 @@ class FPGAServer(DeviceServer):
         return c[dev]['ranges']
 
 
-
     # multiboard sequence execution
 
     @setting(50, 'Run Sequence', reps='w', getTimingData='b',
@@ -1050,8 +1128,10 @@ class FPGAServer(DeviceServer):
         boards to run, but does not determine the order.  Set daisy_chain to an
         empty list to run the currently-selected board only.
         
-        Boards not listed here will be set to idle mode, and will pass the daisychain
+        DACs not listed here will be set to idle mode, and will pass the daisychain
         pulse through to the next board.
+        
+        ADCs always pass the daisychain pulse.
         """
         if boards is None:
             boards = c['daisy_chain']
