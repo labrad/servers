@@ -6,7 +6,35 @@ from labrad.devices import DeviceWrapper
 from labrad import types as T
 
 from util import littleEndian, TimedLock
-from matplotlib import pyplot as plt
+
+
+# CHANGELOG
+#
+# 2011 February 9 - Daniel Sank
+# Removed almost all references to hardcoded hardware parameters, for example
+# the number of demod channels. These values are now board specific and loaded
+# by AdcDevice.connect().
+
+
+# +DOCUMENTATION
+#
+# ++REGISTRY KEYS
+# adcBuildN: *(s?), [(parameterName, value),...]
+# Each build of the FPGA code has a build number. We use this build number to
+# determine the hardware parameters for each board. Hardware parameters are:
+#   DEMOD_CHANNELS - Number of active demod channels
+#   DEMOD_CHANNELS_PER_PACKET - Total number of demod channels for which data is returned.
+#   DEMOD_PACKET_LEN - Length, in bytes, of demod data packets NOT including length bytes.
+#   DEMOD_TIME_STEP - Period, in nanoseconds, of the clock used in demodulation.
+#   AVERAGE_PACKETS - Number of packets send back for average mode.
+#   AVERAGE_PACKET_LEN - Length, in bytes, of average mode packets NOT including length bytes.
+#   TRIG_AMP - Maximum value allowed in trig tables (255)
+#   LOOKUP_TABLE_LEN - Number of physical addresses in trig the lookup table.
+#   FILTER_LEN - length of filter function
+#   SRAM_WRITE_DERPS - Total number of writable derps in SRAM, ie filter and trig tables
+#   SRAM_WRITE_PKT_LEN - Number of words written per SRAM write packet, ie. words per derp.
+
+
 
 #Constant values accross all boards
 REG_PACKET_LEN = 59
@@ -76,11 +104,11 @@ def processReadback(resp):
         'noPllLatch': bool(a[1] > 0),
     }
 
-def pktWriteSram(device, page, data):
-    assert 0 <= page < device.params['SRAM_WRITE_DERPS'], 'SRAM page out of range: %d' % page 
+def pktWriteSram(device, derp, data):
+    assert 0 <= derp < device.params['SRAM_WRITE_DERPS'], 'SRAM derp out of range: %d' % derp 
     data = np.asarray(data)
     pkt = np.zeros(1026, dtype='<u1')
-    pkt[0:2] = littleEndian(page, 2)
+    pkt[0:2] = littleEndian(derp, 2)
     pkt[2:2+len(data)] = data
     return pkt
 
@@ -157,8 +185,8 @@ class AdcDevice(DeviceWrapper):
     def makeFilter(self, data, p):
         """Update a packet for the ethernet server with SRAM commands to upload the filter function."""
         for page in range(4):
-            start = self.params['SRAM_WRITE_LEN'] * page
-            end = start + self.params['SRAM_WRITE_LEN']
+            start = self.params['SRAM_WRITE_PKT_LEN'] * page
+            end = start + self.params['SRAM_WRITE_PKT_LEN']
             pkt = pktWriteSram(self, page, data[start:end])
             p.write(pkt.tostring())
     
