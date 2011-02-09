@@ -8,20 +8,9 @@ from labrad import types as T
 from util import littleEndian, TimedLock
 from matplotlib import pyplot as plt
 
-DEMOD_CHANNELS = 4
-DEMOD_CHANNELS_PER_PACKET = 11
-DEMOD_PACKET_LEN = 46 # length of result packets in demodulation mode
-DEMOD_TIME_STEP = 2 #ns
-AVERAGE_PACKETS = 32
-AVERAGE_PACKET_LEN = 1024
-
-TRIG_AMP = 255
-LOOKUP_TABLE_LEN = 256
+#Constant values accross all boards
 REG_PACKET_LEN = 59
 READBACK_LEN = 46
-FILTER_LEN = 4096 #4096 addresses * 4ns/address = 16384ns = 16us
-SRAM_WRITE_PAGES = 9
-SRAM_WRITE_LEN = 1024
 
 RUN_MODE_AVERAGE_AUTO = 2
 RUN_MODE_AVERAGE_DAISY = 3
@@ -60,7 +49,7 @@ def regAdcRecalibrate():
     regs[0] = 7
     return regs
 
-def regAdcRun(mode, reps, filterFunc, filterStretchAt, filterStretchLen, demods, startDelay=0):
+def regAdcRun(device, mode, reps, filterFunc, filterStretchAt, filterStretchLen, demods, startDelay=0):
     regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = mode
     regs[1:3] = littleEndian(startDelay, 2) #Daisychain delay
@@ -72,7 +61,7 @@ def regAdcRun(mode, reps, filterFunc, filterStretchAt, filterStretchLen, demods,
     regs[11:13] = littleEndian(filterStretchAt, 2)  #Stretch address for filter
     regs[13:15] = littleEndian(filterStretchLen, 2) #Filter function stretch length
     
-    for i in range(DEMOD_CHANNELS):
+    for i in range(device.params['DEMOD_CHANNELS']):
         if i not in demods:
             continue
         addr = 15 + 4*i
@@ -87,8 +76,8 @@ def processReadback(resp):
         'noPllLatch': bool(a[1] > 0),
     }
 
-def pktWriteSram(page, data):
-    assert 0 <= page < SRAM_WRITE_PAGES, 'SRAM page out of range: %d' % page 
+def pktWriteSram(device, page, data):
+    assert 0 <= page < device.params['SRAM_WRITE_DERPS'], 'SRAM page out of range: %d' % page 
     data = np.asarray(data)
     pkt = np.zeros(1026, dtype='<u1')
     pkt[0:2] = littleEndian(page, 2)
@@ -138,6 +127,20 @@ class AdcDevice(DeviceWrapper):
         p.timeout(self.timeout)
         p.listen()
         yield p.send()
+        
+        #Get build specific information about this device
+        #We talk to the labrad system using a new context and close it when done
+        reg = self.cxn.registry
+        ctxt = reg.context()
+        p = reg.packet()
+        p.cd(['','Servers','GHz FPGAs'])
+        p.get('adcBuild'+str(self.build))
+        try:
+            hardwareParams = yield p.send()
+            print self.devName+' hardware params: '+str(hardwareParams)
+            self.parseHardwareParameters(hardwareParams, self)
+        finally:
+            yield self.cxn.manager.expire_context(reg.ID, context=ctxt)        
     
     @inlineCallbacks
     def shutdown(self):
@@ -154,16 +157,16 @@ class AdcDevice(DeviceWrapper):
     def makeFilter(self, data, p):
         """Update a packet for the ethernet server with SRAM commands to upload the filter function."""
         for page in range(4):
-            start = SRAM_WRITE_LEN * page
-            end = start + SRAM_WRITE_LEN
-            pkt = pktWriteSram(page, data[start:end])
+            start = self.params['SRAM_WRITE_LEN'] * page
+            end = start + self.params['SRAM_WRITE_LEN']
+            pkt = pktWriteSram(self, page, data[start:end])
             p.write(pkt.tostring())
     
     def makeTrigLookups(self, demods, p):
         """Update a packet for the ethernet server with SRAM commands to upload Trig lookup tables."""
         page = 4
         channel = 0
-        while channel < DEMOD_CHANNELS:
+        while channel < self.params['DEMOD_CHANNELS']:
             data = []
             for ofs in [0, 1]:
                 ch = channel + ofs
@@ -171,10 +174,10 @@ class AdcDevice(DeviceWrapper):
                     if ch in demods:
                         d = demods[ch][func]
                     else:
-                        d = np.zeros(LOOKUP_TABLE_LEN, dtype='<u1')
+                        d = np.zeros(self.params['LOOKUP_TABLE_LEN'], dtype='<u1')
                     data.append(d)
             data = np.hstack(data)
-            pkt = pktWriteSram(page, data)
+            pkt = pktWriteSram(self, page, data)
             p.write(pkt.tostring())            
             channel += 2 # two channels per sram packet
             page += 1 # each sram packet writes one page
@@ -207,7 +210,7 @@ class AdcDevice(DeviceWrapper):
         self.makeFilter(filterFunc, p)
         self.makeTrigLookups(demods, p)
         amps = ''
-        for ch in xrange(DEMOD_CHANNELS):
+        for ch in xrange(self.params['DEMOD_CHANNELS']):
             if ch in demods:
                 cosineAmp = demods[ch]['cosineAmp']
                 sineAmp = demods[ch]['sineAmp'] 
@@ -301,14 +304,14 @@ class AdcDevice(DeviceWrapper):
         @inlineCallbacks
         def func():
             # build registry packet
-            regs = regAdcRun(RUN_MODE_AVERAGE_AUTO, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
+            regs = regAdcRun(self, RUN_MODE_AVERAGE_AUTO, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
             
             p = self.makePacket()           # create packet for the ethernet server
             #self.makeFilter(filterFunc, p)  # upload filter function, adds a p.write()
             #self.makeTrigLookups(demods, p) # upload trig lookup tables adds a p.write()
             p.write(regs.tostring())        # send register packet
             p.timeout(T.Value(10, 's'))     # set a conservative timeout
-            p.read(AVERAGE_PACKETS)         # read back all packets from average buffer
+            p.read(self.params['AVERAGE_PACKETS'])         # read back all packets from average buffer
             ans = yield p.send() #Send the packet to the direct ethernet server
                     
             # parse the packets out and return data
@@ -321,7 +324,7 @@ class AdcDevice(DeviceWrapper):
         @inlineCallbacks
         def func():
             # build register packet
-            regs = regAdcRun(RUN_MODE_DEMOD_AUTO, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
+            regs = regAdcRun(self, RUN_MODE_DEMOD_AUTO, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
     
             # create packet for the ethernet server
             p = self.makePacket()
@@ -333,7 +336,7 @@ class AdcDevice(DeviceWrapper):
             ans = yield p.send() #Send the packet to the direct ethernet server
             # parse the packets out and return data
             packets = [data for src, dst, eth, data in ans.read] #list of 48-byte strings
-            returnValue(extractDemod(packets))
+            returnValue(extractDemod(packets, self.params['DEMOD_CHANNELS_PER_PACKET']))
             
         return self.testMode(func)
 
@@ -341,11 +344,11 @@ class AdcDevice(DeviceWrapper):
         @inlineCallbacks
         def func():
             # build register packet
-            filterFunc=np.zeros(FILTER_LEN,dtype='<u1')
+            filterFunc=np.zeros(self.params['FILTER_LEN'],dtype='<u1')
             filterStretchLen=0
             filterStretchAt=0
             demods={}
-            regs = regAdcRun(RUN_MODE_CALIBRATE, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
+            regs = regAdcRun(self, RUN_MODE_CALIBRATE, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
     
             # create packet for the ethernet server
             p = self.makePacket()
@@ -361,7 +364,7 @@ def extractAverage(packets):
     Is, Qs = np.fromstring(data, dtype='<i2').reshape(-1, 2).astype(int).T
     return (Is, Qs)
 
-def extractDemod(packets, nDemod=DEMOD_CHANNELS_PER_PACKET):
+def extractDemod(packets, nDemod):
     """Extract Demodulation data from a list of packets (byte strings)."""
     data = ''.join(data[:44] for data in packets)   #stick all data strings in packets together, chopping out last 4 bytes from each string
     vals = np.fromstring(data, dtype='<i2')         #Convert string of bytes into numpy array of 16bit integers. <i2 means little endian 2 byte
@@ -394,3 +397,5 @@ def extractDemod(packets, nDemod=DEMOD_CHANNELS_PER_PACKET):
     #Qs = np.array(Qs,dtype='int32')
     return (Is, Qs), (Imax, Imin, Qmax, Qmin)
 
+def parseHardwareParameters(parametersFromRegistry, device):
+    device.params = dict(parametersFromRegistry)
