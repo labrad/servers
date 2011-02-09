@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 3.1.0
+version = 3.1.1
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -63,6 +63,7 @@ I2C_ACK = 0x200
 I2C_RB_ACK = I2C_RB | I2C_ACK
 I2C_END = 0x400
 
+# TODO: Remove the constants from above and put them in the registry to be read by individual DAC board instances. See DacDevice.connect to see how this is done
 # TODO: make sure paged operations (datataking) don't conflict with e.g. bringup
 # - want to do this by having two modes for boards, either 'test' mode
 #   (when a board does not belong to a board group) or 'production' mode
@@ -768,8 +769,8 @@ class FPGAServer(DeviceServer):
             block1 = block1.asarray.tostring()
         if not isinstance(block2, str):
             block2 = block2.asarray.tostring()
-        delayPad = delay % dev.SRAM_DELAY_LEN
-        delayBlocks = delay / dev.SRAM_DELAY_LEN
+        delayPad = delay % dev.params['SRAM_DELAY_LEN']
+        delayBlocks = delay / dev.params['SRAM_DELAY_LEN']
         # add padding to beginning of block2 to get delay right
         block2 = block1[-4:] * delayPad + block2
         # add padding to end of block2 to ensure that we have a multiple of 4
@@ -805,8 +806,8 @@ class FPGAServer(DeviceServer):
         you can specify a stretch which will repeat a value in the middle of the filter
         for the specified length (in 4ns intervals).
         """
-        assert len(bytes) <= adc.FILTER_LEN, 'Filter function max length is %d' % adc.FILTER_LEN
         dev = self.selectedADC(c)
+        assert len(bytes) <= dev.params['FILTER_LEN'], 'Filter function max length is %d' % dev.params['FILTER_LEN']
         bytes = np.fromstring(bytes, dtype='<u1')
         d = c.setdefault(dev, {})
         d['filterFunc'] = bytes
@@ -822,15 +823,16 @@ class FPGAServer(DeviceServer):
         N is the number of channels (currently 4).  sineAmp and cosineAmp are the magnitudes
         of the respective sine and cosine functions, ranging from 0 to 255.
         """
-        assert 0 <= channel < adc.DEMOD_CHANNELS, 'channel out of range: %d' % channel
-        assert 0 <= sineAmp <= adc.TRIG_AMP, 'sine amplitude out of range: %d' % sineAmp
-        assert 0 <= cosineAmp <= adc.TRIG_AMP, 'cosine amplitude out of range: %d' % cosineAmp
+        
         dev = self.selectedADC(c) #Get the ADC selected in this context. Raise an exception if selected device is not an ADC
+        assert 0 <= channel < dev.params['DEMOD_CHANNELS'], 'channel out of range: %d' % channel
+        assert 0 <= sineAmp <= dev.params['TRIG_AMP'], 'sine amplitude out of range: %d' % sineAmp
+        assert 0 <= cosineAmp <= dev.params['TRIG_AMP'], 'cosine amplitude out of range: %d' % cosineAmp
         d = c.setdefault(dev, {}) #d=c[dev] if c[dev] exists, otherwise makes c[dev]={} and returns c[dev]. Gives c its own representation of dev
         ch = d.setdefault(channel, {})
         ch['sineAmp'] = sineAmp
         ch['cosineAmp'] = cosineAmp
-        N = adc.LOOKUP_TABLE_LEN #256
+        N = dev.params['LOOKUP_TABLE_LEN']
         phi = np.pi/2 * (np.arange(N) + 0.5) / N
         ch['sine'] = np.floor(sineAmp * np.sin(phi) + 0.5).astype('uint8')      #Sine waveform for this channel
         ch['cosine'] = np.floor(cosineAmp * np.sin(phi) + 0.5).astype('uint8')  #Cosine waveform for this channel, note that the function is still a SINE function!
@@ -985,7 +987,7 @@ class FPGAServer(DeviceServer):
                     filter = (info['filterFunc'], info['filterStretchLen'], info['filterStretchAt'])
                 except KeyError:
                     raise Exception("No filter function specified for ADC board '%s'" % dev.devName)
-                channels = dict((i, info[i]) for i in range(adc.DEMOD_CHANNELS) if i in info)
+                channels = dict((i, info[i]) for i in range(dev.params['DEMOD_CHANNELS']) if i in info)
                 #for key,value in channels.items():
                 #    print key,value
                 runner = AdcRunner(dev, reps, runMode, startDelay, filter, channels)
@@ -1423,7 +1425,7 @@ class FPGAServer(DeviceServer):
         filterFunc = info.get('filterFunc', np.array([255], dtype='<u1'))   #Default to [255]
         filterStretchLen = info.get('filterStretchLen', 0)                  #Default to no stretch
         filterStretchAt = info.get('filterStretchAt', 0)                    #Default to stretch at 0
-        demods = dict((i, info[i]) for i in range(adc.DEMOD_CHANNELS) if i in info)
+        demods = dict((i, info[i]) for i in range(dev.params['DEMOD_CHANNELS']) if i in info)
         ans = yield dev.runAverage(filterFunc, filterStretchLen, filterStretchAt, demods)
         returnValue(ans)
 
@@ -1436,7 +1438,7 @@ class FPGAServer(DeviceServer):
         filterFunc = info.get('filterFunc', np.array([255], dtype='<u1'))   #Default to [255]
         filterStretchLen = info.get('filterStretchLen', 0)                  #Default to no stretch
         filterStretchAt = info.get('filterStretchAt', 0)                    #Default to stretch at 0
-        demods = dict((i, info[i]) for i in range(adc.DEMOD_CHANNELS) if i in info)
+        demods = dict((i, info[i]) for i in range(dev.params['DEMOD_CHANNELS']) if i in info)
         yield dev.runCalibrate()
 
         
@@ -1445,10 +1447,10 @@ class FPGAServer(DeviceServer):
     def adc_run_demod(self, c):
         dev = self.selectedADC(c)
         info = c.setdefault(dev, {})
-        filterFunc = info.get('filterFunc', np.array(adc.FILTER_LEN*[128], dtype='<u1')) #Default to full length filter with half full scale amplitude
+        filterFunc = info.get('filterFunc', np.array(dev.params['FILTER_LEN']*[128], dtype='<u1')) #Default to full length filter with half full scale amplitude
         filterStretchLen = info.get('filterStretchLen', 0)
         filterStretchAt = info.get('filterStretchAt', 0)
-        demods = dict((i, info[i]) for i in range(adc.DEMOD_CHANNELS) if i in info)
+        demods = dict((i, info[i]) for i in range(dev.params['DEMOD_CHANNELS']) if i in info)
         ans = yield dev.runDemod(filterFunc, filterStretchLen, filterStretchAt, demods)
         
         returnValue(ans)
@@ -1481,7 +1483,7 @@ class DacRunner(object):
         
         if self.pageable():
             # shorten our sram data so that it fits in one page
-            self.sram = self.sram[:self.dev.SRAM_PAGE_LEN*4]
+            self.sram = self.sram[:self.dev.params['SRAM_PAGE_LEN']*4]
         
         # calculate memory sequence time
         self.memTime = sequenceTime(self.mem)
@@ -1491,7 +1493,7 @@ class DacRunner(object):
     
     def pageable(self):
         """Check whether sequence fits in one page, based on SRAM addresses called by mem commands"""
-        return maxSRAM(self.mem) <= self.dev.SRAM_PAGE_LEN
+        return maxSRAM(self.mem) <= self.dev.params['SRAM_PAGE_LEN']
     
     def _fixDualBlockSram(self):
         """If this sequence is for dual-block sram, fix memory addresses and build sram.
@@ -1505,7 +1507,7 @@ class DacRunner(object):
             
             # combine blocks into one sram sequence to be uploaded
             block0, block1, delay = self.sram
-            data = '\x00' * (self.dev.SRAM_BLOCK0_LEN*4 - len(block0)) + block0 + block1
+            data = '\x00' * (self.dev.params['SRAM_BLOCK0_LEN']*4 - len(block0)) + block0 + block1
             self.sram = data
             self.blockDelay = delay
     
@@ -1552,7 +1554,7 @@ class AdcRunner(object):
         
         if self.runMode == 'average':
             self.mode = adc.RUN_MODE_AVERAGE_DAISY
-            self.nPackets = adc.AVERAGE_PACKETS
+            self.nPackets = self.dev.params['AVERAGE_PACKETS']
         elif self.runMode == 'demodulate':
             self.mode = adc.RUN_MODE_DEMOD_DAISY
             self.nPackets = reps
@@ -1697,11 +1699,11 @@ def fixSRAMaddresses(mem, sram, device):
         opcode, address = getOpcode(cmd), getAddress(cmd)
         if opcode == 0x8:
             # SRAM start address
-            address = device.SRAM_BLOCK0_LEN - len(sram[0])/4
+            address = device.params['SRAM_BLOCK0_LEN'] - len(sram[0])/4
             return (opcode << 20) + address
         elif opcode == 0xA:
             # SRAM end address
-            address = device.SRAM_BLOCK0_LEN + len(sram[1])/4 + device.SRAM_DELAY_LEN * sram[2]
+            address = device.params['SRAM_BLOCK0_LEN'] + len(sram[1])/4 + device.params['SRAM_DELAY_LEN'] * sram[2]
             return (opcode << 20) + address
         else:
             return cmd
