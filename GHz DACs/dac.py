@@ -7,27 +7,45 @@ from labrad import types as T
 
 from util import littleEndian, TimedLock
 
-#SRAM definitions
-#The word "page" used to be overloaded. An SRAM "page" referred to a chunk of 256 SRAM
-#words written by one ethernet packet.
-#In the FPGA server coding we use "page" to refer to a section of the physical SRAM used
-#in a sequence, where we have two pages to allow for simultaneous execution and
-#download of next sequence.
-#To clarify this we now call a group of 256 SRAM words written by an ethernet packet a "derp"
+
+# CHANGELOG
+#
+# 2011 February 9 - Daniel Sank
+# Removed almost all references to hardcoded hardware parameters, for example
+# the various SRAM lengths. These values are now board specific and loaded by
+# DacDevice.connect().
+
+
+# +DOCUMENTATION
+#
+# ++SRAM NOMENCLATURE
+# The word "page" used to be overloaded. An SRAM "page" referred to a chunk of
+# 256 SRAM words written by one ethernet packet, AND to a unit of SRAM used for
+# simultaneous execution/download operation.
+# In the FPGA server coding we now use "page" to refer to a section of the
+# physical SRAM used in a sequence, where we have two pages to allow for
+# simultaneous execution and download of next sequence. We now call a group of
+# 256 SRAM words written by an ethernet packet a "derp"
+#
+# ++REGISTRY KEYS
+# dacBuildN: *(s?), [(parameterName, value),...]
+# Each build of the FPGA code has a build number. We use this build number to
+# determine the hardware parameters for each board. Hardware parameters are:
+#   SRAM_LEN - The length, in SRAM words, of the total SRAM memory
+#   SRAM_PAGE_LEN - Size, in words, of one page of SRAM see definition above the value of this key is typically SRAM_LEN/2
+#   SRAM_DELAY_LEN - Number of clock cycles of repetition of the end of SRAM Block0 is this number times the value in register[19]
+#   SRAM_BLOCK0_LEN - Length, in words, of the first block of SRAM.
+#   SRAM_BLOCK1_LEN - Length, in words, of the second block of SRAM.
+#   SRAM_WRITE_PKT_LEN - Number of words written per SRAM write packet, ie. words per derp.
 
 #Constant values accross all boards
 REG_PACKET_LEN = 56
 READBACK_LEN = 70
-
 MASTER_SRAM_DELAY = 2 # microseconds for master to delay before SRAM to ensure synchronization
-
 MEM_LEN = 512
 MEM_PAGE_LEN = 256
-
 TIMING_PACKET_LEN = 30
-
 TIMEOUT_FACTOR = 10 # timing estimates are multiplied by this factor to determine sequence timeout
-
 I2C_RB = 0x100
 I2C_ACK = 0x200
 I2C_RB_ACK = I2C_RB | I2C_ACK
