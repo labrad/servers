@@ -47,7 +47,7 @@
 # DAC Run SRAM      - Runs SRAM on one board without waiting for a daisychain pulse.
 # ADC Run Demod     - Runs ADC demod mode on one board without waiting for a daisychain pulse.
 # ADC Run Average   - Runs ADC average mode on one board without waiting for a daisychain pulse.
-# Run Sequence      - Runs multiple boards synchronously using the daisychain.
+# Run Sequence      - Runs multiple boards synchronously using the daisychain (DACs and ADCs).
 # When one of the one-off (no daisychain) commands is sent, whichever DAC
 # or ADC you have selected in your context will run and return data as appropriate.
 # The use of Run Sequence is slightly more complicated. See below.
@@ -272,7 +272,7 @@ class BoardGroup(object):
             args = devName, self, self.server, self.port, board, build
             return (devName, args)
         macs = [adc.macFor(board) for board in range(256)]
-        return self._doDetection(macs, adc.regAdcPing(), adc.READBACK_LEN, callback)
+        return self._doDetection(macs, adc.regPing(), adc.READBACK_LEN, callback)
 
     @inlineCallbacks
     def _doDetection(self, macs, packet, respLength, callback, timeout=1.0):
