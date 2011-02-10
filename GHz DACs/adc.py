@@ -56,7 +56,7 @@ def isMac(mac):
 
 # functions to register packets for ADC boards
 
-def regAdcPing():
+def regPing():
     regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = 1
     return regs
@@ -323,7 +323,7 @@ class AdcDevice(DeviceWrapper):
     def buildNumber(self):
         @inlineCallbacks
         def func():
-            regs = regAdcPing()
+            regs = regPing()
             r = yield self._sendRegisters(regs)
             returnValue(str(processReadback(r)['build']))
         return self.testMode(func)
