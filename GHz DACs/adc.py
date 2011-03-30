@@ -165,8 +165,9 @@ class AdcDevice(DeviceWrapper):
         p.get('adcBuild'+str(self.build))
         try:
             hardwareParams = yield p.send()
+            hardwareParams = hardwareParams['get']
             print self.devName+' hardware params: '+str(hardwareParams)
-            self.parseHardwareParameters(hardwareParams, self)
+            parseHardwareParameters(hardwareParams, self)
         finally:
             yield self.cxn.manager.expire_context(reg.ID, context=ctxt)        
     

@@ -234,8 +234,9 @@ class DacDevice(DeviceWrapper):
         p.get('dacBuild'+str(self.build))
         try:
             hardwareParams = yield p.send()
+            hardwareParams = hardwareParams['get']
             print self.devName+' hardware params: '+str(hardwareParams)
-            self.parseHardwareParameters(hardwareParams, self)
+            parseHardwareParameters(hardwareParams, self)
         finally:
             yield self.cxn.manager.expire_context(reg.ID, context=ctxt)
 
@@ -593,4 +594,4 @@ def bistChecksum(data):
 
 def parseHardwareParameters(parametersFromRegistry, device):
     device.params = dict(parametersFromRegistry)
-    device['SRAM_WRITE_DERPS'] = device.params['SRAM_LEN'] / device.params['SRAM_WRITE_PKT_LEN']
+    device.params['SRAM_WRITE_DERPS'] = device.params['SRAM_LEN'] / device.params['SRAM_WRITE_PKT_LEN']
