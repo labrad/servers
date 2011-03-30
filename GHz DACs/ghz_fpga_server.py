@@ -1787,7 +1787,7 @@ def fixSRAMaddresses(mem, sram, device):
             return (opcode << 20) + address
         else:
             return cmd
-    return [fixAddr(cmd) for cmd in cmds]
+    return [fixAddr(cmd) for cmd in mem]
 
 def maxSRAM(cmds):
     """Determines the maximum SRAM address used in a memory sequence.
