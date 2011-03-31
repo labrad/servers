@@ -1,0 +1,10 @@
+org.labrad.qubits
+org.labrad.qubits.channeldata
+org.labrad.qubits.channels
+org.labrad.qubits.config
+org.labrad.qubits.enums
+org.labrad.qubits.mem
+org.labrad.qubits.proxies
+org.labrad.qubits.resources
+org.labrad.qubits.templates
+org.labrad.qubits.util
