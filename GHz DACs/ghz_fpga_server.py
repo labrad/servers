@@ -1683,7 +1683,7 @@ class AdcRunner(object):
         if self.runMode == 'average':
             return adc.extractAverage(packets)
         elif self.runMode == 'demodulate':
-            IQs, ranges = adc.extractDemod(packets)
+            IQs, ranges = adc.extractDemod(packets, self.dev.params['DEMOD_CHANNELS_PER_PACKET'])
             self.ranges = ranges # save this for possible access later
             return IQs
 
