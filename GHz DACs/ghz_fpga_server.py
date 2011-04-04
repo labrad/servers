@@ -1666,7 +1666,7 @@ class AdcRunner(object):
         
         filterFunc, filterStretchLen, filterStretchAt = self.filter
         startDelay = self.startDelay + delay
-        regs = adc.regAdcRun(self.mode, self.reps, filterFunc, filterStretchLen, filterStretchAt, self.channels, startDelay)
+        regs = adc.regAdcRun(self.dev, self.mode, self.reps, filterFunc, filterStretchLen, filterStretchAt, self.channels, startDelay)
         return regs
     
     def collectPacket(self, seqTime, ctx):
