@@ -554,11 +554,17 @@ class BoardGroup(object):
                     if board in boardResults:
                         answer = boardResults[board]
                     else:
-                        idx = boardOrder.index(board)
+                        idx = boardOrder.index(board) #boardOrder is a list of board names, eg ['Vince ADC 0', 'Vince DAC 9']
                         runner = runners[idx]
                         allDacs &= isinstance(runner, DacRunner)
                         result = [data for src, dest, eth, data in results[idx]['read']]
+                        t0 = time.clock()
+                        print 'Time before data parsing: ',t0
                         answer = runner.extract(result)
+                        t1 = time.clock()
+                        delta = t1 - t0
+                        print 'Time after data parsing: ',t1 
+                        print 'Time need for data parsing', delta
                         boardResults[board] = answer
                         
                     # add extracted data to the list of timing results
