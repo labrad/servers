@@ -59,6 +59,7 @@ public class Resources {
       case FASTBIAS: return FastBias.create(name, properties);
       case PREAMP: return PreampBoard.create(name);
       case UWAVESRC: return MicrowaveSource.create(name);
+      case ADCBOARD: return AdcBoard.create(name);
       default: throw new RuntimeException("Invalid resource type: " + type);
     }
   }

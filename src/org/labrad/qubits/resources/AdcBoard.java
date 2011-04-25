@@ -16,4 +16,10 @@ public class AdcBoard extends DacBoard implements Resource {
 		Preconditions.checkArgument(false, "ADC board '%s' was given fibers!", getName());
 	}
 
+	public static Resource create(String name) {
+		AdcBoard board = new AdcBoard(name);
+		System.out.println("makin AdcBoard wut wut: " + name);
+		return board;
+	}
+
 }

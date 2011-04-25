@@ -33,7 +33,7 @@ public class Constants {
    * Registry information
    */
   public static final String[] WIRING_PATH = {"", "Servers", "Qubit Server", "Wiring"};
-  public static final String WIRING_KEY = "wiring";
+  public static final String WIRING_KEY = "wiring_2";
   // ([(Type, Name)...],[((GHz board id,chan),(DC board id,chan)),...],[(uwave board id, microwave source id)])
   public static final String WIRING_TYPE = "*(ss), *((ss)(ss)), *(ss)";
   //public static final String WIRING_TYPE = "*(ss?), *((ss)(ss)), *(ss)";

@@ -10,7 +10,8 @@ public enum DeviceType {
   UWAVEBOARD("microwaveboard"),
   UWAVESRC("microwavesource"),
   PREAMP("preamp"),
-  FASTBIAS("fastbias");
+  FASTBIAS("fastbias"),
+  ADCBOARD("adcboard");
 
   private final String name;
   private static final Map<String, DeviceType> map = Maps.newHashMap();

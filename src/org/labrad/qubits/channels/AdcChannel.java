@@ -23,13 +23,6 @@ import com.google.common.base.Preconditions;
  */
 public class AdcChannel implements Channel, TimingChannel {
 
-	String name = null;
-	Experiment expt = null;
-	AdcBoard board = null;
-	FpgaModelAdc fpga = null;
-
-	AdcBaseConfig config = null;
-	
 	/**
 	 * AdcMode: either demodulate or average.
 	 * @author pomalley
@@ -56,7 +49,22 @@ public class AdcChannel implements Channel, TimingChannel {
 	}
 	
 	AdcMode mode = AdcMode.DEMODULATE;
+	
+	String name = null;
+	Experiment expt = null;
+	AdcBoard board = null;
+	FpgaModelAdc fpga = null;
 
+	AdcBaseConfig config = null;
+	
+
+	public AdcChannel(String name) {
+		this.name = name;
+	}
+	
+	public void setAdcBoard(AdcBoard board) {
+		this.board = board;
+	}
 
 	@Override
 	public DacBoard getDacBoard() {
@@ -89,7 +97,7 @@ public class AdcChannel implements Channel, TimingChannel {
 		Preconditions.checkArgument(fpga instanceof FpgaModelAdc,
 				"AdcChannel '%s' requires ADC board.", getName());
 		this.fpga = (FpgaModelAdc) fpga;
-		// TODO: something like this.fpga.setDemodChannel(this);
+		this.fpga.setChannel(this);
 	}
 	
 	/**

@@ -10,7 +10,8 @@ public enum ChannelType {
   IQ("iq"),
   TRIGGER("trigger"),
   PREAMP("preamp"),
-  FASTBIAS("fastbias");
+  FASTBIAS("fastbias"),
+  ADC("adc");
 
   private final String name;
   private static final Map<String, ChannelType> map = Maps.newHashMap();
