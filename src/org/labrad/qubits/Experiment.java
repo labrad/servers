@@ -7,6 +7,7 @@ import java.util.Set;
 import org.labrad.data.Data;
 import org.labrad.qubits.channels.Channel;
 import org.labrad.qubits.channels.PreampChannel;
+import org.labrad.qubits.channels.TimingChannel;
 import org.labrad.qubits.enums.DacTriggerId;
 import org.labrad.qubits.mem.MemoryCommand;
 import org.labrad.qubits.resources.AnalogBoard;
@@ -19,6 +20,16 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+
+/**
+ * "Experiment holds all the information about the fpga sequence as it is being built,
+ * and knows how to produce the memory and sram instructions that actually get sent out to run the sequence."
+ * 
+ * For the ADC addition, we now have to be careful to only perform things like memory ops on DAC FpgaModels, not ADC ones.
+ * 
+ * @author maffoo
+ * @author pomalley
+ */
 public class Experiment {
 
   /**
@@ -61,9 +72,9 @@ public class Experiment {
     }
 
     // build lists of FPGA boards that have or don't have a timing channel
-    nonTimerFpgas.addAll(getFpgas());
+    nonTimerFpgas.addAll(getDacFpgas());
     for (PreampChannel ch : getChannels(PreampChannel.class)) {
-      FpgaModel fpga = ch.getFpgaModel();
+      FpgaModelDac fpga = ch.getFpgaModel();
       timerFpgas.add(fpga);
       nonTimerFpgas.remove(fpga);
     }
@@ -110,8 +121,8 @@ public class Experiment {
   //
 
   private final Set<FpgaModel> fpgas = Sets.newHashSet();
-  private final Set<FpgaModel> timerFpgas = Sets.newHashSet();
-  private final Set<FpgaModel> nonTimerFpgas = Sets.newHashSet();
+  private final Set<FpgaModelDac> timerFpgas = Sets.newHashSet();
+  private final Set<FpgaModelDac> nonTimerFpgas = Sets.newHashSet();
 
   private void addFpga(FpgaModel fpga) {
     fpgas.add(fpga);
@@ -124,11 +135,11 @@ public class Experiment {
     return Sets.newHashSet(fpgas);
   }
 
-  public Set<FpgaModel> getTimerFpgas() {
+  public Set<FpgaModelDac> getTimerFpgas() {
     return Sets.newHashSet(timerFpgas);
   }
 
-  public Set<FpgaModel> getNonTimerFpgas() {
+  public Set<FpgaModelDac> getNonTimerFpgas() {
     return Sets.newHashSet(nonTimerFpgas);
   }
 
@@ -141,6 +152,37 @@ public class Experiment {
     }
     return fpgas;
   }
+  
+  /**
+   * Many operations are only performed on DAC fpgas.
+   * @return A set of all FpgaModelDac's in this experiment.
+   * @author pomalley
+   */
+  
+  public Set<FpgaModelDac> getDacFpgas() {
+	  Set<FpgaModelDac> fpgas = Sets.newHashSet();
+	  for (FpgaModel fpga : this.fpgas) {
+		  if (fpga instanceof FpgaModelDac) {
+			  fpgas.add((FpgaModelDac)fpga);
+		  }
+	  }
+	  return fpgas;
+  }
+  
+  /**
+   * Conversely, sometimes we need the ADC fpgas. 
+   * @return A set of all FpgaModelAdc's in this experiment.
+   * @author pomalley
+   */
+  public Set<FpgaModelAdc> getAdcFpgas() {
+	  Set<FpgaModelAdc> fpgas = Sets.newHashSet();
+	  for (FpgaModel fpga : this.fpgas) {
+		  if (fpga instanceof FpgaModelAdc) {
+			  fpgas.add((FpgaModelAdc)fpga);
+		  }
+	  }
+	  return fpgas;
+  }
 
   public List<String> getFpgaNames() {
     List<String> boardsToRun = Lists.newArrayList();
@@ -152,7 +194,7 @@ public class Experiment {
 
   private final List<Data> setupPackets = Lists.newArrayList();
   private final List<String> setupState = Lists.newArrayList();
-  private List<PreampChannel> timingOrder = null;
+  private List<TimingChannel> timingOrder = null;
   private DacTriggerId autoTriggerId = null;
   private int autoTriggerLen = 0;
 
@@ -210,7 +252,7 @@ public class Experiment {
     return autoTriggerLen;
   }
 
-  public void setTimingOrder(List<PreampChannel> channels) {
+  public void setTimingOrder(List<TimingChannel> channels) {
     timingOrder = Lists.newArrayList(channels);
   }
 
@@ -220,14 +262,14 @@ public class Experiment {
    */
   public List<String> getTimingOrder() {
     List<String> order = Lists.newArrayList();
-    for (PreampChannel ch : getTimingChannels()) {
+    for (TimingChannel ch : getTimingChannels()) {
       order.add(ch.getDacBoard().getName());
     }
     return order;
   }
 
-  public List<PreampChannel> getTimingChannels() {
-    return timingOrder != null ? timingOrder : getChannels(PreampChannel.class);
+  public List<TimingChannel> getTimingChannels() {
+    return timingOrder != null ? timingOrder : getChannels(TimingChannel.class);
   }
 
   //
@@ -236,27 +278,29 @@ public class Experiment {
 
   /**
    * Clear the memory content for this experiment
+   * 
+   * This only applies to DAC fpgas.
    */
   public void clearMemory() {
     // all memory state is kept in the fpga models, so we clear them out
-    for (FpgaModel fpga : getFpgas()) {
+    for (FpgaModelDac fpga : getDacFpgas()) {
       fpga.clearMemory();
     }
   }
 
   /**
-   * Add bias commands to a set of FPGA boards
+   * Add bias commands to a set of FPGA boards. Only applies to DACs.
    * @param allCmds
    */
-  public void addBiasCommands(ListMultimap<FpgaModel, MemoryCommand> allCmds, double delay) {
+  public void addBiasCommands(ListMultimap<FpgaModelDac, MemoryCommand> allCmds, double delay) {
     // find the maximum number of commands on any single fpga board
     int maxCmds = 0;
-    for (FpgaModel fpga : allCmds.keySet()) {
+    for (FpgaModelDac fpga : allCmds.keySet()) {
       maxCmds = Math.max(maxCmds, allCmds.get(fpga).size());
     }
 
     // add commands for each board, including noop padding and final delay
-    for (FpgaModel fpga : fpgas) {
+    for (FpgaModelDac fpga : getDacFpgas()) {
       List<MemoryCommand> cmds = allCmds.get(fpga); 
       if (cmds != null) {
         fpga.addMemoryCommands(cmds);
@@ -271,48 +315,50 @@ public class Experiment {
   }
 
   /**
-   * Add a delay in the memory sequence
+   * Add a delay in the memory sequence.
+   * Only applies to DACs.
    */
   public void addMemoryDelay(double microseconds) {
-    for (FpgaModel fpga : getFpgas()) {
+    for (FpgaModelDac fpga : getDacFpgas()) {
       fpga.addMemoryDelay(microseconds);
     }
   }
 
   /**
-   * Call SRAM
+   * Call SRAM. Only applies to DACs.
    */
   public void callSramBlock(String block) {
-    for (FpgaModel fpga : getFpgas()) {
+    for (FpgaModelDac fpga : getDacFpgas()) {
       fpga.callSramBlock(block);
     }
   }
 
   public void callSramDualBlock(String block1, String block2) {
-    for (FpgaModel fpga : getFpgas()) {
+    for (FpgaModelDac fpga : getDacFpgas()) {
       fpga.callSramDualBlock(block1, block2);
     }
   }
 
   public void setSramDualBlockDelay(double delay) {
-    for (FpgaModel fpga : getFpgas()) {
+    for (FpgaModelDac fpga : getDacFpgas()) {
       fpga.setSramDualBlockDelay(delay);
     }
   }
 
   /**
    * Start timer on a set of boards.
+   * This only applies to DAC fpgas.
    */
   public void startTimer(List<PreampChannel> channels) {
-    Set<FpgaModel> starts = Sets.newHashSet();
-    Set<FpgaModel> noops = getTimerFpgas();
+    Set<FpgaModelDac> starts = Sets.newHashSet();
+    Set<FpgaModelDac> noops = getTimerFpgas();
     for (PreampChannel ch : channels) {
-      FpgaModel fpga = ch.getFpgaModel();
+      FpgaModelDac fpga = ch.getFpgaModel();
       starts.add(fpga);
       noops.remove(fpga);
     }
     // non-timer boards get started if they have never been started before
-    for (FpgaModel fpga : getNonTimerFpgas()) {
+    for (FpgaModelDac fpga : getNonTimerFpgas()) {
       if (!fpga.isTimerStarted()) {
         starts.add(fpga);
       } else {
@@ -320,11 +366,11 @@ public class Experiment {
       }
     }
     // start the timer on requested boards
-    for (FpgaModel fpga : starts) {
+    for (FpgaModelDac fpga : starts) {
       fpga.startTimer();
     }
     // insert a no-op on all other boards
-    for (FpgaModel fpga : noops) {
+    for (FpgaModelDac fpga : noops) {
       fpga.addMemoryNoop();
     }
   }
@@ -333,15 +379,15 @@ public class Experiment {
    * Stop timer on a set of boards.
    */
   public void stopTimer(List<PreampChannel> channels) {
-    Set<FpgaModel> stops = Sets.newHashSet();
-    Set<FpgaModel> noops = getTimerFpgas();
+    Set<FpgaModelDac> stops = Sets.newHashSet();
+    Set<FpgaModelDac> noops = getTimerFpgas();
     for (PreampChannel ch : channels) {
-      FpgaModel fpga = ch.getFpgaModel();
+      FpgaModelDac fpga = ch.getFpgaModel();
       stops.add(fpga);
       noops.remove(fpga);
     }
     // stop non-timer boards if they are currently running
-    for (FpgaModel fpga : getNonTimerFpgas()) {
+    for (FpgaModelDac fpga : getNonTimerFpgas()) {
       if (fpga.isTimerRunning()) {
         stops.add(fpga);
       } else {
@@ -349,11 +395,11 @@ public class Experiment {
       }
     }
     // stop the timer on requested boards and non-timer boards
-    for (FpgaModel fpga : stops) {
+    for (FpgaModelDac fpga : stops) {
       fpga.stopTimer();
     }
     // insert a no-op on all other boards
-    for (FpgaModel fpga : noops) {
+    for (FpgaModelDac fpga : noops) {
       fpga.addMemoryNoop();
     }
   }

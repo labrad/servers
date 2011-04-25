@@ -1,10 +1,13 @@
 package org.labrad.qubits.channels;
 
 import org.labrad.qubits.FpgaModel;
+import org.labrad.qubits.FpgaModelDac;
 import org.labrad.qubits.channeldata.TriggerData;
 import org.labrad.qubits.channeldata.TriggerDataTime;
 import org.labrad.qubits.enums.DacTriggerId;
 import org.labrad.qubits.resources.DacBoard;
+
+import com.google.common.base.Preconditions;
 
 public class TriggerChannel extends SramChannelBase<TriggerData> {
 
@@ -16,8 +19,10 @@ public class TriggerChannel extends SramChannelBase<TriggerData> {
 
   @Override
   public void setFpgaModel(FpgaModel fpga) {
-    this.fpga = fpga;
-    fpga.setTriggerChannel(triggerId, this);
+	Preconditions.checkArgument(fpga instanceof FpgaModelDac,
+			"TriggerChannel '%s' requires FpgaModelDac.", getName());
+    this.fpga = (FpgaModelDac) fpga;
+    this.fpga.setTriggerChannel(triggerId, this);
   }
 
   public void setDacBoard(DacBoard board) {

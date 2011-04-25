@@ -22,11 +22,13 @@ import org.labrad.qubits.channeldata.AnalogDataTime;
 import org.labrad.qubits.channeldata.IqDataFourier;
 import org.labrad.qubits.channeldata.IqDataTime;
 import org.labrad.qubits.channeldata.TriggerDataTime;
+import org.labrad.qubits.channels.AdcChannel;
 import org.labrad.qubits.channels.AnalogChannel;
 import org.labrad.qubits.channels.Channel;
 import org.labrad.qubits.channels.FastBiasChannel;
 import org.labrad.qubits.channels.IqChannel;
 import org.labrad.qubits.channels.PreampChannel;
+import org.labrad.qubits.channels.TimingChannel;
 import org.labrad.qubits.channels.TriggerChannel;
 import org.labrad.qubits.config.MicrowaveSourceConfig;
 import org.labrad.qubits.config.MicrowaveSourceOffConfig;
@@ -253,9 +255,9 @@ public class QubitContext extends AbstractServerContext {
                + "for all timing channels in the order they were defined when this "
                + "sequence was initialized.")
   public void config_timing_order(@Accepts({"*s", "*(ss)"}) List<Data> ids) {
-    List<PreampChannel> channels = Lists.newArrayList();
+    List<TimingChannel> channels = Lists.newArrayList();
     for (Data id : ids) {
-      channels.add(getChannel(id, PreampChannel.class));
+      channels.add(getChannel(id, TimingChannel.class));
     }
     getExperiment().setTimingOrder(channels);
     configDirty = true;
@@ -369,7 +371,7 @@ public class QubitContext extends AbstractServerContext {
   public void mem_bias(@Accepts({"*(s s v[mV])", "*((ss) s v[mV])"}) List<Data> commands,
                        @Accepts("v[us]") double microseconds) {
     // create a map with a list of commands for each board
-    ListMultimap<FpgaModel, MemoryCommand> fpgas = ArrayListMultimap.create();
+    ListMultimap<FpgaModelDac, MemoryCommand> fpgas = ArrayListMultimap.create();
 
     // parse the commands and group them for each fpga
     for (Data cmd : commands) {
@@ -600,6 +602,66 @@ public class QubitContext extends AbstractServerContext {
     sramDirty = true;
   }
 
+  //
+  // ADC settings
+  //
+  
+  @Setting(id = 510,
+		  name = "ADC Set Start Delay",
+		  doc = "Sets the start delay for this channel; must be an ADC channel.")
+  public void adc_set_start_delay(@Accepts({"s", "ss"}) Data id,
+		  						  @Accepts("w") Data delay) {
+	  AdcChannel ch = getChannel(id, AdcChannel.class);
+	  ch.setStartDelay(delay.getInt());
+  }
+  
+  @Setting(id = 520,
+		  name = "ADC Set Mode",
+		  doc = "Sets the mode of this channel. Must be an ADC channel, and mode "
+			  + "must be one of 'average' or 'demodulate'.")
+  public void adc_set_mode(@Accepts({"s", "ss"}) Data id,
+		  				   @Accepts("s") Data mode) {
+	  AdcChannel ch = getChannel(id, AdcChannel.class);
+	  ch.setMode(mode.getString());
+  }
+  
+  @Setting(id = 530,
+		  name = "ADC Set Filter Function",
+		  doc = "Sets the filter function for this channel; must be an adc channel in demod mode.")
+  public void adc_set_filter_function(@Accepts({"s", "ss"}) Data id,
+		  							  @Accepts("s") Data bytes,
+		  							  @Accepts("w") Data stretchLen,
+		  							  @Accepts("w") Data stretchAt) {
+	  AdcChannel ch = getChannel(id, AdcChannel.class);
+	  ch.setFilterFunction(bytes.getString(), stretchLen.getInt(), stretchAt.getInt());
+  }
+  
+  @Setting(id = 531,
+		  name = "ADC Set Trig Magnitude",
+		  doc = "Sets the filter function for this channel. Must be an adc channel in demod mode "
+			  + "and the sub-channel must be valid (i.e. under 4). "
+			  + "sineAmp and cosineAmp range from 0 to 255.")
+  public void adc_set_trig_magnitude(@Accepts({"s", "ss"}) Data id,
+		  							  @Accepts("w") Data channel,
+		  							  @Accepts("w") Data sineAmp,
+		  							  @Accepts("w") Data cosineAmp) {
+	  AdcChannel ch = getChannel(id, AdcChannel.class);
+	  ch.setTrigMagnitude(channel.getInt(), sineAmp.getInt(), cosineAmp.getInt());
+  }
+  
+  @Setting(id = 532,
+		  name = "ADC Demod Phase",
+		  doc = "Sets the demodulation phase. Must be an adc channel in demod mode "
+			  + "and the sub-channel must be valid (i.e. under 4). "
+			  + "See the documentation for this in the GHz FPGA server.")
+  public void adc_demod_phase(@Accepts({"s", "ss"}) Data id,
+		  							  @Accepts("w") Data channel,
+		  							  @Accepts("i") Data dPhi,
+		  							  @Accepts("i") Data phi0) {
+	  AdcChannel ch = getChannel(id, AdcChannel.class);
+	  ch.setPhase(channel.getInt(), dPhi.getInt(), phi0.getInt());
+  }
+
 
   //
   // put the sequence together
@@ -621,7 +683,7 @@ public class QubitContext extends AbstractServerContext {
     //
 
     // check timer state of each involved fpga
-    for (FpgaModel fpga : expt.getFpgas()) {
+    for (FpgaModelDac fpga : expt.getDacFpgas()) {
       fpga.checkTimerStatus();
     }
 
@@ -683,7 +745,7 @@ public class QubitContext extends AbstractServerContext {
     // this is the new-style deconvolution routine which sends all deconvolution requests in separate packets
     DeconvolutionProxy deconvolver = new DeconvolutionProxy(getConnection());
     List<Future<Void>> deconvolutions = Lists.newArrayList();
-    for (FpgaModel fpga : expt.getFpgas()) {
+    for (FpgaModelDac fpga : expt.getDacFpgas()) {
       deconvolutions.add(fpga.deconvolveSram(deconvolver));
     }
     Futures.waitForAll(deconvolutions).get();
@@ -695,8 +757,15 @@ public class QubitContext extends AbstractServerContext {
 
     Request runRequest = Request.to(Constants.GHZ_DAC_SERVER, getContext());
 
+    // NEW 4/22/2011 - pomalley
+    // settings for ADCs
+    for (FpgaModelAdc fpga : expt.getAdcFpgas()) {
+    	runRequest.add("Select Device", Data.valueOf(fpga.getName()));
+    	fpga.getChannel().getConfig().addPackets(runRequest);
+    }
+    
     // upload all memory and SRAM data
-    for (FpgaModel fpga : expt.getFpgas()) {
+    for (FpgaModelDac fpga : expt.getDacFpgas()) {
       runRequest.add("Select Device", Data.valueOf(fpga.getName()));
       runRequest.add("Memory", Data.valueOf(fpga.getMemory()));
       if (fpga.hasDualBlockSram()) {
@@ -707,7 +776,7 @@ public class QubitContext extends AbstractServerContext {
       } else {
         runRequest.add("SRAM", Data.valueOf(fpga.getSram()));
       }
-    }  
+    }
 
     // set up daisy chain and timing order
     runRequest.add("Daisy Chain", Data.listOf(expt.getFpgaNames(), Setters.stringSetter));
@@ -938,7 +1007,7 @@ public class QubitContext extends AbstractServerContext {
     long[][] raw = extractLastData();
     double[][] ans = new double[raw.length][];
     for (int i = 0; i < raw.length; i++) {
-      ans[i] = FpgaModelBase.clocksToMicroseconds(raw[i]);
+      ans[i] = FpgaModelDac.clocksToMicroseconds(raw[i]);
     }
     return ans;
   }
@@ -995,7 +1064,11 @@ public class QubitContext extends AbstractServerContext {
     return interpretSwitches(1)[0];
   }
   private boolean[][][] interpretSwitches(int deinterlace) {
-    List<PreampChannel> channels = getExperiment().getTimingChannels();
+    List<TimingChannel> allChannels = getExperiment().getTimingChannels();
+    List<PreampChannel> channels = Lists.newArrayList();
+    for (TimingChannel ch : allChannels)
+    	if (ch instanceof PreampChannel)
+    		channels.add((PreampChannel)ch);
     long[][] clocks = extractLastData();
     boolean[][] switches = new boolean[clocks.length][];
     for (int i = 0; i < clocks.length; i++) {

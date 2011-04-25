@@ -15,7 +15,7 @@ import org.labrad.qubits.util.Futures;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
-public class FpgaModelAnalog extends FpgaModelBase {
+public class FpgaModelAnalog extends FpgaModelDac {
   
   private AnalogBoard analogBoard;
   private Map<DacAnalogId, AnalogChannel> dacs = Maps.newEnumMap(DacAnalogId.class);

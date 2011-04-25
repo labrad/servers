@@ -13,7 +13,7 @@ import org.labrad.qubits.util.Futures;
 
 import com.google.common.collect.Lists;
 
-public class FpgaModelMicrowave extends FpgaModelBase {
+public class FpgaModelMicrowave extends FpgaModelDac {
 
   private MicrowaveBoard microwaveBoard;
   private IqChannel iq = null;

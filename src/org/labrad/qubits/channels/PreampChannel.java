@@ -4,7 +4,7 @@ import java.util.Arrays;
 
 import org.labrad.qubits.Experiment;
 import org.labrad.qubits.FpgaModel;
-import org.labrad.qubits.FpgaModelBase;
+import org.labrad.qubits.FpgaModelDac;
 import org.labrad.qubits.config.PreampConfig;
 import org.labrad.qubits.enums.DcRackFiberId;
 import org.labrad.qubits.resources.DacBoard;
@@ -12,12 +12,12 @@ import org.labrad.qubits.resources.PreampBoard;
 
 import com.google.common.base.Preconditions;
 
-public class PreampChannel implements FiberChannel {
+public class PreampChannel implements FiberChannel, TimingChannel {
 
   String name;
   Experiment expt = null;
   DacBoard board = null;
-  FpgaModel fpga = null;
+  FpgaModelDac fpga = null;
   PreampBoard preampBoard;
   DcRackFiberId preampChannel;
   PreampConfig config = null;
@@ -66,10 +66,12 @@ public class PreampChannel implements FiberChannel {
   }
 
   public void setFpgaModel(FpgaModel fpga) {
-    this.fpga = fpga;
+	Preconditions.checkArgument(fpga instanceof FpgaModelDac, "Preamp channel's FpgaModel must be FpgaModelDac.");
+    this.fpga = (FpgaModelDac)fpga;
   }
 
-  public FpgaModel getFpgaModel() {
+  @Override
+  public FpgaModelDac getFpgaModel() {
     return fpga;
   }
 
@@ -110,8 +112,8 @@ public class PreampChannel implements FiberChannel {
     switchIntervals = new long[intervals.length][];
     for (int i = 0; i < intervals.length; i++) {
       Preconditions.checkArgument(intervals[i].length == 2, "Switch intervals must have length 2");
-      long a = FpgaModelBase.microsecondsToClocks(intervals[i][0]);
-      long b = FpgaModelBase.microsecondsToClocks(intervals[i][1]);
+      long a = FpgaModelDac.microsecondsToClocks(intervals[i][0]);
+      long b = FpgaModelDac.microsecondsToClocks(intervals[i][1]);
       switchIntervals[i] = new long[] {Math.min(a, b), Math.max(a, b)};
     }
   }

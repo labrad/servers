@@ -3,6 +3,7 @@ package org.labrad.qubits;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Future;
 
 import org.labrad.qubits.channels.TriggerChannel;
 import org.labrad.qubits.enums.DacTriggerId;
@@ -14,13 +15,14 @@ import org.labrad.qubits.mem.MemoryCommand;
 import org.labrad.qubits.mem.NoopCommand;
 import org.labrad.qubits.mem.StartTimerCommand;
 import org.labrad.qubits.mem.StopTimerCommand;
+import org.labrad.qubits.proxies.DeconvolutionProxy;
 import org.labrad.qubits.resources.DacBoard;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
-public abstract class FpgaModelBase implements FpgaModel {
+public abstract class FpgaModelDac implements FpgaModel {
 
   public final static double FREQUENCY = 25.0;
   
@@ -32,7 +34,7 @@ public abstract class FpgaModelBase implements FpgaModel {
 
   private final Map<DacTriggerId, TriggerChannel> triggers = Maps.newEnumMap(DacTriggerId.class);
 
-  public FpgaModelBase(DacBoard dacBoard, Experiment expt) {
+  public FpgaModelDac(DacBoard dacBoard, Experiment expt) {
     this.dacBoard = dacBoard;
     this.expt = expt;
     clearMemory();
@@ -176,6 +178,11 @@ public abstract class FpgaModelBase implements FpgaModel {
 
   // SRAM calls
 
+  //
+  // SRAM
+  //
+  public abstract Future<Void> deconvolveSram(DeconvolutionProxy deconvolver);
+  
   public void callSramBlock(String blockName) {
     Preconditions.checkState(!sramCalledDualBlock, "Cannot call SRAM and dual-block in the same sequence.");
     addMemoryCommand(new CallSramCommand(blockName));

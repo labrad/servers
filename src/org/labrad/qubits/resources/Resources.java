@@ -13,6 +13,12 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
+
+/**
+ * "Resources represent the available hardware; these are configured in the registry."
+ * 
+ * @author maffoo
+ */
 public class Resources {
   // instance is an immutable map from string names to resources
   private final Map<String, Resource> resources;

@@ -2,16 +2,19 @@ package org.labrad.qubits.channels;
 
 import org.labrad.qubits.Experiment;
 import org.labrad.qubits.FpgaModel;
+import org.labrad.qubits.FpgaModelDac;
 import org.labrad.qubits.enums.DacFiberId;
 import org.labrad.qubits.enums.DcRackFiberId;
 import org.labrad.qubits.resources.DacBoard;
 import org.labrad.qubits.resources.FastBias;
 
+import com.google.common.base.Preconditions;
+
 public class FastBiasChannel implements FiberChannel {
 
   String name;
   Experiment expt = null;
-  FpgaModel fpga = null;
+  FpgaModelDac fpga = null;
   FastBias fb = null;
   DacBoard board = null;
   DcRackFiberId fbChannel;
@@ -41,10 +44,12 @@ public class FastBiasChannel implements FiberChannel {
   }
 
   public void setFpgaModel(FpgaModel fpga) {
-    this.fpga = fpga;
+	Preconditions.checkArgument(fpga instanceof FpgaModelDac,
+			"FastBias '%s' requires an FpgaModelDac.", getName());
+    this.fpga = (FpgaModelDac)fpga;
   }
 
-  public FpgaModel getFpgaModel() {
+  public FpgaModelDac getFpgaModel() {
     return fpga;
   }
 

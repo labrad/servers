@@ -3,7 +3,7 @@ package org.labrad.qubits.channels;
 import java.util.Map;
 
 import org.labrad.qubits.Experiment;
-import org.labrad.qubits.FpgaModel;
+import org.labrad.qubits.FpgaModelDac;
 import org.labrad.qubits.resources.DacBoard;
 
 import com.google.common.collect.Maps;
@@ -13,7 +13,7 @@ public abstract class SramChannelBase<T> implements Channel {
   String name = null;
   Experiment expt = null;
   DacBoard board = null;
-  FpgaModel fpga = null;
+  FpgaModelDac fpga = null;
 
   @Override
   public String getName() {
@@ -40,7 +40,7 @@ public abstract class SramChannelBase<T> implements Channel {
   }
 
   @Override
-  public FpgaModel getFpgaModel() {
+  public FpgaModelDac getFpgaModel() {
     return fpga;
   }
 

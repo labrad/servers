@@ -13,8 +13,8 @@ import com.google.common.collect.Maps;
  * Model of a device, essentially a collection of named channels of various types.
  * Each channel connects various physical devices (FastBias, Preamp, GHzDac) to some
  * controllable parameter on the device (flux bias, microwave, etc.).
+ * 
  * @author maffoo
- *
  */
 public class Device {
   private String name;
