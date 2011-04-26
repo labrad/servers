@@ -8,6 +8,7 @@ import java.util.Locale;
 import org.labrad.qubits.Experiment;
 import org.labrad.qubits.FpgaModel;
 import org.labrad.qubits.FpgaModelAdc;
+import org.labrad.qubits.config.AdcAverageConfig;
 import org.labrad.qubits.config.AdcBaseConfig;
 import org.labrad.qubits.config.AdcDemodConfig;
 import org.labrad.qubits.resources.AdcBoard;
@@ -30,7 +31,8 @@ public class AdcChannel implements Channel, TimingChannel {
 	 */
 	public enum AdcMode {
 		DEMODULATE("demodulate"),
-		AVERAGE("average");
+		AVERAGE("average"),
+		UNSET("unset");			// for before it is set by user
 		
 		/**
 		 * string must be the string that is passed to the GHz FPGA server
@@ -48,7 +50,7 @@ public class AdcChannel implements Channel, TimingChannel {
 		
 	}
 	
-	AdcMode mode = AdcMode.DEMODULATE;
+	AdcMode mode = AdcMode.UNSET;
 	
 	String name = null;
 	Experiment expt = null;
@@ -117,17 +119,15 @@ public class AdcChannel implements Channel, TimingChannel {
 		// we use Locale.ENGLISH because goddamit I want this code to work if we go to russia or some shit.
 	}
 	public void setMode(AdcMode mode) {
-		//System.out.println(mode);
-		if (mode != this.mode || config == null) {
+		if (mode != this.mode) {
 			this.mode = mode;
 			this.clearConfig();
 			switch (mode) {
 			case DEMODULATE:
-				this.config = new AdcDemodConfig();
+				this.config = new AdcDemodConfig(this.name);
 				break;
 			case AVERAGE:
-				// TODO: add averaging mode
-				this.config = null;
+				this.config = new AdcAverageConfig(this.name);
 				break;
 			}
 		}

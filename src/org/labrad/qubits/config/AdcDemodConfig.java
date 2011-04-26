@@ -70,15 +70,16 @@ public class AdcDemodConfig extends AdcBaseConfig {
 	 */
 	boolean inUse[];
 	
-	public AdcDemodConfig() {
-		startDelay = 0;
+	public AdcDemodConfig(String channelName) {
+		super(channelName);
+		startDelay = -1;
 		filterFunction = "";
-		stretchLen = 0; stretchAt = 0;
+		stretchLen = -1; stretchAt = -1;
 		
-		dPhi = new int[MAX_CHANNELS];
-		phi0 = new int[MAX_CHANNELS];
-		ampSin = new int[MAX_CHANNELS];
-		ampCos = new int[MAX_CHANNELS];
+		dPhi = new int[MAX_CHANNELS]; for (int i : dPhi) i--;
+		phi0 = new int[MAX_CHANNELS]; for (int i : phi0) i--;
+		ampSin = new int[MAX_CHANNELS]; for (int i : ampSin) i--;
+		ampCos = new int[MAX_CHANNELS]; for (int i : ampCos) i--;
 		inUse = new boolean[MAX_CHANNELS];
 	}
 	
@@ -147,6 +148,19 @@ public class AdcDemodConfig extends AdcBaseConfig {
 	 * @author pomalley
 	 */
 	public void addPackets(Request runRequest) {
+		// check that the user has set everything that needs to be set
+		Preconditions.checkState(startDelay > -1, "ADC Start Delay not set for channel '%s'", this.channelName);
+		Preconditions.checkState(stretchLen > -1 && stretchAt > -1, "ADC Filter Func not set for channel '%s'", this.channelName);
+		boolean oneFound = false;
+		for (int i = 0; i < MAX_CHANNELS; i++) {
+			if (inUse[i]) {
+				oneFound = true;
+				Preconditions.checkState(dPhi[i] > -1 && phi0[i] > -1, "ADC Demod phase not set on activated demod channel %s on channel '%s'", i, this.channelName);
+				Preconditions.checkState(ampSin[i] > -1 && ampCos[i] > -1, "ADC Trig Magnitude not set on activated demod channel %s on channel '%s'", i, this.channelName);
+			}
+		}
+		Preconditions.checkState(oneFound, "No demod channels activated for channel '%s'", this.channelName);
+		// add the requests
 		runRequest.add("ADC Run Mode", Data.valueOf("demodulate"));
 		runRequest.add("Start Delay", Data.valueOf(this.startDelay));
 		runRequest.add("ADC Filter Func", Data.valueOf(this.filterFunction),

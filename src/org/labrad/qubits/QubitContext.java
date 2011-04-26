@@ -762,10 +762,8 @@ public class QubitContext extends AbstractServerContext {
     // settings for ADCs
     for (FpgaModelAdc fpga : expt.getAdcFpgas()) {
     	runRequest.add("Select Device", Data.valueOf(fpga.getName()));
-    	//AdcChannel c = fpga.getChannel();
-    	//System.out.println(c.getName());
-    	//AdcBaseConfig co = c.getConfig();
-    	//System.out.println(co);
+    	AdcBaseConfig conf = fpga.getChannel().getConfig();
+    	Preconditions.checkState(conf != null, "ADC channel '%s' was not configured!", fpga.getChannel().getName());
     	fpga.getChannel().getConfig().addPackets(runRequest);
     }
     

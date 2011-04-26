@@ -8,6 +8,15 @@ public abstract class AdcBaseConfig {
 	 * number of clock cycles to delay
 	 */
 	protected int startDelay;
+	
+	/**
+	 * name of the channel we belong to
+	 */
+	protected String channelName;
+	
+	public AdcBaseConfig(String channelName) {
+		this.channelName = channelName;
+	}
 
 	public void setStartDelay(int startDelay) {
 		this.startDelay = startDelay;
