@@ -10,6 +10,7 @@ import org.labrad.qubits.channels.PreampChannel;
 import org.labrad.qubits.channels.TimingChannel;
 import org.labrad.qubits.enums.DacTriggerId;
 import org.labrad.qubits.mem.MemoryCommand;
+import org.labrad.qubits.resources.AdcBoard;
 import org.labrad.qubits.resources.AnalogBoard;
 import org.labrad.qubits.resources.DacBoard;
 import org.labrad.qubits.resources.MicrowaveBoard;
@@ -60,6 +61,8 @@ public class Experiment {
           fpga = new FpgaModelAnalog((AnalogBoard)board, this);
         } else if (board instanceof MicrowaveBoard) {
           fpga = new FpgaModelMicrowave((MicrowaveBoard)board, this);
+        } else if (board instanceof AdcBoard) {
+          fpga = new FpgaModelAdc((AdcBoard)board, this);
         } else {
           throw new RuntimeException("Unknown DAC board type for board " + board.getName());
         }

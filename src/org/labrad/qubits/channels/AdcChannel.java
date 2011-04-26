@@ -117,7 +117,8 @@ public class AdcChannel implements Channel, TimingChannel {
 		// we use Locale.ENGLISH because goddamit I want this code to work if we go to russia or some shit.
 	}
 	public void setMode(AdcMode mode) {
-		if (mode != this.mode) {
+		//System.out.println(mode);
+		if (mode != this.mode || config == null) {
 			this.mode = mode;
 			this.clearConfig();
 			switch (mode) {

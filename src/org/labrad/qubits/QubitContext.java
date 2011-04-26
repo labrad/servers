@@ -30,6 +30,7 @@ import org.labrad.qubits.channels.IqChannel;
 import org.labrad.qubits.channels.PreampChannel;
 import org.labrad.qubits.channels.TimingChannel;
 import org.labrad.qubits.channels.TriggerChannel;
+import org.labrad.qubits.config.AdcBaseConfig;
 import org.labrad.qubits.config.MicrowaveSourceConfig;
 import org.labrad.qubits.config.MicrowaveSourceOffConfig;
 import org.labrad.qubits.config.SetupPacket;
@@ -646,7 +647,7 @@ public class QubitContext extends AbstractServerContext {
 		  							  @Accepts("w") Data sineAmp,
 		  							  @Accepts("w") Data cosineAmp) {
 	  AdcChannel ch = getChannel(id, AdcChannel.class);
-	  ch.setTrigMagnitude(channel.getInt(), sineAmp.getInt(), cosineAmp.getInt());
+	  ch.setTrigMagnitude((int)channel.getWord(), (int)sineAmp.getWord(), (int)cosineAmp.getWord());
   }
   
   @Setting(id = 532,
@@ -761,6 +762,10 @@ public class QubitContext extends AbstractServerContext {
     // settings for ADCs
     for (FpgaModelAdc fpga : expt.getAdcFpgas()) {
     	runRequest.add("Select Device", Data.valueOf(fpga.getName()));
+    	//AdcChannel c = fpga.getChannel();
+    	//System.out.println(c.getName());
+    	//AdcBaseConfig co = c.getConfig();
+    	//System.out.println(co);
     	fpga.getChannel().getConfig().addPackets(runRequest);
     }
     
