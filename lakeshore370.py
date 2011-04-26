@@ -59,7 +59,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Lakeshore RuOx
-version = 2.1
+version = 2.1.1
 description = 
 
 [startup]
@@ -430,6 +430,7 @@ class LakeshoreRuOxServer(GPIBManagedServer):
 
 		NOTE:
 		Use "Heater Range" to turn on heater and start regulation."""
+		dev = self.selectedDevice(c)
 		if channel not in range(1,17):
 			raise Exception('Channel needs to be between 1 and 16')
 		#res = temp2res(float(temperature))
@@ -440,7 +441,6 @@ class LakeshoreRuOxServer(GPIBManagedServer):
 		loadresistor = float(loadresistor)
 		if (loadresistor < 1) or (loadresistor > 100000):
 			raise Exception('Load resistor value must be between 1 Ohm and 100kOhm')
-		dev = self.selectedDevice(c)
 		dev.onlyChannel = channel
 		dev.selectChannel(channel)
 		yield dev.controlTemperature(channel, res, loadresistor)
