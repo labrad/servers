@@ -1,8 +1,12 @@
 package org.labrad.qubits.config;
 
+import java.util.Map;
+
 import org.labrad.data.Request;
 
 public abstract class AdcBaseConfig {
+	
+	protected final Map<String, Long> buildProperties;
 
 	/**
 	 * number of clock cycles to delay
@@ -12,10 +16,11 @@ public abstract class AdcBaseConfig {
 	/**
 	 * name of the channel we belong to
 	 */
-	protected String channelName;
+	protected final String channelName;
 	
-	public AdcBaseConfig(String channelName) {
+	public AdcBaseConfig(String channelName, Map<String, Long> buildProperties) {
 		this.channelName = channelName;
+		this.buildProperties = buildProperties;
 	}
 
 	public void setStartDelay(int startDelay) {

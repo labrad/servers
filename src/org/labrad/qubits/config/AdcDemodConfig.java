@@ -1,6 +1,8 @@
 package org.labrad.qubits.config;
 
 
+import java.util.Map;
+
 import org.labrad.data.Data;
 import org.labrad.data.Request;
 
@@ -20,25 +22,12 @@ import com.google.common.base.Preconditions;
  * Here the config is for a device on the GHz FPGA server and is sent as part of the main
  * run request.
  * 
- * TODO: AVERAGING MODE
- *   
  * @author pomalley
  *
  */
 public class AdcDemodConfig extends AdcBaseConfig {
 
-	/**
-	 * maximum number of channels supported by the ADC
-	 */
-	static final int MAX_CHANNELS = 4;
-	/**
-	 * conversion from frequency to addresses per cycle
-	 */
-	static final double CYCLES_PER_HZ = 7629.0;
-	/**
-	 * conversion from phase to address offset
-	 */
-	static final double CYCLES_TO_PHI0 = 2^16;
+	final int MAX_CHANNELS, TRIG_AMP, LOOKUP_ACCUMULATOR_BITS, DEMOD_TIME_STEP;
 	
 	/**
 	 * Each byte is the weight for a 4 ns interval.
@@ -70,11 +59,18 @@ public class AdcDemodConfig extends AdcBaseConfig {
 	 */
 	boolean inUse[];
 	
-	public AdcDemodConfig(String channelName) {
-		super(channelName);
+	public AdcDemodConfig(String channelName, Map<String, Long> buildProperties) {
+		super(channelName, buildProperties);
 		startDelay = -1;
 		filterFunction = "";
 		stretchLen = -1; stretchAt = -1;
+		
+		MAX_CHANNELS = buildProperties.get("DEMOD_CHANNELS").intValue();
+		TRIG_AMP = buildProperties.get("TRIG_AMP").intValue();
+		// see fpga server documentation on teh "ADC Demod Phase" setting for an explanation of the two below.
+		LOOKUP_ACCUMULATOR_BITS = buildProperties.get("LOOKUP_ACCUMULATOR_BITS").intValue();
+		DEMOD_TIME_STEP = buildProperties.get("DEMOD_TIME_STEP").intValue(); // in ns
+		
 		
 		dPhi = new int[MAX_CHANNELS]; for (int i : dPhi) i--;
 		phi0 = new int[MAX_CHANNELS]; for (int i : phi0) i--;
@@ -107,6 +103,8 @@ public class AdcDemodConfig extends AdcBaseConfig {
 	
 	public void setTrigMagnitude(int channel, int ampSin, int ampCos) {
 		Preconditions.checkArgument(channel <= MAX_CHANNELS, "channel must be <= %s", MAX_CHANNELS);
+		Preconditions.checkArgument(ampSin > -1 && ampSin <= TRIG_AMP && ampCos > -1 && ampCos <= TRIG_AMP, 
+				"Trig Amplitudes must be 0-255 for channel '%s'", this.channelName);
 		this.inUse[channel] = true;
 		this.ampSin[channel] = ampSin;
 		this.ampCos[channel] = ampCos;
@@ -120,6 +118,8 @@ public class AdcDemodConfig extends AdcBaseConfig {
 	 */
 	public void setPhase(int channel, int dPhi, int phi0) {
 		Preconditions.checkArgument(channel <= MAX_CHANNELS, "channel must be <= %s", MAX_CHANNELS);
+		Preconditions.checkArgument(phi0 >= 0 && phi0 < (int)Math.pow(2, LOOKUP_ACCUMULATOR_BITS),
+				"phi0 must be between 0 and 2^%s", LOOKUP_ACCUMULATOR_BITS);
 		inUse[channel] = true;
 		this.dPhi[channel] = dPhi;
 		this.phi0[channel] = phi0;
@@ -128,12 +128,13 @@ public class AdcDemodConfig extends AdcBaseConfig {
 	/**
 	 * sets the demodulation phase.
 	 * @param channel the channel index
-	 * @param frequency the frequency in Hz. it is converted in this function.
-	 * @param phase the phase of the offset. it is converted to an address.
+	 * @param frequency in Hz. it is converted in this function.
+	 * @param phase of the offset IN RADIANS. it is converted to an address.
 	 */
 	public void setPhase(int channel, double frequency, double phase) {
-		int dPhi = (int)Math.floor(frequency / CYCLES_PER_HZ);
-		int phi0 = (int)(phase*(2^16));
+		Preconditions.checkArgument(phase >= 0 && phase <= 2*Math.PI, "Phase must be between 0 and 2 pi");
+		int dPhi = (int)Math.floor(frequency * Math.pow(2, LOOKUP_ACCUMULATOR_BITS) * DEMOD_TIME_STEP * Math.pow(10, -9.0));
+		int phi0 = (int)(phase * Math.pow(2, LOOKUP_ACCUMULATOR_BITS) / (2 * Math.PI));
 		setPhase(channel, dPhi, phi0); 
 	}
 	

@@ -11,8 +11,8 @@ import org.labrad.qubits.FpgaModelAdc;
 import org.labrad.qubits.config.AdcAverageConfig;
 import org.labrad.qubits.config.AdcBaseConfig;
 import org.labrad.qubits.config.AdcDemodConfig;
+import org.labrad.qubits.enums.AdcMode;
 import org.labrad.qubits.resources.AdcBoard;
-import org.labrad.qubits.resources.DacBoard;
 
 import com.google.common.base.Preconditions;
 
@@ -23,32 +23,6 @@ import com.google.common.base.Preconditions;
  *
  */
 public class AdcChannel implements Channel, TimingChannel {
-
-	/**
-	 * AdcMode: either demodulate or average.
-	 * @author pomalley
-	 *
-	 */
-	public enum AdcMode {
-		DEMODULATE("demodulate"),
-		AVERAGE("average"),
-		UNSET("unset");			// for before it is set by user
-		
-		/**
-		 * string must be the string that is passed to the GHz FPGA server
-		 * to specify which run mode to put the ADC in.
-		 */
-		private final String string;
-		AdcMode(String str) {
-			string = str;
-		}
-		
-		@Override
-		public String toString() {
-			return string;
-		}
-		
-	}
 	
 	AdcMode mode = AdcMode.UNSET;
 	
@@ -59,7 +33,6 @@ public class AdcChannel implements Channel, TimingChannel {
 
 	AdcBaseConfig config = null;
 	
-
 	public AdcChannel(String name) {
 		this.name = name;
 	}
@@ -69,7 +42,7 @@ public class AdcChannel implements Channel, TimingChannel {
 	}
 
 	@Override
-	public DacBoard getDacBoard() {
+	public AdcBoard getDacBoard() {
 		return board;
 	}
 
@@ -124,10 +97,10 @@ public class AdcChannel implements Channel, TimingChannel {
 			this.clearConfig();
 			switch (mode) {
 			case DEMODULATE:
-				this.config = new AdcDemodConfig(this.name);
+				this.config = new AdcDemodConfig(this.name, this.board.getBuildProperties());
 				break;
 			case AVERAGE:
-				this.config = new AdcAverageConfig(this.name);
+				this.config = new AdcAverageConfig(this.name, this.board.getBuildProperties());
 				break;
 			}
 		}

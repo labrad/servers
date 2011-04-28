@@ -1,5 +1,7 @@
 package org.labrad.qubits.config;
 
+import java.util.Map;
+
 import org.labrad.data.Data;
 import org.labrad.data.Request;
 
@@ -7,8 +9,8 @@ import com.google.common.base.Preconditions;
 
 public class AdcAverageConfig extends AdcBaseConfig {
 	
-	public AdcAverageConfig(String name) {
-		super(name);
+	public AdcAverageConfig(String name, Map<String, Long> buildProperties) {
+		super(name, buildProperties);
 	}
 
 	/**

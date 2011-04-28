@@ -609,7 +609,9 @@ public class QubitContext extends AbstractServerContext {
   
   @Setting(id = 510,
 		  name = "ADC Set Start Delay",
-		  doc = "Sets the start delay for this channel; must be an ADC channel.")
+		  doc = "Sets the start delay for this channel; must be an ADC channel. " +
+		  		"First argument {s or (ss)}: channel (either device name or (device name, channel name) " +
+		  		"Second: delay, in clock cycles (w)")
   public void adc_set_start_delay(@Accepts({"s", "ss"}) Data id,
 		  						  @Accepts("w") Data delay) {
 	  AdcChannel ch = getChannel(id, AdcChannel.class);
@@ -618,8 +620,9 @@ public class QubitContext extends AbstractServerContext {
   
   @Setting(id = 520,
 		  name = "ADC Set Mode",
-		  doc = "Sets the mode of this channel. Must be an ADC channel, and mode "
-			  + "must be one of 'average' or 'demodulate'.")
+		  doc = "Sets the mode of this channel.\n " +
+		  		"First argument {s or (ss)}: channel (either device name or (device name, channel name)\n " +
+		  		"Second {s}: either 'demodulate' or 'average'")
   public void adc_set_mode(@Accepts({"s", "ss"}) Data id,
 		  				   @Accepts("s") Data mode) {
 	  AdcChannel ch = getChannel(id, AdcChannel.class);
@@ -628,7 +631,11 @@ public class QubitContext extends AbstractServerContext {
   
   @Setting(id = 530,
 		  name = "ADC Set Filter Function",
-		  doc = "Sets the filter function for this channel; must be an adc channel in demod mode.")
+		  doc = "Sets the filter function for this channel; must be an adc channel in demod mode.\n " +
+		  		"First argument {s or (ss)}: channel (either device name or (device name, channel name)\n " +
+		  		"Second {s}: the filter function, represented as a string\n " +
+		  		"Third {w}: the length of the stretch\n " +
+		  		"Fourth {w}: the index at which to stretch")
   public void adc_set_filter_function(@Accepts({"s", "ss"}) Data id,
 		  							  @Accepts("s") Data bytes,
 		  							  @Accepts("w") Data stretchLen,
@@ -640,8 +647,12 @@ public class QubitContext extends AbstractServerContext {
   @Setting(id = 531,
 		  name = "ADC Set Trig Magnitude",
 		  doc = "Sets the filter function for this channel. Must be an adc channel in demod mode "
-			  + "and the sub-channel must be valid (i.e. under 4). "
-			  + "sineAmp and cosineAmp range from 0 to 255.")
+			  + "and the sub-channel must be valid (i.e. under 4 for build 1). "
+			  + "sineAmp and cosineAmp range from 0 to 255.\n" +
+			  	"First argument {s or (ss)}: channel (either device name or (device name, channel name)\n " +
+		  		"Second {w}: the demodulation channel\n " +
+		  		"Third {w}: sine amplitude\n " +
+		  		"Fourth {w}: cosine amplitude\n")
   public void adc_set_trig_magnitude(@Accepts({"s", "ss"}) Data id,
 		  							  @Accepts("w") Data channel,
 		  							  @Accepts("w") Data sineAmp,
@@ -654,13 +665,19 @@ public class QubitContext extends AbstractServerContext {
 		  name = "ADC Demod Phase",
 		  doc = "Sets the demodulation phase. Must be an adc channel in demod mode "
 			  + "and the sub-channel must be valid (i.e. under 4). "
-			  + "See the documentation for this in the GHz FPGA server.")
+			  + "See the documentation for this in the GHz FPGA server.\n" +
+			  	"First argument {s or (ss)}: channel (either device name or (device name, channel name)\n " +
+		  		"Second {w}: the demodulation channel\n " +
+		  		"Third {(i,i) or (v[Hz], v[rad])}: (dPhi, phi0) or (frequency (Hz), offset (radians))")
   public void adc_demod_phase(@Accepts({"s", "ss"}) Data id,
 		  							  @Accepts("w") Data channel,
-		  							  @Accepts("i") Data dPhi,
-		  							  @Accepts("i") Data phi0) {
+		  							  @Accepts({"ii", "v[Hz]v[rad]"}) Data dat) {
 	  AdcChannel ch = getChannel(id, AdcChannel.class);
-	  ch.setPhase(channel.getInt(), dPhi.getInt(), phi0.getInt());
+	  if (dat.matchesType("(ii)")) {
+		  ch.setPhase((int)channel.getWord(), dat.get(0).getInt(), dat.get(1).getInt());
+	  } else {
+		  ch.setPhase((int)channel.getWord(), dat.get(0).getValue(), dat.get(1).getValue());
+	  }
   }
 
 

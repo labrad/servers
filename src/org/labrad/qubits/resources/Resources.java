@@ -11,6 +11,7 @@ import org.labrad.qubits.enums.DeviceType;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 
@@ -43,6 +44,24 @@ public class Resources {
     Preconditions.checkArgument(cls.isInstance(r),
         "Resource '%s' not of type %s", name, cls.getName());	
     return (T) r;
+  }
+  
+  /**
+   * Get all resources of a given type.
+   * @param <T>
+   * @param cls
+   * @return
+   */
+  @SuppressWarnings("unchecked")
+  public <T extends Resource> List<T> getAll(Class<? extends T> cls) {
+	  List<T> list = Lists.newArrayList();
+	  for (String key : resources.keySet()) {
+		  Resource r = resources.get(key);
+		  if (cls.isInstance(r)) {
+			  list.add((T)r);
+		  }
+	  }
+	  return list;
   }
 
 
