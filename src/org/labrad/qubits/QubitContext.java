@@ -1,5 +1,6 @@
 package org.labrad.qubits;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -702,6 +703,15 @@ public class QubitContext extends AbstractServerContext {
     // sanity checks
     //
 
+    //
+    // if we don't have any preamp channels, add a start/stop timer to all boards.
+    // pomalley 5/10/11
+    //
+    if (expt.getTimerFpgas().size() == 0) {
+    	expt.startTimer(new ArrayList<PreampChannel>());
+    	expt.stopTimer(new ArrayList<PreampChannel>());
+    }
+    
     // check timer state of each involved fpga
     for (FpgaModelDac fpga : expt.getDacFpgas()) {
       fpga.checkTimerStatus();
