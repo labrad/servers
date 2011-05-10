@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.labrad.data.Data;
+import org.labrad.qubits.channels.AdcChannel;
 import org.labrad.qubits.channels.Channel;
 import org.labrad.qubits.channels.PreampChannel;
 import org.labrad.qubits.channels.TimingChannel;
@@ -273,6 +274,23 @@ public class Experiment {
 
   public List<TimingChannel> getTimingChannels() {
     return timingOrder != null ? timingOrder : getChannels(TimingChannel.class);
+  }
+  
+  public List<Integer> adcTimingOrderIndices() {
+	  List<Integer> list = Lists.newArrayList();
+	  for (int i = 0; i < getTimingChannels().size(); i++) {
+		  if (getTimingChannels().get(i) instanceof AdcChannel)
+			  list.add(i);
+	  }
+	  return list;
+  }
+  public List<Integer> dacTimingOrderIndices() {
+	  List<Integer> list = Lists.newArrayList();
+	  for (int i = 0; i < getTimingChannels().size(); i++) {
+		  if (!(getTimingChannels().get(i) instanceof AdcChannel))
+			  list.add(i);
+	  }
+	  return list;
   }
 
   //

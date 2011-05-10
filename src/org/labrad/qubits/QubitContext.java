@@ -28,6 +28,7 @@ import org.labrad.qubits.channels.Channel;
 import org.labrad.qubits.channels.FastBiasChannel;
 import org.labrad.qubits.channels.IqChannel;
 import org.labrad.qubits.channels.PreampChannel;
+import org.labrad.qubits.channels.StartDelayChannel;
 import org.labrad.qubits.channels.TimingChannel;
 import org.labrad.qubits.channels.TriggerChannel;
 import org.labrad.qubits.config.AdcBaseConfig;
@@ -61,6 +62,7 @@ public class QubitContext extends AbstractServerContext {
   private Request nextRequest = null;
   private int runIndex;
   private Data lastData = null;
+  private Data lastAdcData = null;
   
   private boolean configDirty = true;
   private boolean memDirty = true;
@@ -608,13 +610,13 @@ public class QubitContext extends AbstractServerContext {
   //
   
   @Setting(id = 510,
-		  name = "ADC Set Start Delay",
-		  doc = "Sets the start delay for this channel; must be an ADC channel. " +
+		  name = "Set Start Delay",
+		  doc = "Sets the start delay for this channel; must be an ADC or IQ channel. " +
 		  		"First argument {s or (ss)}: channel (either device name or (device name, channel name) " +
 		  		"Second: delay, in clock cycles (w)")
   public void adc_set_start_delay(@Accepts({"s", "ss"}) Data id,
 		  						  @Accepts("w") Data delay) {
-	  AdcChannel ch = getChannel(id, AdcChannel.class);
+	  StartDelayChannel ch = getChannel(id, StartDelayChannel.class);
 	  ch.setStartDelay(delay.getInt());
   }
   
@@ -787,6 +789,7 @@ public class QubitContext extends AbstractServerContext {
     // upload all memory and SRAM data
     for (FpgaModelDac fpga : expt.getDacFpgas()) {
       runRequest.add("Select Device", Data.valueOf(fpga.getName()));
+      runRequest.add("Start Delay", Data.valueOf(fpga.getStartDelay()));	// new 5/4/11 - pomalley
       runRequest.add("Memory", Data.valueOf(fpga.getMemory()));
       if (fpga.hasDualBlockSram()) {
         runRequest.add("SRAM dual block",
@@ -843,6 +846,74 @@ public class QubitContext extends AbstractServerContext {
       Data data = getConnection().sendAndWait(nextRequest).get(runIndex);
       allData.add(data);
     }
+    
+    // pomalley 5/6/2011
+    // if we have ADCs in our lineup (i.e. timing order), extract the ADC data
+    // and store it separately. then reformat the DAC data to be *2w so the old functions still work.
+
+    // get a list of all the adc indices in the timing order
+    List<Integer> adcIndices = expt.adcTimingOrderIndices();
+    List<Integer> dacIndices = expt.dacTimingOrderIndices();
+    // if we have adcs
+    if (adcIndices.size() > 0) {
+    	List<Data> adcData = Lists.newArrayList();			// this data will hold the extracted ADC data
+    	List<Data> dacData = Lists.newArrayList();			// all the reformatted DAC data
+    	for (Data bothData : allData) {						// loop over all the data (from multiple runs)
+    		adcData.add(bothData.get(adcIndices).clone());	// extract and make a copy of the adc data
+    		if (dacIndices.size() > 0) {					// reformat the dac data
+	    		Data dacTotal = Data.ofType("*2w");											// will hold the DAC results for this run
+	    		List<Data> dacDatas = bothData.get(dacIndices).clone().getClusterAsList();	// extract DAC data
+	    		dacTotal.setArrayShape(dacDatas.size(), dacDatas.get(0).getArraySize());	// set the size of the *2w
+	    		for (int i = 0; i < dacDatas.size(); i++)
+	    			for (int j = 0; j < dacDatas.get(0).getArraySize(); j++)
+	    				dacTotal.get(i, j).setWord(dacDatas.get(i).getWordArray()[j]);		// fill in the data
+	    		dacData.add(dacTotal);														// add to the list
+    		}
+    	}
+    	allData = dacData;									// replace allData with the reformatted
+    	
+    	// finally, we stitch together the ADC data into lastAdcData, similar to below
+    	// it's weirder because we end up with a cluster of clusters of arrays, instead of a nice 2d array
+    	int numAdcs = adcIndices.size();
+    	int numDataPoints = 0;					// figure out the total number of data pairs across all runs
+    	for (Data oneRun : adcData) {
+    		// this is a mouthful of conversions, but here it is:
+    		// oneRun has a cluster of results by ADC, but we convert it to a list and take the first one
+    		// which is a (size 2) cluster of arrays (one for i and q), of which we take the first one and get the length
+    		numDataPoints += oneRun.getClusterAsList().get(0).getClusterAsList().get(0).getArraySize();
+    	}
+    	// make a list of datas for all the ADCs. make them the correct size.
+    	List<Data> allAdcs = Lists.newArrayList();
+    	for (int i = 0; i < numAdcs; i++) {
+    		Data d = Data.ofType("(*i{I}, *i{Q})");
+    		d.getClusterAsList().get(0).setArraySize(numDataPoints);
+    		d.getClusterAsList().get(1).setArraySize(numDataPoints);
+    		allAdcs.add(d);
+    	}
+    	// fill in the data
+    	int offset = 0;
+    	// loop over each run
+    	for (Data oneRun : adcData) {
+    		// how many i,q pairs for this round? (should be the same across all adcs)
+    		int numPointsThisRound = oneRun.getClusterAsList().get(0).getArraySize();
+    		// now loop over adcs and over data pairs
+	    	for (int i = 0; i < numAdcs; i++) {
+	    		for (int j = 0; j < numPointsThisRound; j++) {
+	    			// extract the Is and Qs and fill them in
+	    			int iVal = oneRun.getClusterAsList().get(0).get(j).getInt();
+	    			int qVal = oneRun.getClusterAsList().get(1).get(j).getInt();
+	    			allAdcs.get(i).getClusterAsList().get(0).get(j+offset).setInt(iVal);
+	    			allAdcs.get(i).getClusterAsList().get(1).get(j+offset).setInt(qVal);
+	    		}
+	    	}
+	    	offset += numPointsThisRound;
+    	}
+    	lastAdcData = Data.clusterOf(allAdcs);
+    	// phew!
+    	
+    }
+    // END pomalley 5/6/2011
+    
     
     // put data together if it was run in multiple chunks
     if (allData.size() == 1) {
@@ -1008,6 +1079,14 @@ public class QubitContext extends AbstractServerContext {
       probs[i] = filterArray(probs[i], states);
     }
     return Data.valueOf(probs);
+  }
+  
+  @Setting(id = 1120,
+		   name = "Get ADC Data Raw",
+		   doc = "Get the raw ADC data from the previous run.")
+  @Returns("((*i{I}, *i{Q}))")
+  public Data get_adc_data_raw() {
+	  return lastAdcData;
   }
   
   // extract data from last run as an array

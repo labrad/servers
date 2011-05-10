@@ -22,7 +22,7 @@ import com.google.common.base.Preconditions;
  * @author pomalley
  *
  */
-public class AdcChannel implements Channel, TimingChannel {
+public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 	
 	AdcMode mode = AdcMode.UNSET;
 	
@@ -108,9 +108,14 @@ public class AdcChannel implements Channel, TimingChannel {
 	
 	// these are passthroughs to the config object. in most cases we do have to check that
 	// we are in the proper mode (average vs demod)
+	@Override
 	public void setStartDelay(int startDelay)
 	{
 		config.setStartDelay(startDelay);
+	}
+	@Override
+	public int getStartDelay() {
+		return config.getStartDelay();
 	}
 	public void setFilterFunction(String filterFunction, int stretchLen, int stretchAt) {
 		Preconditions.checkState(mode == AdcMode.DEMODULATE, "Channel must be in demodulate mode for setFilterFunction to be valid.");

@@ -48,6 +48,16 @@ public abstract class FpgaModelDac implements FpgaModel {
     return dacBoard;
   }
 
+  //
+  // Start Delay - pomalley 5/4/2011
+  //
+  private int startDelay = 0;
+  public void setStartDelay(int startDelay) {
+	  this.startDelay = startDelay;
+  }
+  public int getStartDelay() {
+	  return this.startDelay;
+  }
 
   //
   // Wiring

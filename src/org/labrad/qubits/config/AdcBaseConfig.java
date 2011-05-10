@@ -36,4 +36,8 @@ public abstract class AdcBaseConfig {
 	 */
 	public abstract void addPackets(Request runRequest);
 
+	public int getStartDelay() {
+		return startDelay;
+	}
+
 }
