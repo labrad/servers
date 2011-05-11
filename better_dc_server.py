@@ -337,20 +337,20 @@ class DcRackServer(DeviceServer):
         ident = yield dev.identSelf()
         returnValue(ident)
 
-    @setting(565, 'list_cards', returns = 'list of cards in rack')
+    @setting(565, 'list_cards', returns = 's:list of cards in rack')
     def list_cards(self, c):
         dev = self.selectedDevice(c)
         cards = yield dev.returnCardList()
         returnValue(cards)
 
     @setting(455, 'get_preamp_state', cardNumber = 'w', channel = 's', returns =
-                    'channel state as list [highpass, lowpass, polarity, offset]')
+                    's:channel state as list [highpass, lowpass, polarity, offset]')
     def getPreampState(self, c, cardNumber, channel):
         dev = self.selectedDevice(c)
         state = yield dev.preampState(cardNumber, channel)
         returnValue(state)
 
-    @setting(423, 'get_monitor_state', returns = 'The state of the monitor channels for a given rack')                                            
+    @setting(423, 'get_monitor_state', returns = 's:The state of the monitor channels for a given rack')                                            
     def getMonitorState(self, c):
         dev = self.selectedDevice(c)
         state = yield dev.getMonitorState()
