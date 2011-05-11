@@ -343,7 +343,7 @@ class DcRackServer(DeviceServer):
         cards = yield dev.returnCardList()
         returnValue(cards)
 
-    @setting(455, 'get_preamp_state', cardNumber = 'w', channel = 's')
+    @setting(455, 'get_preamp_state')
     def getPreampState(self, c, cardNumber, channel):
         dev = self.selectedDevice(c)
         state = yield dev.preampState(cardNumber, channel)
