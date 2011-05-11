@@ -163,13 +163,13 @@ public class AdcDemodConfig extends AdcBaseConfig {
 		Preconditions.checkState(oneFound, "No demod channels activated for channel '%s'", this.channelName);
 		// add the requests
 		runRequest.add("ADC Run Mode", Data.valueOf("demodulate"));
-		runRequest.add("Start Delay", Data.valueOf(this.startDelay));
+		runRequest.add("Start Delay", Data.valueOf((long)this.startDelay));
 		runRequest.add("ADC Filter Func", Data.valueOf(this.filterFunction),
-				Data.valueOf(this.stretchLen), Data.valueOf(this.stretchAt));
+				Data.valueOf((long)this.stretchLen), Data.valueOf((long)this.stretchAt));
 		for (int i = 0; i < MAX_CHANNELS; i++) {
 			if (inUse[i]) {
-				runRequest.add("ADC Demod Phase", Data.valueOf(i), Data.valueOf(dPhi[i]), Data.valueOf(phi0[i]));
-				runRequest.add("ADC Trig Magnitude", Data.valueOf(i), Data.valueOf(ampSin[i]), Data.valueOf(ampCos[i]));
+				runRequest.add("ADC Demod Phase", Data.valueOf((long)i), Data.valueOf(dPhi[i]), Data.valueOf(phi0[i]));
+				runRequest.add("ADC Trig Magnitude", Data.valueOf((long)i), Data.valueOf((long)ampSin[i]), Data.valueOf((long)ampCos[i]));
 			}
 		}
 	}

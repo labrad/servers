@@ -612,18 +612,24 @@ public class QubitContext extends AbstractServerContext {
   
   @Setting(id = 510,
 		  name = "Set Start Delay",
-		  doc = "Sets the start delay for this channel; must be an ADC or IQ channel. " +
+		  doc = "Sets the hdgdgfdghdgfdghsdfstart delay for this channel; must be an ADC or IQ channel. " +
 		  		"First argument {s or (ss)}: channel (either device name or (device name, channel name) " +
 		  		"Second: delay, in clock cycles (w)")
   public void adc_set_start_delay(@Accepts({"s", "ss"}) Data id,
-		  						  @Accepts("w") Data delay) {
+		  						  @Accepts({"w", "v[us]"}) Data delay) {
+	  System.out.println(44);
 	  StartDelayChannel ch = getChannel(id, StartDelayChannel.class);
-	  ch.setStartDelay(delay.getInt());
+	  int us;
+	  if (delay.isInt())
+		  us = delay.getInt();
+	  else
+		  us = (int)delay.getValue();
+	  ch.setStartDelay(us);
   }
   
   @Setting(id = 520,
 		  name = "ADC Set Mode",
-		  doc = "Sets the mode of this channel.\n " +
+		  doc = "asdfasdfasfasdfSets the mode of this channel.\n " +
 		  		"First argument {s or (ss)}: channel (either device name or (device name, channel name)\n " +
 		  		"Second {s}: either 'demodulate' or 'average'")
   public void adc_set_mode(@Accepts({"s", "ss"}) Data id,
@@ -644,7 +650,7 @@ public class QubitContext extends AbstractServerContext {
 		  							  @Accepts("w") Data stretchLen,
 		  							  @Accepts("w") Data stretchAt) {
 	  AdcChannel ch = getChannel(id, AdcChannel.class);
-	  ch.setFilterFunction(bytes.getString(), stretchLen.getInt(), stretchAt.getInt());
+	  ch.setFilterFunction(bytes.getString(), (int)stretchLen.getWord(), (int)stretchAt.getWord());
   }
   
   @Setting(id = 531,
@@ -799,7 +805,7 @@ public class QubitContext extends AbstractServerContext {
     // upload all memory and SRAM data
     for (FpgaModelDac fpga : expt.getDacFpgas()) {
       runRequest.add("Select Device", Data.valueOf(fpga.getName()));
-      runRequest.add("Start Delay", Data.valueOf(fpga.getStartDelay()));	// new 5/4/11 - pomalley
+      runRequest.add("Start Delay", Data.valueOf((long)fpga.getStartDelay()));	// new 5/4/11 - pomalley
       runRequest.add("Memory", Data.valueOf(fpga.getMemory()));
       if (fpga.hasDualBlockSram()) {
         runRequest.add("SRAM dual block",
@@ -890,7 +896,10 @@ public class QubitContext extends AbstractServerContext {
     		// this is a mouthful of conversions, but here it is:
     		// oneRun has a cluster of results by ADC, but we convert it to a list and take the first one
     		// which is a (size 2) cluster of arrays (one for i and q), of which we take the first one and get the length
-    		numDataPoints += oneRun.getClusterAsList().get(0).getClusterAsList().get(0).getArraySize();
+    		if (adcIndices.size() == 1)
+    			numDataPoints += oneRun.getClusterAsList().get(0).getArraySize();
+    		else
+    			numDataPoints += oneRun.getClusterAsList().get(0).getClusterAsList().get(0).getArraySize();
     	}
     	// make a list of datas for all the ADCs. make them the correct size.
     	List<Data> allAdcs = Lists.newArrayList();
