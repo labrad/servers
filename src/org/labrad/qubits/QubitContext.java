@@ -617,7 +617,6 @@ public class QubitContext extends AbstractServerContext {
 		  		"Second: delay, in clock cycles (w)")
   public void adc_set_start_delay(@Accepts({"s", "ss"}) Data id,
 		  						  @Accepts({"w", "v[us]"}) Data delay) {
-	  System.out.println(44);
 	  StartDelayChannel ch = getChannel(id, StartDelayChannel.class);
 	  int us;
 	  if (delay.isInt())

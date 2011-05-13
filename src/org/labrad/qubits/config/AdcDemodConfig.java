@@ -72,7 +72,7 @@ public class AdcDemodConfig extends AdcBaseConfig {
 		DEMOD_TIME_STEP = buildProperties.get("DEMOD_TIME_STEP").intValue(); // in ns
 		
 		
-		dPhi = new int[MAX_CHANNELS]; for (int i : dPhi) i--;
+		dPhi = new int[MAX_CHANNELS];// for (int i : dPhi) i--;
 		phi0 = new int[MAX_CHANNELS]; for (int i : phi0) i--;
 		ampSin = new int[MAX_CHANNELS]; for (int i : ampSin) i--;
 		ampCos = new int[MAX_CHANNELS]; for (int i : ampCos) i--;
@@ -118,8 +118,8 @@ public class AdcDemodConfig extends AdcBaseConfig {
 	 */
 	public void setPhase(int channel, int dPhi, int phi0) {
 		Preconditions.checkArgument(channel <= MAX_CHANNELS, "channel must be <= %s", MAX_CHANNELS);
-		Preconditions.checkArgument(phi0 >= 0 && phi0 < (int)Math.pow(2, LOOKUP_ACCUMULATOR_BITS),
-				"phi0 must be between 0 and 2^%s", LOOKUP_ACCUMULATOR_BITS);
+		//Preconditions.checkArgument(phi0 >= 0 && phi0 < (int)Math.pow(2, LOOKUP_ACCUMULATOR_BITS),
+				//"phi0 must be between 0 and 2^%s", LOOKUP_ACCUMULATOR_BITS);
 		inUse[channel] = true;
 		this.dPhi[channel] = dPhi;
 		this.phi0[channel] = phi0;
@@ -132,7 +132,7 @@ public class AdcDemodConfig extends AdcBaseConfig {
 	 * @param phase of the offset IN RADIANS. it is converted to an address.
 	 */
 	public void setPhase(int channel, double frequency, double phase) {
-		Preconditions.checkArgument(phase >= 0 && phase <= 2*Math.PI, "Phase must be between 0 and 2 pi");
+		Preconditions.checkArgument(phase >= -Math.PI && phase <= Math.PI, "Phase must be between -pi and pi");
 		int dPhi = (int)Math.floor(frequency * Math.pow(2, LOOKUP_ACCUMULATOR_BITS) * DEMOD_TIME_STEP * Math.pow(10, -9.0));
 		int phi0 = (int)(phase * Math.pow(2, LOOKUP_ACCUMULATOR_BITS) / (2 * Math.PI));
 		setPhase(channel, dPhi, phi0); 
@@ -156,7 +156,7 @@ public class AdcDemodConfig extends AdcBaseConfig {
 		for (int i = 0; i < MAX_CHANNELS; i++) {
 			if (inUse[i]) {
 				oneFound = true;
-				Preconditions.checkState(dPhi[i] > -1 && phi0[i] > -1, "ADC Demod phase not set on activated demod channel %s on channel '%s'", i, this.channelName);
+				//Preconditions.checkState(phi0[i] > -1, " %s on channel '%s'", i, this.channelName);
 				Preconditions.checkState(ampSin[i] > -1 && ampCos[i] > -1, "ADC Trig Magnitude not set on activated demod channel %s on channel '%s'", i, this.channelName);
 			}
 		}
