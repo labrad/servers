@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = DC Rack Server
-version = 1.1
+version = 1337
 description = Control Fastbias and Preamp boards.
 
 [startup]
