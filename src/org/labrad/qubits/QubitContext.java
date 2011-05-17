@@ -961,6 +961,23 @@ public class QubitContext extends AbstractServerContext {
     }
   }
 
+  @Setting(id = 1001,
+		  name = "Run DAC SRAM",
+		  doc = "Similar to 'Run', but does dac_run_sram instead of run_sequence. This simply runs the " +
+		  		"DAC SRAM (once or repeatedly) and gives no data back. Used to determine the power output, etc.")
+  public void run_dac_sram(@Accepts("*w") Data data,
+		  				   @Accepts("b") Data loop) throws InterruptedException, ExecutionException {
+
+	  if (configDirty || memDirty || sramDirty) {
+		  build_sequence();
+	  }
+	  
+	  // change the run request to dac_run_sram request
+	  nextRequest.getRecords().remove(runIndex);
+	  nextRequest.add("DAC Run SRAM", data, loop);
+	  
+	  getConnection().sendAndWait(nextRequest);
+  }
   
   @Setting(id = 1100,
            name = "Get Data Raw",
