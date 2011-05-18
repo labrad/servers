@@ -33,7 +33,8 @@ public class Constants {
    * Servers we need to talk to
    */
   public static final String REGISTRY_SERVER = "Registry";
-  public static final String ANRITSU_SERVER = "Hittite T2100 Server";
+  public static final String HITTITE_SERVER = "Hittite T2100 Server";
+  public static final String ANRITSU_SERVER = "Anritsu Server";
   public static final String DC_RACK_SERVER = "DC Rack";
   public static final String GHZ_DAC_SERVER = "GHz FPGAs";
   

@@ -756,9 +756,23 @@ public class QubitContext extends AbstractServerContext {
 
     // build setup packets for microwave sources
     // TODO if a microwave source is used for dummy channels and real channels, resolve here
+    Request anristuRequest = Request.to(Constants.ANRITSU_SERVER);
+    anristuRequest.add("List Devices");
+    List<String> anritsuNames = getConnection().sendAndWait(anristuRequest).get(0).getStringList();
+    Request hittiteRequest = Request.to(Constants.HITTITE_SERVER);
+    hittiteRequest.add("List Devices");
+    List<String> hittiteNames = getConnection().sendAndWait(hittiteRequest).get(0).getStringList();
     for (Map.Entry<MicrowaveSource, MicrowaveSourceConfig> entry : uwaveConfigs.entrySet()) {
       SetupPacket p = entry.getValue().getSetupPacket(entry.getKey());
-      setupPackets.add(buildSetupPacket(Constants.ANRITSU_SERVER, p.getRecords()));
+      String devName = entry.getKey().getName();
+      if (anritsuNames.contains(devName)) {
+    	  setupPackets.add(buildSetupPacket(Constants.ANRITSU_SERVER, p.getRecords()));  
+      } else if (hittiteNames.contains(devName)) {
+    	  setupPackets.add(buildSetupPacket(Constants.HITTITE_SERVER, p.getRecords()));
+      } else {
+    	  Preconditions.checkState(false, "Microwave device not found: '%s'", devName);
+      }
+      
       setupState.add(p.getState());
     }
 
