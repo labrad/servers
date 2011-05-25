@@ -1,0 +1,1183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="enabled">
+   <bool>true</bool>
+  </property>
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>792</width>
+    <height>561</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>DC rack controller</string>
+  </property>
+  <property name="layoutDirection">
+   <enum>Qt::LeftToRight</enum>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QGridLayout" name="gridLayout">
+    <item row="0" column="0">
+     <layout class="QVBoxLayout" name="verticalLayout_2">
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <layout class="QVBoxLayout" name="verticalLayout">
+          <item>
+           <widget class="QLabel" name="dcRackServerLabel">
+            <property name="text">
+             <string>DC Rack Server</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="dcRackServerField">
+            <property name="text">
+             <string>dc_rack_server</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QVBoxLayout" name="verticalLayout_3">
+          <item>
+           <widget class="QLabel" name="deviceNameLabel">
+            <property name="lineWidth">
+             <number>1</number>
+            </property>
+            <property name="text">
+             <string>Device Name</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QComboBox" name="deviceNameField">
+            <property name="minimumSize">
+             <size>
+              <width>350</width>
+              <height>0</height>
+             </size>
+            </property>
+            <item>
+             <property name="text">
+              <string>Null</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>DR Lab</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Electronics Room</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Gov Loopback</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Predator</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>T1000 Lab</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Vince</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>ADR Lab</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QGridLayout" name="busControl">
+        <item row="0" column="3">
+         <widget class="QLabel" name="onOffLabel">
+          <property name="text">
+           <string>on/Off</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="5">
+         <widget class="QLabel" name="cardLabel">
+          <property name="text">
+           <string>Card Type</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="6">
+         <widget class="QLabel" name="channelLabel">
+          <property name="text">
+           <string>Channel</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="2">
+         <widget class="QLabel" name="dbus0Label">
+          <property name="text">
+           <string>Dbus0</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="2">
+         <widget class="QLabel" name="dbus1Label">
+          <property name="text">
+           <string>Dbus1</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="2">
+         <widget class="QLabel" name="abus0Label">
+          <property name="text">
+           <string>Abus0</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="2">
+         <widget class="QLabel" name="abus1Label">
+          <property name="text">
+           <string>Abus1</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="4">
+         <widget class="QSpinBox" name="dbus0CardNumber"/>
+        </item>
+        <item row="2" column="4">
+         <widget class="QSpinBox" name="dbus1CardNumber"/>
+        </item>
+        <item row="3" column="4">
+         <widget class="QSpinBox" name="abus0CardNumber"/>
+        </item>
+        <item row="4" column="4">
+         <widget class="QSpinBox" name="abus1CardNumber"/>
+        </item>
+        <item row="1" column="5">
+         <widget class="QComboBox" name="dbus0CardType">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <item>
+           <property name="text">
+            <string>NA</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Preamp</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>FastBias</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="2" column="5">
+         <widget class="QComboBox" name="dbus1CardType">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <item>
+           <property name="text">
+            <string>NA</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Preamp</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>FastBias</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="3" column="5">
+         <widget class="QComboBox" name="abus0CardType">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <item>
+           <property name="text">
+            <string>NA</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Preamp</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>FastBias</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="4" column="5">
+         <widget class="QComboBox" name="abus1CardType">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <item>
+           <property name="text">
+            <string>NA</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Preamp</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>FastBias</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="1" column="6">
+         <widget class="QComboBox" name="dbus0ChannelSelect">
+          <property name="editable">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="6">
+         <widget class="QComboBox" name="dbus1ChannelSelect"/>
+        </item>
+        <item row="3" column="6">
+         <widget class="QComboBox" name="abus0ChannelSelect"/>
+        </item>
+        <item row="4" column="6">
+         <widget class="QComboBox" name="abus1ChannelSelect"/>
+        </item>
+        <item row="0" column="4">
+         <widget class="QLabel" name="NumberLabel">
+          <property name="text">
+           <string>Card Number</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="3">
+         <widget class="QCheckBox" name="dbus0Switch">
+          <property name="text">
+           <string>Dbus0 on/off</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="3">
+         <widget class="QCheckBox" name="dbus1Switch">
+          <property name="text">
+           <string>Dbus1 on/off</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="3">
+         <widget class="QCheckBox" name="abus0Switch">
+          <property name="text">
+           <string>Abus0 on/off</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="3">
+         <widget class="QCheckBox" name="abus1Switch">
+          <property name="text">
+           <string>Abus1 on/off</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QGridLayout" name="cardControl">
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="horizontalSpacing">
+         <number>6</number>
+        </property>
+        <item row="2" column="0">
+         <widget class="QLabel" name="FOoutLabel">
+          <property name="text">
+           <string>FO out</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="2">
+         <widget class="QLabel" name="FPFlashonFOOutLabel">
+          <property name="text">
+           <string>FP flash on FO out</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0">
+         <widget class="QLabel" name="selectCardLabel">
+          <property name="text">
+           <string>Select Card</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="4">
+         <widget class="QLabel" name="FPFlashonRegisterBoardLabel">
+          <property name="text">
+           <string>FP flash on register load</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QLabel" name="cardTypeLabel">
+          <property name="text">
+           <string>Card Type</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QSpinBox" name="selectCardField"/>
+        </item>
+        <item row="1" column="1">
+         <widget class="QComboBox" name="cardType">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <item>
+           <property name="text">
+            <string>NA</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>preamp</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>fastBias</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="1" column="2">
+         <widget class="QPushButton" name="initDACVoltagRef">
+          <property name="text">
+           <string>Init DAC Voltage Ref</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="0">
+         <widget class="QLabel" name="A">
+          <property name="font">
+           <font>
+            <pointsize>18</pointsize>
+           </font>
+          </property>
+          <property name="text">
+           <string>A</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="3">
+         <widget class="QComboBox" name="APolaritySelect">
+          <item>
+           <property name="text">
+            <string>positive</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>negative</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="4" column="5">
+         <widget class="QSpinBox" name="AofsOutSelect">
+          <property name="minimumSize">
+           <size>
+            <width>100</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="maximum">
+           <number>65535</number>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="0">
+         <widget class="QLabel" name="B">
+          <property name="font">
+           <font>
+            <pointsize>18</pointsize>
+           </font>
+          </property>
+          <property name="text">
+           <string>B</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="3">
+         <widget class="QComboBox" name="BPolaritySelect">
+          <item>
+           <property name="text">
+            <string>positive</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>negative</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="6" column="5">
+         <widget class="QSpinBox" name="BofsOutSelect">
+          <property name="minimumSize">
+           <size>
+            <width>100</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="maximum">
+           <number>65535</number>
+          </property>
+         </widget>
+        </item>
+        <item row="7" column="0">
+         <widget class="QLabel" name="C">
+          <property name="font">
+           <font>
+            <pointsize>18</pointsize>
+           </font>
+          </property>
+          <property name="text">
+           <string>C</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="7" column="3">
+         <widget class="QComboBox" name="CPolaritySelect">
+          <item>
+           <property name="text">
+            <string>positive</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>negative</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="7" column="5">
+         <widget class="QSpinBox" name="CofsOutSelect">
+          <property name="maximum">
+           <number>65535</number>
+          </property>
+         </widget>
+        </item>
+        <item row="10" column="0">
+         <widget class="QLabel" name="D">
+          <property name="font">
+           <font>
+            <pointsize>18</pointsize>
+           </font>
+          </property>
+          <property name="text">
+           <string>D</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="10" column="5">
+         <widget class="QSpinBox" name="DofsOutSelect">
+          <property name="maximum">
+           <number>65535</number>
+          </property>
+         </widget>
+        </item>
+        <item row="10" column="3">
+         <widget class="QComboBox" name="DPolaritySelect">
+          <item>
+           <property name="text">
+            <string>positive</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>negative</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="3" column="1">
+         <widget class="QLabel" name="highPassLabel">
+          <property name="text">
+           <string>High Pass</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="2">
+         <widget class="QLabel" name="lowPassLabel">
+          <property name="text">
+           <string>Low pass</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="3">
+         <widget class="QLabel" name="polarityLabel">
+          <property name="text">
+           <string>Polarity</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="4">
+         <widget class="QLabel" name="offsetLabel">
+          <property name="text">
+           <string>Offset 0-65535</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="5">
+         <widget class="QLabel" name="ofsOutLabel">
+          <property name="focusPolicy">
+           <enum>Qt::NoFocus</enum>
+          </property>
+          <property name="text">
+           <string>Ofs out</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="1">
+         <widget class="QComboBox" name="AHighPassSelect">
+          <item>
+           <property name="text">
+            <string>DC</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>3300</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>1000</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>330</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>100</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>33</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>10</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>3.3</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="6" column="1">
+         <widget class="QComboBox" name="BHighPassSelect">
+          <item>
+           <property name="text">
+            <string>DC</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>3300</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>1000</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>330</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>100</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>33</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>10</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>3.3</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="7" column="1">
+         <widget class="QComboBox" name="CHighPassSelect">
+          <item>
+           <property name="text">
+            <string>DC</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>3300</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>1000</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>330</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>100</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>33</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>10</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>3.3</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="10" column="1">
+         <widget class="QComboBox" name="DHighPassSelect">
+          <item>
+           <property name="text">
+            <string>DC</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>3300</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>1000</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>330</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>100</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>33</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>10</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>3.3</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="4" column="2">
+         <widget class="QComboBox" name="ALowPassSelect">
+          <item>
+           <property name="text">
+            <string>0</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>0.22</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>0.5</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>1.0</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>2.2</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>5</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>10</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>22</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="6" column="2">
+         <widget class="QComboBox" name="BLowPassSelect">
+          <item>
+           <property name="text">
+            <string>0</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>0.22</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>0.5</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>1.0</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>2.2</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>5</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>10</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>22</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="7" column="2">
+         <widget class="QComboBox" name="CLowPassSelect">
+          <item>
+           <property name="text">
+            <string>0</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>0.22</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>0.5</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>1.0</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>2.2</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>5</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>10</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>22</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="10" column="2">
+         <widget class="QComboBox" name="DLowPassSelect">
+          <item>
+           <property name="text">
+            <string>0</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>0.22</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>0.5</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>1.0</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>2.2</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>5</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>10</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>22</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QCheckBox" name="FOoutSwitch">
+          <property name="text">
+           <string>on/off</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="3">
+         <widget class="QCheckBox" name="FOflashSwitch">
+          <property name="text">
+           <string>on/off</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="5">
+         <widget class="QCheckBox" name="regLoadFlashSwitch">
+          <property name="text">
+           <string>on/off</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="4">
+         <widget class="QSlider" name="AOffsetSelect">
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>50</height>
+           </size>
+          </property>
+          <property name="maximum">
+           <number>65535</number>
+          </property>
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="4">
+         <widget class="QSlider" name="BOffsetSelect">
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>50</height>
+           </size>
+          </property>
+          <property name="maximum">
+           <number>65535</number>
+          </property>
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+        <item row="10" column="4">
+         <widget class="QSlider" name="DOffsetSelect">
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>50</height>
+           </size>
+          </property>
+          <property name="maximum">
+           <number>65535</number>
+          </property>
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+        <item row="7" column="4">
+         <widget class="QSlider" name="COffsetSelect">
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>50</height>
+           </size>
+          </property>
+          <property name="maximum">
+           <number>65535</number>
+          </property>
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>792</width>
+     <height>21</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>AOffsetSelect</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>AofsOutSelect</receiver>
+   <slot>setValue(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>527</x>
+     <y>350</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>724</x>
+     <y>350</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>BOffsetSelect</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>BofsOutSelect</receiver>
+   <slot>setValue(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>592</x>
+     <y>415</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>702</x>
+     <y>410</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>COffsetSelect</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>CofsOutSelect</receiver>
+   <slot>setValue(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>593</x>
+     <y>459</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>709</x>
+     <y>469</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>DOffsetSelect</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>DofsOutSelect</receiver>
+   <slot>setValue(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>648</x>
+     <y>528</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>721</x>
+     <y>524</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>AofsOutSelect</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>AOffsetSelect</receiver>
+   <slot>setValue(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>756</x>
+     <y>351</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>629</x>
+     <y>354</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>BofsOutSelect</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>BOffsetSelect</receiver>
+   <slot>setValue(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>767</x>
+     <y>409</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>594</x>
+     <y>417</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>CofsOutSelect</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>COffsetSelect</receiver>
+   <slot>setValue(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>765</x>
+     <y>464</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>468</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>DofsOutSelect</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>DOffsetSelect</receiver>
+   <slot>setValue(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>763</x>
+     <y>524</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>635</x>
+     <y>543</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>
