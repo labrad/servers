@@ -125,14 +125,14 @@ class SR770Server(GPIBManagedServer):
         (19,  100KHz)
         """
         dev = self.selectedDevice(c)
+        #If the user gave a span, write it to the device
         if sp is not None:
-            print 'Type is ',type(sp)
-            #If span is an integer
+            #If span is an integer, check that it's in the allowed range, and get the appropriate value in Hz
             if isinstance(sp,int):
                 if not (sp>-1 and sp<20):
                     raise Exception('span must be in [0,19]')
                 sp = SPANS[i]
-            #Else if span is a value
+            #Else if span is a value, check that it's a frequency, and in the allowed range.
             elif isinstance(sp,Value):
                 if not sp.isCompatible('Hz'):
                     raise Exception('Spans specified as Values must be in frequency units')
@@ -154,6 +154,10 @@ class SR770Server(GPIBManagedServer):
     def center_frequency(self, c, cf=None):
         """Get or set the center frequency."""
         dev = self.selectedDevice(c)
+        if isinstance(cf,Value):
+            if not cf.isCompatible('Hz'):
+                raise Exception('Center frequencies specified as values must be frequencies')
+                cf = cf['Hz']
         if cf is None:
             resp = yield dev.query('CTRF?\n')
             cf = T.Value(float(resp), 'Hz')
@@ -392,13 +396,7 @@ class SR770Server(GPIBManagedServer):
     
 
 def findIndexOfMinimum(arr):
-    curr = arr[0]
-    minIndex=0
-    for index,elem in enumerate(arr):
-        if elem<curr:
-            minIndex=index
-            curr=elem
-    return minIndex
+    return arr.index(min(arr))
 
 def indexOfClosest(collection,target):
     diffs = [abs(elem-target) for elem in collection]
