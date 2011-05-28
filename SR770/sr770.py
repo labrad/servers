@@ -398,7 +398,7 @@ class SR770Server(GPIBManagedServer):
         returnValue(resp)
     
     #DATA RETREIVAL
-    @setting(100, trace='i', returns='*2v')
+    @setting(100, trace='i{trace}', returns='*2v{[freq,sqrt(psd)]}')
     def get_psd(self, c, trace):
         """Get the trace."""
         dev = self.selectedDevice(c)
