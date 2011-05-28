@@ -45,6 +45,8 @@ Hz,MHz = [Unit(s) for s in ['Hz', 'MHz']]
 from struct import unpack
 import numpy as np
 
+NUM_POINTS=400
+
 SPANS = {0:0.191,
               1:0.382,
               2:0.763,
@@ -66,9 +68,42 @@ SPANS = {0:0.191,
               18:50000.0,
               19:100000.0}
 
+MEAS_TYPES = {
+              'SPECTRUM':0,
+              'PSD':1,
+              'TIME RECORD':2,
+              'OCTAVE':3
+              }
+
+AMPLITUDE_UNITS = {
+            'VPK': 0,
+            'VRMS': 1,
+            'DBV': 2,
+            }
+PHASE_UNITS = {
+            'DEGREES': 0,
+            'RADIANS': 1
+            }
+
+DISPLAY_TYPES = {
+            'LOG MAG': 0,
+            'LINEAR MAG': 1,
+            'REAL': 2,
+            'IMAG': 3,
+            'PHASE': 4
+            }
 
 class SR770Wrapper(GPIBDeviceWrapper):
     pass
+    #TODO
+    #Put device initialization code here
+    #Set up device parameters and move logic code from settings to here so the device knows if a command will
+    #fail because of conflicting setings, ie trying to set a phase unit when amplitude is being displayed.
+    # def __init__(self):
+        # self.measure='PSD'
+        # self.display='LOG MAG'
+        # self.units='VRMS'
+        # yield self.reset()
 
 class SR770Server(GPIBManagedServer):
     """Serves the Stanford Research Systems SR770 Network Signal Analyzer.
@@ -97,11 +132,14 @@ class SR770Server(GPIBManagedServer):
             raise
             
             
-    @setting(10, sp=['i','v[Hz]'], returns=['v[Hz]'])
+
+    #FREQUENCY SETTINGS
+    @setting(10, sp=['i{integer span code}','v[Hz]'], returns=['v[Hz]'])
     def span(self, c, sp=None):
         """Get or set the current frequency span.
         The span is specified by an integer from 0 to 19 or by a labrad
-        Value with frequency units. The allowed spans are:
+        Value with frequency units. The allowed integers are:
+        
         (i,   span)
         (0,   191mHz)
         (1,   382mHz)
@@ -123,6 +161,11 @@ class SR770Server(GPIBManagedServer):
         (17,  25KHz)
         (18,  50KHz)
         (19,  100KHz)
+        
+        Note that while the input spans can be integers or frequency values,
+        you will always get a frequency value passed back. This is done because
+        I don't expect users to know the conversion between integers and
+        frequency values.
         """
         dev = self.selectedDevice(c)
         #If the user gave a span, write it to the device
@@ -131,7 +174,6 @@ class SR770Server(GPIBManagedServer):
             if isinstance(sp,int):
                 if not (sp>-1 and sp<20):
                     raise Exception('span must be in [0,19]')
-                sp = SPANS[i]
             #Else if span is a value, check that it's a frequency, and in the allowed range.
             elif isinstance(sp,Value):
                 if not sp.isCompatible('Hz'):
@@ -143,40 +185,51 @@ class SR770Server(GPIBManagedServer):
                 raise Exception('Unrecognized span. Span must be an integer or a Value with frequency units')
                 
             yield dev.write('SPAN%d\n' % sp)
-            
+        #Readback span. This comes as an integer code, which we convert to a Value
         resp = yield dev.query('SPAN?\n')
         sp = Value(float(SPANS[int(resp)]), 'Hz')
 
-        sp = Value(float(SPANS[int(resp)]), 'Hz')
         returnValue(sp)
 
     @setting(11, cf=['v[Hz]'], returns=['v[Hz]'])
     def center_frequency(self, c, cf=None):
         """Get or set the center frequency."""
         dev = self.selectedDevice(c)
-        if isinstance(cf,Value):
-            if not cf.isCompatible('Hz'):
-                raise Exception('Center frequencies specified as values must be frequencies')
+        #If the user specified a center frequency
+        if cf is not None:
+            #Make sure it's a frequency unit
+            if isinstance(cf,Value) and cf.isCompatible('Hz'):
                 cf = cf['Hz']
-        if cf is None:
-            resp = yield dev.query('CTRF?\n')
-            cf = T.Value(float(resp), 'Hz')
-        elif isinstance(cf, T.Value):
-            yield dev.write('CTRF, %f\n' % cf.value)
+            #Otherwise, error
+            else:
+                raise Exception('Center frequency must be a frequency value')
+            #Send that frequency to the device
+            yield dev.write('CTRF, %f\n' % cf)
+        #Readback current center frequency
+        resp = yield dev.query('CTRF?\n')
+        cf = Value(float(resp), 'Hz')
         returnValue(cf)
 
     @setting(12, fs=['v[Hz]'], returns=['v[Hz]'])
     def start_frequency(self, c, fs=None):
         """Get or set the start frequency. Must be between 0 and 100kHz"""
         dev = self.selectedDevice(c)
-        if fs is None:
-            resp = yield dev.query('STRF?\n')
-            fs = T.Value(float(resp), 'Hz')
-        else:
-            yield dev.write('STRF,%f\n' % fs['Hz'])
+        if fs is not None:
+            if isinstance(sf,Value) and sf.isCompatible('Hz'):
+                sf = sf['Hz']
+            else:
+                raise Exception('Start frequency must be a frequency Value')
+            #Write to the device
+            yield dev.write('STRF,%f\n' % fs)
+        #Readback the start frequency
+        resp = yield dev.query('STRF?\n')
+        fs = T.Value(float(resp), 'Hz')
         returnValue(fs)
         
-    @setting(17, avg=['w', 's'], returns=['w'])
+
+
+    #AVERAGING
+    @setting(17, avg=['w', 's', 'b'], returns=['b'])
     def average(self, c, avg=None):
         """Query or turn ON/OFF Averaging."""
         dev = self.selectedDevice(c)
@@ -184,163 +237,173 @@ class SR770Server(GPIBManagedServer):
             'OFF': 0,
             'ON': 1,
             }
-        if avg is None:
-            resp = yield dev.query('AVGO?\n')
-            avg = long(resp)
-        else:
-            if isinstance(avg, str):
-                if avg.upper() not in units:
-                    raise Exception('Can only turn ON or OFF.')
+        #If the user specified avg
+        if avg is not None:
+            if isinstance(avg,bool):
+                avg=int(avg)
+            elif isinstance(avg,int):
+                pass
+            elif isinstance(avg,str):
                 avg = units[avg.upper()]
-            yield dev.write('AVGO, %u ' % avg)
+            else:
+                raise Exception('avg type not recognized')
+            yield dev.write('AVGO%d\n' %avg)
+        #Readback averaging
+        resp = yield dev.query('AVGO?\n')
+        avg = bool(int(resp))
         returnValue(avg)
 
-    @setting(18, av=['w'], returns=['w'])
+    @setting(18, av=['i'], returns=['i'])
     def num_averages(self, c, av=None):
         """Get or set the number of averages."""
+        print 'type of av is: ',type(av)
         dev = self.selectedDevice(c)
-        if av is None:
-            resp = yield dev.query('FAVN?0\n')
-            av = long(resp)
-        elif isinstance(av, long):
-            yield dev.write('FAVN0, %u' % av)
+        if av is not None:
+            if isinstance(av,int):
+                if av<2 or av>32767:
+                    raise Exception('Average number out of range. Must be >2 and <32767')
+            else:
+                raise Exception('Number of averages must be an integer')
+            yield dev.write('NAVG %d \n' %av)
+        resp = yield dev.query('NAVG?\n')
+        av = int(resp)
         returnValue(av)
     
-    @setting(30, ms=['w'], returns=['w'])
-    def measure(self, c, ms=None):
-        """Get or set the measurement.
-        0 FFT 1; 1 FFT 2;
-        2 Time 1; 3 Time 2;
-        4 Windowed Time 1; 5 Windowed Time 2;
-        6 Orbit; 7 Coherence; 8 Cross Spectrum;
-        9 <F2/F1> Transfer Function Averaged;
-        10 <F2>/<F1> Transfer Function of Averaged FFT's;
-        11 Auto Correlation 1; 12 Auto Correlation 2;
-        13 Cross Correlation;
+
+    #MEASUREMENT SETTINGS
+    @setting(30, trace=['i{which trace to set/get}'], measType=['i{integer code for measure type}','s{measure type}'], returns=['i{integerCode}s{measureType}'])
+    def measure(self, c, trace, measType=None):
+        """Get or set the measurement type.
+        0: SPECTRUM,
+        1: PSD,
+        2: TIME RECORD,
+        3: OCTAVE
         """
         dev = self.selectedDevice(c)
-        if ms is None:
-            resp = yield dev.query('MEAS?0\n')
-            ms = long(resp)
-        elif isinstance(ms, long):
-            yield dev.write('MEAS0, %u ' % ms)
-        returnValue(ms)
+        #If the user specified a measure type
+        if measType is not None:
+            #If it's a string, get the appropriate integer code
+            if isinstance(measType,str):
+                measType = MEAS_TYPES[measType.upper()]
+            #Otherwise if it's an integer make sure it's allowed
+            elif isinstance(measType,int):
+                if measType<0 or measType>3:
+                    raise Exception('Measure type code out of range')
+            #Write the measure type to the device
+            yield dev.write('MEAS%d,%d\n' %(trace,measType))
+        #Read back the current measure type for the specified trace, comes back as integer code
+        resp = yield dev.query('MEAS?%d\n' %trace)
+        #Turn the integer code into a string for the user
+        answer = dict([(intCode,meas) for meas,intCode in MEAS_TYPES.items()])[int(resp)]
+        returnValue((int(resp),answer))
 
-    @setting(31, mv=['w', 's'], returns=['w'])
-    def measure_view(self, c, mv=None):
+    @setting(31, trace = 'i', disp=['s', 'i'], returns=['i{integer code of display type}s{display type}'])
+    def display(self, c, trace, disp=None):
         """Get or set the view.
         0 Log Mag;
         1 Linear Mag;
-        2 Mag Squared;
         3 Real Part;
         4 Imaginary Part;
         5 Phase;
-        6 Unwrapped Phase;
-        7 Nyquist;
-        8 Nichols;
         """
         dev = self.selectedDevice(c)
-        views = {
-            'LOG MAG': 0,
-            'LINEAR MAG': 1,
-            'MAG SQUARED': 2,
-            'REAL PART': 3,
-            'IMAGINARY PART': 4,
-            'PHASE': 5,
-            'UNWRAPPED PHASE': 6,
-            'NYQUIST': 7,
-            'NICHOLS': 8,
-            }
-        if mv is None:
-            resp = yield dev.query('VIEW?0\n')
-            mv = long(resp)
-        else:
-            if isinstance(mv, str):
-                if mv.upper() not in views:
-                    raise Exception('Invalid View Name.')
-                mv = views[mv.upper()]
-            yield dev.write('VIEW0, %u ' % mv)
-        returnValue(mv)
+        if disp is not None:
+            if isinstance(disp,str):
+                disp = DISPLAY_TYPES[disp.upper()]
+            elif isinstance(disp,int):
+                if disp>4 or disp<0:
+                    raise Exception('integer code out of range [0,4]')
+            #Find out what the current measure type is
+            meas = yield self.measure(c,trace)
+            meas = meas[1]
+            if meas=='SPECTRUM':
+                pass #All display types allowed
+            elif meas=='PSD' and not (disp==0 or disp==1):
+                raise Exception('PSD measurement requires lin mag or log mag display')
+            elif meas=='TIME RECORD':
+                pass #All display types allowed
+            elif meas=='OCTAVE' and not (disp==0):
+                raise Exception('OCTAVE measurement requires LOG MAG display type')
+            yield dev.write('DISP%d,%d\n' %(trace,disp))
+        resp = yield dev.query('DISP?%d\n' %trace)
+        answer = dict([(intCode,displayType) for displayType,intCode in DISPLAY_TYPES.items()])[int(resp)]
+        returnValue((int(resp),answer))
 
-    @setting(32, un=['w', 's'], returns=['w'])
-    def units(self, c, un=None):
+    @setting(32, trace='i', unit='s', returns=['is'])
+    def units(self, c, trace, unit=None):
         """Get or set the units.
-        0 Vpk;
-        1 Vrms;
-        2 Vpk^2;
-        3 Vrms^2;
-        4 dBVpk;
-        5 dBVrms;
-        6 dBm;
-        7 dBspl;
+        Amplitude units
+        0: Vpk;
+        1: Vrms;
+        2: dBV;
+        3: dBVrms;
+        
+        Phase units
+        0: degrees
+        1: radians
         """
         dev = self.selectedDevice(c)
-        units = {
-            'VPK': 0,
-            'VRMS': 1,
-            'VPK^2': 2,
-            'VRMS^2': 3,
-            'DBVPK': 4,
-            'DBVRMS': 5,
-            'DBM': 6,
-            'DBSPL': 7,
-            }
-        if un is None:
-            resp = yield dev.query('UNIT?0\n')
-            un = long(resp)
+        #Find out what's currently being displayed
+        display = yield self.display(c,trace)
+        display = display[1]
+        #If the user wants to set a new unit
+        if unit is not None:
+            #Find out whether we're trying to set units to a phase unit or amplitude unit
+            if unit.upper() in PHASE_UNITS.keys():
+                unitSetType='PHASE'
+                intCode = PHASE_UNITS[unit.upper()]
+            elif unit.upper() in AMPLITUDE_UNITS.keys():
+                unitSetType='AMPLITUDE'
+                intCode = AMPLITUDE_UNITS[unit.upper()]
+            else:
+                raise Exception('Units not recognized')
+            if (display=='PHASE' and unitSetType=='AMPLITUDE') or (display!='PHASE' and unitSetType =='PHASE'):
+                raise Exception('Unit type must match display type. Cannot set phase units without phase display, and vice versa')
+            dev.write('UNIT%d,%d\n' %(trace,intCode))
+        #Readback units
+        resp = yield dev.query('UNIT?%d\n' %trace)
+        resp = int(resp)
+        if display is 'PHASE':
+            returnValue((resp,inverseDict(PHASE_UNITS)[resp]))
         else:
-            if isinstance(un, str):
-                if un.upper() not in units:
-                    raise Exception('Invalid Unit.')
-                un = units[un.upper()]
-            yield dev.write('UNIT0, %u ' % un)
-        returnValue(un)
+            returnValue((resp,inverseDict(AMPLITUDE_UNITS)[resp]))
         
-    @setting(33, psd=['w', 's'], returns=['w'])
-    def psd_units(self, c, psd=None):
-        """Turn on or off PSD units."""
+    @setting(100, trace='i', returns='*v')
+    def get_trace(self, c, trace):
+        """Get the trace."""
         dev = self.selectedDevice(c)
-        units = {
-            'OFF': 0,
-            'ON': 1,
-            }
-        if psd is None:
-            resp = yield dev.query('PSDU?0\n')
-            psd = long(resp)
-        else:
-            if isinstance(psd, str):
-                if psd.upper() not in units:
-                    raise Exception('Can only turn ON or OFF.')
-                psd = units[psd.upper()]
-            yield dev.write('PSDU0, %u ' % psd)
-        returnValue(psd)
+        #Read the binary data and unpack
+        bytes = yield dev.query('SPEB?%d' %trace)
+        numeric = np.array(unpack('h'*400,bytes))
+        #Find out what the display is and scale the data appropriately
+        display = yield self.display(c,trace)
+        #Data can be on log scale,
+        display=display[1]
+        if display=='LOG MAG':
+            tRef = yield dev.query('TREF?%d\n' %trace)
+            tRef = float(tRef)
+            bRef = yield dev.query('BREF?%d\n' %trace)
+            bRef = float(bRef)
+            fullScale = tRef-bRef
+            print 'fullScale: ',type(fullScale)
+            print 'numeric: ',type(numeric)
+            data = ((3.013*numeric)/512.0)-(114.3914*fullScale)
+        #Or linear scale amplitude,
+        elif display in ['LINEAR MAG','REAL','IMAG']:
+            raise Exception('crap')            
+        #Or phase
+        elif display=='PHASE':
+            raise Exception('Phase traces not supported yet. You get to write some code!')            
+        #Get frequency axis
+        startFreq = yield dev.query('STRF?\n')
+        startFreq = float(startFreq)
+        span = yield self.span(c)
+        span = span['Hz']
+        stopFreq = startFreq+span
+        frequencies = np.linspace(startFreq,stopFreq,400)
+        returnData = np.hstack((frequencies,data)).T
+        returnValue(data)
         
-
-    @setting(100, returns=['*(v[Hz] v[Vrms/Hz^1/2])'])
-    def freq_sweep(self, c):
-        """Initiate a frequency sweep."""
-        dev = self.selectedDevice(c)
-
-        length = yield dev.query("DSPN? 0\n")
-        length = int(length)
-        print length
-        data = yield dev.query("DSPB? 0\n")
-        print len(data)
-
-        if len(data) != length*4:
-            raise Exception("Lengths don't match, dude! %d isn't equal to %d" % (len(data), length*4))
-
-        print "unpacking..."
-
-        data = [unpack('<f', data[i*4:i*4+4])[0] for i in range(length)]
-        #Calculate frequencies from current span
-        resp = yield dev.query('FSTR?0\n')
-        fs = T.Value(float(resp), 'Hz')
-        resp = yield dev.query('FEND?0\n')
-        fe = T.Value(float(resp), 'Hz')
-        freq = util.linspace(fs, fe, length)
-        
-        returnValue(zip(freq, data))
         
     @setting(110, name=['s'], returns=['*(v[Hz] v[Vrms/Hz^1/2])'])
     def freq_sweep_save(self, c, name='untitled'):
@@ -394,6 +457,10 @@ class SR770Server(GPIBManagedServer):
         dev = self.selectedDevice(c)
         yield dev.write('STRT\n')
     
+
+def inverseDict(d):
+    outDict = dict([(value,key) for key,value in d.items()])
+    return outDict
 
 def findIndexOfMinimum(arr):
     return arr.index(min(arr))
