@@ -36,11 +36,11 @@ from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 
-from labrad import types as T, util
+from labrad import util
 
 from labrad.units import Value, Unit
 
-Hz,MHz = [Unit(s) for s in ['Hz', 'MHz']]
+Hz,MHz,V,nV = [Unit(s) for s in ['Hz', 'MHz', 'V', 'nV']]
 
 from struct import unpack
 import numpy as np
@@ -130,9 +130,7 @@ class SR770Server(GPIBManagedServer):
         except Exception, e:
             print 'failed:', e
             raise
-            
-            
-
+    
     #FREQUENCY SETTINGS
     @setting(10, sp=['i{integer span code}','v[Hz]'], returns=['v[Hz]'])
     def span(self, c, sp=None):
@@ -215,19 +213,17 @@ class SR770Server(GPIBManagedServer):
         """Get or set the start frequency. Must be between 0 and 100kHz"""
         dev = self.selectedDevice(c)
         if fs is not None:
-            if isinstance(sf,Value) and sf.isCompatible('Hz'):
-                sf = sf['Hz']
+            if isinstance(fs,Value) and fs.isCompatible('Hz'):
+                fs = fs['Hz']
             else:
                 raise Exception('Start frequency must be a frequency Value')
             #Write to the device
             yield dev.write('STRF,%f\n' % fs)
         #Readback the start frequency
         resp = yield dev.query('STRF?\n')
-        fs = T.Value(float(resp), 'Hz')
+        fs = Value(float(resp), 'Hz')
         returnValue(fs)
-        
-
-
+    
     #AVERAGING
     @setting(17, avg=['w', 's', 'b'], returns=['b'])
     def average(self, c, avg=None):
@@ -269,7 +265,13 @@ class SR770Server(GPIBManagedServer):
         av = int(resp)
         returnValue(av)
     
-
+    #SCALE SETTINGS
+    @setting(20, trace='i')
+    def autoscale(self, c, trace):
+        """Autoscale the display"""
+        dev = self.selectedDevice(c)
+        dev.write('AUTS%d\n' %trace)
+    
     #MEASUREMENT SETTINGS
     @setting(30, trace=['i{which trace to set/get}'], measType=['i{integer code for measure type}','s{measure type}'], returns=['i{integerCode}s{measureType}'])
     def measure(self, c, trace, measType=None):
@@ -367,96 +369,67 @@ class SR770Server(GPIBManagedServer):
             returnValue((resp,inverseDict(PHASE_UNITS)[resp]))
         else:
             returnValue((resp,inverseDict(AMPLITUDE_UNITS)[resp]))
-        
-    @setting(100, trace='i', returns='*v')
-    def get_trace(self, c, trace):
-        """Get the trace."""
-        dev = self.selectedDevice(c)
-        #Read the binary data and unpack
-        bytes = yield dev.query('SPEB?%d' %trace)
-        numeric = np.array(unpack('h'*400,bytes))
-        #Find out what the display is and scale the data appropriately
-        display = yield self.display(c,trace)
-        #Data can be on log scale,
-        display=display[1]
-        if display=='LOG MAG':
-            tRef = yield dev.query('TREF?%d\n' %trace)
-            tRef = float(tRef)
-            bRef = yield dev.query('BREF?%d\n' %trace)
-            bRef = float(bRef)
-            fullScale = tRef-bRef
-            print 'fullScale: ',type(fullScale)
-            print 'numeric: ',type(numeric)
-            data = ((3.013*numeric)/512.0)-(114.3914*fullScale)
-        #Or linear scale amplitude,
-        elif display in ['LINEAR MAG','REAL','IMAG']:
-            raise Exception('crap')            
-        #Or phase
-        elif display=='PHASE':
-            raise Exception('Phase traces not supported yet. You get to write some code!')            
-        #Get frequency axis
-        startFreq = yield dev.query('STRF?\n')
-        startFreq = float(startFreq)
-        span = yield self.span(c)
-        span = span['Hz']
-        stopFreq = startFreq+span
-        frequencies = np.linspace(startFreq,stopFreq,400)
-        returnData = np.hstack((frequencies,data)).T
-        returnValue(data)
-        
-        
-    @setting(110, name=['s'], returns=['*(v[Hz] v[Vrms/Hz^1/2])'])
-    def freq_sweep_save(self, c, name='untitled'):
-        """Initiate a frequency sweep.
-
-        The data will be saved to the data vault in the current
-        directory for this context.  Note that the default directory
-        in the data vault is the root directory, so you should cd
-        before trying to save.
-        """
-        dev = self.selectedDevice(c)
-
-        length = yield dev.query("DSPN? 0\n")
-        length = int(length)
-        print length
-        data = yield dev.query("DSPB? 0\n")
-        print len(data)
-
-        if len(data) != length*4:
-            raise Exception("Lengths don't match, dude! %d isn't equal to %d" % (len(data), length*4))
-
-        print "unpacking..."
-
-        data = [unpack('<f', data[i*4:i*4+4])[0] for i in range(length)]
-        data = np.array(data)
-        #Calculate frequencies from current span
-        resp = yield dev.query('FSTR?0\n')
-        fs = T.Value(float(resp), 'Hz')
-        resp = yield dev.query('FEND?0\n')
-        fe = T.Value(float(resp), 'Hz')
-        freq = np.linspace(fs, fe, length)
-        
-        
-
-        dv = self.client.data_vault
-        
-        independents = ['frequency [Hz]']
-        dependents = [('Sv', 'PSD', 'Vrms/Hz^1/2')]
-        p = dv.packet()
-        p.new(name, independents, dependents)
-        p.add(np.vstack((freq, data)).T)
-        p.add_comment('Autosaved by SR770 server.')
-        yield p.send(context=c.ID)
-        
-        returnValue(zip(freq, data))
-
-    # helper methods
-
-    @setting(150)
-    def startsweep(self, c, sweeptype):
+    
+    #DEVICE SETUP AND OPERATION
+    @setting(50, returns='')
+    def start(self, c):
         dev = self.selectedDevice(c)
         yield dev.write('STRT\n')
+
+    @setting(51, range='i{input range in dbV}', returns='i{input range in dbV}')
+    def input_range(self, c, range=None):
+        """Get or set the input range
+        Note that the units of the input range are the weird decibel unit defined as
+        
+        20*log10(N)
+        """
+        dev = self.selectedDevice(c)
+        #If the user gave an input range
+        if range is not None:
+            if isinstance(range,int):
+                if range<-60 or range>34 or not(range%2==0):
+                    raise Exception('Input range must be an even number in [-60,34]')
+            else:
+                raise Exception('Input range must be an integer')
+            yield dev.write('IRNG%d\n' %range)
+        #Readback input range
+        resp = yield dev.query('IRNG?\n')
+        resp = int(resp)
+        returnValue(resp)
     
+    #DATA RETREIVAL
+    @setting(100, trace='i', returns='*2v')
+    def get_psd(self, c, trace):
+        """Get the trace."""
+        dev = self.selectedDevice(c)
+        yield self.display(c, trace,'LOG MAG')
+        yield self.units(c, trace,'VRMS')
+        yield self.measure(c, trace,'SPECTRUM')
+        inputRange = yield self.input_range(c)
+        span = yield self.span(c)
+        freqStart = yield self.start_frequency(c)
+        #Read from device
+        bytes = yield dev.query('SPEB?%d\n' %trace)
+        #Convert to power spectral density
+        numeric = unpackBinary(bytes)
+        dbVPerBin = scaleLogData(numeric, inputRange)
+        VPerBin = 10**(dbVPerBin/20.0)
+        VPerRtHz = VPerBin*np.sqrt(NUM_POINTS)/np.sqrt(2*span['Hz'])
+        VrmsPerRtHz = VPerRtHz/np.sqrt(2)
+        #Make frequency axis
+        freqs = np.linspace(freqStart['Hz'],(span+freqStart)['Hz'],NUM_POINTS)
+        data = np.vstack((freqs,VrmsPerRtHz)).T
+        returnValue(data)
+
+# helper methods
+
+def scaleLogData(data, inputLevel):
+    scaled = (data*3.0103/512.0)-114.3914
+    corrected = scaled+inputLevel
+    return corrected
+
+def unpackBinary(data):
+    return np.array(unpack('h'*400,data))
 
 def inverseDict(d):
     outDict = dict([(value,key) for key,value in d.items()])
