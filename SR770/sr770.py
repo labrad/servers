@@ -1,5 +1,5 @@
-# Copyright (C) 2008 Erik Lucero
-# Edits: Daniel Sank - 2010 December
+# Copyright (C) 2009 Daniel Sank
+# Adapted from sr780.py by Erik Lucero
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Signal Analyzer SR770
-version = 1.1.1
+version = 1.2.0
 description = Talks to the Stanford Research Systems Signal Analyzer
 
 [startup]
