@@ -417,18 +417,19 @@ class SR770Server(GPIBManagedServer):
         #yield self.measure(c, trace,'SPECTRUM')
         inputRange = yield self.input_range(c)
         span = yield self.span(c)
+        linewidth = span/NUM_POINTS
         freqStart = yield self.start_frequency(c)
         #Read from device
         bytes = yield dev.query('SPEB?%d\n' %trace)
         #Convert to power spectral density
-        numeric = unpackBinary(bytes)
-        dbVPerBin = scaleLogData(numeric, inputRange)
-        VPerBin = 10**(dbVPerBin/20.0)
-        VPerRtHz = VPerBin*np.sqrt(NUM_POINTS)/np.sqrt(2*span['Hz'])
-        VrmsPerRtHz = VPerRtHz/np.sqrt(2)
+        numeric = unpackBinary(bytes)                               #Data at this point matches screen with...
+        dbVoltsPkPerBin = scaleLogData(numeric, inputRange)         #SPECTRUM with UNITS= dbV Pk
+        voltsPkPerBin = 10**(dbVoltsPkPerBin/20.0)                  #SPECTRUM with UNITS= V Pk
+        voltsPkPerRtHz = voltsPkPerBin/np.sqrt(2*linewidth['Hz'])   #PSD with UNITS = V Pk
+        voltsRmsPerRtHz = voltsPkPerRtHz/np.sqrt(2)                 #PSD with UNITS = Vrms
         #Make frequency axis
         freqs = np.linspace(freqStart['Hz'],(span+freqStart)['Hz'],NUM_POINTS)
-        data = np.vstack((freqs,VrmsPerRtHz)).T
+        data = np.vstack((freqs,voltsRmsPerRtHz)).T
         returnValue(data)
 
 # helper methods

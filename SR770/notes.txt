@@ -17,10 +17,16 @@ Center Freq = 50KHz
 SPECTRUM = 46.12 nVrms
 PSD = 5.963 nVrms/rtHz
 SPECTRUM/PSD = 7.73
-so... PSD ~ SPECTRUM/(2*linewidth)
+so... PSD ~ SPECTRUM/sqrt(2*linewidth)
 
-Check power in tone
-50mVpp output from source, with 50Ohm splitter on analyzer input
+I do not know where this factor of sqrt(2) is coming from.
 
-Compare spectrum on screen with returned data:
-TODO
+
+Compare SPECTRUM on screen with returned data:
+raw = bytes from GPIB unpacked to integers
+scaled = (raw*3.0103/512)-114.3914-inputLevel[dB]
+data = 10^(scaled/20)
+Then "data" winds up matching with SPECTRUM in units of Volts Pk.
+
+Now we have to get to PSD:
+Divide by sqrt(2) to get Vrms. Then divide by sqrt(2*linewidth)
