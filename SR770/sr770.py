@@ -45,8 +45,6 @@ Hz,MHz,V,nV = [Unit(s) for s in ['Hz', 'MHz', 'V', 'nV']]
 from struct import unpack
 import numpy as np
 
-SLEEP_TIME = Value(30,'s')
-
 NUM_POINTS=400
 
 SPANS = {0:0.191,
