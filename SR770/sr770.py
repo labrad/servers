@@ -45,6 +45,8 @@ Hz,MHz,V,nV = [Unit(s) for s in ['Hz', 'MHz', 'V', 'nV']]
 from struct import unpack
 import numpy as np
 
+SLEEP_TIME = Value(30,'s')
+
 NUM_POINTS=400
 
 SPANS = {0:0.191,
@@ -94,16 +96,75 @@ DISPLAY_TYPES = {
             }
 
 class SR770Wrapper(GPIBDeviceWrapper):
-    pass
     #TODO
     #Put device initialization code here
     #Set up device parameters and move logic code from settings to here so the device knows if a command will
     #fail because of conflicting setings, ie trying to set a phase unit when amplitude is being displayed.
-    # def __init__(self):
-        # self.measure='PSD'
-        # self.display='LOG MAG'
-        # self.units='VRMS'
-        # yield self.reset()
+    def initialize(self):
+        self.SETTLING_TIME = Value(20,'s')
+        self.AVERAGING_TIME = Value(5,'s')
+        
+    #DEVICE SETUP AND OPERATION
+    @inlineCallbacks
+    def input_range(self,range):
+        #If the user gave an input range
+        if range is not None:
+            if isinstance(range,int):
+                if range<-60 or range>34 or not(range%2==0):
+                    raise Exception('Input range must be an even number in [-60,34]')
+            else:
+                raise Exception('Input range must be an integer')
+            yield self.write('IRNG%d\n' %range)
+        #Readback input range
+        resp = yield self.query('IRNG?\n')
+        resp = int(resp)
+        returnValue(resp)
+
+    @inlineCallbacks
+    def start(self):
+        yield self.write('STRT\n')
+        
+
+    #Status checks and wait functions
+    @inlineCallbacks
+    def clearStatusBytes(self):
+        yield self.write('*CLS\n')
+    
+    @inlineCallbacks
+    def waitForAveraging(self):
+        while 1:
+            done = yield self.doneAveraging()
+            if done:
+                returnValue(None) #Return None because returnValue needs an argument
+            else:
+                print 'Device waiting for averaging. Will check again in %d seconds' %self.AVERAGING_TIME['s']
+                yield util.wakeupCall(self.AVERAGING_TIME['s'])
+    
+    @inlineCallbacks
+    def doneAveraging(self):
+        resp = yield self.query('FFTS?4\n')
+        if int(resp)==1:
+            returnValue(True)
+        else:
+            returnValue(False)
+            
+    @inlineCallbacks
+    def waitForSettling(self):
+        while 1:
+            done = yield self.doneSettling()
+            if done:
+                returnValue(None) #Return None because returnValue needs an argument
+            else:
+                print 'Device waiting for settling. Will check again in %d seconds' %self.SETTLING_TIME['s']
+                yield util.wakeupCall(self.SETTLING_TIME['s'])
+    
+    @inlineCallbacks
+    def doneSettling(self):
+        resp = yield self.query('FFTS?7\n')
+        if int(resp)==1:
+            returnValue(True)
+        else:
+            returnValue(False)
 
 class SR770Server(GPIBManagedServer):
     """Serves the Stanford Research Systems SR770 Network Signal Analyzer.
@@ -131,7 +192,7 @@ class SR770Server(GPIBManagedServer):
             print 'failed:', e
             raise
     
-    #FREQUENCY SETTINGS
+    #FREQUENCY SETTINGS    
     @setting(10, sp=['i{integer span code}','v[Hz]'], returns=['v[Hz]'])
     def span(self, c, sp=None):
         """Get or set the current frequency span.
@@ -181,7 +242,6 @@ class SR770Server(GPIBManagedServer):
                 sp = indexOfClosest(SPANS.values(),sp['Hz'])
             else:
                 raise Exception('Unrecognized span. Span must be an integer or a Value with frequency units')
-                
             yield dev.write('SPAN%d\n' % sp)
         #Readback span. This comes as an integer code, which we convert to a Value
         resp = yield dev.query('SPAN?\n')
@@ -374,7 +434,7 @@ class SR770Server(GPIBManagedServer):
     @setting(50, returns='')
     def start(self, c):
         dev = self.selectedDevice(c)
-        yield dev.write('STRT\n')
+        yield dev.start()
 
     @setting(51, range='i{input range in dbV}', returns='i{input range in dbV}')
     def input_range(self, c, range=None):
@@ -384,19 +444,9 @@ class SR770Server(GPIBManagedServer):
         20*log10(N)
         """
         dev = self.selectedDevice(c)
-        #If the user gave an input range
-        if range is not None:
-            if isinstance(range,int):
-                if range<-60 or range>34 or not(range%2==0):
-                    raise Exception('Input range must be an even number in [-60,34]')
-            else:
-                raise Exception('Input range must be an integer')
-            yield dev.write('IRNG%d\n' %range)
-        #Readback input range
-        resp = yield dev.query('IRNG?\n')
-        resp = int(resp)
-        returnValue(resp)
-    
+        result = yield dev.input_range(range)
+        returnValue(result)
+        
     #DATA RETREIVAL
     @setting(100, trace='i{trace}', returns='*v{raw numeric trace data}')
     def get_trace(self, c, trace):
@@ -409,16 +459,25 @@ class SR770Server(GPIBManagedServer):
         returnValue(numeric)
 
     @setting(101, trace='i{trace}', returns='*2v{[freq,sqrt(psd)]}')
-    def get_psd(self, c, trace):
+    def power_spectral_amplitude(self, c, trace):
         """Get the trace."""
         dev = self.selectedDevice(c)
-        yield self.display(c, trace,'LOG MAG')
-        #yield self.units(c, trace,'VRMS')
-        #yield self.measure(c, trace,'SPECTRUM')
+        #Clear all status bytes
+        yield dev.clearStatusBytes()
+        #Check that display is log magnitude
+        disp = yield self.display(c, trace)
+        if disp[1]!='LOG MAG':
+            raise Exception('Display must be LOG MAG for power spectral amplitude retrieval')
+        #Check for completion of settling, this doesn't seem to work. The settling bit is set to 0 all the time.
+        #yield dev.waitForSettling()
+        #Get input range, span, linewidth, and start frequency
         inputRange = yield self.input_range(c)
         span = yield self.span(c)
         linewidth = span/NUM_POINTS
         freqStart = yield self.start_frequency(c)
+        #Start the averagine cycle
+        yield dev.start()
+        yield dev.waitForAveraging()
         #Read from device
         bytes = yield dev.query('SPEB?%d\n' %trace)
         #Convert to power spectral density
@@ -432,7 +491,13 @@ class SR770Server(GPIBManagedServer):
         data = np.vstack((freqs,voltsRmsPerRtHz)).T
         returnValue(data)
 
+
 # helper methods
+def bin(x,width):
+    s = ''
+    for i in range(width):
+        s = str((x>>i)&1)+s
+    return s
 
 def scaleLogData(data, inputLevel):
     scaled = (data*3.0103/512.0)-114.3914
