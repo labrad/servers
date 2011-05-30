@@ -1,0 +1,26 @@
+Units:
+Get trace with units = Volts pk
+Get trace with units = volts rms
+Get trace with units = dbV
+Both traces had same noise floor and sampe peak shape and height
+
+Measure:
+Get trace as SPECTRUM
+Get trace as PSD
+Both traces look the same when returned by device
+
+Compare SPECTRUM and PSD:
+Span: 12.5Khz
+Linewidth = 31.25Hz = Span/400
+Start Freq = 43.75KHz
+Center Freq = 50KHz
+SPECTRUM = 46.12 nVrms
+PSD = 5.963 nVrms/rtHz
+SPECTRUM/PSD = 7.73
+so... PSD ~ SPECTRUM/(2*linewidth)
+
+Check power in tone
+50mVpp output from source, with 50Ohm splitter on analyzer input
+
+Compare spectrum on screen with returned data:
+TODO
