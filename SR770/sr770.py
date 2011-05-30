@@ -398,13 +398,23 @@ class SR770Server(GPIBManagedServer):
         returnValue(resp)
     
     #DATA RETREIVAL
-    @setting(100, trace='i{trace}', returns='*2v{[freq,sqrt(psd)]}')
+    @setting(100, trace='i{trace}', returns='*v{raw numeric trace data}')
+    def get_trace(self, c, trace):
+        """Get the trace."""
+        dev = self.selectedDevice(c)
+        #Read from device
+        bytes = yield dev.query('SPEB?%d\n' %trace)
+        #Unpack binary data
+        numeric = unpackBinary(bytes)
+        returnValue(numeric)
+
+    @setting(101, trace='i{trace}', returns='*2v{[freq,sqrt(psd)]}')
     def get_psd(self, c, trace):
         """Get the trace."""
         dev = self.selectedDevice(c)
         yield self.display(c, trace,'LOG MAG')
-        yield self.units(c, trace,'VRMS')
-        yield self.measure(c, trace,'SPECTRUM')
+        #yield self.units(c, trace,'VRMS')
+        #yield self.measure(c, trace,'SPECTRUM')
         inputRange = yield self.input_range(c)
         span = yield self.span(c)
         freqStart = yield self.start_frequency(c)
