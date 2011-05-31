@@ -3,6 +3,7 @@ package org.labrad.qubits;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -758,10 +759,20 @@ public class QubitContext extends AbstractServerContext {
     // TODO if a microwave source is used for dummy channels and real channels, resolve here
     Request anristuRequest = Request.to(Constants.ANRITSU_SERVER);
     anristuRequest.add("List Devices");
-    List<String> anritsuNames = getConnection().sendAndWait(anristuRequest).get(0).getStringList();
+    List<Data> anritsuList = getConnection().sendAndWait(anristuRequest).get(0).getDataList();
+    HashSet<String> anritsuNames = new HashSet<String>();
+    for (Data d : anritsuList) {
+    	anritsuNames.add(d.get(1).getString());
+    	//System.out.println("Anritsu Device: '" + d.get(1).getString() + "'");
+    }
     Request hittiteRequest = Request.to(Constants.HITTITE_SERVER);
     hittiteRequest.add("List Devices");
-    List<String> hittiteNames = getConnection().sendAndWait(hittiteRequest).get(0).getStringList();
+    List<Data> hittiteList = getConnection().sendAndWait(hittiteRequest).get(0).getDataList();
+    HashSet<String> hittiteNames = new HashSet<String>();
+    for (Data d : hittiteList) {
+    	hittiteNames.add(d.get(1).getString());
+    	//System.out.println("Hittite Device: '" + d.get(1).getString() + "'");
+    }
     for (Map.Entry<MicrowaveSource, MicrowaveSourceConfig> entry : uwaveConfigs.entrySet()) {
       SetupPacket p = entry.getValue().getSetupPacket(entry.getKey());
       String devName = entry.getKey().getName();
@@ -846,6 +857,15 @@ public class QubitContext extends AbstractServerContext {
     configDirty = false;
     memDirty = false;
     sramDirty = false;
+  }
+  
+  @Setting(id = 1009,
+		  name = "Get SRAM Final",
+		  doc = "Make sure to run build sequence first.")
+  public Data get_sram_final(@Accepts({"s", "ss"}) Data id)
+  {
+	  IqChannel iq = getChannel(id, IqChannel.class);
+	  return Data.valueOf(iq.getFpgaModel().getSram());
   }
 
   @Setting(id = 1000,
