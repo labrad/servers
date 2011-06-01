@@ -47,6 +47,14 @@ import numpy as np
 
 NUM_POINTS=400
 
+COUPLINGS = {0: 'AC',
+             1: 'DC'}
+
+GROUNDINGS = {
+              0: 'FLOAT',
+              1: 'GROUND'
+              }
+
 SPANS = {0:0.191,
               1:0.382,
               2:0.763,
@@ -117,7 +125,36 @@ class SR770Wrapper(GPIBDeviceWrapper):
         resp = yield self.query('IRNG?\n')
         resp = int(resp)
         returnValue(resp)
+        
+    @inlineCallbacks
+    def coupling(self, coupling):
+        if coupling is not None:
+            if isinstance(coupling,int):
+                coupling not in [0,1]:
+                    raise Exception('Coupling specified as integer must be 0 or 1')
+            elif isinstance(coupling,str):
+                if coupling.upper() not in ['AC','DC']:
+                    raise Exception('Coupling specified as string must be AC or DC')
+                coupling = inverseDict(COUPLINGS)[coupling.upper()]
+            else:
+                raise Exception('Coupling not recognized')
+            yield self.write('ICPL%d\n' %coupling)
+        resp = yield self.query('ICPL?\n')
+        returnValue(COUPLINGS[int(resp)])
 
+    @inlineCallbacks
+    def grounding(self, grounding):
+        if grounding is not None:
+            if isinstance(grounding,int) and grounding not in GROUNDINGS.keys():
+                raise Exception('Groundings specified as integer must be 0 or 1')
+            elif isinstance(grounding,str):
+                if grounding.upper() not in GROUNDINGS.values():
+                    raise Exception('Grounding specified as string must be %s or %s' %tuple([u for u in GROUNDINGS.values()]))
+                grounding = reverseDict(GROUNDINGS)[grounding.upper()]
+            yield self.write('IGND%d\n' %grounding)
+        resp = yield self.query('IGND?\n')
+        returnValue(GROUNDINGS[int(resp)])
+        
     @inlineCallbacks
     def start(self):
         yield self.write('STRT\n')
@@ -429,12 +466,18 @@ class SR770Server(GPIBManagedServer):
             returnValue((resp,inverseDict(AMPLITUDE_UNITS)[resp]))
     
     #DEVICE SETUP AND OPERATION
-    @setting(50, returns='')
+    @setting(50, coupling=['i','s'], returns 's')
+    def coupling(self, c, coupling=None):
+        dev = self.selectedDevice(c)
+        resp = yield dev.coupling(coupling)
+        returnValue(resp)
+    
+    @setting(51, returns='')
     def start(self, c):
         dev = self.selectedDevice(c)
         yield dev.start()
 
-    @setting(51, range='i{input range in dbV}', returns='i{input range in dbV}')
+    @setting(52, range='i{input range in dbV}', returns='i{input range in dbV}')
     def input_range(self, c, range=None):
         """Get or set the input range
         Note that the units of the input range are the weird decibel unit defined as
@@ -443,6 +486,12 @@ class SR770Server(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         result = yield dev.input_range(range)
+        returnValue(result)
+    
+    @setting(53, grounding=['i','s'], returns = 's')
+    def grounding(self, c, grouding=None):
+        dev = self.selectedDevice(c)
+        result = yield dev.grounding(grounding)
         returnValue(result)
         
     #DATA RETREIVAL
