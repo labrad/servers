@@ -103,7 +103,6 @@ DISPLAY_TYPES = {
 
 class SR770Wrapper(GPIBDeviceWrapper):
     #TODO
-    #Put device initialization code here
     #Set up device parameters and move logic code from settings to here so the device knows if a command will
     #fail because of conflicting setings, ie trying to set a phase unit when amplitude is being displayed.
     def initialize(self):
@@ -167,12 +166,16 @@ class SR770Wrapper(GPIBDeviceWrapper):
     
     @inlineCallbacks
     def waitForAveraging(self):
+        waited = 0
         while 1:
             done = yield self.doneAveraging()
             if done:
                 returnValue(None) #Return None because returnValue needs an argument
             else:
-                print 'Device waiting for averaging. Will check again in %d seconds' %self.AVERAGING_TIME['s']
+                waited+=1
+                print 'Device waiting for averaging to complete.'
+                print 'Will check again in %d seconds' %self.AVERAGING_TIME['s']
+                print 'This is wait number: %d' %waited
                 yield util.wakeupCall(self.AVERAGING_TIME['s'])
     
     @inlineCallbacks
