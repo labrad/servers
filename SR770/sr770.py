@@ -106,8 +106,8 @@ class SR770Wrapper(GPIBDeviceWrapper):
     #Set up device parameters and move logic code from settings to here so the device knows if a command will
     #fail because of conflicting setings, ie trying to set a phase unit when amplitude is being displayed.
     def initialize(self):
-        self.SETTLING_TIME = Value(20,'s')
-        self.AVERAGING_TIME = Value(5,'s')
+        self.SETTLING_TIME = Value(30,'s')
+        self.AVERAGING_TIME = Value(10,'s')
         
     #DEVICE SETUP AND OPERATION
     @inlineCallbacks
@@ -129,7 +129,7 @@ class SR770Wrapper(GPIBDeviceWrapper):
     def coupling(self, coupling):
         if coupling is not None:
             if isinstance(coupling,int):
-                coupling not in [0,1]:
+                if coupling not in [0,1]:
                     raise Exception('Coupling specified as integer must be 0 or 1')
             elif isinstance(coupling,str):
                 if coupling.upper() not in ['AC','DC']:
@@ -149,7 +149,7 @@ class SR770Wrapper(GPIBDeviceWrapper):
             elif isinstance(grounding,str):
                 if grounding.upper() not in GROUNDINGS.values():
                     raise Exception('Grounding specified as string must be %s or %s' %tuple([u for u in GROUNDINGS.values()]))
-                grounding = reverseDict(GROUNDINGS)[grounding.upper()]
+                grounding = inverseDict(GROUNDINGS)[grounding.upper()]
             yield self.write('IGND%d\n' %grounding)
         resp = yield self.query('IGND?\n')
         returnValue(GROUNDINGS[int(resp)])
@@ -159,6 +159,14 @@ class SR770Wrapper(GPIBDeviceWrapper):
         yield self.write('STRT\n')
         
 
+    
+    #Averaging
+    @inlineCallbacks
+    def overlapPercentage(self,ov):
+        yield self.write('OVLP%f\n' %ov)
+        resp = yield self.query('OVLP?\n')
+        returnValue(resp)
+        
     #Status checks and wait functions
     @inlineCallbacks
     def clearStatusBytes(self):
@@ -204,6 +212,20 @@ class SR770Wrapper(GPIBDeviceWrapper):
         else:
             returnValue(False)
 
+    @inlineCallbacks
+    def clearReadBuffer(self):
+        raise Exception('Does not work')
+        i=0
+        while 1:
+            i+=1
+            print i
+            try:
+                resp = yield self.read()
+                'Cleared: ', resp
+                yield self.wakeupCall(1)
+            except:
+                break
+            
 class SR770Server(GPIBManagedServer):
     """Serves the Stanford Research Systems SR770 Network Signal Analyzer.
     A low frequency (0-100kHz) FFT. Can save data to datavault."""
@@ -284,7 +306,6 @@ class SR770Server(GPIBManagedServer):
         #Readback span. This comes as an integer code, which we convert to a Value
         resp = yield dev.query('SPAN?\n')
         sp = Value(float(SPANS[int(resp)]), 'Hz')
-
         returnValue(sp)
 
     @setting(11, cf=['v[Hz]'], returns=['v[Hz]'])
@@ -316,12 +337,21 @@ class SR770Server(GPIBManagedServer):
             else:
                 raise Exception('Start frequency must be a frequency Value')
             #Write to the device
-            yield dev.write('STRF,%f\n' % fs)
+            yield dev.write('STRF%f\n' % float(fs))
         #Readback the start frequency
         resp = yield dev.query('STRF?\n')
         fs = Value(float(resp), 'Hz')
         returnValue(fs)
     
+    @setting(13, sp=['i','v[Hz]'], fs='v[Hz]', returns='(v[Hz]v[Hz])')
+    def freq_and_settle(self, c, sp, fs):
+        dev = self.selectedDevice(c)
+        yield dev.write('*CLS\n')
+        sp = yield self.span(c, sp)
+        fs = yield self.start_frequency(c, fs)
+        yield dev.waitForSettling()
+        returnValue((sp,fs))
+
     #AVERAGING
     @setting(17, avg=['w', 's', 'b'], returns=['b'])
     def average(self, c, avg=None):
@@ -350,7 +380,6 @@ class SR770Server(GPIBManagedServer):
     @setting(18, av=['i'], returns=['i'])
     def num_averages(self, c, av=None):
         """Get or set the number of averages."""
-        print 'type of av is: ',type(av)
         dev = self.selectedDevice(c)
         if av is not None:
             if isinstance(av,int):
@@ -363,6 +392,11 @@ class SR770Server(GPIBManagedServer):
         av = int(resp)
         returnValue(av)
     
+    @setting(19, ov='v{overlap percentage}', returns='v{readback overlap percentage}')
+    def overlap(self, c, ov):
+        dev = self.selectedDevice(c)
+        ov = yield dev.overlapPercentage(ov)
+        returnValue(ov)
     #SCALE SETTINGS
     @setting(20, trace='i')
     def autoscale(self, c, trace):
@@ -469,7 +503,7 @@ class SR770Server(GPIBManagedServer):
             returnValue((resp,inverseDict(AMPLITUDE_UNITS)[resp]))
     
     #DEVICE SETUP AND OPERATION
-    @setting(50, coupling=['i','s'], returns 's')
+    @setting(50, coupling=['i','s'], returns='s')
     def coupling(self, c, coupling=None):
         dev = self.selectedDevice(c)
         resp = yield dev.coupling(coupling)
@@ -490,12 +524,24 @@ class SR770Server(GPIBManagedServer):
         dev = self.selectedDevice(c)
         result = yield dev.input_range(range)
         returnValue(result)
-    
-    @setting(53, grounding=['i','s'], returns = 's')
-    def grounding(self, c, grouding=None):
+
+    @setting(53, grnd=['i','s'], returns = 's')
+    def grounding(self, c, grnd=None):
         dev = self.selectedDevice(c)
-        result = yield dev.grounding(grounding)
+        result = yield dev.grounding(grnd)
         returnValue(result)
+        
+
+    @setting(54, returns='')
+    def clear_status_bytes(self, c):
+        dev = self.selectedDevice(c)
+        yield dev.clearStatusBytes()
+        
+    @setting(55, returns='')
+    def clear_read_buffer(self, c):
+        raise Exception('Does not work')
+        dev = self.selectedDevice(c)
+        yield dev.clearReadBuffer()
         
     #DATA RETREIVAL
     @setting(100, trace='i{trace}', returns='*v{raw numeric trace data}')
@@ -518,8 +564,6 @@ class SR770Server(GPIBManagedServer):
         disp = yield self.display(c, trace)
         if disp[1]!='LOG MAG':
             raise Exception('Display must be LOG MAG for power spectral amplitude retrieval')
-        #Check for completion of settling, this doesn't seem to work. The settling bit is set to 0 all the time.
-        #yield dev.waitForSettling()
         #Get input range, span, linewidth, and start frequency
         inputRange = yield self.input_range(c)
         span = yield self.span(c)
@@ -537,7 +581,7 @@ class SR770Server(GPIBManagedServer):
         voltsPkPerRtHz = voltsPkPerBin/np.sqrt(2*linewidth['Hz'])   #PSD with UNITS = V Pk
         voltsRmsPerRtHz = voltsPkPerRtHz/np.sqrt(2)                 #PSD with UNITS = Vrms
         #Make frequency axis
-        freqs = np.linspace(freqStart['Hz'],(span+freqStart)['Hz'],NUM_POINTS)
+        freqs = np.linspace(freqStart['Hz'],(span+freqStart)['Hz'],len(voltsRmsPerRtHz))
         data = np.vstack((freqs,voltsRmsPerRtHz)).T
         returnValue(data)
 
@@ -555,7 +599,11 @@ def scaleLogData(data, inputLevel):
     return corrected
 
 def unpackBinary(data):
-    return np.array(unpack('h'*400,data))
+    print 'unpackBinary in server, data length',len(data)
+    if len(data)==800:
+        return np.array(unpack('h'*400,data))
+    elif len(data)==799:
+        return np.array(unpack('h'*399,data[0:798]))
 
 def inverseDict(d):
     outDict = dict([(value,key) for key,value in d.items()])
