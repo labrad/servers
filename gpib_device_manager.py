@@ -23,7 +23,7 @@ from labrad.server import (LabradServer, setting,
 ### BEGIN NODE INFO
 [info]
 name = GPIB Device Manager
-version = 1.1
+version = 1.2
 description = Manages discovery and lookup of GPIB devices
 
 [startup]
@@ -128,7 +128,7 @@ class GPIBDeviceManager(LabradServer):
         or the query fails, the name will be listed as '<unknown>'.
         """
         p = self.client.servers[server].packet()
-        p.address(channel).timeout(1).write('*IDN?').read()
+        p.address(channel).timeout(1).write('*CLS').write('*IDN?').read()
         print 'Sending *IDN? to', server, channel
         resp = None
         try:
