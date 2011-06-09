@@ -26,6 +26,7 @@ public class AdcAverageConfig extends AdcBaseConfig {
 		Preconditions.checkState(startDelay > -1, "ADC Start Delay not set for channel '%s'", this.channelName);
 		runRequest.add("ADC Run Mode", Data.valueOf("average"));
 		runRequest.add("Start Delay", Data.valueOf((long)this.startDelay));
+		runRequest.add("ADC Filter Func", Data.valueOf("balhQLIYFGDSVF"), Data.valueOf(42L), Data.valueOf(42L));
 	}
 
 }
