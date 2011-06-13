@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Tektronix TDS 5104B Oscilloscope
-version = 0.01
+version = 0.1
 description = Talks to the Tektronix 5104B oscilloscope
 
 [startup]
@@ -66,7 +66,7 @@ class Tektronix5104BServer(GPIBManagedServer):
         yield dev.write('*CLS')
 
     #Channel settings
-    @setting(21, channel = 'i', returns = '(vsvvssss)')
+    @setting(21, channel = 'i', returns = '(vvvvssss)')
     def channel_info(self, c, channel):
         """channel(int channel)
         Get information on one of the scope channels.
@@ -82,11 +82,11 @@ class Tektronix5104BServer(GPIBManagedServer):
 
         dev = self.selectedDevice(c)
         resp = yield dev.query('CH%d?' %channel)
-        probeAtten, iDontKnow, scale, position, coupling, bwLimit, invert, unit = resp.split(';')
+        bwLimit, coupling, deskew, offset, invert, position, scale, termination, probeCal, probeAtten, resistance, unit, textID, textSN, extAtten, extUnits, textLabel, xPos, yPos = resp.split(';')
 
         #Convert strings to numerical data when appropriate
         probeAtten = T.Value(float(probeAtten),'')
-        #iDontKnow = None, I don't know what this is!
+        scale = T.Value(float(termination),'')
         scale = T.Value(float(scale),'')
         position = T.Value(float(position),'')
         coupling = coupling
@@ -94,7 +94,7 @@ class Tektronix5104BServer(GPIBManagedServer):
         invert = invert
         unit = unit[1:-1] #Get's rid of an extra set of quotation marks
 
-        returnValue((probeAtten,iDontKnow,scale,position,coupling,bwLimit,invert,unit))
+        returnValue((probeAtten,termination,scale,position,coupling,bwLimit,invert,unit))
 
     @setting(22, channel = 'i', coupling = 's', returns=['s'])
     def coupling(self, c, channel, coupling = None):
@@ -159,7 +159,7 @@ class Tektronix5104BServer(GPIBManagedServer):
     
     #Data acquisition settings
     @setting(41, channel = 'i', start = 'i', stop = 'i', returns='*v[ns] {time axis} *v[mV] {scope trace}')
-    def get_trace(self, c, channel, start=1, stop=5000):
+    def get_trace(self, c, channel, start=1, stop=10000):
         """Get a trace from the scope.
         OUTPUT - (array voltage in volts, array time in seconds)
         """
@@ -180,8 +180,6 @@ class Tektronix5104BServer(GPIBManagedServer):
         #Set number of bytes per point
         yield dev.write('DAT:WID %d' %wordLength)
         #Starting and stopping point
-        if not (start<2500 and start>0 and stop<5001 and stop>1):
-            raise Exception('start/stop points out of bounds')
         yield dev.write('DAT:STAR %d' %start)
         yield dev.write('DAT:STOP %d' %stop)
         #Transfer waveform preamble
