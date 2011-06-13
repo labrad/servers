@@ -66,13 +66,13 @@ class Tektronix5104BServer(GPIBManagedServer):
         yield dev.write('*CLS')
 
     #Channel settings
-    @setting(21, channel = 'i', returns = '(vvvvssss)')
+    @setting(21, channel = 'i', returns = '(vvvvsvss)')
     def channel_info(self, c, channel):
         """channel(int channel)
         Get information on one of the scope channels.
 
         OUTPUT
-        Tuple of (probeAtten, ?, scale, position, coupling, bwLimit, invert, units)
+        Tuple of (probeAtten, termination, scale, position, coupling, bwLimit, invert, units)
         """
         #NOTES
         #The scope's response to 'CH<x>?' is a string of format
@@ -86,11 +86,11 @@ class Tektronix5104BServer(GPIBManagedServer):
 
         #Convert strings to numerical data when appropriate
         probeAtten = T.Value(float(probeAtten),'')
-        scale = T.Value(float(termination),'')
+        termination = T.Value(float(termination),'')
         scale = T.Value(float(scale),'')
         position = T.Value(float(position),'')
         coupling = coupling
-        bwLimit = bwLimit
+        bwLimit = T.Value(float(bwLimit),'')
         invert = invert
         unit = unit[1:-1] #Get's rid of an extra set of quotation marks
 
