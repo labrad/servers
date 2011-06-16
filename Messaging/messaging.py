@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Messaging Server
-version = 1.0.1
+version = 1.1
 description = 
 
 [startup]
