@@ -18,7 +18,7 @@
 [info]
 name = Messaging Server
 version = 1.0.0
-description = Sends email
+description = 
 
 [startup]
 cmdline = %PYTHON% %FILE%
