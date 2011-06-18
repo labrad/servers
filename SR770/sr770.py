@@ -101,6 +101,12 @@ DISPLAY_TYPES = {
             'PHASE': 4
             }
 
+WINDOWS = {
+            'UNIFORM': 0,
+            'FLATTOP': 1,
+            'HANNING': 2,
+            'BLACKMANHARRIS': 3
+            }
 class SR770Wrapper(GPIBDeviceWrapper):
     #TODO
     #Set up device parameters and move logic code from settings to here so the device knows if a command will
@@ -157,9 +163,7 @@ class SR770Wrapper(GPIBDeviceWrapper):
     @inlineCallbacks
     def start(self):
         yield self.write('STRT\n')
-        
 
-    
     #Averaging
     @inlineCallbacks
     def overlapPercentage(self,ov):
@@ -501,7 +505,20 @@ class SR770Server(GPIBManagedServer):
             returnValue((resp,inverseDict(PHASE_UNITS)[resp]))
         else:
             returnValue((resp,inverseDict(AMPLITUDE_UNITS)[resp]))
-    
+
+    @setting(33, trace='i', window=['i','s'], returns=['s{Window type}'])
+    def window(self, c, trace, window=None):
+        dev = self.selectedDevice(c)
+        if window is not None:
+            if isinstance(window,str):
+                window = WINDOWS[window.upper()]
+            elif isinstance(window,int) and window not in [0,1,2,3]:
+                raise Exception('Window specified as integer must be in range 0 to 3')
+            yield dev.write('WNDO%d,%d\n' %(trace,window))
+        resp = yield dev.query('WNDO?%d\n' %trace)
+        answer = inverseDict(WINDOWS)[int(resp)]
+        returnValue(answer)
+        
     #DEVICE SETUP AND OPERATION
     @setting(50, coupling=['i','s'], returns='s')
     def coupling(self, c, coupling=None):
@@ -556,7 +573,11 @@ class SR770Server(GPIBManagedServer):
 
     @setting(101, trace='i{trace}', returns='*2v{[freq,sqrt(psd)]}')
     def power_spectral_amplitude(self, c, trace):
-        """Get the trace."""
+        """Get the trace in spectral amplitude (RMS) units
+        
+        Window correction factors have not yet been implemented, so for now we
+        raise an exception if the window isn't uniform!!!
+        """
         dev = self.selectedDevice(c)
         #Clear all status bytes
         yield dev.clearStatusBytes()
@@ -569,6 +590,10 @@ class SR770Server(GPIBManagedServer):
         span = yield self.span(c)
         linewidth = span/NUM_POINTS
         freqStart = yield self.start_frequency(c)
+        #Check the window type
+        window = self.window(c)
+        if not window=='UNIFORM':
+            raise Exception('Window must be set to uniform for power spectral amplitude')
         #Start the averagine cycle
         yield dev.start()
         yield dev.waitForAveraging()
@@ -580,6 +605,7 @@ class SR770Server(GPIBManagedServer):
         voltsPkPerBin = 10**(dbVoltsPkPerBin/20.0)                  #SPECTRUM with UNITS= V Pk
         voltsPkPerRtHz = voltsPkPerBin/np.sqrt(linewidth['Hz'])     #PSD with UNITS = V Pk
         voltsRmsPerRtHz = voltsPkPerRtHz/np.sqrt(2)                 #PSD with UNITS = Vrms
+        #Window correction factor not yet implemented!!!
         #Make frequency axis
         freqs = np.linspace(freqStart['Hz'],(span+freqStart)['Hz'],len(voltsRmsPerRtHz))
         data = np.vstack((freqs,voltsRmsPerRtHz)).T
