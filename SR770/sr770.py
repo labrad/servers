@@ -578,7 +578,7 @@ class SR770Server(GPIBManagedServer):
         numeric = unpackBinary(bytes)                               #Data at this point matches screen with...
         dbVoltsPkPerBin = scaleLogData(numeric, inputRange)         #SPECTRUM with UNITS= dbV Pk
         voltsPkPerBin = 10**(dbVoltsPkPerBin/20.0)                  #SPECTRUM with UNITS= V Pk
-        voltsPkPerRtHz = voltsPkPerBin/np.sqrt(2*linewidth['Hz'])   #PSD with UNITS = V Pk
+        voltsPkPerRtHz = voltsPkPerBin/np.sqrt(linewidth['Hz'])     #PSD with UNITS = V Pk
         voltsRmsPerRtHz = voltsPkPerRtHz/np.sqrt(2)                 #PSD with UNITS = Vrms
         #Make frequency axis
         freqs = np.linspace(freqStart['Hz'],(span+freqStart)['Hz'],len(voltsRmsPerRtHz))
