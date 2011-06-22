@@ -35,21 +35,11 @@ from labrad.server import setting
 from labrad.gpib import GPIBManagedServer
 from twisted.internet.defer import inlineCallbacks, returnValue
 
+
 class LockInServer(GPIBManagedServer):
     name = 'SR830'
     deviceName = 'Stanford_Research_Systems,SR830,s/n55281,ver1.07 '
-
-    @setting(10, 'Temperatures', returns=['*v[K]'])
-    def temperatures(self, c):
-        """Read channel temperatures.
-
-        Returns a ValueList of the channel temperatures in Kelvin.
-        """
-        dev = self.selectedDevice(c)
-        resp = yield dev.query('KRDG? 0')
-        vals = [float(val) for val in resp.split(',')]
-        returnValue(vals)
-
+	
     @setting(11, 'Voltages', returns=['*v[V]'])
     def voltages(self, c):
         """Read channel voltages.
@@ -57,7 +47,7 @@ class LockInServer(GPIBManagedServer):
         Returns a ValueList of the channel voltages in Volts.
         """
         dev = self.selectedDevice(c)
-        resp = yield dev.query('SRDG? 0')
+        resp = yield dev.query('SLVL?')
         vals = [float(val) for val in resp.split(',')]
         returnValue(vals)
 
