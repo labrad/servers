@@ -185,11 +185,12 @@ class GPIBBusServer(LabradServer):
 			
     @setting(13, 'Reference', data='s', returns='s')
     def reference(self, c, data):
-        """If the argument is empty, e.g. reference(''), the reference source is queried.
-        
+        """
+        If the argument is empty, e.g. reference(''), the reference source is queried.
+
         Otherwise, the reference source will be set to the value of the argument.
-		
-		0 = External, 1 = Internal
+
+        0 = External, 1 = Internal
         """
         if data == '':
             instr = self.getDevice(c)
@@ -203,11 +204,12 @@ class GPIBBusServer(LabradServer):
 
     @setting(14, 'Frequency', data='s', returns='s')
     def frequency(self, c, data):
-        """If the argument is empty, e.g. frequency(''), the frequency is queried.
+        """
+        If the argument is empty, e.g. frequency(''), the frequency is queried.
 
         Otherwise, the frequency will be set to the value of the argument.
-		
-		Set only in internal reference mode.
+
+        Set only in internal reference mode.
         """
         if data == '':
             instr = self.getDevice(c)
@@ -221,11 +223,12 @@ class GPIBBusServer(LabradServer):
 
     @setting(15, 'ExtRefSlope', data='s', returns='s')
     def extrefslope(self, c, data):
-        """If the argument is empty, e.g. ExtRefSlope(''), the external reference slope is queried.
+        """
+        If the argument is empty, e.g. ExtRefSlope(''), the external reference slope is queried.
 
         Otherwise, the external reference slope will be set to the value of the argument.
-		
-		0 = Sine, 1 = TTL Rising, 2 = TTL Falling
+
+        0 = Sine, 1 = TTL Rising, 2 = TTL Falling
         """
         if data == '':
             instr = self.getDevice(c)
@@ -239,11 +242,12 @@ class GPIBBusServer(LabradServer):
 			
     @setting(16, 'Harmonic', data='s', returns='s')
     def harmonic(self, c, data):
-        """If the argument is empty, e.g. harmonic(''), the harmonic is queried.
+        """
+        If the argument is empty, e.g. harmonic(''), the harmonic is queried. 
 
-        Otherwise, the harmonic will be set to the value of the argument.
-		
-		Harmonic can be set as high as 19999 but is capped at a frequency of 102kHz.
+        Otherwise, the harmonic will be set to the value of the argument. 
+
+        Harmonic can be set as high as 19999 but is capped at a frequency of 102kHz.
         """
         if data == '':
             instr = self.getDevice(c)
@@ -257,11 +261,12 @@ class GPIBBusServer(LabradServer):
 
     @setting(17, 'SinOutAmp', data='s', returns='s')
     def sinoutamp(self, c, data):
-        """If the argument is empty, e.g. sinoutamp(''), the amplitude of sin out is queried.
+        """
+        If the argument is empty, e.g. sinoutamp(''), the amplitude of sin out is queried. 
 
-        Otherwise, the amplitude will be set to the value of the argument.
-		
-		Accepts values between .004 and 5.0 Vrms
+        Otherwise, the amplitude will be set to the value of the argument. 
+
+        Accepts values between .004 and 5.0 Vrms
         """
         if data == '':
             instr = self.getDevice(c)
@@ -299,7 +304,7 @@ class GPIBBusServer(LabradServer):
     def setauxout(self, c, data):
         """setauxout('i, x') will set the value of Aux Output i (1,2,3,4) to x
 
-        Syntax: setauxout('i ')
+        Where x is between -10.5 V to 10.5 V
         """
         instr = self.getDevice(c)
         instr.write('AUXV ' + data)
@@ -307,7 +312,7 @@ class GPIBBusServer(LabradServer):
 
     @setting(22, 'xyrt', data='s', returns='s')
     def xyrt(self, c, data):
-        """Query the value of X (1), Y (2), R(3), or Theta (4)
+        """Query the value of X (1), Y (2), R (3), or Theta (4)
 
         For example, xyrt('4')
         """
