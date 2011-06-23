@@ -177,7 +177,7 @@ class GPIBBusServer(LabradServer):
         resp = yield instr.read()
         returnValue(resp)    
 		
-	    @setting(12, 'Query the Phase Shift', returns='s')
+    @setting(12, 'Query the Phase Shift', returns='s')
     def query(self, c):
         """Read the phase shift.
 
