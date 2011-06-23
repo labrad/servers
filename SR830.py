@@ -176,6 +176,17 @@ class GPIBBusServer(LabradServer):
         instr.write('SLVL?')
         resp = yield instr.read()
         returnValue(resp)    
+		
+	    @setting(12, 'Query the Phase Shift', returns='s')
+    def query(self, c):
+        """Read the phase shift.
+
+        Returns the phase shift setting in degrees.
+        """
+        instr = self.getDevice(c)
+        instr.write('PHAS?')
+        resp = yield instr.read()
+        returnValue(resp)    	
     
 
 __server__ = GPIBBusServer()
