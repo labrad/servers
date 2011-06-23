@@ -167,7 +167,7 @@ class GPIBBusServer(LabradServer):
         return sorted(self.devices.keys())
     
     @setting(11, 'Voltages', returns='s')
-    def query(self, c):
+    def voltages(self, c):
         """Read channel voltages.
 
         Returns a ValueList of the channel voltages in Volts.
@@ -177,16 +177,21 @@ class GPIBBusServer(LabradServer):
         resp = yield instr.read()
         returnValue(resp)    
 		
-    @setting(12, 'Query the Phase Shift', returns='s')
-    def query(self, c):
-        """Read the phase shift.
+    @setting(12, 'Phase', data='s', returns='s')
+    def phase(self, c, data):
+        """If the argument is empty, e.g. phase(''), the phase shift is queried.
 
-        Returns the phase shift setting in degrees.
+        Otherwise, the phase will be set to the value of the argument.
         """
-        instr = self.getDevice(c)
-        instr.write('PHAS?')
-        resp = yield instr.read()
-        returnValue(resp)    	
+        if data == '':
+            instr = self.getDevice(c)
+            instr.write('PHAS?')
+            resp = yield instr.read()
+            returnValue(resp)    	
+        else:
+            instr = self.getDevice(c)
+            instr.write('PHAS ' + data)
+            returnValue('Reference phase set to ' + data + ' degrees.')
     
 
 __server__ = GPIBBusServer()
