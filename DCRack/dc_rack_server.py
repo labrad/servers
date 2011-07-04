@@ -46,7 +46,7 @@ class DcRackWrapper(DeviceWrapper):
     @inlineCallbacks
     def connect(self, server, port, cards):
         """Connect to a dc rack device."""
-        print 'connecting to "%s" on port "%s"...' % (server.name, port),
+        print 'connecting to "%s" on port "%s"...' % (server.name, port)
         self.rackCards = {}
         self.rackMonitor = Monitor()
         self.activeCard = 100
@@ -77,7 +77,7 @@ class DcRackWrapper(DeviceWrapper):
 
     @inlineCallbacks
     def write(self, code, index=0):
-        """Write a data value to the heat switch."""
+        """Write a data value to the dc rack."""
         yield self.packet().write(code).send()
 
     @inlineCallbacks
