@@ -1,4 +1,4 @@
-# Copyright (C) 2007  Matthew Neeley
+# Copyright (C) 20011  Ted White
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
