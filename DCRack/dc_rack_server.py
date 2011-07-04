@@ -46,7 +46,7 @@ class DcRackWrapper(DeviceWrapper):
     @inlineCallbacks
     def connect(self, server, port, cards):
         """Connect to a dc rack device."""
-        print 'connecting to "%s" on port "%s"...' % (server.name, port)
+        print 'connecting to "%s" on port "%s"...' % (server.name, port),
         self.rackCards = {}
         self.rackMonitor = Monitor()
         self.activeCard = 100
