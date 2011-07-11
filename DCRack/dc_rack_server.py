@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = DC Rack Server
-version = 2.0
+version = 2.1
 description = Control Fastbias and Preamp boards.
 
 [startup]
@@ -61,7 +61,7 @@ class DcRackWrapper(DeviceWrapper):
         yield p.send()
         for card in cards:
             if card[1]=='preamp':
-                self.rackCards[card[0]]=Preamp()
+                self.rackCards[card[0]] = Preamp()
             else:
                 self.rackCards[card[0]] = 'fastbias'
                 
@@ -235,6 +235,50 @@ class DcRackWrapper(DeviceWrapper):
         state = self.rackMonitor.monitorState()
         returnValue(state)
         
+    @inlineCallbacks
+    def commitToRegistry(self, reg):
+        card = self.rackCards[self.activeCard]
+        if isinstance(card, Preamp):
+            yield reg.cd(['', 'Servers', 'DC Racks', 'Preamps'], True)
+            cardName = 'Preamp ' + str(self.activeCard)
+            p = reg.packet()
+            p.set(cardName,((card.A.highPass, card.A.lowPass, card.A.polarity, card.A.offset),
+                             (card.B.highPass, card.B.lowPass, card.B.polarity, card.B.offset),
+                             (card.C.highPass, card.C.lowPass, card.C.polarity, card.C.offset),
+                             (card.D.highPass, card.D.lowPass, card.D.polarity, card.D.offset)))
+            yield p.send()
+        else:
+            print 'card is not a preamp'
+    
+    @inlineCallbacks
+    def loadFromRegistry(self, reg):
+        card = self.rackCards[self.activeCard]
+        if isinstance(card, Preamp):
+            yield reg.cd(['', 'Servers', 'DC Racks', 'Preamps'], True)
+            cardName = 'Preamp ' + str(self.activeCard)
+            p = reg.packet()
+            p.get(cardName, key = cardName)
+            result = yield p.send()
+            ans = result[cardName]
+            card.A.highPass = ans[0][0]
+            card.A.lowPass = ans[0][1]
+            card.A.polarity = ans[0][2] 
+            card.A.offset = ans[0][3]
+            card.B.highPass = ans[1][0]
+            card.B.lowPass = ans[1][1]
+            card.B.polarity = ans[1][2]
+            card.B.offset = ans[1][3]
+            card.C.highPass = ans[2][0]
+            card.C.lowPass = ans[2][1]
+            card.C.polarity = ans[2][2]
+            card.C.offset = ans[2][3]
+            card.D.highPass = ans[3][0]
+            card.D.lowPass = ans[3][1]
+            card.D.polarity = ans[3][2]
+            card.D.offset = ans[3][3]
+        else:
+            print 'card is not a preamp'
+        
 
 class DcRackServer(DeviceServer): 
     deviceName = 'DC Rack Server'
@@ -354,6 +398,18 @@ class DcRackServer(DeviceServer):
         dev = self.selectedDevice(c)
         state = yield dev.getMonitorState()
         returnValue(state)
+    
+    @setting(867, 'commit_to_registry')                                            
+    def commit_to_registry(self, c):
+        dev = self.selectedDevice(c)
+        reg = self.client.registry()
+        yield dev.commitToRegistry(reg)
+    
+    @setting(868, 'load_from_registry')                                            
+    def load_from_registry(self, c):
+        dev = self.selectedDevice(c)
+        reg = self.client.registry()
+        yield dev.loadFromRegistry(reg)
 
 
 class Preamp:
