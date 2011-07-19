@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Agilent N5230A PNA
-version = 1.2
+version = 1.3
 description = Talks to the Agilent PNA
 
 [startup]
@@ -36,7 +36,7 @@ from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 from struct import unpack
-
+import time
 import numpy
 
 # the names of the measured parameters
@@ -182,33 +182,34 @@ class AgilentPNAServer(GPIBManagedServer):
 
     @setting(100, log='b', returns='*v[Hz]*2c')
     def freq_sweep(self, c, log=False):
-        """Initiate a frequency sweep.
+		"""Initiate a frequency sweep.
 
-        If log is False (the default), this will perform a
-        linear sweep.  If log is True, the sweep will be logarithmic.
-        """
-        dev = self.selectedDevice(c)
+		If log is False (the default), this will perform a
+		linear sweep.  If log is True, the sweep will be logarithmic.
+		"""
 
-        resp = yield dev.query('SENS:FREQ:STAR?; STOP?')
-        fstar, fstop = [float(f) for f in resp.split(';')]
+		dev = self.selectedDevice(c)
 
-        sweepType = 'LOG' if log else 'LIN'
-        sweeptime, npoints = yield self.startSweep(dev, sweepType)
-        if sweeptime > 1:
-            sweeptime *= self.sweepFactor(c)
-            yield util.wakeupCall(sweeptime)
+		resp = yield dev.query('SENS:FREQ:STAR?; STOP?')
+		fstar, fstop = [float(f) for f in resp.split(';')]
 
-        if log:
-            ## hack: should use numpy.logspace, but it seems to be broken
-            ## for now, this works instead.
-            lim1, lim2 = numpy.log10(fstar), numpy.log10(fstop)
-            freq = 10**numpy.linspace(lim1, lim2, npoints)
-        else:
-            freq = numpy.linspace(fstar, fstop, npoints)
-            
-        # wait for sweep to finish
-        sparams = yield self.getSweepData(dev, c['meas'])
-        returnValue((freq, sparams))
+		sweepType = 'LOG' if log else 'LIN'
+		sweeptime, npoints = yield self.startSweep(dev, sweepType)
+		if sweeptime > 1:
+			sweeptime *= self.sweepFactor(c)
+			yield util.wakeupCall(2*sweeptime)  #needs factor of 2 since it runs both forward and backward 
+
+		if log:
+			## hack: should use numpy.logspace, but it seems to be broken
+			## for now, this works instead.
+			lim1, lim2 = numpy.log10(fstar), numpy.log10(fstop)
+			freq = 10**numpy.linspace(lim1, lim2, npoints)
+		else:
+			freq = numpy.linspace(fstar, fstop, npoints)
+			
+		# wait for sweep to finish
+		sparams = yield self.getSweepData(dev, c['meas'])
+		returnValue((freq, sparams))
 
     @setting(101, returns='*v[Hz]*2c')
     def power_sweep(self, c):
@@ -364,10 +365,10 @@ class AgilentPNAServer(GPIBManagedServer):
 
     @inlineCallbacks
     def getSweepData(self, dev, meas):
-        yield dev.query('*OPC?') # wait for sweep to finish
-        sdata = yield self.getSParams(dev, meas)
-        yield dev.write('OUTP OFF')
-        returnValue(sdata)
+		yield dev.query('*OPC?') # wait for sweep to finish
+		sdata = yield self.getSParams(dev, meas)
+		yield dev.write('OUTP OFF')
+		returnValue(sdata)
 
     @inlineCallbacks
     def getSParams(self, dev, measurements):
