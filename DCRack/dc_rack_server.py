@@ -161,13 +161,13 @@ class DcRackWrapper(DeviceWrapper):
         settings = [{'A0': 80L, 'B0': 81L, 'C0': 82L, 'D0': 83L},
                     {'A1': 88L, 'B1': 89L, 'C1': 90L, 'D1': 91L},
                     {'trigA':  64L, 'trigB': 65L, 'trigC':  66L, 'trigD': 67L,
-                     'foin1':  64L, 'foin2': 65L, 'foin3':  66L, 'foin4': 67L,
+                     'Pbus0': 64L, 'clk':  65L, 'clockon': 66L, 'cardsel':  67L,
                      'dadata': 68L, 'done':  69L, 'strobe': 70L, 'clk': 71L,
-                     'on1': 68L, 'on2':  69L, 'on3': 70L, 'on4': 71L},
+                     'clk1': 68L, 'clk2': 69L, 'clk3':  70L, 'clk4': 71L},
                     {'FOoutA': 72L, 'FOoutB':  73L, 'FOoutC': 74L, 'FOoutD':  75L,
-                     'Pbus0': 72L, 'clk':  73L, 'clockon': 74L, 'cardsel':  75L,
+                     'foin1':  72L, 'foin2': 73L, 'foin3':  74L, 'foin4': 75L,
                      'dasyn':  76L, 'cardsel': 77L, 'Pbus0':  78L, 'Clockon': 79L,
-                     'clk1': 76L, 'clk2': 77L, 'clk3':  78L, 'clk4': 79L}][ID]
+                     'on1': 76L, 'on2':  77L, 'on3': 78L, 'on4': 79L}][ID]
         if keys is None:
             keys = sorted(settings.keys())
 
