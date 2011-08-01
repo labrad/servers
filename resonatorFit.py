@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Resonator Fit
-version = 0.5.1
+version = 0.5.2
 description = Fits resonator data to find Q
 
 [startup]
@@ -308,7 +308,7 @@ class ResonatorFit(LabradServer):
         else:
             maxpower_c = (20 * numpy.log10(abs(-exp(1j*theta)/(1+Qc/Qi) * 1./( 1 + 2j*(1/Qc + 1/Qi)**(-1) * (f - f0)/f0 )))).max()
 
-        fitreturn = (fit, fiterror, maxpower_c)
+        fitreturn = (fit, fiterror, maxpower_c, guess)
         return fitreturn
     
     
@@ -339,7 +339,7 @@ class ResonatorFit(LabradServer):
         
         #Fit resonator data (function depends on what type of resonator)
         s21['maxpowerUncal'] = (20 * numpy.log10(abs(s21['rawdata'][1]))).max()
-        (s21['fit'],s21['fiterror'],s21['maxpowerCal']) = self.resonant_fit(s21['caldata'][0].real,s21['caldata'][1],shunt)
+        (s21['fit'],s21['fiterror'],s21['maxpowerCal'],s21['initGuess']) = self.resonant_fit(s21['caldata'][0].real,s21['caldata'][1],shunt)
         
         returnValue(s21)
     
