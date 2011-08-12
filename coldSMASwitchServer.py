@@ -224,7 +224,7 @@ class ColdSwitchWrapper(DeviceWrapper):
         
 class ColdSwitchServer(DeviceServer):
     deviceName = 'Cold Switch Server'
-    name = 'cold switch server'
+    name = 'Cold Switch Server'
     deviceWrapper = ColdSwitchWrapper
     
     @inlineCallbacks
