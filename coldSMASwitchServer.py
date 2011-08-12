@@ -223,7 +223,7 @@ class ColdSwitchWrapper(DeviceWrapper):
         
         
 class ColdSwitchServer(DeviceServer):
-    deviceName = 'cold switch server'
+    deviceName = 'Cold Switch Server'
     name = 'cold switch server'
     deviceWrapper = ColdSwitchWrapper
     
