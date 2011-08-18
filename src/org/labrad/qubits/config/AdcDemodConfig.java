@@ -27,7 +27,7 @@ import com.google.common.base.Preconditions;
  */
 public class AdcDemodConfig extends AdcBaseConfig {
 
-	final int MAX_CHANNELS, TRIG_AMP, LOOKUP_ACCUMULATOR_BITS, DEMOD_TIME_STEP;
+	final int MAX_CHANNELS, DEMOD_CHANNELS_PER_PACKET, TRIG_AMP, LOOKUP_ACCUMULATOR_BITS, DEMOD_TIME_STEP;
 	
 	/**
 	 * Each byte is the weight for a 4 ns interval.
@@ -59,6 +59,11 @@ public class AdcDemodConfig extends AdcBaseConfig {
 	 */
 	boolean inUse[];
 	
+	/**
+	 * critical phase for each demod channel
+	 */
+	double criticalPhase[];
+	
 	public AdcDemodConfig(String channelName, Map<String, Long> buildProperties) {
 		super(channelName, buildProperties);
 		startDelay = -1;
@@ -66,17 +71,26 @@ public class AdcDemodConfig extends AdcBaseConfig {
 		stretchLen = -1; stretchAt = -1;
 		
 		MAX_CHANNELS = buildProperties.get("DEMOD_CHANNELS").intValue();
+		DEMOD_CHANNELS_PER_PACKET = buildProperties.get("DEMOD_CHANNELS_PER_PACKED").intValue();
 		TRIG_AMP = buildProperties.get("TRIG_AMP").intValue();
-		// see fpga server documentation on teh "ADC Demod Phase" setting for an explanation of the two below.
+		// see fpga server documentation on the "ADC Demod Phase" setting for an explanation of the two below.
 		LOOKUP_ACCUMULATOR_BITS = buildProperties.get("LOOKUP_ACCUMULATOR_BITS").intValue();
 		DEMOD_TIME_STEP = buildProperties.get("DEMOD_TIME_STEP").intValue(); // in ns
-		
 		
 		dPhi = new int[MAX_CHANNELS];// for (int i : dPhi) i--;
 		phi0 = new int[MAX_CHANNELS]; for (int i : phi0) i--;
 		ampSin = new int[MAX_CHANNELS]; for (int i : ampSin) i--;
 		ampCos = new int[MAX_CHANNELS]; for (int i : ampCos) i--;
 		inUse = new boolean[MAX_CHANNELS];
+		criticalPhase = new double[MAX_CHANNELS];
+	}
+	
+	private int numChannelsInUse() {
+		int n = 0;
+		for (boolean b : inUse)
+			if (b)
+				n++;
+		return n;
 	}
 	
 	/**
@@ -92,6 +106,59 @@ public class AdcDemodConfig extends AdcBaseConfig {
 	public void turnChannelOff(int channel) {
 		Preconditions.checkArgument(channel <= MAX_CHANNELS, "channel must be <= %s", MAX_CHANNELS);
 		inUse[channel] = false;
+	}
+	/**
+	 * Set all critical phases.
+	 * @param criticalPhases
+	 */
+	public void setCriticalPhases(double[] criticalPhases) {
+		Preconditions.checkArgument(criticalPhases.length == MAX_CHANNELS, "Number of critical phases must = number of channels");
+		for (int i = 0; i < criticalPhases.length; i++) {
+			Preconditions.checkArgument(criticalPhases[i] >= 0.0 && criticalPhases[i] <= 2*Math.PI,
+					"Critical phases must be between 0 and 2PI");
+			criticalPhase[i] = criticalPhases[i];
+		}
+	}
+	/**
+	 * Set a single critical phase.
+	 * @param channelIndex
+	 * @param criticalPhase
+	 */
+	public void setCriticalPhase(int channelIndex, double criticalPhase) {
+		Preconditions.checkArgument(channelIndex > 0 && channelIndex < MAX_CHANNELS, "channelIndex must be >= 0 and < MAX_CHANNELS");
+		Preconditions.checkArgument(criticalPhase >= 0.0 && criticalPhase <= 2*Math.PI, "Critical phase must be between 0 and 2PI");
+		this.criticalPhase[channelIndex] = criticalPhase;
+	}
+	
+	/**
+	 * Converts Is and Qs into booleans using the previously defined critical phase.
+	 * @param Is
+	 * @param Qs
+	 * @return
+	 */
+	@Override
+	public boolean[][] interpretPhases(long[] Is, long[] Qs) {
+		Preconditions.checkArgument(Is.length == Qs.length, "Is and Qs must be of the same shape!");
+		// note that we always get data for all n=DEMOD_CHANNELS_PER_PACKET channels (usually 11, which is > MAX_CHANNELS, usually 4)
+		// they are placed in a row, e.g. Is = [(first run)i1, i2, ..., in, (second run)i1, i2, ...]
+		Preconditions.checkArgument(Is.length % DEMOD_CHANNELS_PER_PACKET == 0, "Number of I/Q values not a multiple of DEMOD_CHANNELS_PER_PACKET. ??");
+		int numRuns = Is.length / DEMOD_CHANNELS_PER_PACKET;
+		// note that we only return switches for channels that are in use
+		int nUsed = this.numChannelsInUse();
+		// one array per channel of length = numRuns
+		boolean[][] switches = new boolean[nUsed][numRuns];
+		// we are filtering out (i.e. skipping) channels that are not in use
+		// we loop once for each channel in use
+		// if we're using channels 0, 2, and 3 then outChan will go 0, 1, 2 while inChan will go 0, 2, 3
+		for (int outChan = 0, inChan = 0; outChan < nUsed; outChan++) {
+			while (!inUse[inChan])
+				inChan++;
+			for (int run = 0; run < numRuns; run++) {
+				int x = run*DEMOD_CHANNELS_PER_PACKET + inChan;
+				switches[outChan][run] = Math.atan2(Is[x], Qs[x]) < criticalPhase[inChan];
+			}
+		}
+		return switches;
 	}
 	
 	

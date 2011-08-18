@@ -171,6 +171,18 @@ public class QubitContext extends AbstractServerContext {
   }
 
   //
+  // Echo
+  //
+  @Setting(id = 99,
+		  name = "Echo",
+		  doc = "Echo back.")
+  @Returns("?")
+  public Data echo(@Accepts("?") Data packet) {
+	  return packet;
+  }
+  
+  
+  //
   // Experiment
   //
 
@@ -328,6 +340,25 @@ public class QubitContext extends AbstractServerContext {
     channel.setSwitchIntervals(ints);
   }
 
+  @Setting(id = 290,
+		  name = "Config Critical Phases",
+		  doc = "Configure the critical phases for processing ADC readout. Takes 'v' for average mode, '*v' for demod mode " +
+		  		"(must be length = MAX_CHANNELS), or '(i, v)' for demod mode (demod channel #, phase).")
+  public void config_critical_phases(@Accepts({"s","ss"}) Data id,
+		  @Accepts({"v{phase}", "*v{phases}", "(i{demodChannel}, v{phase})"}) Data phases) {
+	  AdcChannel channel = getChannel(id, AdcChannel.class);
+	  if (phases.isValue()) {
+		  channel.setCriticalPhase(phases.getValue());
+	  } else if (phases.isArray()) {
+		  channel.setCriticalPhase(phases.getValueArray());
+	  } else if (phases.isCluster()) {
+		  int i = phases.getClusterAsList().get(0).getInt();
+		  double d = phases.getClusterAsList().get(0).getValue();
+		  channel.setCriticalPhase(i, d);
+	  } else {
+		  throw new RuntimeException("Config Critical Phases takes only 'v', '*v', or '(i, v)'.");
+	  }
+  }
 
   //
   // Memory
@@ -960,7 +991,7 @@ public class QubitContext extends AbstractServerContext {
 	    	}
 	    	offset += numPointsThisRound;
     	}
-    	lastAdcData = Data.clusterOf(allAdcs);
+    	lastAdcData = Data.listOf(allAdcs);
     	// phew!
     	
     }
@@ -1153,9 +1184,23 @@ public class QubitContext extends AbstractServerContext {
   @Setting(id = 1120,
 		   name = "Get ADC Data Raw",
 		   doc = "Get the raw ADC data from the previous run.")
-  @Returns("((*i{I}, *i{Q}))")
+  @Returns("*(*i{I}, *i{Q})")
   public Data get_adc_data_raw() {
 	  return lastAdcData;
+  }
+  
+  // extract last ADC data as an array
+  private long[][][] extractLastAdcData() {
+	  List<Data> adcs = lastAdcData.getDataList();
+	  long[][][] ans = new long[adcs.size()][2][];
+	  for (int i = 0; i < adcs.size(); i++) {
+		  List<Data> IsAndQs = adcs.get(i).getClusterAsList();
+		  for (int j = 0; j < 2; j++) {
+			  for (int k = 0; k < IsAndQs.get(j).getArraySize(); k++)
+				  ans[i][j][k] = IsAndQs.get(j).getWord();
+		  }
+	  }
+	  return ans;
   }
   
   // extract data from last run as an array
@@ -1234,15 +1279,43 @@ public class QubitContext extends AbstractServerContext {
   private boolean[][][] interpretSwitches(int deinterlace) {
     List<TimingChannel> allChannels = getExperiment().getTimingChannels();
     List<PreampChannel> channels = Lists.newArrayList();
-    for (TimingChannel ch : allChannels)
+    List<AdcChannel> adcChannels = Lists.newArrayList();
+    for (TimingChannel ch : allChannels) {
     	if (ch instanceof PreampChannel)
     		channels.add((PreampChannel)ch);
+    	else if (ch instanceof AdcChannel)
+    		adcChannels.add((AdcChannel)ch);
+    }
+    // do the DACs
     long[][] clocks = extractLastData();
     boolean[][] switches = new boolean[clocks.length][];
     for (int i = 0; i < clocks.length; i++) {
       switches[i] = channels.get(i).interpretSwitches(clocks[i]);
     }
-    return deinterlaceArray(switches, deinterlace);
+    // do the ADCs
+    long[][][] IQs = extractLastAdcData();
+    boolean[][][] adcSwitches = new boolean[IQs.length][][];
+    int nTotalChannels = 0;
+    for (int i = 0; i < IQs.length; i++) {
+    	adcSwitches[i] = adcChannels.get(i).interpretPhases(IQs[i][0], IQs[i][1]);
+    	nTotalChannels += adcSwitches[i].length;
+    }
+    // now flatten the adc switches from boolean[][][] to boolean[][]
+    // recall that adcSwitches is 3-deep for [adcNumber][channelNumber][runNumber]
+    // we now put adcNumber and channelNumber onto the same footing
+    // so it's [adcChannelNumber][runNumber]
+    boolean [][] adcChannelSwitches = new boolean[nTotalChannels][];
+    for (int i = 0; i < adcSwitches.length; i++)
+    	for (int j = 0; j < adcSwitches[i].length; j++)
+    		adcChannelSwitches[i+j] = adcSwitches[i][j];
+    // now we stick the ADCs onto the end of the DACs
+    // TODO: maintain the timing order!
+    boolean[][] finalSwitches = new boolean[switches.length + adcChannelSwitches.length][];
+    for (int i = 0; i < switches.length; i++)
+    	finalSwitches[i] = switches[i];
+    for (int j = 0; j < adcChannelSwitches.length; j++)
+    	finalSwitches[switches.length + j] = adcChannelSwitches[j];
+    return deinterlaceArray(finalSwitches, deinterlace);
   }
   
 

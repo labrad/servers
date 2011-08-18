@@ -75,6 +75,26 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 		this.fpga.setChannel(this);
 	}
 	
+	//
+	// Critical phase functions
+	//
+	
+	public void setCriticalPhase(double criticalPhase) {
+		Preconditions.checkState(mode == AdcMode.AVERAGE, "Single Critical Phase only valid for average mode.");
+		((AdcAverageConfig)config).setCriticalPhase(criticalPhase);
+	}
+	public void setCriticalPhase(int demodIndex, double criticalPhase) {
+		Preconditions.checkState(mode == AdcMode.DEMODULATE, "Set critical phase by index only valid for demod mode.");
+		((AdcDemodConfig)config).setCriticalPhase(demodIndex, criticalPhase);
+	}
+	public void setCriticalPhase(double[] criticalPhases) {
+		Preconditions.checkState(mode == AdcMode.DEMODULATE, "Set all critical phases only valid for demod mode.");
+		((AdcDemodConfig)config).setCriticalPhases(criticalPhases);
+	}
+	public boolean[][] interpretPhases(long[] iQs, long[] iQs2) {
+		return config.interpretPhases(iQs, iQs2);
+	}
+	
 	/**
 	 * This should clear the configuration. 
 	 */
@@ -117,6 +137,7 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 	public int getStartDelay() {
 		return config.getStartDelay();
 	}
+	
 	public void setFilterFunction(String filterFunction, int stretchLen, int stretchAt) {
 		Preconditions.checkState(mode == AdcMode.DEMODULATE, "Channel must be in demodulate mode for setFilterFunction to be valid.");
 		((AdcDemodConfig)config).setFilterFunction(filterFunction, stretchLen, stretchAt);		
