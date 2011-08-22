@@ -13,6 +13,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+# Changelog
+# 1.3 Created serverConnected() to identify devices on a given server once
+#     it has completed its registration with the LabRAD manager. Before this
+#     device registration would fail if the server had a custom IDN handling
+#     function because this setting could not be properly accessed through the
+#     LabRAD manager at the time of execution.
+
 from twisted.internet.defer import DeferredList, DeferredLock
 from twisted.internet.reactor import callLater
 
@@ -23,7 +30,7 @@ from labrad.server import (LabradServer, setting,
 ### BEGIN NODE INFO
 [info]
 name = GPIB Device Manager
-version = 1.2
+version = 1.3
 description = Manages discovery and lookup of GPIB devices
 
 [startup]
@@ -247,8 +254,6 @@ class GPIBDeviceManager(LabradServer):
         sometimes it times out), you may need to support both signatures.
         """
         self.identFunctions[c.source] = setting, c.ID
-        # immediately try to identify all currently unknown devices
-        callLater(0, self.identifyDevicesWithServer, c.source)
 
     @setting(10)
     def dump_info(self, c):
@@ -268,6 +273,19 @@ class GPIBDeviceManager(LabradServer):
             print 'Sending message:', s['target'], s['context'], [rec]
             self.client._sendMessage(s['target'], [rec], context=s['context'])
 
+    def serverConnected(self, ID, name):
+        """New GPIBManagedServer's will register directly with us, before they
+        have even completed their registration with the LabRAD manager as a server.
+        We will get this signal once they are accessible through the LabRAD client
+        so that we can probe them for devices. This ordering matters mainly if
+        the new server has a custom IDN parsing function"""
+        recognizeServer = False
+        for device, serverInfo in list(self.deviceServers.items()):
+            if serverInfo[0]['target'] == ID:
+                recognizeServer = True
+        if recognizeServer:
+            callLater(0, self.identifyDevicesWithServer, ID)
+        
     def serverDisconnected(self, ID, name):
         """Disconnect devices when a bus server disconnects."""
         for (server, channel) in list(self.knownDevices.keys()):
