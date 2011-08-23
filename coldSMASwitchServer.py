@@ -94,7 +94,7 @@ class ColdSwitchWrapper(DeviceWrapper):
         for s in range(len(output)):
                 current = 4.0*ord(output[s])*(5.0/4095.0)/10.0
                 self.setTrace.append(current)
-        returnValue(self.setTrace[0])
+        
                 
     
     @inlineCallbacks
