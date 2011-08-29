@@ -27,8 +27,8 @@ public class Constants {
    * is sent to the DACs, and second it must be a multiple of 30,
    * since timing results are sent back in groups of 30.
    */
-  public static final long MAX_REPS = 65520;
-  
+  //public static final long MAX_REPS = 65520;
+  public static final long MAX_REPS = 300;
   /*
    * Servers we need to talk to
    */

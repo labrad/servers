@@ -71,7 +71,7 @@ public class AdcDemodConfig extends AdcBaseConfig {
 		stretchLen = -1; stretchAt = -1;
 		
 		MAX_CHANNELS = buildProperties.get("DEMOD_CHANNELS").intValue();
-		DEMOD_CHANNELS_PER_PACKET = buildProperties.get("DEMOD_CHANNELS_PER_PACKED").intValue();
+		DEMOD_CHANNELS_PER_PACKET = buildProperties.get("DEMOD_CHANNELS_PER_PACKET").intValue();
 		TRIG_AMP = buildProperties.get("TRIG_AMP").intValue();
 		// see fpga server documentation on the "ADC Demod Phase" setting for an explanation of the two below.
 		LOOKUP_ACCUMULATOR_BITS = buildProperties.get("LOOKUP_ACCUMULATOR_BITS").intValue();
