@@ -28,7 +28,7 @@ import com.google.common.base.Preconditions;
 public class AdcDemodConfig extends AdcBaseConfig {
 
 	final int MAX_CHANNELS, DEMOD_CHANNELS_PER_PACKET, TRIG_AMP, LOOKUP_ACCUMULATOR_BITS, DEMOD_TIME_STEP;
-	
+	boolean printed = false;
 	/**
 	 * Each byte is the weight for a 4 ns interval.
 	 * A single value can be repeated for a stretch in the middle.
@@ -125,8 +125,8 @@ public class AdcDemodConfig extends AdcBaseConfig {
 	 * @param criticalPhase
 	 */
 	public void setCriticalPhase(int channelIndex, double criticalPhase) {
-		Preconditions.checkArgument(channelIndex > 0 && channelIndex < MAX_CHANNELS, "channelIndex must be >= 0 and < MAX_CHANNELS");
-		Preconditions.checkArgument(criticalPhase >= 0.0 && criticalPhase <= 2*Math.PI, "Critical phase must be between 0 and 2PI");
+		Preconditions.checkArgument(channelIndex >= 0 && channelIndex < MAX_CHANNELS, "channelIndex must be >= 0 and < MAX_CHANNELS");
+		Preconditions.checkArgument(criticalPhase >= -Math.PI && criticalPhase <= Math.PI, "Critical phase must be between -PI and PI");
 		this.criticalPhase[channelIndex] = criticalPhase;
 	}
 	
@@ -155,7 +155,8 @@ public class AdcDemodConfig extends AdcBaseConfig {
 				inChan++;
 			for (int run = 0; run < numRuns; run++) {
 				int x = run*DEMOD_CHANNELS_PER_PACKET + inChan;
-				switches[outChan][run] = Math.atan2(Is[x], Qs[x]) < criticalPhase[inChan];
+				//System.out.println(Math.atan2(Qs[x], Is[x]));
+				switches[outChan][run] = Math.atan2(Qs[x], Is[x]) > criticalPhase[inChan];
 			}
 		}
 		return switches;

@@ -345,7 +345,7 @@ public class QubitContext extends AbstractServerContext {
 		  doc = "Configure the critical phases for processing ADC readout. Takes 'v' for average mode, '*v' for demod mode " +
 		  		"(must be length = MAX_CHANNELS), or '(i, v)' for demod mode (demod channel #, phase).")
   public void config_critical_phases(@Accepts({"s","ss"}) Data id,
-		  @Accepts({"v{phase}", "*v{phases}", "(i{demodChannel}, v{phase})"}) Data phases) {
+		  @Accepts({"v{phase}", "(i{demodChannel}, v{phase})", "*v{phases}"}) Data phases) {
 	  AdcChannel channel = getChannel(id, AdcChannel.class);
 	  if (phases.isValue()) {
 		  channel.setCriticalPhase(phases.getValue());
@@ -353,7 +353,7 @@ public class QubitContext extends AbstractServerContext {
 		  channel.setCriticalPhase(phases.getValueArray());
 	  } else if (phases.isCluster()) {
 		  int i = phases.getClusterAsList().get(0).getInt();
-		  double d = phases.getClusterAsList().get(0).getValue();
+		  double d = phases.getClusterAsList().get(1).getValue();
 		  channel.setCriticalPhase(i, d);
 	  } else {
 		  throw new RuntimeException("Config Critical Phases takes only 'v', '*v', or '(i, v)'.");
@@ -1196,8 +1196,11 @@ public class QubitContext extends AbstractServerContext {
 	  for (int i = 0; i < adcs.size(); i++) {
 		  List<Data> IsAndQs = adcs.get(i).getClusterAsList();
 		  for (int j = 0; j < 2; j++) {
-			  for (int k = 0; k < IsAndQs.get(j).getArraySize(); k++)
-				  ans[i][j][k] = IsAndQs.get(j).getWord();
+			  ans[i][j] = new long[IsAndQs.get(j).getArraySize()];
+			  for (int k = 0; k < IsAndQs.get(j).getArraySize(); k++) {
+				  //System.out.println(i + " " + j + " " + k);
+				  ans[i][j][k] = IsAndQs.get(j).get(k).getInt();
+			  }
 		  }
 	  }
 	  return ans;
