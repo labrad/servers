@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Data Vault
-version = 2.3.1
+version = 2.3.2
 description = Store and retrieve numeric data
 
 [startup]
@@ -1067,6 +1067,14 @@ class DataVault(LabradServer):
         dataset = self.getDataset(c)
         dataset.addParameters(params)
         
+
+    @setting(126, 'get name', returns='s')
+    def get_name(self, c):
+        """Get the name of the current dataset."""
+        dataset = self.getDataset(c)
+        name = dataset.name
+        return name
+
     @setting(122, 'get parameter', name='s')
     def get_parameter(self, c, name, case_sensitive=True):
         """Get the value of a parameter."""
