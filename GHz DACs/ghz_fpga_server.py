@@ -97,7 +97,7 @@
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 3.1.1
+version = 3.2.0
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -546,30 +546,33 @@ class BoardGroup(object):
                 boardResults = {}
                 for board in timingOrder:
                     channel = None
+                    #If board has a :: in it, it's an ADC with specified demod channel
                     if '::' in board:
                         board, channel = board.split('::')
-                        channel = int(channel)
-                    
-                    # extract data from ethernet packets if we have not already
+                        channel = int(channel) 
+                    # Extract data from ethernet packets if we have not already.
+                    # Why are we doing this? We're looping over all timing channels,
+                    # and ADC boards have more than one timing channel. On the frist
+                    # run through the loop we might have ADC 0 demod channel i. To
+                    # get that data we have to extract from the packets that came
+                    # back from the ADC board. Then, on the next run through the loop,
+                    # we might want to get data for ADC 0 demod channel i+1. We don't
+                    # want to re-extract the data from the packet on the second run,
+                    # so we keep track of which boards have had their data extracted.
                     if board in boardResults:
                         answer = boardResults[board]
                     else:
-                        idx = boardOrder.index(board) #boardOrder is a list of board names, eg ['Vince ADC 0', 'Vince DAC 9']
+                        idx = boardOrder.index(board)
                         runner = runners[idx]
                         allDacs &= isinstance(runner, DacRunner)
                         result = [data for src, dest, eth, data in results[idx]['read']]
-                        t0 = time.clock()
-                        print 'Time before data parsing: ',t0
-                        answer = runner.extract(result)
-                        t1 = time.clock()
-                        delta = t1 - t0
-                        print 'Time after data parsing: ',t1 
-                        print 'Time need for data parsing', delta
+                        answer = runner.extract(result) #Array of all timing results (DAC)
                         boardResults[board] = answer
-                        
-                    # add extracted data to the list of timing results
+                    # Add extracted data to the list of timing results
+                    # If this is an ADC demod channel, grab that channel's data only
                     if channel is not None:
-                        answer = answer[channel]
+                        ranges = answer[1] #Not used in any way, but could be useful
+                        answer = answer[0][channel]
                     answers.append(answer)
                 
                 if allDacs and len(set(len(answer) for answer in answers)) == 1:
@@ -1689,10 +1692,7 @@ class AdcRunner(object):
         if self.runMode == 'average':
             return adc.extractAverage(packets)
         elif self.runMode == 'demodulate':
-            IQs, ranges = adc.extractDemod(packets, self.dev.params['DEMOD_CHANNELS_PER_PACKET'])
-            self.ranges = ranges # save this for possible access later
-            return IQs
-
+            return adc.extractDemod(packets, self.dev.params['DEMOD_CHANNELS_PER_PACKET'])
 
 # some helper methods
     
