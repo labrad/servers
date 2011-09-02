@@ -399,6 +399,7 @@ def extractDemod(packets, nDemod):
     vals = np.fromstring(data, dtype='<i2')         #Convert string of bytes into numpy array of 16bit integers. <i2 means little endian 2 byte
     Is, Qs = vals.reshape(-1, 2).astype(int).T      #Is,Qs are numpy arrays like   [I0,I1,...,I_numChannels,    I0,I1,...,I_numChannels]
                                                     #                               1st data run                2nd data run    
+    #Parse the IQ data into [(Is ch0, Qs ch0), (Is ch1, Qs ch1),...,(Is chnDemod, Qs chnDemod)]
     data = [(Is[i::nDemod], Qs[i::nDemod]) for i in xrange(nDemod)]
     
     # compute overall max and min for I and Q
@@ -417,14 +418,9 @@ def extractDemod(packets, nDemod):
     Qmax = int(max(ranges[2]))
     Qmin = int(min(ranges[3]))
     
-#    Is = list(Is)
-#    Qs = list(Qs)
-#    for i in range(len(Is)):
-#        Is[i]=int(Is[i])
-#        Qs[i]=int(Qs[i])
-    #Is = np.array(Is,dtype='int32')
-    #Qs = np.array(Qs,dtype='int32')
-    return (Is, Qs), (Imax, Imin, Qmax, Qmin)
+    return (data, (Imax, Imin, Qmax, Qmin))
+
+    #(*i,{I} *i{Q})
 
 def parseHardwareParameters(parametersFromRegistry, device):
     device.params = dict(parametersFromRegistry)
