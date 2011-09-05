@@ -1191,6 +1191,8 @@ public class QubitContext extends AbstractServerContext {
 
 	// extract last ADC data as an array
 	private long[][][] extractLastAdcData() {
+		if (lastAdcData == null)
+			return new long[0][0][];
 		List<Data> adcs = lastAdcData.getDataList();
 		long[][][] ans = new long[adcs.size()][2][];
 		for (int i = 0; i < adcs.size(); i++) {
