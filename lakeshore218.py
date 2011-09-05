@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Lakeshore Diodes
-version = 2.0
+version = 2.1
 description = 
 
 [startup]
@@ -35,6 +35,16 @@ from labrad.server import setting
 from labrad.gpib import GPIBManagedServer
 from twisted.internet.defer import inlineCallbacks, returnValue
 
+def parse(val):
+    ''' Parse function to account for the occasional GPIB glitches where we get extra characters in front of the numbers. '''
+    if len(val):
+        try:
+            return float(val)
+        except ValueError:
+            return parse(val[1:])
+    else:
+        return 0.0
+
 class LakeshoreDiodeServer(GPIBManagedServer):
     name = 'Lakeshore Diodes'
     deviceName = 'LSCI MODEL218S'
@@ -47,7 +57,7 @@ class LakeshoreDiodeServer(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         resp = yield dev.query('KRDG? 0')
-        vals = [float(val) for val in resp.split(',')]
+        vals = [parse(val) for val in resp.split(',')]
         returnValue(vals)
 
     @setting(11, 'Voltages', returns=['*v[V]'])
@@ -58,7 +68,7 @@ class LakeshoreDiodeServer(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         resp = yield dev.query('SRDG? 0')
-        vals = [float(val) for val in resp.split(',')]
+        vals = [parse(val) for val in resp.split(',')]
         returnValue(vals)
 
 __server__ = LakeshoreDiodeServer()
