@@ -227,7 +227,7 @@ public class QubitContext extends AbstractServerContext {
                                 @Accepts("v[GHz]") double freq,
                                 @Accepts("v[dBm]") double power) {
     // turn the microwave source on, set the power level and frequency
-  	System.out.println("config microwaves " + id.get(0).getString() + " " + freq + " " + power);
+  	//System.out.println("config microwaves " + id.get(0).getString() + " " + freq + " " + power);
     IqChannel ch = getChannel(id, IqChannel.class);
     ch.configMicrowavesOn(freq, power);
     configDirty = true;
