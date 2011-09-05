@@ -18,10 +18,12 @@ public abstract class DacBoard implements Resource {
   protected String buildType;		// either 'adcBuild' or 'dacBuild'
   protected String buildNumber;
   protected Map<String, Long> buildProperties = Maps.newHashMap();
+  protected boolean propertiesLoaded;
 
   public DacBoard(String name) {
     this.name = name;
     this.buildType = "dacBuild";
+    this.propertiesLoaded = false;
   }
 
   public String getName() {
@@ -46,9 +48,13 @@ public abstract class DacBoard implements Resource {
 		  buildProperties.put(propName, propValue);
 		  //System.out.println("put: " + propName + " -- " + propValue);
 	  }
+	  this.propertiesLoaded = true;
   }
   public Map<String, Long> getBuildProperties() {
 	  return this.buildProperties;
+  }
+  public boolean havePropertiesLoaded() {
+	  return this.propertiesLoaded;
   }
 
   public void setFiber(DacFiberId fiber, BiasBoard board, DcRackFiberId channel) {

@@ -2,9 +2,9 @@
 <classpath>
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
-	<classpathentry combineaccessrules="false" kind="src" path="/JLabrad"/>
 	<classpathentry kind="lib" path="/JLabrad/lib/guava-r06.jar" sourcepath="G:/Documents/code/otherSVN/JLabrad/lib/guava-r06/guava-src-r06.zip"/>
 	<classpathentry kind="lib" path="/JLabrad/lib/netty-3.1.5.GA.jar"/>
 	<classpathentry kind="lib" path="/JLabrad/lib/netty-3.2.1.Final.jar"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/JLabrad"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
