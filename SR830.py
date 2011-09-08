@@ -40,159 +40,133 @@ class SR830(GPIBManagedServer):
     deviceName = 'Stanford_Research_Systems SR830'
 
 
-    @setting(12, 'Phase', data='s', returns='s')
-    def phase(self, c, data):
-        """If the argument is empty, e.g. phase(''), the phase shift is queried.
-
-        Otherwise, the phase will be set to the value of the argument.
-        """
-        if data == '':
-            instr = self.getDevice(c)
-            instr.write('PHAS?')
-            resp = yield instr.read()
-            returnValue(resp)    	
+    @setting(12, 'Phase', ph=[': query phase offset',  'v[deg]: set phase offset'], returns='v[deg]: phase')
+    def phase(self, c, ph = None):
+        ''' sets/gets the phase offset '''
+        dev = self.getDevice(c)
+        if ph is None:
+            resp = yield dev.query('PHAS?')
+            returnValue(float(resp))    	
         else:
-            instr = self.getDevice(c)
-            instr.write('PHAS ' + data)
-            returnValue('Reference phase set to ' + data + ' degrees.')
-			
-    @setting(13, 'Reference', data='s', returns='s')
-    def reference(self, c, data):
-        """
-        If the argument is empty, e.g. reference(''), the reference source is queried.
-
-        Otherwise, the reference source will be set to the value of the argument.
-
-        0 = External, 1 = Internal
-        """
-        if data == '':
-            instr = self.getDevice(c)
-            instr.write('FMOD?')
-            resp = yield instr.read()
-            returnValue(resp)    	
+            dev.write('PHAS ' + str(ph))
+            returnValue(ph)
+            
+    @setting(13, 'Reference', ref=[': query reference source', 'b: set external (false) or internal (true) reference source'], returns='b')
+    def reference(self, c, ref = None):
+        """ sets/gets the reference source. false => external source. true => internal source. """
+        dev = self.getDevice(c)
+        if ref == '':
+            resp = yield dev.query('FMOD?')
+            returnValue(bool(int(resp)))
         else:
-            instr = self.getDevice(c)
-            instr.write('FMOD ' + data)
-            returnValue('Reference set to ' + data + '.')   
+            s = '0'
+            if ref:
+                s = '1'
+            dev.write('FMOD ' + s)
+            returnValue(ref)   
 
-    @setting(14, 'Frequency', data='s', returns='s')
-    def frequency(self, c, data):
-        """
-        If the argument is empty, e.g. frequency(''), the frequency is queried.
-
-        Otherwise, the frequency will be set to the value of the argument.
-
-        Set only in internal reference mode.
-        """
-        if data == '':
-            instr = self.getDevice(c)
-            instr.write('FREQ?')
-            resp = yield instr.read()
-            returnValue(resp)    	
+    @setting(14, 'Frequency', f=[': query frequency', 'v[Hz]: set frequency'], returns='v[Hz]')
+    def frequency(self, c, f = None):
+        """ Sets/gets the frequency of the internal reference. """
+        dev = self.getDevice(c)
+        if f is None:
+            resp = yield dev.query('FREQ?')
+            returnValue(float(resp))
         else:
-            instr = self.getDevice(c)
-            instr.write('FREQ ' + data)
-            returnValue('Frequency set to ' + data + ' Hz.')	
+            dev.write('FREQ ' + str(f))
+            returnValue(f)	
 
-    @setting(15, 'ExtRefSlope', data='s', returns='s')
-    def extrefslope(self, c, data):
+    @setting(15, 'External Reference Slope', ers=[': query', 'i: set'], returns='i')
+    def external_reference_slope(self, c, ers = None):
         """
-        If the argument is empty, e.g. ExtRefSlope(''), the external reference slope is queried.
-
-        Otherwise, the external reference slope will be set to the value of the argument.
-
+        Get/set the external reference slope.
         0 = Sine, 1 = TTL Rising, 2 = TTL Falling
         """
-        if data == '':
-            instr = self.getDevice(c)
-            instr.write('RSLP?')
-            resp = yield instr.read()
+        dev = self.selectedDevice(c)
+        if ers is None:
+            resp = yield dev.query('RSLP?')
             returnValue(resp)    	
         else:
-            instr = self.getDevice(c)
-            instr.write('RSLP ' + data)
-            returnValue('External reference slope set to ' + data + '.')			
-			
-    @setting(16, 'Harmonic', data='s', returns='s')
-    def harmonic(self, c, data):
+            dev.write('RSLP ' + str(ers))
+            returnValue(ers)			
+
+    @setting(16, 'Harmonic', h=[': query harmonic', 'i: set harmonic'], returns='i')
+    def harmonic(self, c, h = None):
         """
-        If the argument is empty, e.g. harmonic(''), the harmonic is queried. 
-
-        Otherwise, the harmonic will be set to the value of the argument. 
-
+        Get/set the harmonic.
         Harmonic can be set as high as 19999 but is capped at a frequency of 102kHz.
         """
-        if data == '':
-            instr = self.getDevice(c)
-            instr.write('HARM?')
-            resp = yield instr.read()
+        dev = self.getDevice(c)
+        if h is None:
+            resp = yield dev.query('HARM?')
+            returnValue(int(resp))
+        else:
+            dev.write('HARM ' + str(h))
+            returnValue(h)
+
+    @setting(17, 'Sine Out Amplitude', amp=[': query', 'v[V]: set'], returns='v[V]')
+    def sine_out_amplitude(self, c, amp = None):
+        """ 
+        Set/get the amplitude of the sine out.
+        Accepts values between .004 and 5.0 V.
+        """
+        dev = self.getDevice(c)
+        if amp is None:
+            resp = yield dev.query('SLVL?')
             returnValue(resp)    	
         else:
-            instr = self.getDevice(c)
-            instr.write('HARM ' + data)
-            returnValue('Harmonic set to ' + data + '.')	
+            dev.write('SLVL ' + float(amp))
+            returnValue(amp)
 
-    @setting(17, 'SinOutAmp', data='s', returns='s')
-    def sinoutamp(self, c, data):
-        """
-        If the argument is empty, e.g. sinoutamp(''), the amplitude of sin out is queried. 
+    @setting(18, 'Aux Input', n='i', returns='v[V]')
+    def aux_input(self, c, n):
+        """Query the value of Aux Input n (1,2,3,4)"""
+        dev = self.getDevice(c)
+        if int(n) < 1 or int(n) > 4:
+            raise ValueError("n must be 1,2,3, or 4!")
+        resp = yield dev.query('OAUX? ' + str(n))
+        returnValue(float(resp))
 
-        Otherwise, the amplitude will be set to the value of the argument. 
-
-        Accepts values between .004 and 5.0 Vrms
-        """
-        if data == '':
-            instr = self.getDevice(c)
-            instr.write('SLVL?')
-            resp = yield instr.read()
-            returnValue(resp)    	
+    @setting(19, 'Aux Output', n='i', v=['v[V]'], returns='v[V]')
+    def aux_output(self, c, n, v = None):
+        """Get/set the value of Aux Output n (1,2,3,4). v can be from -10.5 to 10.5 V."""
+        dev = self.getDevice(c)
+        if int(n) < 1 or int(n) > 4:
+            raise ValueError("n must be 1,2,3, or 4!")
+        if v is None:
+            resp = yield dev.query('AUXV? ' + str(n))
+            returnValue(resp)
         else:
-            instr = self.getDevice(c)
-            instr.write('SLVL ' + data)
-            returnValue('Sin output amplitude set to ' + data + ' Vrms.')		
+            dev.write('AUXV ' + str(n) + ', ' + str(v));
+            returnValue(v)	
 
-    @setting(18, 'AuxInput', data='s', returns='s')
-    def auxinput(self, c, data):
-        """Query the value of Aux Input i (1,2,3,4)
+    @setting(21, 'x', returns='v[V]')
+    def x(self, c):
+        """Query the value of X"""
+        dev = self.getDevice(c)
+        resp = yield dev.query('OUTP? 1')
+        returnValue(float(resp))
 
-        For example, auxinput('3')
-        """
-        instr = self.getDevice(c)
-        instr.write('OAUX? ' + data)
-        resp = yield instr.read()
-        returnValue(resp)    	
-		
-    @setting(19, 'QueryAuxOut', data='s', returns='s')
-    def queryauxout(self, c, data):
-        """Query the value of Aux Output i (1,2,3,4)
+    @setting(22, 'y', returns='v[V]')
+    def y(self, c):
+        """Query the value of Y"""
+        dev = self.getDevice(c)
+        resp = yield dev.query('OUTP? 2')
+        returnValue(float(resp))
 
-        For example, queryauxout('3')
-        """
-        instr = self.getDevice(c)
-        instr.write('AUXV? ' + data)
-        resp = yield instr.read()
-        returnValue(resp)   	
-		
-    @setting(21, 'SetAuxOut', data='s', returns='s')
-    def setauxout(self, c, data):
-        """setauxout('i, x') will set the value of Aux Output i (1,2,3,4) to x
+    @setting(23, 'r', returns='v[V]')
+    def r(self, c):
+        """Query the value of R"""
+        dev = self.getDevice(c)
+        resp = yield dev.query('OUTP? 3')
+        returnValue(float(resp))
 
-        Where x is between -10.5 V to 10.5 V
-        """
-        instr = self.getDevice(c)
-        instr.write('AUXV ' + data)
-        returnValue('Auxilary ouput setting: ' + data) 		
-
-    @setting(22, 'xyrt', data='s', returns='s')
-    def xyrt(self, c, data):
-        """Query the value of X (1), Y (2), R (3), or Theta (4)
-
-        For example, xyrt('4')
-        """
-        instr = self.getDevice(c)
-        instr.write('OUTP? ' + data)
-        resp = yield instr.read()
-        returnValue(resp)   	
+    @setting(24, 'theta', returns='v[deg]')
+    def theta(self, c):
+        """Query the value of theta """
+        dev = self.getDevice(c)
+        resp = yield dev.query('OUTP? 4')
+        returnValue(float(resp))
 
 __server__ = SR830()
 
