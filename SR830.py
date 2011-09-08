@@ -85,7 +85,7 @@ class SR830(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if ers is None:
             resp = yield dev.query('RSLP?')
-            returnValue(resp)    	
+            returnValue(int(resp))
         else:
             dev.write('RSLP ' + str(ers))
             returnValue(ers)			
@@ -115,7 +115,7 @@ class SR830(GPIBManagedServer):
             resp = yield dev.query('SLVL?')
             returnValue(resp)    	
         else:
-            dev.write('SLVL ' + float(amp))
+            dev.write('SLVL ' + str(amp))
             returnValue(amp)
 
     @setting(18, 'Aux Input', n='i', returns='v[V]')
@@ -135,7 +135,7 @@ class SR830(GPIBManagedServer):
             raise ValueError("n must be 1,2,3, or 4!")
         if v is None:
             resp = yield dev.query('AUXV? ' + str(n))
-            returnValue(resp)
+            returnValue(float(resp))
         else:
             dev.write('AUXV ' + str(n) + ', ' + str(v));
             returnValue(v)	
