@@ -1,4 +1,4 @@
-# Copyright (C) 2007  Matthew Neeley
+# Copyright (C) 2011 Peter O'Malley/Charles Neill
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = SR830
-version = 2.0
+version = 2.1
 description = 
 
 [startup]
