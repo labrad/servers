@@ -1014,6 +1014,11 @@ class DataVault(LabradServer):
         (independents + dependents).
         """
         dataset = self.getDataset(c)
+        #Check for unfavored persons, and make them wait
+        # if 'Matteo' in dataset.session:
+            # start = time.time()
+            # while time.time()-start<3:
+                # yield
         if not c['writing']:
             raise ReadOnlyError()
         dataset.addData(data)
