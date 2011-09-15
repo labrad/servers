@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Messaging Server
-version = 1.1
+version = 1.2
 description = 
 
 [startup]
@@ -58,7 +58,15 @@ class EmailServer(LabradServer):
             return True
         except:
             return False
-
+            
+    @setting(11, subject='s', msg='s', username='s', returns='b')
+    def send_sms(self, c, subject, msg, username):
+        try:
+            pyle.telecomm.messaging.textMessage(username,subject,msg)
+            return True
+        except:
+            return False
+    
 __server__ = EmailServer()
 
 if __name__ == '__main__':
