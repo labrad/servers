@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = SR830
-version = 2.2
+version = 2.3
 description = 
 
 [startup]
@@ -30,10 +30,17 @@ timeout = 20
 ### END NODE INFO
 """
 
-from labrad import types as T, gpib
+from labrad import types as T, gpib, units
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer
 from twisted.internet.defer import inlineCallbacks, returnValue
+
+def getTC(i):
+    ''' converts from the integer label used by the SR830 to a time '''
+    if i % 2 == 0:
+        return 10**(-5 + i/2) * units.s
+    else:
+        return 3*10**(-5 + i/2) * units.s
 
 class SR830(GPIBManagedServer):
     name = 'SR830'
@@ -171,16 +178,16 @@ class SR830(GPIBManagedServer):
         resp = yield dev.query('OUTP? 4')
         returnValue(float(resp))
 
-    @setting(30, 'Time Constant', i='i', returns='i')
+    @setting(30, 'Time Constant', i='i', returns='v[s]')
     def time_constant(self, c, i=None):
         """ Set/get the time constant. i=0 --> 10 us; 1-->30us, 2-->100us, 3-->300us, ..., 19 --> 30ks """
         dev = self.selectedDevice(c)
         if i is None:
             resp = yield dev.query("OFLT?")
-            returnValue(int(resp))
+            returnValue(getTC(int(resp)))
         else:
             yield dev.write('OFLT ' + str(i))
-            returnValue(i)
+            returnValue(getTC(i))
 
     @setting(31, 'Sensitivity', i='i', returns='i')
     def sensitivity(self, c, i=None):
@@ -203,6 +210,35 @@ class SR830(GPIBManagedServer):
         while resp != '0':
             resp = yield dev.query("*STB? 1")
             print "Waiting for auto gain to finish..."
+            
+    @setting(33, 'Filter Slope', i='i', returns='i')
+    def filter_slope(self, c, i=None):
+        ''' Sets/gets the low pass filter slope. 0=>6, 1=>12, 2=>18, 3=>24 dB/oct '''
+        dev = self.selectedDevice(c)
+        if i is None:
+            resp = yield dev.query("OFSL?")
+            returnValue(int(resp))
+        else:
+            yield dev.write('OFSL ' + str(i))
+            returnValue(i)
+            
+    @setting(34, 'Wait Time', returns='v[s]')
+    def wait_time(self, c):
+        ''' Returns the recommended wait time given current time constant and low-pass filter slope. '''
+        dev = self.selectedDevice(c)
+        tc = yield dev.query("OFLT?")
+        tc = getTC(int(tc))
+        slope = yield dev.query("OFSL?")
+        slope = int(slope)
+        if slope == 0:
+            returnValue(5*tc)
+        elif slope == 1:
+            returnValue(7*tc)
+        elif slope == 2:
+            returnValue(9*tc)
+        else:# slope == 3:
+            returnValue(10*tc)
+    
 
 __server__ = SR830()
 
