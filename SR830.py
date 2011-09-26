@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = SR830
-version = 2.3
+version = 2.4
 description = 
 
 [startup]
@@ -37,15 +37,47 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 
 def getTC(i):
     ''' converts from the integer label used by the SR830 to a time '''
-    if i % 2 == 0:
+    if i < 0:
+        return getTC(0)
+    elif i > 19:
+        return getTC(19)
+    elif i % 2 == 0:
         return 10**(-5 + i/2) * units.s
     else:
         return 3*10**(-5 + i/2) * units.s
+        
+def getSensitivity(i):
+    ''' converts form the integer label used by the SR830 to a sensitivity '''
+    if i < 0:
+        return getSensitivity(0)
+    elif i > 26:
+        return getSensitvity(26)
+    elif i % 3 == 0:
+        return 2 * 10**(-9 + i/3)
+    elif i % 3 == 1:
+        return 5 * 10**(-9 + i/3)
+    else:
+        return 10 * 10**(-9 + i/3)
 
 class SR830(GPIBManagedServer):
     name = 'SR830'
     deviceName = 'Stanford_Research_Systems SR830'
 
+    @inlineCallbacks
+    def inputMode(self, c):
+        ''' returns the input mode. 0=A, 1=A-B, 2=I(10**6), 3=I(10**8) '''
+        dev = self.selectedDevice(c)
+        mode = yield dev.query('ISRC?')
+        returnValue(int(mode))
+    
+    @inlineCallbacks
+    def outputUnit(self, c):
+        ''' returns a labrad unit, V or A, for what the main output type is. (R, X, Y) '''
+        mode = yield self.inputMode(c)
+        if mode < 2:
+            returnValue(units.V)
+        else:
+            returnValue(units.A)
 
     @setting(12, 'Phase', ph=[': query phase offset',  'v[deg]: set phase offset'], returns='v[deg]: phase')
     def phase(self, c, ph = None):
@@ -150,26 +182,26 @@ class SR830(GPIBManagedServer):
             yield dev.write('AUXV ' + str(n) + ', ' + str(v));
             returnValue(v)	
 
-    @setting(21, 'x', returns='v[V]')
+    @setting(21, 'x', returns='v')
     def x(self, c):
         """Query the value of X"""
         dev = self.selectedDevice(c)
         resp = yield dev.query('OUTP? 1')
-        returnValue(float(resp))
+        returnValue(float(resp) * (yield self.outputUnit(c)))
 
-    @setting(22, 'y', returns='v[V]')
+    @setting(22, 'y', returns='v')
     def y(self, c):
         """Query the value of Y"""
         dev = self.selectedDevice(c)
         resp = yield dev.query('OUTP? 2')
-        returnValue(float(resp))
+        returnValue(float(resp) * (yield self.outputUnit(c)))
 
-    @setting(23, 'r', returns='v[V]')
+    @setting(23, 'r', returns='v')
     def r(self, c):
         """Query the value of R"""
         dev = self.selectedDevice(c)
         resp = yield dev.query('OUTP? 3')
-        returnValue(float(resp))
+        returnValue(float(resp) * (yield self.outputUnit(c)))
 
     @setting(24, 'theta', returns='v[deg]')
     def theta(self, c):
@@ -189,16 +221,22 @@ class SR830(GPIBManagedServer):
             yield dev.write('OFLT ' + str(i))
             returnValue(getTC(i))
 
-    @setting(31, 'Sensitivity', i='i', returns='i')
+    @setting(31, 'Sensitivity', i='i', returns='v')
     def sensitivity(self, c, i=None):
         """ Set/get the sensitivity. i=0 --> 2 nV/fA; 1-->5nV/fA, 2-->10nV/fA, 3-->20nV/fA, ..., 26 --> 1V/uA """
         dev = self.selectedDevice(c)
+        mode = yield self.inputMode(c)
+        if mode < 2:
+            u = units.V
+        else:
+            u = units.uA
         if i is None:
             resp = yield dev.query("SENS?")
-            returnValue(int(resp))
+            returnValue(getSensitivity(int(resp)) * u)
         else:
             yield dev.write('SENS ' + str(i))
-            returnValue(i)
+            s = getSensitivity(i)
+            returnValue(getSensitivity(i)*u)
 
     @setting(32, 'Auto Gain')
     def auto_gain(self, c):
