@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = SR830
-version = 2.4
+version = 2.5
 description = 
 
 [startup]
@@ -45,7 +45,7 @@ def getTC(i):
         return 10**(-5 + i/2) * units.s
     else:
         return 3*10**(-5 + i/2) * units.s
-        
+
 def getSensitivity(i):
     ''' converts form the integer label used by the SR830 to a sensitivity '''
     if i < 0:
@@ -237,7 +237,20 @@ class SR830(GPIBManagedServer):
             yield dev.write('SENS ' + str(i))
             s = getSensitivity(i)
             returnValue(getSensitivity(i)*u)
-
+            
+    @setting(41, 'Sensitivity Up', returns='v')
+    def sensitivity_up(self, c):
+        ''' Kicks the sensitivity up a notch. '''
+        dev = self.selectedDevice(c)
+        returnValue((yield self.sensitivity(c, int((yield dev.query('SENS?'))) + 1)))
+        
+    @setting(42, 'Sensitivity Down', returns='v')
+    def sensitivity_down(self, c):
+        ''' Turns the sensitivity down a notch. '''
+        dev = self.selectedDevice(c)
+        returnValue((yield self.sensitivity(c, int((yield dev.query('SENS?'))) - 1)))
+        
+        
     @setting(32, 'Auto Gain')
     def auto_gain(self, c):
         """ Runs the auto gain function. Does nothing if time constant >= 1s. """
