@@ -38,17 +38,13 @@ public abstract class AdcBaseConfig {
 	
 	/**
 	 * Converts Is and Qs to T/F based on the previously given critical phase.
-	 * For Average mode there is one critical phase, and we just loop through all of them and do
-	 * switched = (atan2(i, q) < criticalPhase)
-	 * (we then wrap it in a length-1 array to match with demod mode)
-	 * For demod mode we interpret the input arrays to be of length numChannels*numRuns and of format:
-	 * [channel1-run1-i, channel2-run1-i, ..., channelN-run1-i, channel1-run2-i, ..., ..., channelN-runN-i]
-	 * The return is broken out by channel and by run; switches[channelNumber][runNumber].
+	 * switched = (atan2(q, i) < criticalPhase)
 	 * @param Is
 	 * @param Qs
+	 * @param channel Demodulation channel (-1 for average mode)
 	 * @return
 	 */
-	public abstract boolean[][] interpretPhases(long[] Is, long[] Qs);
+	public abstract boolean[] interpretPhases(long[] Is, long[] Qs, int channel);
 
 	public int getStartDelay() {
 		return startDelay;

@@ -1,5 +1,6 @@
 package org.labrad.qubits;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -196,9 +197,46 @@ public class Experiment {
     return boardsToRun;
   }
 
+  // stupid handler class to implement a timing order item
+  public static class TimingOrderItem {
+	  private TimingChannel channel;
+	  private int subChannel;
+	  
+	  public TimingOrderItem(TimingChannel c, int i) {
+		  channel = c; subChannel = i;
+	  }
+	  public TimingOrderItem(TimingChannel c) {
+		  this(c, -1);
+	  }
+	  public String toString() {
+		  if (subChannel == -1)
+			  return channel.getDacBoard().getName();
+		  else
+			  return channel.getDacBoard().getName() + "::" + subChannel;
+	  }
+	  public boolean isAdc() {
+		  return channel instanceof AdcChannel;
+	  }
+	  /**
+	   * @param data Must be *w (DACs) or (*i{I}, *i{Q}) (ADCs)
+	   * @return T/F for 1/0 qubit state for each item in data.
+	   */
+	  public boolean[] interpretData (Data data) {
+		  if (isAdc()) {
+			  Preconditions.checkArgument(data.matchesType("(*i, *i)"), 
+					  "interpretData called with data type %s on an ADC channel. Qubit Sequencer mixup.", data.getType().toString());
+			  return ((AdcChannel)channel).interpretPhases(data.get(0).getWordArray(), data.get(0).getWordArray(), subChannel);
+		  } else {
+			  Preconditions.checkArgument(data.matchesType("*w"), 
+					  "interpretData called with data type %s on a DAC channel. Qubit Sequencer mixup.", data.getType().toString());
+			  return ((PreampChannel)channel).interpretSwitches(data.getWordArray());
+		  }
+	  }
+  }
+  
   private final List<Data> setupPackets = Lists.newArrayList();
   private final List<String> setupState = Lists.newArrayList();
-  private List<TimingChannel> timingOrder = null;
+  private List<TimingOrderItem> timingOrder = null;
   private DacTriggerId autoTriggerId = null;
   private int autoTriggerLen = 0;
 
@@ -256,8 +294,8 @@ public class Experiment {
     return autoTriggerLen;
   }
 
-  public void setTimingOrder(List<TimingChannel> channels) {
-    timingOrder = Lists.newArrayList(channels);
+  public void setTimingOrder(List<TimingOrderItem> to) {
+    timingOrder = new ArrayList<TimingOrderItem>(to);
   }
 
   /**
@@ -266,29 +304,49 @@ public class Experiment {
    */
   public List<String> getTimingOrder() {
     List<String> order = Lists.newArrayList();
-    for (TimingChannel ch : getTimingChannels()) {
-      order.add(ch.getDacBoard().getName());
+    for (TimingOrderItem toi : getTimingChannels()) {
+    	order.add(toi.toString());
     }
     return order;
   }
 
-  public List<TimingChannel> getTimingChannels() {
-    return timingOrder != null ? timingOrder : getChannels(TimingChannel.class);
+  public List<TimingOrderItem> getTimingChannels() {
+	  // if we have an existing timing order, use it
+	  if (timingOrder != null)
+		  return timingOrder;
+	  // if not, use everything--all DACs, all ADCs/active ADC channels
+	  else {
+		  List<TimingOrderItem> to = Lists.newArrayList();
+		  for (TimingChannel t : getChannels(TimingChannel.class)) {
+			  if (t instanceof AdcChannel) {
+				  List<Integer> activeChannels = ((AdcChannel) t).getActiveChannels();
+				  for (Integer i : activeChannels)
+					  to.add(new TimingOrderItem(t,i.intValue()));
+			  } else {
+				  to.add(new TimingOrderItem(t, -1));
+			  }
+		  }
+		  return to;
+	  }
   }
   
   public List<Integer> adcTimingOrderIndices() {
 	  List<Integer> list = Lists.newArrayList();
-	  for (int i = 0; i < getTimingChannels().size(); i++) {
-		  if (getTimingChannels().get(i) instanceof AdcChannel)
+	  int i = 0;
+	  for (TimingOrderItem toi : getTimingChannels()) {
+		  if (toi.isAdc())
 			  list.add(i);
+		  i++;
 	  }
 	  return list;
   }
   public List<Integer> dacTimingOrderIndices() {
 	  List<Integer> list = Lists.newArrayList();
-	  for (int i = 0; i < getTimingChannels().size(); i++) {
-		  if (!(getTimingChannels().get(i) instanceof AdcChannel))
+	  int i = 0;
+	  for (TimingOrderItem toi : getTimingChannels()) {
+		  if (!(toi.isAdc()))
 			  list.add(i);
+		  i++;
 	  }
 	  return list;
   }

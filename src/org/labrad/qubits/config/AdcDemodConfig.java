@@ -27,7 +27,7 @@ import com.google.common.base.Preconditions;
  */
 public class AdcDemodConfig extends AdcBaseConfig {
 
-	final int MAX_CHANNELS, DEMOD_CHANNELS_PER_PACKET, TRIG_AMP, LOOKUP_ACCUMULATOR_BITS, DEMOD_TIME_STEP;
+	public final int MAX_CHANNELS, DEMOD_CHANNELS_PER_PACKET, TRIG_AMP, LOOKUP_ACCUMULATOR_BITS, DEMOD_TIME_STEP;
 	boolean printed = false;
 	/**
 	 * Each byte is the weight for a 4 ns interval.
@@ -85,13 +85,14 @@ public class AdcDemodConfig extends AdcBaseConfig {
 		criticalPhase = new double[MAX_CHANNELS];
 	}
 	
+	/*
 	private int numChannelsInUse() {
 		int n = 0;
 		for (boolean b : inUse)
 			if (b)
 				n++;
 		return n;
-	}
+	}*/
 	
 	/**
 	 * @return array of booleans telling use state of each channel.
@@ -137,27 +138,12 @@ public class AdcDemodConfig extends AdcBaseConfig {
 	 * @return
 	 */
 	@Override
-	public boolean[][] interpretPhases(long[] Is, long[] Qs) {
+	public boolean[] interpretPhases(long[] Is, long[] Qs, int channel) {
 		Preconditions.checkArgument(Is.length == Qs.length, "Is and Qs must be of the same shape!");
-		// note that we always get data for all n=DEMOD_CHANNELS_PER_PACKET channels (usually 11, which is > MAX_CHANNELS, usually 4)
-		// they are placed in a row, e.g. Is = [(first run)i1, i2, ..., in, (second run)i1, i2, ...]
-		Preconditions.checkArgument(Is.length % DEMOD_CHANNELS_PER_PACKET == 0, "Number of I/Q values not a multiple of DEMOD_CHANNELS_PER_PACKET. ??");
-		int numRuns = Is.length / DEMOD_CHANNELS_PER_PACKET;
-		// note that we only return switches for channels that are in use
-		int nUsed = this.numChannelsInUse();
-		// one array per channel of length = numRuns
-		boolean[][] switches = new boolean[nUsed][numRuns];
-		// we are filtering out (i.e. skipping) channels that are not in use
-		// we loop once for each channel in use
-		// if we're using channels 0, 2, and 3 then outChan will go 0, 1, 2 while inChan will go 0, 2, 3
-		for (int outChan = 0, inChan = 0; outChan < nUsed; outChan++) {
-			while (!inUse[inChan])
-				inChan++;
-			for (int run = 0; run < numRuns; run++) {
-				int x = run*DEMOD_CHANNELS_PER_PACKET + inChan;
-				//System.out.println(Math.atan2(Qs[x], Is[x]));
-				switches[outChan][run] = Math.atan2(Qs[x], Is[x]) > criticalPhase[inChan];
-			}
+		Preconditions.checkArgument(inUse[channel], "Interpret phases on channel %s -- channel not turned on!", channel);
+		boolean[] switches = new boolean[Is.length];
+		for (int run = 0; run < Is.length; run++) {
+			switches[run] = Math.atan2(Qs[run], Is[run]) > criticalPhase[channel];
 		}
 		return switches;
 	}

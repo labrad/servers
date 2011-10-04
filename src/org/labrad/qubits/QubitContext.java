@@ -19,6 +19,7 @@ import org.labrad.data.Data;
 import org.labrad.data.Record;
 import org.labrad.data.Request;
 import org.labrad.data.Setters;
+import org.labrad.qubits.Experiment.TimingOrderItem;
 import org.labrad.qubits.channeldata.AnalogDataFourier;
 import org.labrad.qubits.channeldata.AnalogDataTime;
 import org.labrad.qubits.channeldata.IqDataFourier;
@@ -64,7 +65,6 @@ public class QubitContext extends AbstractServerContext {
 	private Request nextRequest = null;
 	private int runIndex;
 	private Data lastData = null;
-	private Data lastAdcData = null;
 
 	private boolean configDirty = true;
 	private boolean memDirty = true;
@@ -272,9 +272,21 @@ public class QubitContext extends AbstractServerContext {
 				+ "for all timing channels in the order they were defined when this "
 				+ "sequence was initialized.")
 				public void config_timing_order(@Accepts({"*s", "*(ss)"}) List<Data> ids) {
-		List<TimingChannel> channels = Lists.newArrayList();
+		List<TimingOrderItem> channels = Lists.newArrayList();
 		for (Data id : ids) {
-			channels.add(getChannel(id, TimingChannel.class));
+			int i = -1;
+			if (id.isCluster()) {
+				if (id.get(1).getString().contains("::")) {
+					i = new Integer(id.get(1).getString().substring(id.get(1).getString().lastIndexOf(':') + 1));
+					id.get(1).setString(id.get(1).getString().substring(0, id.get(1).getString().lastIndexOf(':') - 1));	
+				}
+			} else {
+				if (id.getString().contains("::")) {
+					i = new Integer(id.getString().substring(id.getString().lastIndexOf(':') + 1));
+					id.setString(id.getString().substring(0, id.getString().lastIndexOf(':') - 1));
+				}
+			}	
+			channels.add(new TimingOrderItem(getChannel(id, TimingChannel.class), i));
 		}
 		getExperiment().setTimingOrder(channels);
 		configDirty = true;
@@ -927,103 +939,82 @@ public class QubitContext extends AbstractServerContext {
 			allData.add(data);
 		}
 
-		// pomalley 5/6/2011
-		// if we have ADCs in our lineup (i.e. timing order), extract the ADC data
-		// and store it separately. then reformat the DAC data to be *2w so the old functions still work.
-
-		// get a list of all the adc indices in the timing order
-		List<Integer> adcIndices = expt.adcTimingOrderIndices();
-		List<Integer> dacIndices = expt.dacTimingOrderIndices();
-		// if we have adcs
-		if (adcIndices.size() > 0) {
-			List<Data> adcData = Lists.newArrayList();			// this data will hold the extracted ADC data
-			List<Data> dacData = Lists.newArrayList();			// all the reformatted DAC data
-			for (Data bothData : allData) {						// loop over all the data (from multiple runs)
-				adcData.add(bothData.get(adcIndices).clone());	// extract and make a copy of the adc data
-				if (dacIndices.size() > 0) {					// reformat the dac data
-					Data dacTotal = Data.ofType("*2w");											// will hold the DAC results for this run
-					List<Data> dacDatas = bothData.get(dacIndices).clone().getClusterAsList();	// extract DAC data
-					dacTotal.setArrayShape(dacDatas.size(), dacDatas.get(0).getArraySize());	// set the size of the *2w
-					for (int i = 0; i < dacDatas.size(); i++)
-						for (int j = 0; j < dacDatas.get(0).getArraySize(); j++)
-							dacTotal.get(i, j).setWord(dacDatas.get(i).getWordArray()[j]);		// fill in the data
-					dacData.add(dacTotal);														// add to the list
-				}
-			}
-			allData = dacData;									// replace allData with the reformatted
-
-			// finally, we stitch together the ADC data into lastAdcData, similar to below
-			// it's weirder because we end up with a cluster of clusters of arrays, instead of a nice 2d array
-			int numAdcs = adcIndices.size();
-			int numDataPoints = 0;					// figure out the total number of data pairs across all runs
-			for (Data oneRun : adcData) {
-				// this is a mouthful of conversions, but here it is:
-				// oneRun has a cluster of results by ADC, but we convert it to a list and take the first one
-				// which is a (size 2) cluster of arrays (one for i and q), of which we take the first one and get the length
-				if (adcIndices.size() == 1)
-					numDataPoints += oneRun.getClusterAsList().get(0).getArraySize();
-				else
-					numDataPoints += oneRun.getClusterAsList().get(0).getClusterAsList().get(0).getArraySize();
-			}
-			// make a list of datas for all the ADCs. make them the correct size.
-			List<Data> allAdcs = Lists.newArrayList();
-			for (int i = 0; i < numAdcs; i++) {
-				Data d = Data.ofType("(*i{I}, *i{Q})");
-				d.getClusterAsList().get(0).setArraySize(numDataPoints);
-				d.getClusterAsList().get(1).setArraySize(numDataPoints);
-				allAdcs.add(d);
-			}
-			// fill in the data
-			int offset = 0;
-			// loop over each run
-			for (Data oneRun : adcData) {
-				// how many i,q pairs for this round? (should be the same across all adcs)
-				int numPointsThisRound = oneRun.getClusterAsList().get(0).getArraySize();
-				// now loop over adcs and over data pairs
-				for (int i = 0; i < numAdcs; i++) {
-					for (int j = 0; j < numPointsThisRound; j++) {
-						// extract the Is and Qs and fill them in
-						int iVal = oneRun.getClusterAsList().get(0).get(j).getInt();
-						int qVal = oneRun.getClusterAsList().get(1).get(j).getInt();
-						allAdcs.get(i).getClusterAsList().get(0).get(j+offset).setInt(iVal);
-						allAdcs.get(i).getClusterAsList().get(1).get(j+offset).setInt(qVal);
-					}
-				}
-				offset += numPointsThisRound;
-			}
-			lastAdcData = Data.listOf(allAdcs);
-			// phew!
-
-		}
-		// END pomalley 5/6/2011
-
-
-		// put data together if it was run in multiple chunks
-		if (allData.size() == 1) {
+		// redoing it here to keep the data roughly in FPGA format
+		if (allData.size() == 1)
 			lastData = allData.get(0);
-		} else {
-			int n = 0;
-			int len = 0;
-			for (Data data : allData) {
-				int[] shape = data.getArrayShape();
-				n = shape[0];
-				len += shape[1];
-			}
-			Data collected = Data.ofType("*2w");
-			collected.setArrayShape(n, len);
-			int ofs = 0;
-			for (Data data : allData) {
-				int[] shape = data.getArrayShape();
-				for (int i = 0; i < shape[0]; i++) {
-					for (int j = 0; j < shape[1]; j++) {
-						long val = data.get(i, j).getWord();
-						collected.get(i, j+ofs).setWord(val);
-					}
+		else {
+			// append the different runs together
+			// get a list of all the adc indices in the timing order
+			List<Integer> adcIndices = expt.adcTimingOrderIndices();
+			if (adcIndices.size() == 0) {
+				// we have all DACs, data are of type *2w
+				int n = 0;
+				int len = 0;
+				for (Data data : allData) {
+					int[] shape = data.getArrayShape();
+					n = shape[0];
+					len += shape[1];
 				}
-				ofs += data.getArrayShape()[1];
+				Data collected = Data.ofType("*2w");
+				collected.setArrayShape(n, len);
+				int ofs = 0;
+				for (Data data : allData) {
+					int[] shape = data.getArrayShape();
+					for (int i = 0; i < shape[0]; i++) {
+						for (int j = 0; j < shape[1]; j++) {
+							long val = data.get(i, j).getWord();
+							collected.get(i, j+ofs).setWord(val);
+						}
+					}
+					ofs += data.getArrayShape()[1];
+				}
+				lastData = collected;
+			} else {
+				// we have at least one adc, data are of type (*w, (*i, *i), *w, ...)
+				int len = 0;
+				for (Data data : allData) {
+					// get the number of runs in this piece
+					Data first = data.get(0);
+					if (first.matchesType("*w"))
+						len += first.getArraySize();
+					else // matches (*i, *i)
+						len += first.get(0).getArraySize();
+				}
+				// now go through and append
+				// prepare final data holder
+				List<Data> collected = Lists.newArrayList();
+				for (Experiment.TimingOrderItem tc : expt.getTimingChannels()) {
+					if (tc.isAdc())
+						collected.add(Data.clusterOf(Data.ofType("*i{I}").setArraySize(len), 
+								Data.ofType("*i{Q}").setArraySize(len)));
+					else
+						collected.add(Data.ofType("*w").setArraySize(len));
+					
+				}
+				int ofs = 0;
+				for (Data oneRun : allData) {						// go through all runs
+					int ofsUpdate = 0;
+					for (int i = 0; i < collected.size(); i++) {	// go through all devices
+						if (adcIndices.contains(new Integer(i))) {	// it's an ADC
+							for (int j = 0; j < oneRun.get(i).get(0).getArraySize(); j++) {
+								collected.get(i).get(0).get(j+ofs).setInt(oneRun.get(i).get(0).get(j).getInt());
+								collected.get(i).get(1).get(j+ofs).setInt(oneRun.get(i).get(1).get(j).getInt());
+								ofsUpdate = collected.get(i).get(0).getArraySize();
+							}
+						} else {									// it's a DAC
+							for (int j = 0; j < oneRun.get(i).getArraySize(); j++) {
+								collected.get(i).get(j+ofs).setInt(oneRun.get(i).get(j).getInt());
+								ofsUpdate = collected.get(i).getArraySize();
+							}
+						}
+					}
+					ofs += ofsUpdate;
+				}
+				lastData = Data.clusterOf(collected);
 			}
-			lastData = collected;
+			
 		}
+
 	}
 
 	@Setting(id = 1001,
@@ -1046,15 +1037,15 @@ public class QubitContext extends AbstractServerContext {
 
 	@Setting(id = 1100,
 			name = "Get Data Raw",
-			doc = "Gets the raw timing data from the previous run")
-			@Returns("*2w")
+			doc = "Gets the raw timing data from the previous run. Given a deinterlace argument, only DAC data are returned")
+			@Returns({"*2w", "?"})
 			public Data get_data_raw() {
 		return lastData;
 	}
 	@SettingOverload
 	@Returns("*3w")
 	public Data get_data_raw(int deinterlace) {
-		long[][] raw = extractLastData();
+		long[][] raw = extractLastDacData();
 		long[][][] reshaped = deinterlaceArray(raw, deinterlace);
 		return Data.valueOf(reshaped);
 	}
@@ -1181,19 +1172,31 @@ public class QubitContext extends AbstractServerContext {
 		return Data.valueOf(probs);
 	}
 
-	@Setting(id = 1120,
-			name = "Get ADC Data Raw",
-			doc = "Get the raw ADC data from the previous run.")
-			@Returns("*(*i{I}, *i{Q})")
-			public Data get_adc_data_raw() {
-		return lastAdcData;
+	@Setting(id = 1112,
+			name = "Get Data Raw Phases",
+			doc = "Gets the raw data from the ADC results, converted to phases.")
+			@Returns("*2v[rad]")
+	public Data get_data_raw_phases() {
+		double[][] ans = extractDataPhases();
+		return Data.valueOf(ans, "rad");
 	}
-
+	@SettingOverload
+	@Returns("*3v[rad]")
+	public Data get_data_raw_phases(int deinterlace) {
+		double[][] ans = extractDataPhases();
+		double[][][] reshaped = deinterlaceArray(ans, deinterlace);
+		return Data.valueOf(reshaped, "rad");
+	}
+	
 	// extract last ADC data as an array
 	private long[][][] extractLastAdcData() {
-		if (lastAdcData == null)
+		if (lastData.matchesType("*2w"))
 			return new long[0][0][];
-		List<Data> adcs = lastAdcData.getDataList();
+		List<Data> adcs = Lists.newArrayList();
+		for (Data d : lastData.getClusterAsList()) {
+			if (!d.matchesType("*w"))
+				adcs.add(d);
+		}
 		long[][][] ans = new long[adcs.size()][2][];
 		for (int i = 0; i < adcs.size(); i++) {
 			List<Data> IsAndQs = adcs.get(i).getClusterAsList();
@@ -1209,12 +1212,24 @@ public class QubitContext extends AbstractServerContext {
 	}
 
 	// extract data from last run as an array
-	private long[][] extractLastData() {
-		int[] shape = lastData.getArrayShape();
+	private long[][] extractLastDacData() {
+		Data data2w = null;
+		if (lastData.matchesType("*2w"))
+			data2w = lastData;
+		else { 
+			List<Data> dacData = Lists.newArrayList();
+			for (Data d : lastData.getClusterAsList()) {
+				if (d.matchesType("*w")) {
+					dacData.add(d);
+				}
+			}
+			data2w = Data.listOf(dacData);
+		}
+		int[] shape = data2w.getArrayShape();
 		long[][] ans = new long[shape[0]][shape[1]];
 		for (int i = 0; i < shape[0]; i++) {
 			for (int j = 0; j < shape[1]; j++) {
-				ans[i][j] = lastData.get(i, j).getWord();
+				ans[i][j] = data2w.get(i, j).getWord();
 			}
 		}
 		return ans;
@@ -1222,10 +1237,21 @@ public class QubitContext extends AbstractServerContext {
 
 	// convert data from last run to microseconds
 	private double[][] extractDataMicroseconds() {
-		long[][] raw = extractLastData();
+		long[][] raw = extractLastDacData();
 		double[][] ans = new double[raw.length][];
 		for (int i = 0; i < raw.length; i++) {
 			ans[i] = FpgaModelDac.clocksToMicroseconds(raw[i]);
+		}
+		return ans;
+	}
+	
+	private double[][] extractDataPhases() {
+		long[][][] raw = extractLastAdcData();
+		double[][] ans = new double[raw.length][];
+		for (int i = 0; i < raw.length; i++) {
+			for (int j = 0; j < raw[i][0].length; j++) {
+				ans[i][j] = Math.atan2(raw[i][1][j], raw[i][0][j]);
+			}
 		}
 		return ans;
 	}
@@ -1282,45 +1308,13 @@ public class QubitContext extends AbstractServerContext {
 		return interpretSwitches(1)[0];
 	}
 	private boolean[][][] interpretSwitches(int deinterlace) {
-		List<TimingChannel> allChannels = getExperiment().getTimingChannels();
-		List<PreampChannel> channels = Lists.newArrayList();
-		List<AdcChannel> adcChannels = Lists.newArrayList();
-		for (TimingChannel ch : allChannels) {
-			if (ch instanceof PreampChannel)
-				channels.add((PreampChannel)ch);
-			else if (ch instanceof AdcChannel)
-				adcChannels.add((AdcChannel)ch);
+		List<Experiment.TimingOrderItem> chans = getExperiment().getTimingChannels();
+		boolean[][] switches = new boolean[chans.size()][];
+		for (int i = 0; i < chans.size(); i++) {
+			Data data = lastData.get(i);
+			switches[i] = chans.get(i).interpretData(data);
 		}
-		// do the DACs
-		long[][] clocks = extractLastData();
-		boolean[][] switches = new boolean[clocks.length][];
-		for (int i = 0; i < clocks.length; i++) {
-			switches[i] = channels.get(i).interpretSwitches(clocks[i]);
-		}
-		// do the ADCs
-		long[][][] IQs = extractLastAdcData();
-		boolean[][][] adcSwitches = new boolean[IQs.length][][];
-		int nTotalChannels = 0;
-		for (int i = 0; i < IQs.length; i++) {
-			adcSwitches[i] = adcChannels.get(i).interpretPhases(IQs[i][0], IQs[i][1]);
-			nTotalChannels += adcSwitches[i].length;
-		}
-		// now flatten the adc switches from boolean[][][] to boolean[][]
-		// recall that adcSwitches is 3-deep for [adcNumber][channelNumber][runNumber]
-		// we now put adcNumber and channelNumber onto the same footing
-		// so it's [adcChannelNumber][runNumber]
-		boolean [][] adcChannelSwitches = new boolean[nTotalChannels][];
-		for (int i = 0; i < adcSwitches.length; i++)
-			for (int j = 0; j < adcSwitches[i].length; j++)
-				adcChannelSwitches[i+j] = adcSwitches[i][j];
-		// now we stick the ADCs onto the end of the DACs
-		// TODO: maintain the timing order!
-		boolean[][] finalSwitches = new boolean[switches.length + adcChannelSwitches.length][];
-		for (int i = 0; i < switches.length; i++)
-			finalSwitches[i] = switches[i];
-		for (int j = 0; j < adcChannelSwitches.length; j++)
-			finalSwitches[switches.length + j] = adcChannelSwitches[j];
-		return deinterlaceArray(finalSwitches, deinterlace);
+		return deinterlaceArray(switches, deinterlace);
 	}
 
 

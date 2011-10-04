@@ -37,11 +37,14 @@ public class AdcAverageConfig extends AdcBaseConfig {
 		this.criticalPhase = criticalPhase;
 	}
 	@Override
-	public boolean[][] interpretPhases(long[] Is, long[] Qs) {
+	public boolean[] interpretPhases(long[] Is, long[] Qs, int channel) {
 		Preconditions.checkArgument(Is.length == Qs.length, "Is and Qs must have same length!");
-		boolean[][] switches = new boolean[0][Is.length];
+		if (channel != -1) {
+			System.err.println("WARNING: interpretPhases for average mode ADC called with demod channel != -1");
+		}
+		boolean[] switches = new boolean[Is.length];
 		for (int i = 0; i < Is.length; i++)
-			switches[0][i] = Math.atan2(Is[i], Qs[i]) < criticalPhase;
+			switches[i] = Math.atan2(Is[i], Qs[i]) < criticalPhase;
 		return switches;
 	}
 

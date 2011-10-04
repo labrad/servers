@@ -3,6 +3,7 @@
  */
 package org.labrad.qubits.channels;
 
+import java.util.List;
 import java.util.Locale;
 
 import org.labrad.qubits.Experiment;
@@ -15,6 +16,7 @@ import org.labrad.qubits.enums.AdcMode;
 import org.labrad.qubits.resources.AdcBoard;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 
 /**
  * This channel represents a connection to an ADC in demodulation mode.
@@ -91,8 +93,8 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 		Preconditions.checkState(mode == AdcMode.DEMODULATE, "Set all critical phases only valid for demod mode.");
 		((AdcDemodConfig)config).setCriticalPhases(criticalPhases);
 	}
-	public boolean[][] interpretPhases(long[] iQs, long[] iQs2) {
-		return config.interpretPhases(iQs, iQs2);
+	public boolean[] interpretPhases(long[] iQs, long[] iQs2, int subChannel) {
+		return config.interpretPhases(iQs, iQs2, subChannel);
 	}
 	
 	/**
@@ -124,6 +126,22 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 				break;
 			}
 		}
+	}
+	
+	/**
+	 * @return a list of all active demod channels, or -1 if in average mode.
+	 */
+	public List<Integer> getActiveChannels() {
+		List<Integer> l = Lists.newArrayList();
+		if (this.mode == AdcMode.AVERAGE)
+			l.add(-1);
+		else if (this.mode == AdcMode.DEMODULATE) {
+			boolean[] usage = ((AdcDemodConfig)this.config).getChannelUsage();
+			for (int i = 0; i < usage.length; i++)
+				if (usage[i])
+					l.add(i);
+		}
+		return l;
 	}
 	
 	// these are passthroughs to the config object. in most cases we do have to check that
