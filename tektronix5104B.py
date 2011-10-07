@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Tektronix TDS 5104B Oscilloscope
-version = 0.1
+version = 0.2
 description = Talks to the Tektronix 5104B oscilloscope
 
 [startup]
@@ -41,7 +41,8 @@ from struct import unpack
 
 import numpy, re
 
-COUPLINGS = ['AC', 'DC']
+COUPLINGS = ['AC', 'DC', 'GND']
+TRIG_CHANNELS = ['AUX','CH1','CH2','CH3','CH4','LINE']
 VERT_DIVISIONS = 10.0
 HORZ_DIVISIONS = 10.0
 SCALES = []
@@ -66,7 +67,7 @@ class Tektronix5104BServer(GPIBManagedServer):
         yield dev.write('*CLS')
 
     #Channel settings
-    @setting(21, channel = 'i', returns = '(vvvvsvss)')
+    @setting(100, channel = 'i', returns = '(vvvvsvss)')
     def channel_info(self, c, channel):
         """channel(int channel)
         Get information on one of the scope channels.
@@ -78,7 +79,7 @@ class Tektronix5104BServer(GPIBManagedServer):
         #The scope's response to 'CH<x>?' is a string of format
         #'1.0E1;1.0E1;2.5E1;0.0E0;DC;OFF;OFF;"V"'
         #These strings represent respectively,
-        #probeAttenuation;?;?;vertPosition;coupling;?;?;vertUnit
+        #probeAttenuation;termination;vertScale;vertPosition;coupling;bandwidthLimit;invert;vertUnit
 
         dev = self.selectedDevice(c)
         resp = yield dev.query('CH%d?' %channel)
@@ -96,10 +97,10 @@ class Tektronix5104BServer(GPIBManagedServer):
 
         returnValue((probeAtten,termination,scale,position,coupling,bwLimit,invert,unit))
 
-    @setting(22, channel = 'i', coupling = 's', returns=['s'])
+    @setting(111, channel = 'i', coupling = 's', returns=['s'])
     def coupling(self, c, channel, coupling = None):
         """Get or set the coupling of a specified channel
-        Coupling can be "AC" or "DC"
+        Coupling can be "AC", "DC", or "GND"
         """
         dev = self.selectedDevice(c)
         if coupling is None:
@@ -107,13 +108,13 @@ class Tektronix5104BServer(GPIBManagedServer):
         else:
             coupling = coupling.upper()
             if coupling not in COUPLINGS:
-                raise Exception('Coupling must be "AC" or "DC"')
+                raise Exception('Coupling must be "AC", "DC", or "GND"')
             else:
                 yield dev.write(('CH%d:COUP '+coupling) %channel)
                 resp = yield dev.query('CH%d:COUP?' %channel)
         returnValue(resp)
 
-    @setting(23, channel = 'i', scale = 'v', returns = ['v'])
+    @setting(112, channel = 'i', scale = 'v', returns = ['v'])
     def scale(self, c, channel, scale = None):
         """Get or set the vertical scale of a channel
         """
@@ -127,7 +128,7 @@ class Tektronix5104BServer(GPIBManagedServer):
         scale = float(resp)
         returnValue(scale)
 
-    @setting(24, channel = 'i', factor = 'i', returns = ['s'])
+    @setting(113, channel = 'i', factor = 'i', returns = ['s'])
     def probe(self, c, channel, factor = None):
         """Get or set the probe attenuation factor.
         """
@@ -143,7 +144,7 @@ class Tektronix5104BServer(GPIBManagedServer):
             raise Exception('Probe attenuation factor not in '+str(probeFactors))
         returnValue(resp)
 
-    @setting(25, channel = 'i', state = '?', returns = '')
+    @setting(114, channel = 'i', state = '?', returns = '')
     def channelOnOff(self, c, channel, state):
         """Turn on or off a scope channel display
         """
@@ -154,11 +155,130 @@ class Tektronix5104BServer(GPIBManagedServer):
             raise Exception('state must be 0, 1, "ON", or "OFF"')
         if isinstance(state, int):
             state = str(state)
-        yield dev.write(('SEL:CH%d '+state) %channel)            
+        yield dev.write(('SEL:CH%d '+state) %channel)
+
+    @setting(115, channel = 'i', invert = 'i', returns = ['i'])
+    def invert(self, c, channel, invert = None):
+        """Get or set the inversion status of a channel
+        """
+        dev = self.selectedDevice(c)
+        if invert is None:
+            resp = yield dev.query('CH%d:INV?' %channel)
+        else:
+            yield dev.write(('CH%d:INV %d') %(channel,invert))
+            resp = yield dev.query('CH%d:INV?' %channel)
+        invert = int(resp)
+        returnValue(invert)
+
+    @setting(116, channel = 'i', termination = 'v', returns = ['v'])
+    def termination(self, c, channel, termination = None):
+        """Get or set the a channels termination
+        Can be 50 or 1E+6
+        """
+        dev = self.selectedDevice(c)
+        if termination is None:
+            resp = yield dev.query('CH%d:TER?' %channel)
+        elif termination in [50,1e6]:
+            yield dev.write(('CH%d:TER %f') %(channel,termination))
+            resp = yield dev.query('CH%d:SCA?' %channel)
+        else:
+            raise Exception('Termination must be 50 or 1E+6')
+        termination = float(resp)
+        returnValue(termination)
+
+    @setting(117, channel = 'i', position = 'v', returns = ['v'])
+    def position(self, c, channel, position = None):
+        """Get or set the vertical zero position of a channel in units of divisions
+        """
+        dev = self.selectedDevice(c)
+        if position is None:
+            resp = yield dev.query('CH%d:POS?' %channel)
+        else:
+            yield dev.write(('CH%d:POS %f') %(channel,position))
+            resp = yield dev.query('CH%d:POS?' %channel)
+        position = float(resp)
+        returnValue(position)
+
+    @setting(131, slope = 's', returns = ['s'])
+    def trigger_slope(self, c, slope = None):
+        """Turn on or off a scope channel display
+        Must be 'RISE' or 'FALL'
+        """
+        dev = self.selectedDevice(c)
+        if slope is None:
+            resp = yield dev.query('TRIG:A:EDGE:SLO?')
+        else:
+            slope = slope.upper()
+            if slope not in ['RISE','FALL']:
+                raise Exception('Slope must be "RISE" or "FALL"')
+            else:
+                yield dev.write('TRIG:A:EDGE:SLO '+slope)
+                resp = yield dev.query('TRIG:A:EDGE:SLO?')
+        returnValue(resp)
+
+    @setting(132, level = 'v', returns = ['v'])
+    def trigger_level(self, c, level = None):
+        """Get or set the vertical zero position of a channel in units of divisions
+        """
+        dev = self.selectedDevice(c)
+        if level is None:
+            resp = yield dev.query('TRIG:A:LEV?')
+        else:
+            yield dev.write(('TRIG:A:LEV %f') %level)
+            resp = yield dev.query('TRIG:A:LEV?')
+        level = float(resp)
+        returnValue(level)
+
+    @setting(133, channel = '?', returns = ['s'])
+    def trigger_channel(self, c, channel = None):
+        """Get or set the trigger source
+        Must be one of "AUX","LINE", 1, 2, 3, 4, "CH1", "CH2", "CH3", "CH4"
+        """
+        dev = self.selectedDevice(c)
+        if isinstance(channel, str):
+            channel = channel.upper()
+        if isinstance(channel, int):
+            channel = 'CH%d' %channel
+            
+        if channel is None:
+            resp = yield dev.query('TRIG:A:EDGE:SOU?')
+        elif channel in TRIG_CHANNELS:
+            yield dev.write('TRIG:A:EDGE:SOU '+channel)
+            resp = yield dev.query('TRIG:A:EDGE:SOU?')
+        else:
+            raise Exception('Select valid trigger channel')
+        returnValue(resp)
+
+    @setting(151, position = 'v', returns = ['v'])
+    def horiz_position(self, c, position = None):
+        """Get or set the horizontal trigger position (as a percentage from the left edge of the screen)
+        """
+        dev = self.selectedDevice(c)
+        if position is None:
+            resp = yield dev.query('HOR:POS?')
+        else:
+            yield dev.write(('HOR:POS %f') %position)
+            resp = yield dev.query('HOR:POS?')
+        position = float(resp)
+        returnValue(position)
+
+    @setting(152, scale = 'v', returns = ['v'])
+    def horiz_scale(self, c, scale = None):
+        """Get or set the horizontal scale
+        """
+        dev = self.selectedDevice(c)
+        if scale is None:
+            resp = yield dev.query('HOR:SCA?')
+        else:
+            scale = format(scale,'E')
+            yield dev.write('HOR:SCA '+scale)
+            resp = yield dev.query('HOR:SCA?')
+        scale = float(resp)
+        returnValue(scale)
         
     
     #Data acquisition settings
-    @setting(41, channel = 'i', start = 'i', stop = 'i', returns='*v[ns] {time axis} *v[mV] {scope trace}')
+    @setting(201, channel = 'i', start = 'i', stop = 'i', returns='*v[ns] {time axis} *v[mV] {scope trace}')
     def get_trace(self, c, channel, start=1, stop=10000):
         """Get a trace from the scope.
         OUTPUT - (array voltage in volts, array time in seconds)
@@ -195,7 +315,7 @@ class Tektronix5104BServer(GPIBManagedServer):
         trace = _parseBinaryData(binary,wordLength = wordLength)
         #Convert from binary to volts
         traceVolts = (trace * (1/32768.0) * VERT_DIVISIONS/2 * voltsPerDiv - float(position) * voltsPerDiv) * voltUnitScaler
-        time = numpy.linspace(0, HORZ_DIVISIONS * secPerDiv * timeUnitScaler,recordLength)
+        time = numpy.linspace(0, HORZ_DIVISIONS * secPerDiv * timeUnitScaler,len(traceVolts))#recordLength)
 
         returnValue((time, traceVolts))
 
