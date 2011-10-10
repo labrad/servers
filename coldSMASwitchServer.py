@@ -62,6 +62,7 @@ class ColdSwitchWrapper(DeviceWrapper):
         p.timeout(TIMEOUT)
         p.read() # clear out the read buffer
         yield p.send()
+        self.changeAppliedVoltage(oldState[3])
         print 'done.'
         
     def packet(self):
@@ -217,7 +218,7 @@ class ColdSwitchWrapper(DeviceWrapper):
             reschan = commands[command]
             yield self.write(reschan)
             yield self.resetPulse()
-            yield util.wakeupCall(1)
+            yield util.wakeupCall(2)
         self.state[switch] = '0'
         
         
