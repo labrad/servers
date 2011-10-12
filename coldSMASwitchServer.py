@@ -37,9 +37,6 @@ from labrad.errors import Error
 from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad import util
 
-class NoConnectionError(Error):
-    """You need to connect first."""
-    code = 2
     
 class ColdSwitchWrapper(DeviceWrapper):
     
@@ -59,8 +56,8 @@ class ColdSwitchWrapper(DeviceWrapper):
         p.stopbits(1L)
         p.bytesize(8L)
         p.parity('N')
-        p.timeout(TIMEOUT)
         p.read() # clear out the read buffer
+        p.timeout(TIMEOUT)
         yield p.send()
         self.changeAppliedVoltage(oldState[3])
         print 'done.'
@@ -95,7 +92,10 @@ class ColdSwitchWrapper(DeviceWrapper):
         for s in range(len(output)):
                 current = 4.0*ord(output[s])*(5.0/4095.0)/10.0
                 self.setTrace.append(current)
+<<<<<<< .mine
+=======
         
+>>>>>>> .r1582
                 
     
     @inlineCallbacks
