@@ -37,6 +37,10 @@ from util import littleEndian, TimedLock
 #   SRAM_BLOCK0_LEN - Length, in words, of the first block of SRAM.
 #   SRAM_BLOCK1_LEN - Length, in words, of the second block of SRAM.
 #   SRAM_WRITE_PKT_LEN - Number of words written per SRAM write packet, ie. words per derp.
+# dacN: *(s?), [(parameterName, value),...]
+# There are parameters which may be specific to each individual board. These parameters are:
+#   fifoCounter - FIFO counter necessary for the appropriate clock delay
+#   lvdsSD - LVDS SD necessary for the appropriate clock delay
 
 #Constant values accross all boards
 REG_PACKET_LEN = 56
@@ -50,6 +54,7 @@ I2C_RB = 0x100
 I2C_ACK = 0x200
 I2C_RB_ACK = I2C_RB | I2C_ACK
 I2C_END = 0x400
+MAX_FIFO_TRIES = 5
 
 
 def macFor(board):
@@ -231,12 +236,14 @@ class DacDevice(DeviceWrapper):
         ctxt = reg.context()
         p = reg.packet()
         p.cd(['','Servers','GHz FPGAs'])
-        p.get('dacBuild'+str(self.build))
+        p.get('dacBuild'+str(self.build),key='hardwareParams')
+        p.get('dac'+self.devName.split(' ')[-1],key='boardParams')
         try:
-            hardwareParams = yield p.send()
-            hardwareParams = hardwareParams['get']
-            print self.devName+' hardware params: '+str(hardwareParams)
+            resp = yield p.send()
+            hardwareParams = resp['hardwareParams']
+            # print self.devName+' hardware params: '+str(hardwareParams)
             parseHardwareParameters(hardwareParams, self)
+            self.boardParams = dict(resp['boardParams'])
         finally:
             yield self.cxn.manager.expire_context(reg.ID, context=ctxt)
 
@@ -444,16 +451,24 @@ class DacDevice(DeviceWrapper):
         """Sets the clock polarity for either DAC. (DAC only)"""
         return self.testMode(self._setPolarity, chan, invert)
     
-    def setLVDS(self, cmd, data):
+    def setLVDS(self, cmd, sd, optimizeSD):
         @inlineCallbacks
+        # See U:\John\ProtelDesigns\GHzDAC_R3_1\Documentation\HardRegProgram.txt
+        # for how this function works.
         def func():
+            #TODO: repeat LVDS measurement five times and average results.
             pkt = [[0x0400 + (i<<4), 0x8500, 0x0400 + i, 0x8500][j]
                    for i in range(16) for j in range(4)]
     
-            if data is None:
+            if optimizeSD is True:
+                # Find the leading/trailing edges of the DATACLK_IN clock. First
+                # set SD to 0. Then, for bits from 0 to 15, set MSD to this bit
+                # and MHD to 0, read the check bit, set MHD to this bit and MSD
+                # to 0, read the check bit.
                 answer = yield self._runSerial(cmd, [0x0500] + pkt)
                 answer = [answer[i*2+2] & 1 for i in range(32)]
     
+                # Locate where the check bit changes from 1 to 0 for both MSD and MHD.
                 MSD = -2
                 MHD = -2
                 for i in range(16):
@@ -463,66 +478,104 @@ class DacDevice(DeviceWrapper):
                     if MHD == -1 and answer[i*2+1] == 0: MHD = i
                 MSD = max(MSD, 0)
                 MHD = max(MHD, 0)
+                # Find the optimal SD based on MSD and MHD.
                 t = (MHD-MSD)/2 & 0xF
+                setMSDMHD = False
+            elif sd is None:
+                # Get the SD value from the registry.
+                t = int(self.boardParams['lvdsSD']) & 0xF
+                MSD, MHD = -1, -1
+                setMSDMHD = True
             else:
-                MSD = 0
-                MHD = 0
-                t = data & 0xF
+                # This occurs if the SD is not specified (by optimization or in
+                # the registry).
+                t = sd & 0xF
+                MSD, MHD = -1, -1
+                setMSDMHD = True
     
+            # Set the SD and check that the resulting difference between MSD and
+            # MHD is no more than one bit. Any more indicates noise on the line.
             answer = yield self._runSerial(cmd, [0x0500 + (t<<4)] + pkt)
-            answer = [(bool(answer[i*4+2] & 1), bool(answer[i*4+4] & 1))
-                      for i in range(16)]
-            returnValue((MSD, MHD, t, answer))
+            MSDbits = [bool(answer[i*4+2] & 1) for i in range(16)]
+            MHDbits = [bool(answer[i*4+4] & 1) for i in range(16)]
+            MSDswitch = [(MSDbits[i+1] != MSDbits[i]) for i in range(15)]
+            MHDswitch = [(MHDbits[i+1] != MHDbits[i]) for i in range(15)]
+            leadingEdge = MSDswitch.index(True)
+            trailingEdge = MHDswitch.index(True)
+            if setMSDMHD:
+                if sum(MSDswitch)==1: MSD = leadingEdge
+                if sum(MHDswitch)==1: MHD = trailingEdge
+            if abs(trailingEdge-leadingEdge)<=1 and sum(MSDswitch)==1 and sum(MHDswitch)==1:
+                success = True
+            else:
+                success = False
+            checkResp = yield self._runSerial(cmd, [0x8500])
+            checkHex = checkResp[0] & 0x7
+            returnValue((success, MSD, MHD, t, (range(16), MSDbits, MHDbits), checkHex))
         return self.testMode(func)
     
-    def setFIFO(self, chan, op):
+    
+    
+    def setFIFO(self, chan, op, targetFifo):
+        if targetFifo is None:
+            # Grab targetFifo from registry if not specified.
+            targetFifo = int(self.boardParams['fifoCounter'])
         @inlineCallbacks
         def func():
             # set clock polarity to positive
             clkinv = False
             yield self._setPolarity(chan, clkinv)
     
-            pkt = [0x0500, 0x8700] # set LVDS delay and read FIFO counter
-            reading = yield self._runSerial(op, [0x8500] + pkt) # read current LVDS delay and exec pkt
-            oldlvds = (reading[0] & 0xF0) | 0x0500 # grab current LVDS setting
-            reading = reading[2] # get FIFO counter reading
-            base = reading
-            while reading == base: # until we have a clock edge ...
-                pkt[0] += 16 # ... move LVDS
-                if pkt[0] >= 0x0600:
-                    raise Exception('Failed to find clock edge while setting FIFO counter!')
-                reading = (yield self._runSerial(op, pkt))[1]
-    
-            pkt = [pkt[0] + 16*i for i in [2, 4]] # slowly step 6 clicks beyond edge to be centered on bit
-            newlvds = pkt[-1]
-            yield self._runSerial(op, pkt)
-    
-            tries = 5
+            tries = 1
             found = False
     
-            while tries > 0 and not found:
-                tries -= 1
+            while tries <= MAX_FIFO_TRIES and not found:
+                # Send all four PHOFs & measure resulting FIFO counters. If one
+                # of these equals targetFifo, set the PHOF and check that the
+                # FIFO counter is indeed targetFifo. If so, break out.
                 pkt =  [0x0700, 0x8700, 0x0701, 0x8700, 0x0702, 0x8700, 0x0703, 0x8700]
                 reading = yield self._runSerial(op, pkt)
-                reading = [(reading[i]>>4) & 0xF for i in [1, 3, 5, 7]]
-                try:
-                    PHOF = reading.index(3)
-                    pkt = [0x0700 + PHOF, 0x8700]
-                    reading = long(((yield self._runSerial(op, pkt))[1] >> 4) & 7)
-                    found = True
-                except Exception:
+                fifoCounters = np.array([(reading[i]>>4) & 0xF for i in [1, 3, 5, 7]])
+                PHOF, found = yield self._checkPHOF(op, fifoCounters, targetFifo)
+                if found:
+                    break
+                else:
+                    # If none of PHOFs gives FIFO counter of targetFifo
+                    # initially or after verification, flip clock polarity and
+                    # try again.
                     clkinv = not clkinv
                     yield self._setPolarity(chan, clkinv)
+                    tries += 1
     
-            if not found:
-                raise Exception('Cannot find a FIFO offset to get a counter value of 3! Found: ' + repr(reading))
-    
-            # return to old lvds setting
-            pkt = range(newlvds, oldlvds, -32)[1:] + [oldlvds]
-            yield self._runSerial(op, pkt)
-            ans = (oldlvds >> 4) & 0xF, (newlvds >> 4) & 0xF, clkinv, PHOF, reading
+            ans = found, clkinv, PHOF, tries, targetFifo
             returnValue(ans)
         return self.testMode(func)
+        
+        
+        
+    @inlineCallbacks
+    def _checkPHOF(self, op, fifoReadings, counterValue):
+        # Determine for which PHOFs (FIFO offsets) the FIFO counter equals counterValue.
+        # Relying on indices matching PHOF values.
+        PHOFS = np.where(fifoReadings == counterValue)[0]
+        # If no PHOF can be found with the target FIFO counter value...
+        if not len(PHOFS):
+            PHOF = -1 #Set to -1 so the labrad call can complete. success=False
+        
+        # For each PHOF for which the FIFO counter equals counterValue, resend the PHOF
+        # and check that the FIFO counter indeed equals counterValue. If so, return the
+        # PHOF and a flag that the FIFO calibration has been successful.
+        success = False
+        for PHOF in PHOFS:
+            pkt = [0x0700 + PHOF, 0x8700]
+            reading = long(((yield self._runSerial(op, pkt))[1] >> 4) & 0xF)
+            if reading == counterValue:
+                success = True
+                break
+        ans = int(PHOF), success
+        returnValue(ans)
+    
+    
     
     def runBIST(self, cmd, shift, dataIn):
         """Run a BIST on the given SRAM sequence. (DAC only)"""

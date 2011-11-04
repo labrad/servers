@@ -16,6 +16,24 @@
 
 # CHANGELOG:
 #
+# 2011 November 2 - Jim Wenner
+#
+# In setFIFO, removed reset of LVDS sample delay. Changed how check FIFO counter
+# to ensure final value same as what thought setting to. In both setFIFO and
+# setLVDS, added success/ failure checks and modified return parameters. Changed
+# default FIFO counter from 3 to value in registry provided for each board.
+# Changed default setLVDS behavior from optimizing LVDS SD to getting SD from
+# board-specific registry key while adding option to use optimal SD instead.
+# setLVDS returns MSD, MHD even if sample delay specified.
+#
+# Board specific registry keys are located in ['Servers','GHz FPGAs'] and are of form:
+# dacN=[('fifoCounter', 3), ('lvdsSD', 3), ('lvdsPhase', 180)]
+#
+# Added DAC and ADC bringup functions to prevent bringup script from getting out
+# of sync from server. DAC bringup now has signed data as default. Added
+# functions to return list of DACs or of ADCs.
+#
+#
 # 2011 February 9 - Daniel Sank
 # Removed almost all references to hardcoded hardware parameters, for example
 # the various SRAM lengths. These values are now board specific.
@@ -84,20 +102,24 @@
 # of clock cycles that board should wait after receiving a daisychain pulse
 # before starting to run its SRAM.
 #
-# dacBuildN: *(s?), [(parameterName,value),(parameterName,value),...]
-# adcBuildN: *(s?), [(parameterName,value),(parameterName,value),...]
+# dacBuildX: *(s?), [(parameterName,value),(parameterName,value),...]
+# adcBuildX: *(s?), [(parameterName,value),(parameterName,value),...]
 # When FPGA board objects are created they read the registry to find hardware
 # parameter values. For example, the DAC board objects need to know how long
 # their SRAM memory is, and each board may have a different value depending on
 # its specific FPGA chip. Details, lists of necessary parameters and example values
 # for each board type are given in dac.py and adc.py
+#
+# dacN: *(s?), [(parameterName,value),(parameterName,value),...] Parameters
+# which are specific to individual boards. This is used for the default FIFO
+# counter, LVDS SD, etc. See examples in dac.py
 
 
 """
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 3.2.0
+version = 3.3.0
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -116,6 +138,7 @@ import os
 import itertools
 import struct
 import time
+import random
 
 import numpy as np
 
@@ -822,11 +845,44 @@ class FPGAServer(DeviceServer):
             bg = self.getBoardGroup(boardGroup) # make sure this board group exists
             devices = [(id, name) for (id, name) in devices if name.startswith(boardGroup)]
         return devices
+    
 
     @setting(10, 'List Board Groups', returns='*s')
     def list_board_groups(self, c):
         """Get a list of existing board groups."""
         return sorted(bg.name for bg in self.boardGroups.values())
+
+    @setting(11, 'List DACs', boardGroup='s', returns='*s')
+    def list_dacs(self, c, boardGroup=None):
+        """List available DACs.
+        
+        If the optional boardGroup argument is specified, then only those
+        devices belonging to that board group will be included.
+        """
+        IDs, names = self.deviceLists()
+        
+        devices = zip(IDs, names)
+        devices = [name for (id, name) in devices if 'DAC' in name]
+        if boardGroup is not None:
+            bg = self.getBoardGroup(boardGroup) # make sure this board group exists
+            devices = [(id, name) for (id, name) in devices if name.startswith(boardGroup)]
+        return devices
+
+    @setting(12, 'List ADCs', boardGroup='s', returns='*s')
+    def list_adcs(self, c, boardGroup=None):
+        """List available ADCs.
+        
+        If the optional boardGroup argument is specified, then only those
+        devices belonging to that board group will be included.
+        """
+        IDs, names = self.deviceLists()
+        
+        devices = zip(IDs, names)
+        devices = [name for (id, name) in devices if 'ADC' in name]
+        if boardGroup is not None:
+            bg = self.getBoardGroup(boardGroup) # make sure this board group exists
+            devices = [(id, name) for (id, name) in devices if name.startswith(boardGroup)]
+        return devices
 
 
     ## Memory and SRAM upload
@@ -1257,6 +1313,7 @@ class FPGAServer(DeviceServer):
         dev = self.selectedDevice(c)
         buildNumber = yield dev.buildNumber()
         returnValue(buildNumber)
+    
 
     @setting(1080, 'DAC Debug Output', data='wwww', returns='')
     def dac_debug_output(self, c, data):
@@ -1443,26 +1500,34 @@ class FPGAServer(DeviceServer):
         returnValue(signed)
 
 
-    @setting(1221, 'DAC LVDS', chan='s', data='w', returns='www*(bb)')
-    def dac_lvds(self, c, chan, data=None):
-        """Set or determine DAC LVDS phase shift and return y, z check data. (DAC only)"""
+    @setting(1221, 'DAC LVDS', chan='s', optimizeSD='b', data='w', returns='bwww(*w*b*b)w')
+    def dac_lvds(self, c, chan, optimizeSD=False, data=None):
+        """Set or determine DAC LVDS phase shift and return y, z check data. (DAC only)
+        
+        Returns success, MSD, MHD, SD, timing profile, checkHex
+        """
         cmd = getCommand({'A': 2, 'B': 3}, chan)
         dev = self.selectedDAC(c)
-        ans = yield dev.setLVDS(cmd, data)
+        ans = yield dev.setLVDS(cmd, data, optimizeSD)
         returnValue(ans)
 
 
-    @setting(1222, 'DAC FIFO', chan='s', returns='wwbww')
-    def dac_fifo(self, c, chan):
+    @setting(1222, 'DAC FIFO', chan='s', targetFifo='w', returns='bbiww')
+    def dac_fifo(self, c, chan, targetFifo=None):
         """Adjust FIFO buffer. (DAC only)
         
         Moves the LVDS into a region where the FIFO counter is stable,
         adjusts the clock polarity and phase offset to make FIFO counter = 3,
         and finally returns LVDS setting back to original value.
+        
+        If no PHOF can be found to get an acceptable FIFO counter, PHOF will be
+        returned as -1, and success will be False.
+        
+        Returns success, clock polarity, PHOF, number of tries, FIFO counter
         """
         op = getCommand({'A': 2, 'B': 3}, chan)
         dev = self.selectedDAC(c)
-        ans = yield dev.setFIFO(chan, op)
+        ans = yield dev.setFIFO(chan, op, targetFifo)
         returnValue(ans)
 
 
@@ -1484,12 +1549,52 @@ class FPGAServer(DeviceServer):
 
     @setting(1225, 'DAC BIST', chan='s', data='*w', returns='b(ww)(ww)(ww)')
     def dac_bist(self, c, chan, data):
-        """Run a BIST on the given SRAM sequence. (DAC only)"""
+        """Run a BIST on the given SRAM sequence. (DAC only)
+        
+        Returns success, theory, LVDS, FIFO
+        """
         cmd, shift = getCommand({'A': (2, 0), 'B': (3, 14)}, chan)
         dev = self.selectedDAC(c)
         ans = yield dev.runBIST(cmd, shift, data)
         returnValue(ans)
-
+        
+        
+    @setting(1300, 'DAC Bringup', lvdsOptimize='b', lvdsSD='w', signed='b', targetFifo='w', returns='(((ss)(sb)(sw)(sw)(sw)(s(*w*b*b))(sw)(sb)(sb)(si)(sw)(sw)(sb)(s(ww))(s(ww))(s(ww)))((ss)(sb)(sw)(sw)(sw)(s(*w*b*b))(sw)(sb)(sb)(si)(sw)(sw)(sb)(s(ww))(s(ww))(s(ww))))')
+    def dac_bringup(self, c, lvdsOptimize=False, lvdsSD=None, signed=True, targetFifo=None):
+        """Runs the bringup procedure.
+                
+        This code initializes the PLL, initializes the DAC, sets the LVDS SD,
+        sets the FIFO, and runs the BIST test on each DAC channel. The output is
+        (in tuple format) a list of dictionaries (one for each channel) with all
+        the calibration parameters.
+        """
+        dev = self.selectedDAC(c)
+        ans = []
+        yield dev.resetPLL()
+        time.sleep(0.100)
+        yield dev.initPLL()
+        for dac in ['A','B']:
+            ansDAC = [('dac',dac)]
+            cmd, shift = {'A': (2, 0), 'B': (3, 14)}[dac]
+            pkt = [0x0024, 0x0004, 0x1603, 0x0500] if signed else \
+                  [0x0026, 0x0006, 0x1603, 0x0500]
+            yield dev.runSerial(cmd, pkt)
+            lvdsAns = yield dev.setLVDS(cmd, lvdsSD, lvdsOptimize)
+            lvdsKeys = ['lvdsSuccess','lvdsMSD','lvdsMHD','lvdsSD','lvdsTiming','lvdsCheck']
+            for key,val in zip(lvdsKeys,lvdsAns):
+                ansDAC.append((key,val))
+            fifoAns = yield dev.setFIFO(dac, cmd, targetFifo)
+            fifoKeys = ['fifoSuccess','fifoClockPolarity','fifoPHOF','fifoTries','fifoCounter']
+            for key,val in zip(fifoKeys,fifoAns):
+                ansDAC.append((key,val))
+            bistData = [random.randint(0, 0x3FFF) for i in range(1000)]
+            bistAns = yield dev.runBIST(cmd, shift, bistData)
+            bistKeys = ['bistSuccess','bistTheory','bistLVDS','bistFIFO']
+            for key,val in zip(bistKeys,bistAns):
+                ansDAC.append((key,val))
+            ans.append(tuple(ansDAC))
+        returnValue(tuple(ans))
+            
 
     @setting(2500, 'ADC Recalibrate', returns='')
     def adc_recalibrate(self, c):
@@ -1543,6 +1648,17 @@ class FPGAServer(DeviceServer):
         ans = yield dev.runDemod(filterFunc, filterStretchLen, filterStretchAt, demods)
         
         returnValue(ans)
+        
+        
+    @setting(2700, 'ADC Bringup', returns='')
+    def adc_bringup(self, c):
+        """Runs the bringup procedure.
+        
+        This code initializes the PLL and recalibrates the ADC.
+        """
+        dev = self.selectedADC(c)
+        yield dev.initPLL()
+        yield dev.recalibrate()
     
     # TODO: new settings
     # - set up ADC options for data readout, to be used with the next daisy-chain run
