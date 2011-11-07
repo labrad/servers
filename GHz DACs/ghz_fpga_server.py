@@ -16,6 +16,13 @@
 
 # CHANGELOG:
 #
+
+# 2011 November 4 - Daniel Sank
+#
+# The code around line 1172 which read "c[runner.dev]['ranges'] = runner.ranges"
+# didn't work because I had never assigned runner.ranges. This is not assigned
+# near line 601.
+#
 # 2011 November 2 - Jim Wenner
 #
 # In setFIFO, removed reset of LVDS sample delay. Changed how check FIFO counter
@@ -119,7 +126,7 @@
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 3.3.0
+version = 3.3.1
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -591,10 +598,10 @@ class BoardGroup(object):
                         result = [data for src, dest, eth, data in results[idx]['read']]
                         answer = runner.extract(result) #Array of all timing results (DAC)
                         boardResults[board] = answer
+                        runner.ranges = answer[1]
                     # Add extracted data to the list of timing results
                     # If this is an ADC demod channel, grab that channel's data only
-                    if channel is not None:
-                        ranges = answer[1] #Not used in any way, but could be useful
+                    if channel is not None: #channel is None for DAC boards
                         answer = answer[0][channel]
                     answers.append(answer)
                 
@@ -603,6 +610,11 @@ class BoardGroup(object):
                     answers = np.vstack(answers)
                 else:
                     # otherwise make a tuple
+                    # If the returned data contains data from both DACs
+                    # and ADCs, then the data type is not homogeneous,
+                    # meaning we can't use a LabRAD list. Instead we
+                    # have to use a cluster. Therefore, cast to a python
+                    # tuple here.
                     answers = tuple(answers)
                 returnValue(answers)
         finally:

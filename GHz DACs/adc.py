@@ -166,7 +166,7 @@ class AdcDevice(DeviceWrapper):
         try:
             hardwareParams = yield p.send()
             hardwareParams = hardwareParams['get']
-            print self.devName+' hardware params: '+str(hardwareParams)
+            #print self.devName+' hardware params: '+str(hardwareParams)
             parseHardwareParameters(hardwareParams, self)
         finally:
             yield self.cxn.manager.expire_context(reg.ID, context=ctxt)        
@@ -401,10 +401,10 @@ def extractDemod(packets, nDemod):
                                                     #                               1st data run                2nd data run    
     #Parse the IQ data into [(Is ch0, Qs ch0), (Is ch1, Qs ch1),...,(Is chnDemod, Qs chnDemod)]
     data = [(Is[i::nDemod], Qs[i::nDemod]) for i in xrange(nDemod)]
-    
+    #data_saved = data
     # compute overall max and min for I and Q
-    def getRange(data):
-        Irng, Qrng = [ord(i) for i in data[46:48]]
+    def getRange(pkt):
+        Irng, Qrng = [ord(i) for i in pkt[46:48]]
         twosComp = lambda i: int(i if i < 0x8 else i - 0x10)
         Imax = twosComp((Irng >> 4) & 0xF) # << 12
         Imin = twosComp((Irng >> 0) & 0xF) # << 12
@@ -412,7 +412,7 @@ def extractDemod(packets, nDemod):
         Qmin = twosComp((Qrng >> 0) & 0xF) # << 12
         return Imax, Imin, Qmax, Qmin
     
-    ranges = np.array([getRange(data) for data in packets]).T
+    ranges = np.array([getRange(pkt) for pkt in packets]).T
     Imax = int(max(ranges[0]))
     Imin = int(min(ranges[1]))
     Qmax = int(max(ranges[2]))
