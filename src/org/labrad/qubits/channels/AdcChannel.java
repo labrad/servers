@@ -93,8 +93,8 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 		Preconditions.checkState(mode == AdcMode.DEMODULATE, "Set all critical phases only valid for demod mode.");
 		((AdcDemodConfig)config).setCriticalPhases(criticalPhases);
 	}
-	public boolean[] interpretPhases(long[] iQs, long[] iQs2, int subChannel) {
-		return config.interpretPhases(iQs, iQs2, subChannel);
+	public boolean[] interpretPhases(int[] is, int[] is2, int subChannel) {
+		return config.interpretPhases(is, is2, subChannel);
 	}
 	
 	/**

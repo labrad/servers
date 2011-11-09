@@ -39,12 +39,12 @@ public abstract class AdcBaseConfig {
 	/**
 	 * Converts Is and Qs to T/F based on the previously given critical phase.
 	 * switched = (atan2(q, i) < criticalPhase)
-	 * @param Is
-	 * @param Qs
+	 * @param is
+	 * @param is2
 	 * @param channel Demodulation channel (-1 for average mode)
 	 * @return
 	 */
-	public abstract boolean[] interpretPhases(long[] Is, long[] Qs, int channel);
+	public abstract boolean[] interpretPhases(int[] is, int[] is2, int channel);
 
 	public int getStartDelay() {
 		return startDelay;

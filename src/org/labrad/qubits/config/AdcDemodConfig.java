@@ -138,7 +138,7 @@ public class AdcDemodConfig extends AdcBaseConfig {
 	 * @return
 	 */
 	@Override
-	public boolean[] interpretPhases(long[] Is, long[] Qs, int channel) {
+	public boolean[] interpretPhases(int[] Is, int[] Qs, int channel) {
 		Preconditions.checkArgument(Is.length == Qs.length, "Is and Qs must be of the same shape!");
 		Preconditions.checkArgument(inUse[channel], "Interpret phases on channel %s -- channel not turned on!", channel);
 		boolean[] switches = new boolean[Is.length];

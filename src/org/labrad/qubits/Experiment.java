@@ -225,7 +225,7 @@ public class Experiment {
 		  if (isAdc()) {
 			  Preconditions.checkArgument(data.matchesType("(*i, *i)"), 
 					  "interpretData called with data type %s on an ADC channel. Qubit Sequencer mixup.", data.getType().toString());
-			  return ((AdcChannel)channel).interpretPhases(data.get(0).getWordArray(), data.get(0).getWordArray(), subChannel);
+			  return ((AdcChannel)channel).interpretPhases(data.get(0).getIntArray(), data.get(0).getIntArray(), subChannel);
 		  } else {
 			  Preconditions.checkArgument(data.matchesType("*w"), 
 					  "interpretData called with data type %s on a DAC channel. Qubit Sequencer mixup.", data.getType().toString());
