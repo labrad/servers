@@ -17,6 +17,11 @@
 # CHANGELOG:
 #
 
+# 2011 November 10 - Jim Wenner
+#
+# Fixed bug where, in list_dacs and list_adcs, looked for (name,id) in devices 
+# when checking board groups even though only name present by this point.
+#
 # 2011 November 4 - Daniel Sank
 #
 # The code around line 1172 which read "c[runner.dev]['ranges'] = runner.ranges"
@@ -126,7 +131,7 @@
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 3.3.1
+version = 3.3.2
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -877,7 +882,7 @@ class FPGAServer(DeviceServer):
         devices = [name for (id, name) in devices if 'DAC' in name]
         if boardGroup is not None:
             bg = self.getBoardGroup(boardGroup) # make sure this board group exists
-            devices = [(id, name) for (id, name) in devices if name.startswith(boardGroup)]
+            devices = [name for name in devices if name.startswith(boardGroup)]
         return devices
 
     @setting(12, 'List ADCs', boardGroup='s', returns='*s')
@@ -893,7 +898,7 @@ class FPGAServer(DeviceServer):
         devices = [name for (id, name) in devices if 'ADC' in name]
         if boardGroup is not None:
             bg = self.getBoardGroup(boardGroup) # make sure this board group exists
-            devices = [(id, name) for (id, name) in devices if name.startswith(boardGroup)]
+            devices = [name for name in devices if name.startswith(boardGroup)]
         return devices
 
 
