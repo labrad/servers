@@ -1,12 +1,19 @@
 package org.labrad.qubits;
 
+import java.util.List;
+
+import org.labrad.data.Request;
 import org.labrad.qubits.channels.AdcChannel;
+import org.labrad.qubits.config.AdcBaseConfig;
 import org.labrad.qubits.resources.AdcBoard;
 import org.labrad.qubits.resources.DacBoard;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+
 public class FpgaModelAdc implements FpgaModel {
 
-	AdcChannel channel;
+	List<AdcChannel> channels = Lists.newArrayList();
 	AdcBoard board;
 	Experiment expt;
 	
@@ -17,10 +24,12 @@ public class FpgaModelAdc implements FpgaModel {
 	}
 	
 	public void setChannel(AdcChannel c) {
-		channel = c;
+		if (!channels.contains(c))
+			channels.add(c);
 	}
 	public AdcChannel getChannel() {
-		return channel;
+		Preconditions.checkArgument(false, "getChannel() called for FpgaModelAdc! Bad!");
+		return null;
 	}
 	
 	@Override
@@ -31,6 +40,14 @@ public class FpgaModelAdc implements FpgaModel {
 	@Override
 	public String getName() {
 		return board.getName();
+	}
+
+	public void addPackets(Request runRequest) {
+		for (AdcChannel ch : channels) {
+			AdcBaseConfig conf = ch.getConfig();
+			Preconditions.checkState(conf != null, "ADC channel '%s' was not configured!", ch.getName());
+			conf.addPackets(runRequest);
+		}
 	}
 
 	

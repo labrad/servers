@@ -864,9 +864,10 @@ public class QubitContext extends AbstractServerContext {
 		// settings for ADCs
 		for (FpgaModelAdc fpga : expt.getAdcFpgas()) {
 			runRequest.add("Select Device", Data.valueOf(fpga.getName()));
-			AdcBaseConfig conf = fpga.getChannel().getConfig();
-			Preconditions.checkState(conf != null, "ADC channel '%s' was not configured!", fpga.getChannel().getName());
-			fpga.getChannel().getConfig().addPackets(runRequest);
+			fpga.addPackets(runRequest);
+			//AdcBaseConfig conf = fpga.getChannel().getConfig();
+			//Preconditions.checkState(conf != null, "ADC channel '%s' was not configured!", fpga.getChannel().getName());
+			//fpga.getChannel().getConfig().addPackets(runRequest);
 		}
 
 		// upload all memory and SRAM data
@@ -1310,9 +1311,16 @@ public class QubitContext extends AbstractServerContext {
 	private boolean[][][] interpretSwitches(int deinterlace) {
 		List<Experiment.TimingOrderItem> chans = getExperiment().getTimingChannels();
 		boolean[][] switches = new boolean[chans.size()][];
-		for (int i = 0; i < chans.size(); i++) {
-			Data data = lastData.get(i);
-			switches[i] = chans.get(i).interpretData(data);
+		if (lastData.matchesType("*2w")) {
+			long[][] dacData = extractLastDacData();
+			for (int i = 0; i < chans.size(); i++) {
+				switches[i] = chans.get(i).interpretData(Data.valueOf(dacData[i]));
+			}
+		} else {
+			for (int i = 0; i < chans.size(); i++) {
+				Data data = lastData.get(i);
+				switches[i] = chans.get(i).interpretData(data);
+			}
 		}
 		return deinterlaceArray(switches, deinterlace);
 	}
