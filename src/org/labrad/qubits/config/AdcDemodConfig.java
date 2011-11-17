@@ -141,6 +141,7 @@ public class AdcDemodConfig extends AdcBaseConfig {
 	public boolean[] interpretPhases(int[] Is, int[] Qs, int channel) {
 		Preconditions.checkArgument(Is.length == Qs.length, "Is and Qs must be of the same shape!");
 		Preconditions.checkArgument(inUse[channel], "Interpret phases on channel %s -- channel not turned on!", channel);
+		//System.out.println("interpretPhases: channel " + channel + " crit phase: " + criticalPhase[channel]);
 		boolean[] switches = new boolean[Is.length];
 		for (int run = 0; run < Is.length; run++) {
 			switches[run] = Math.atan2(Qs[run], Is[run]) > criticalPhase[channel];

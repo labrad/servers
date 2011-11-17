@@ -34,7 +34,6 @@ import org.labrad.qubits.channels.PreampChannel;
 import org.labrad.qubits.channels.StartDelayChannel;
 import org.labrad.qubits.channels.TimingChannel;
 import org.labrad.qubits.channels.TriggerChannel;
-import org.labrad.qubits.config.AdcBaseConfig;
 import org.labrad.qubits.config.MicrowaveSourceConfig;
 import org.labrad.qubits.config.MicrowaveSourceOffConfig;
 import org.labrad.qubits.config.SetupPacket;
