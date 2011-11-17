@@ -10,6 +10,11 @@ from util import littleEndian, TimedLock
 
 # CHANGELOG
 #
+# 2011 November 16 - Daniel Sank
+#
+# Changed params->buildParams and reworked the way boardParams gets stored.
+# See corresponding notes in ghz_fpga_server.py
+#
 # 2011 February 9 - Daniel Sank
 # Removed almost all references to hardcoded hardware parameters, for example
 # the various SRAM lengths. These values are now board specific and loaded by
@@ -41,6 +46,10 @@ from util import littleEndian, TimedLock
 # There are parameters which may be specific to each individual board. These parameters are:
 #   fifoCounter - FIFO counter necessary for the appropriate clock delay
 #   lvdsSD - LVDS SD necessary for the appropriate clock delay
+
+
+# TODO
+# Think of better variable names than self.params and self.boardParams
 
 #Constant values accross all boards
 REG_PACKET_LEN = 56
@@ -88,7 +97,7 @@ def regRunSram(dev, startAddr, endAddr, loop=True, blockDelay=0, sync=249):
     regs[0] = (3 if loop else 4) #3: continuous, 4: single run
     regs[1] = 0 #No register readback
     regs[13:16] = littleEndian(startAddr, 3) #SRAM start address
-    regs[16:19] = littleEndian(endAddr-1 + dev.params['SRAM_DELAY_LEN'] * blockDelay, 3) #SRAM end
+    regs[16:19] = littleEndian(endAddr-1 + dev.buildParams['SRAM_DELAY_LEN'] * blockDelay, 3) #SRAM end
     regs[19] = blockDelay
     regs[45] = sync
     return regs
@@ -162,7 +171,7 @@ def processReadback(resp):
     }
 
 def pktWriteSram(device, derp, data):
-    assert 0 <= derp < device.params['SRAM_WRITE_DERPS'], "SRAM derp out of range: %d" % derp 
+    assert 0 <= derp < device.buildParams['SRAM_WRITE_DERPS'], "SRAM derp out of range: %d" % derp 
     data = np.asarray(data)
     pkt = np.zeros(1026, dtype='<u1')
     pkt[0] = (derp >> 0) & 0xFF
@@ -236,14 +245,14 @@ class DacDevice(DeviceWrapper):
         ctxt = reg.context()
         p = reg.packet()
         p.cd(['','Servers','GHz FPGAs'])
-        p.get('dacBuild'+str(self.build),key='hardwareParams')
+        p.get('dacBuild'+str(self.build),key='buildParams')
         p.get('dac'+self.devName.split(' ')[-1],key='boardParams')
         try:
             resp = yield p.send()
-            hardwareParams = resp['hardwareParams']
-            # print self.devName+' hardware params: '+str(hardwareParams)
-            parseHardwareParameters(hardwareParams, self)
-            self.boardParams = dict(resp['boardParams'])
+            buildParams = resp['buildParams']
+            boardParams = resp['boardParams']
+            parseBuildParameters(buildParams, self)
+            parseBoardParameters(boardParams, self)
         finally:
             yield self.cxn.manager.expire_context(reg.ID, context=ctxt)
 
@@ -262,10 +271,10 @@ class DacDevice(DeviceWrapper):
     def makeSRAM(self, data, p, page=0):
         """Update a packet for the ethernet server with SRAM commands."""
         #Set starting write derp to the beginning of the chosen SRAM page
-        writeDerp = page * self.params['SRAM_PAGE_LEN'] / self.params['SRAM_WRITE_PKT_LEN']
+        writeDerp = page * self.buildParams['SRAM_PAGE_LEN'] / self.buildParams['SRAM_WRITE_PKT_LEN']
         #Crete SRAM write commands and add them to the packet for the direct ethernet server
         while len(data) > 0:
-            chunk, data = data[:self.params['SRAM_WRITE_PKT_LEN']*4], data[self.params['SRAM_WRITE_PKT_LEN']*4:]
+            chunk, data = data[:self.buildParams['SRAM_WRITE_PKT_LEN']*4], data[self.buildParams['SRAM_WRITE_PKT_LEN']*4:]
             chunk = np.fromstring(chunk, dtype='<u4')
             pkt = pktWriteSram(self, writeDerp, chunk)
             p.write(pkt.tostring())
@@ -625,7 +634,7 @@ def shiftSRAM(device, cmds, page):
     def shiftAddr(cmd):
         opcode, address = getOpcode(cmd), getAddress(cmd)
         if opcode in [0x8, 0xA]: 
-            address += page * device.params['SRAM_PAGE_LEN']
+            address += page * device.buildParams['SRAM_PAGE_LEN']
             return (opcode << 20) + address
         else:
             return cmd
@@ -645,6 +654,9 @@ def bistChecksum(data):
                 bist[j] = (((bist[j] << 1) & 0xFFFFFFFE) | ((bist[j] >> 31) & 1)) ^ ((data[i+j] ^ 0x3FFF) & 0x3FFF)
     return bist
 
-def parseHardwareParameters(parametersFromRegistry, device):
-    device.params = dict(parametersFromRegistry)
-    device.params['SRAM_WRITE_DERPS'] = device.params['SRAM_LEN'] / device.params['SRAM_WRITE_PKT_LEN']
+def parseBuildParameters(parametersFromRegistry, device):
+    device.buildParams = dict(parametersFromRegistry)
+    device.buildParams['SRAM_WRITE_DERPS'] = device.buildParams['SRAM_LEN'] / device.buildParams['SRAM_WRITE_PKT_LEN']
+    
+def parseBoardParameters(parametersFromRegistry, device):
+    device.boardParams = dict(parametersFromRegistry)
