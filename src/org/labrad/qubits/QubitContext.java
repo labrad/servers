@@ -977,8 +977,9 @@ public class QubitContext extends AbstractServerContext {
 					Data first = data.get(0);
 					if (first.matchesType("*w"))
 						len += first.getArraySize();
-					else // matches (*i, *i)
+					else {// matches (*i, *i)
 						len += first.get(0).getArraySize();
+					}
 				}
 				// now go through and append
 				// prepare final data holder
@@ -999,12 +1000,12 @@ public class QubitContext extends AbstractServerContext {
 							for (int j = 0; j < oneRun.get(i).get(0).getArraySize(); j++) {
 								collected.get(i).get(0).get(j+ofs).setInt(oneRun.get(i).get(0).get(j).getInt());
 								collected.get(i).get(1).get(j+ofs).setInt(oneRun.get(i).get(1).get(j).getInt());
-								ofsUpdate = collected.get(i).get(0).getArraySize();
+								ofsUpdate = oneRun.get(i).get(0).getArraySize();
 							}
 						} else {									// it's a DAC
 							for (int j = 0; j < oneRun.get(i).getArraySize(); j++) {
 								collected.get(i).get(j+ofs).setInt(oneRun.get(i).get(j).getInt());
-								ofsUpdate = collected.get(i).getArraySize();
+								ofsUpdate = oneRun.get(i).getArraySize();
 							}
 						}
 					}
