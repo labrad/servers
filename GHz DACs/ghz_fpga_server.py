@@ -39,7 +39,7 @@
 # 2011 November 4 - Daniel Sank
 #
 # The code around line 1172 which read "c[runner.dev]['ranges'] = runner.ranges"
-# didn't work because I had never assigned runner.ranges. This is not assigned
+# didn't work because I had never assigned runner.ranges. This is now assigned
 # near line 601.
 #
 # 2011 November 2 - Jim Wenner
