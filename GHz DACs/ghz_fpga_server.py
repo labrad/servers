@@ -17,6 +17,11 @@
 
 # CHANGELOG:
 #
+# 2011 November 29 - Jim Wenner
+#
+# Removed adc_recalibrate from adc_bringup since this may randomize order of I,Q
+# outputs.
+#
 # 2011 November 16 - Dan Sank/Jim Wenner
 #
 # Fixed documentation for dac_lvds and dac_fifo.
@@ -146,7 +151,7 @@
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 3.3.3
+version = 3.3.4
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -1692,7 +1697,6 @@ class FPGAServer(DeviceServer):
         """
         dev = self.selectedADC(c)
         yield dev.initPLL()
-        yield dev.recalibrate()
     
     # TODO: new settings
     # - set up ADC options for data readout, to be used with the next daisy-chain run
