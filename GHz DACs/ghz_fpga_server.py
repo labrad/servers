@@ -17,6 +17,12 @@
 
 # CHANGELOG:
 #
+# 2011 November 30 - Daniel Sank / Jim Wenner
+#
+# Run Sequence setting now only tries to get ADC demodulation ranges when
+# getTimingData is True. If getTimingData is False, no data is extracted,
+# so it's impossible to store the I and Q ranges.
+#
 # 2011 November 29 - Jim Wenner
 #
 # Removed adc_recalibrate from adc_bringup since this may randomize order of I,Q
@@ -151,7 +157,7 @@
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 3.3.4
+version = 3.3.5
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -1200,7 +1206,7 @@ class FPGAServer(DeviceServer):
                 ans = yield bg.run(runners, reps, setupReqs, set(setupState), c['master_sync'], getTimingData, timingOrder)
                 # for ADCs in demodulate mode, store their I and Q ranges to check for possible clipping
                 for runner in runners:
-                    if isinstance(runner, AdcRunner) and runner.runMode == 'demodulate':
+                    if isinstance(runner, AdcRunner) and runner.runMode == 'demodulate' and getTimingData:
                         c[runner.dev]['ranges'] = runner.ranges
                 returnValue(ans)
             except TimeoutError, err:
