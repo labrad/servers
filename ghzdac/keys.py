@@ -20,7 +20,8 @@ ANRITSUID = 'Anritsu ID'
 SPECTID = 'Spectrum analyzer ID'
 SCOPEID = 'Sampling Scope ID'
 SCOPESENSITIVITY = 'Sampling Scope sensitivity'
-#SWITCHPOSITION = 'Microwave switch position'
+SWITCHPOSITION = 'Microwave switch position'
+SWITCHNAME = 'Microwave switch name'
 TIMEOFFSET = 'DAC delay for pulse calibration'
 SETUPTYPES = ['no IQ mixer',
               'DAC A -> mixer I, DAC B -> mixer Q',
