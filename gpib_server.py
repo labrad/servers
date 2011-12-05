@@ -12,6 +12,14 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# CHANGELOG
+#
+# 2011 December 3 - Jim Wenner
+#
+# Added ability to read TCPIP (Ethernet) devices. Must be configured
+# using VXI-11 or LXI so that address ends in INSTR. Does not accept if
+# configured to use s
 
 from labrad.server import LabradServer, setting
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -24,7 +32,7 @@ from pyvisa import visa, vpp43
 ### BEGIN NODE INFO
 [info]
 name = GPIB Bus
-version = 1.1
+version = 1.2
 description = Gives access to GPIB devices via pyvisa.
 instancename = %LABRADNODE% GPIB Bus
 
@@ -81,6 +89,8 @@ class GPIBBusServer(LabradServer):
             for addr in additions:
                 try:
                     if addr.startswith('GPIB'):
+                        instName = addr
+                    elif addr.startswith('TCPIP'):
                         instName = addr
                     elif addr.startswith('USB'):
                         instName = addr + '::INSTR'
