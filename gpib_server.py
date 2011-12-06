@@ -15,11 +15,17 @@
 #
 # CHANGELOG
 #
+# 2011 December 5 - Jim Wenner
+#
+# Added ability to read TCPIP (Ethernet) devices if configured to use
+# sockets (i.e., fixed port address). To do this, added getSocketsList
+# function and changed refresh_devices.
+#
 # 2011 December 3 - Jim Wenner
 #
 # Added ability to read TCPIP (Ethernet) devices. Must be configured
 # using VXI-11 or LXI so that address ends in INSTR. Does not accept if
-# configured to use s
+# configured to use sockets. To do this, changed refresh_devices.
 
 from labrad.server import LabradServer, setting
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -32,7 +38,7 @@ from pyvisa import visa, vpp43
 ### BEGIN NODE INFO
 [info]
 name = GPIB Bus
-version = 1.2
+version = 1.3
 description = Gives access to GPIB devices via pyvisa.
 instancename = %LABRADNODE% GPIB Bus
 
@@ -83,7 +89,7 @@ class GPIBBusServer(LabradServer):
         Currently supported are GPIB devices and GPIB over USB.
         """
         try:
-            addresses = visa.get_instruments_list()
+            addresses = visa.get_instruments_list() + self.getSocketsList()
             additions = set(addresses) - set(self.devices.keys())
             deletions = set(self.devices.keys()) - set(addresses)
             for addr in additions:
@@ -98,6 +104,8 @@ class GPIBBusServer(LabradServer):
                         continue
                     instr = visa.instrument(instName, timeout=1.0)
                     instr.clear()
+                    if addr.endswith('SOCKET'):
+						instr.term_chars = '\n'
                     self.devices[addr] = instr
                     self.sendDeviceMessage('GPIB Device Connect', addr)
                 except Exception, e:
@@ -107,6 +115,22 @@ class GPIBBusServer(LabradServer):
                 self.sendDeviceMessage('GPIB Device Disconnect', addr)
         except Exception, e:
             print 'Problem while refreshing devices:', str(e)
+		
+    def getSocketsList(self):
+		"""Get a list of all connected devices.
+
+		Return value:
+		A list of strings with the names of all connected devices, ready for being
+		used to open each of them.
+		"""
+		# Phase I: Get all standard resource names (no aliases here)
+		resource_names = []
+		find_list, return_counter, instrument_description = \
+			vpp43.find_resources(visa.resource_manager.session, "?*::SOCKET")
+		resource_names.append(instrument_description)
+		for i in xrange(return_counter - 1):
+			resource_names.append(vpp43.find_next(find_list))
+		return resource_names
             
     def sendDeviceMessage(self, msg, addr):
         print msg + ': ' + addr
