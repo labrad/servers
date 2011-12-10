@@ -15,6 +15,10 @@
 #
 # CHANGELOG
 #
+# 2011 December 10 - Peter O'Malley & Jim Wenner
+#
+# Fixed bug where doesn't add devices if no SOCKETS connected.
+#
 # 2011 December 5 - Jim Wenner
 #
 # Added ability to read TCPIP (Ethernet) devices if configured to use
@@ -38,7 +42,7 @@ from pyvisa import visa, vpp43
 ### BEGIN NODE INFO
 [info]
 name = GPIB Bus
-version = 1.3
+version = 1.3.1
 description = Gives access to GPIB devices via pyvisa.
 instancename = %LABRADNODE% GPIB Bus
 
@@ -89,7 +93,12 @@ class GPIBBusServer(LabradServer):
         Currently supported are GPIB devices and GPIB over USB.
         """
         try:
-            addresses = visa.get_instruments_list() + self.getSocketsList()
+            addresses = visa.get_instruments_list()
+            try:
+                sockets = self.getSocketsList()
+                addresses = addresses + sockets
+            except:
+                pass
             additions = set(addresses) - set(self.devices.keys())
             deletions = set(self.devices.keys()) - set(addresses)
             for addr in additions:
