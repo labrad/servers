@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Data Vault
-version = 2.3.2
+version = 2.3.3
 description = Store and retrieve numeric data
 
 [startup]
@@ -39,6 +39,26 @@ from twisted.internet.reactor import callLater
 from twisted.internet.defer import inlineCallbacks
 
 from ConfigParser import SafeConfigParser
+
+# ConfigParser is retarded and doesn't let you choose your newline separator,
+# so we overload it to make data vault files consistent across OSes.
+# In particular, Windows expects \r\n whereas Linux uses \n
+class DVSafeConfigParser(SafeConfigParser):
+    def write(self, fp, newline='\r\n'):
+        """Write an .ini-format representation of the configuration state."""
+        if self._defaults:
+            fp.write("[%s]" % DEFAULTSECT + newline)
+            for (key, value) in self._defaults.items():
+                fp.write(("%s = %s" + newline) % (key, str(value).replace('\n', '\n\t')))
+            fp.write(newline)
+        for section in self._sections:
+            fp.write("[%s]" % section + newline)
+            for (key, value) in self._sections[section].items():
+                if key != "__name__":
+                    fp.write(("%s = %s" + newline) %
+                             (key, str(value).replace('\n', '\n\t')))
+            fp.write(newline)
+
 import os, re
 from datetime import datetime
 
@@ -246,7 +266,7 @@ class Session(object):
             
     def load(self):
         """Load info from the session.ini file."""
-        S = SafeConfigParser()
+        S = DVSafeConfigParser()
         S.read(self.infofile)
 
         sec = 'File System'
@@ -267,7 +287,7 @@ class Session(object):
 
     def save(self):
         """Save info to the session.ini file."""
-        S = SafeConfigParser()
+        S = DVSafeConfigParser()
 
         sec = 'File System'
         S.add_section(sec)
@@ -295,6 +315,7 @@ class Session(object):
     def listContents(self, tagFilters):
         """Get a list of directory names in this directory."""
         files = os.listdir(self.dir)
+        files.sort()
         dirs = [dsDecode(s[:-4]) for s in files if s.endswith('.dir')]
         datasets = [dsDecode(s[:-4]) for s in files if s.endswith('.csv')]
         # apply tag filters
@@ -322,6 +343,7 @@ class Session(object):
     def listDatasets(self):
         """Get a list of dataset names in this directory."""
         files = os.listdir(self.dir)
+        files.sort()
         return [dsDecode(s[:-4]) for s in files if s.endswith('.csv')]
     
     def newDataset(self, title, independents, dependents):
@@ -440,7 +462,7 @@ class Dataset:
             self.access()
 
     def load(self):
-        S = SafeConfigParser()
+        S = DVSafeConfigParser()
         S.read(self.infofile)
 
         gen = 'General'
@@ -487,7 +509,7 @@ class Dataset:
             self.comments = []
         
     def save(self):
-        S = SafeConfigParser()
+        S = DVSafeConfigParser()
         
         sec = 'General'
         S.add_section(sec)
@@ -584,7 +606,8 @@ class Dataset:
     def _saveData(self, data):
         f = self.file
         for row in data:
-            f.write(', '.join(DATA_FORMAT % v for v in row) + '\n')
+            # always save with dos linebreaks
+            f.write(', '.join(DATA_FORMAT % v for v in row) + '\r\n')
         f.flush()
     
     def addIndependent(self, label):
@@ -736,7 +759,8 @@ class NumpyDataset(Dataset):
     
     def _saveData(self, data):
         f = self.file
-        numpy.savetxt(f, data, fmt=DATA_FORMAT, delimiter=',')
+	# always save with dos linebreaks (requires numpy 1.5.0 or greater)
+        numpy.savetxt(f, data, fmt=DATA_FORMAT, delimiter=',', newline='\r\n')
         f.flush()
     
     def _dataTimeout(self):
