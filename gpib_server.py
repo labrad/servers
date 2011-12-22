@@ -30,6 +30,11 @@
 # Added ability to read TCPIP (Ethernet) devices. Must be configured
 # using VXI-11 or LXI so that address ends in INSTR. Does not accept if
 # configured to use sockets. To do this, changed refresh_devices.
+#
+# To be clear, the gpib system already supported ethernet devices just fine
+# as long as they weren't using raw socket protocol. The changes that
+# were made here and in the next few revisions are hacks to make socket
+# connections work, and should be improved.
 
 from labrad.server import LabradServer, setting
 from twisted.internet.defer import inlineCallbacks, returnValue
