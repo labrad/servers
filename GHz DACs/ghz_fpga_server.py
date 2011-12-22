@@ -1610,7 +1610,7 @@ class FPGAServer(DeviceServer):
                 
         This code initializes the PLL, initializes the DAC, sets the LVDS SD,
         sets the FIFO, and runs the BIST test on each DAC channel. The output is
-        (in tuple format) a list of dictionaries (one for each channel) with all
+        (in tuple format) a list of two (one for each DAC) pairs of (string,data) with all
         the calibration parameters.
         """
         dev = self.selectedDAC(c)
