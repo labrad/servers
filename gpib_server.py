@@ -47,7 +47,7 @@ from pyvisa import visa, vpp43
 ### BEGIN NODE INFO
 [info]
 name = GPIB Bus
-version = 1.3.1
+version = 1.3.2
 description = Gives access to GPIB devices via pyvisa.
 instancename = %LABRADNODE% GPIB Bus
 
@@ -119,7 +119,7 @@ class GPIBBusServer(LabradServer):
                     instr = visa.instrument(instName, timeout=1.0)
                     instr.clear()
                     if addr.endswith('SOCKET'):
-						instr.term_chars = '\n'
+                        instr.term_chars = '\n'
                     self.devices[addr] = instr
                     self.sendDeviceMessage('GPIB Device Connect', addr)
                 except Exception, e:
@@ -131,20 +131,19 @@ class GPIBBusServer(LabradServer):
             print 'Problem while refreshing devices:', str(e)
 		
     def getSocketsList(self):
-		"""Get a list of all connected devices.
+        """Get a list of all connected devices.
 
-		Return value:
-		A list of strings with the names of all connected devices, ready for being
-		used to open each of them.
-		"""
-		# Phase I: Get all standard resource names (no aliases here)
-		resource_names = []
-		find_list, return_counter, instrument_description = \
-			vpp43.find_resources(visa.resource_manager.session, "?*::SOCKET")
-		resource_names.append(instrument_description)
-		for i in xrange(return_counter - 1):
-			resource_names.append(vpp43.find_next(find_list))
-		return resource_names
+        Return value:
+        A list of strings with the names of all connected devices, ready for being
+        used to open each of them.
+        """
+        # Phase I: Get all standard resource names (no aliases here)
+        resource_names = []
+        find_list, return_counter, instrument_description = vpp43.find_resources(visa.resource_manager.session, "?*::SOCKET")
+        resource_names.append(instrument_description)
+        for i in xrange(return_counter - 1):
+            resource_names.append(vpp43.find_next(find_list))
+        return resource_names
             
     def sendDeviceMessage(self, msg, addr):
         print msg + ': ' + addr
