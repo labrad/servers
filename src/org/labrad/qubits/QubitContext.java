@@ -352,23 +352,12 @@ public class QubitContext extends AbstractServerContext {
 	}
 
 	@Setting(id = 290,
-			name = "Config Critical Phases",
-			doc = "Configure the critical phases for processing ADC readout. Takes 'v' for average mode, '*v' for demod mode " +
-	"(must be length = MAX_CHANNELS), or '(i, v)' for demod mode (demod channel #, phase).")
+			name = "Config Critical Phase",
+			doc = "Configure the critical phases for processing ADC readout.")
 	public void config_critical_phases(@Accepts({"s","ss"}) Data id,
-			@Accepts({"v{phase}", "(i{demodChannel}, v{phase})", "*v{phases}"}) Data phases) {
+			@Accepts("v{phase}") Data phase) {
 		AdcChannel channel = getChannel(id, AdcChannel.class);
-		if (phases.isValue()) {
-			channel.setCriticalPhase(phases.getValue());
-		} else if (phases.isArray()) {
-			channel.setCriticalPhase(phases.getValueArray());
-		} else if (phases.isCluster()) {
-			int i = phases.getClusterAsList().get(0).getInt();
-			double d = phases.getClusterAsList().get(1).getValue();
-			channel.setCriticalPhase(i, d);
-		} else {
-			throw new RuntimeException("Config Critical Phases takes only 'v', '*v', or '(i, v)'.");
-		}
+		channel.setCriticalPhase(phase.getValue());
 	}
 
 	//
@@ -671,13 +660,17 @@ public class QubitContext extends AbstractServerContext {
 
 	@Setting(id = 520,
 			name = "ADC Set Mode",
-			doc = "asdfasdfasfasdfSets the mode of this channel.\n " +
+			doc = "Sets the mode of this channel.\n " +
 			"First argument {s or (ss)}: channel (either device name or (device name, channel name)\n " +
-	"Second {s}: either 'demodulate' or 'average'")
+	"Second {s or (si)}: either 'demodulate' or ('average', [demod channel number])")
 	public void adc_set_mode(@Accepts({"s", "ss"}) Data id,
-			@Accepts("s") Data mode) {
+			@Accepts({"s", "si"}) Data mode) {
 		AdcChannel ch = getChannel(id, AdcChannel.class);
-		ch.setMode(mode.getString());
+		if (mode.isString()) {
+			ch.setToAverage();
+		} else {
+			ch.setToDemodulate(mode.get(1).getInt());
+		}
 	}
 
 	@Setting(id = 530,
@@ -701,33 +694,28 @@ public class QubitContext extends AbstractServerContext {
 				+ "and the sub-channel must be valid (i.e. under 4 for build 1). "
 				+ "sineAmp and cosineAmp range from 0 to 255.\n" +
 				"First argument {s or (ss)}: channel (either device name or (device name, channel name)\n " +
-				"Second {w}: the demodulation channel\n " +
-				"Third {w}: sine amplitude\n " +
-	"Fourth {w}: cosine amplitude\n")
+				"Second {w}: sine amplitude\n " +
+				"Third {w}: cosine amplitude\n")
 	public void adc_set_trig_magnitude(@Accepts({"s", "ss"}) Data id,
-			@Accepts("w") Data channel,
 			@Accepts("w") Data sineAmp,
 			@Accepts("w") Data cosineAmp) {
 		AdcChannel ch = getChannel(id, AdcChannel.class);
-		ch.setTrigMagnitude((int)channel.getWord(), (int)sineAmp.getWord(), (int)cosineAmp.getWord());
+		ch.setTrigMagnitude((int)sineAmp.getWord(), (int)cosineAmp.getWord());
 	}
 
 	@Setting(id = 532,
 			name = "ADC Demod Phase",
-			doc = "Sets the demodulation phase. Must be an adc channel in demod mode "
-				+ "and the sub-channel must be valid (i.e. under 4). "
+			doc = "Sets the demodulation phase. Must be an adc channel in demod mode.\n"
 				+ "See the documentation for this in the GHz FPGA server.\n" +
 				"First argument {s or (ss)}: channel (either device name or (device name, channel name)\n " +
-				"Second {w}: the demodulation channel\n " +
-	"Third {(i,i) or (v[Hz], v[rad])}: (dPhi, phi0) or (frequency (Hz), offset (radians))")
+				"Second {(i,i) or (v[Hz], v[rad])}: (dPhi, phi0) or (frequency (Hz), offset (radians))")
 	public void adc_demod_phase(@Accepts({"s", "ss"}) Data id,
-			@Accepts("w") Data channel,
 			@Accepts({"ii", "v[Hz]v[rad]"}) Data dat) {
 		AdcChannel ch = getChannel(id, AdcChannel.class);
 		if (dat.matchesType("(ii)")) {
-			ch.setPhase((int)channel.getWord(), dat.get(0).getInt(), dat.get(1).getInt());
+			ch.setPhase(dat.get(0).getInt(), dat.get(1).getInt());
 		} else {
-			ch.setPhase((int)channel.getWord(), dat.get(0).getValue(), dat.get(1).getValue());
+			ch.setPhase(dat.get(0).getValue(), dat.get(1).getValue());
 		}
 	}
 

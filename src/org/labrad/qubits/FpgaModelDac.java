@@ -27,7 +27,6 @@ public abstract class FpgaModelDac implements FpgaModel {
   public final static double FREQUENCY = 25.0;
   
   public final static int MAX_MEM_LEN = 256;
-  public final static int MAX_SRAM_LEN = 10240; // 8us + 2us
 
   private DacBoard dacBoard;
   protected Experiment expt;
@@ -262,7 +261,7 @@ public abstract class FpgaModelDac implements FpgaModel {
     }
     
     // check that the total memory sequence is not too long
-    if (bits.length > MAX_MEM_LEN) {
+    if (bits.length > this.dacBoard.getBuildProperties().get("SRAM_WRITE_PKT_LEN")) {
       throw new RuntimeException("Memory sequence exceeds maximum length");
     }
     return bits;
@@ -292,7 +291,7 @@ public abstract class FpgaModelDac implements FpgaModel {
       pos += block.length;
     }
     // check that the total sram sequence is not too long
-    if (sram.length > MAX_SRAM_LEN) {
+    if (sram.length > this.dacBoard.getBuildProperties().get("SRAM_LEN")) {
       throw new RuntimeException("SRAM sequence exceeds maximum length");
     }
     return sram;

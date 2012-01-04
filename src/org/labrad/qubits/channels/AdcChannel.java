@@ -3,20 +3,17 @@
  */
 package org.labrad.qubits.channels;
 
-import java.util.List;
-import java.util.Locale;
+import java.util.Map;
 
+import org.labrad.data.Data;
+import org.labrad.data.Request;
 import org.labrad.qubits.Experiment;
 import org.labrad.qubits.FpgaModel;
 import org.labrad.qubits.FpgaModelAdc;
-import org.labrad.qubits.config.AdcAverageConfig;
-import org.labrad.qubits.config.AdcBaseConfig;
-import org.labrad.qubits.config.AdcDemodConfig;
 import org.labrad.qubits.enums.AdcMode;
 import org.labrad.qubits.resources.AdcBoard;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
 
 /**
  * This channel represents a connection to an ADC in demodulation mode.
@@ -26,28 +23,40 @@ import com.google.common.collect.Lists;
  */
 public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 	
-	AdcMode mode = AdcMode.UNSET;
+	public final int MAX_CHANNELS, DEMOD_CHANNELS_PER_PACKET, TRIG_AMP, LOOKUP_ACCUMULATOR_BITS, DEMOD_TIME_STEP;
 	
 	String name = null;
 	Experiment expt = null;
 	AdcBoard board = null;
 	FpgaModelAdc fpga = null;
 
-	AdcBaseConfig config = null;
+	// configuration variables
+	AdcMode mode = AdcMode.UNSET;	// DEMODULATE, AVERAGE, UNSET
+	int startDelay;			// passed to start delay setting
+	String filterFunction; int stretchLen, stretchAt;	// passed to filter function setting
+	double criticalPhase;	// used to interpret phases (into T/F switches)
+	int demodChannel;		// which demod channel are we (demod mode only)
+	int dPhi, phi0;			// passed to "ADC Demod Phase" setting of FPGA server (demod mode only)
+	int ampSin, ampCos;		// passed to "ADC Trig Magnitude" setting (demod mode only)
 	
-	public AdcChannel(String name) {
+	public AdcChannel(String name, AdcBoard board) {
 		this.name = name;
-	}
-	
-	public void setAdcBoard(AdcBoard board) {
 		this.board = board;
+		this.clearConfig();
+		
+		Map<String, Long> bp = this.board.getBuildProperties();
+		MAX_CHANNELS = bp.get("DEMOD_CHANNELS").intValue();
+		DEMOD_CHANNELS_PER_PACKET = bp.get("DEMOD_CHANNELS_PER_PACKET").intValue();
+		TRIG_AMP = bp.get("TRIG_AMP").intValue();
+		// see fpga server documentation on the "ADC Demod Phase" setting for an explanation of the two below.
+		LOOKUP_ACCUMULATOR_BITS = bp.get("LOOKUP_ACCUMULATOR_BITS").intValue();
+		DEMOD_TIME_STEP = bp.get("DEMOD_TIME_STEP").intValue(); // in ns
 	}
 
 	@Override
 	public AdcBoard getDacBoard() {
 		return board;
 	}
-
 
 	@Override
 	public Experiment getExperiment() {
@@ -77,71 +86,84 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 		this.fpga.setChannel(this);
 	}
 	
+	// reconcile this ADC configuration with another one for the same ADC.
+	public boolean reconcile(AdcChannel other) {
+		if (this.board != other.board)
+			return false;
+		Preconditions.checkArgument(this.mode == other.mode,
+				"Conflicting modes for ADC board %s", this.board.getName());
+		Preconditions.checkArgument(this.startDelay == other.startDelay,
+				"Conflicting start delays for ADC board %s", this.board.getName());
+		if (this.mode == AdcMode.DEMODULATE) {
+			Preconditions.checkArgument(this.filterFunction.equals(other.filterFunction),
+					"Conflicting filter functions for ADC board %s", this.board.getName());
+			Preconditions.checkArgument(this.stretchAt == other.stretchAt,
+					"Conflicting stretchAt parameters for ADC board %s", this.board.getName());
+			Preconditions.checkArgument(this.stretchLen == other.stretchLen,
+					"Conflicting stretchLen parameters for ADC board %s", this.board.getName());
+			Preconditions.checkArgument(this.demodChannel != other.demodChannel,
+					"Two ADC Demod channels with same channel number for ADC board %s", this.board.getName());
+		} else if (this.mode == AdcMode.AVERAGE) {
+			// nothing?
+		} else {
+			Preconditions.checkArgument(false, "ADC board %s has no mode (avg/demod) set!", this.board.getName());
+		}
+		
+		return true;
+	}
+	
+	// add global packets for this ADC board. should only be called on one channel per board!
+	public void addGlobalPackets(Request runRequest) {
+		if (this.mode == AdcMode.AVERAGE) {
+			Preconditions.checkState(startDelay > -1, "ADC Start Delay not set for channel '%s'", this.name);
+			runRequest.add("ADC Run Mode", Data.valueOf("average"));
+			runRequest.add("Start Delay", Data.valueOf((long)this.startDelay));
+			runRequest.add("ADC Filter Func", Data.valueOf("balhQLIYFGDSVF"), Data.valueOf(42L), Data.valueOf(42L));
+		} else if (this.mode == AdcMode.DEMODULATE) {
+			Preconditions.checkState(startDelay > -1, "ADC Start Delay not set for channel '%s'", this.name);
+			Preconditions.checkState(stretchLen > -1 && stretchAt > -1, "ADC Filter Func not set for channel '%s'", this.name);
+			runRequest.add("ADC Run Mode", Data.valueOf("demodulate"));
+			runRequest.add("Start Delay", Data.valueOf((long)this.startDelay));
+			runRequest.add("ADC Filter Func", Data.valueOf(this.filterFunction),
+					Data.valueOf((long)this.stretchLen), Data.valueOf((long)this.stretchAt));
+		} else {
+			Preconditions.checkArgument(false, "ADC channel %s has no mode (avg/demod) set!", this.name);
+		}
+	}
+	
+	// add local packets. only really applicable for demod mode
+	public void addLocalPackets(Request runRequest) {
+		Preconditions.checkState(ampSin > -1 && ampCos > -1, "ADC Trig Magnitude not set on demod channel %s on channel '%s'", this.demodChannel, this.name);
+		runRequest.add("ADC Demod Phase", Data.valueOf((long)this.demodChannel), Data.valueOf(dPhi), Data.valueOf(phi0));
+		runRequest.add("ADC Trig Magnitude", Data.valueOf((long)this.demodChannel), Data.valueOf((long)ampSin), Data.valueOf((long)ampCos));
+	}
+	
 	//
 	// Critical phase functions
 	//
 	
 	public void setCriticalPhase(double criticalPhase) {
-		Preconditions.checkState(mode == AdcMode.AVERAGE, "Single Critical Phase only valid for average mode.");
-		((AdcAverageConfig)config).setCriticalPhase(criticalPhase);
+		Preconditions.checkState(criticalPhase >= 0.0 && criticalPhase <= 2*Math.PI,
+		"Critical phase must be between 0 and 2PI");
+		this.criticalPhase = criticalPhase;
 	}
-	public void setCriticalPhase(int demodIndex, double criticalPhase) {
-		Preconditions.checkState(mode == AdcMode.DEMODULATE, "Set critical phase by index only valid for demod mode.");
-		((AdcDemodConfig)config).setCriticalPhase(demodIndex, criticalPhase);
-	}
-	public void setCriticalPhase(double[] criticalPhases) {
-		Preconditions.checkState(mode == AdcMode.DEMODULATE, "Set all critical phases only valid for demod mode.");
-		((AdcDemodConfig)config).setCriticalPhases(criticalPhases);
-	}
-	public boolean[] interpretPhases(int[] is, int[] is2, int subChannel) {
-		return config.interpretPhases(is, is2, subChannel);
-	}
-	
-	/**
-	 * This should clear the configuration. 
-	 */
-	@Override
-	public void clearConfig() {
-		config = null;
-	}
-	
-	public AdcBaseConfig getConfig() {
-		return config;
-	}
-	
-	public void setMode(String mode) {
-		setMode(AdcMode.valueOf(mode.toUpperCase(Locale.ENGLISH)));
-		// we use Locale.ENGLISH because goddamit I want this code to work if we go to russia or some shit.
-	}
-	public void setMode(AdcMode mode) {
-		if (mode != this.mode) {
-			this.mode = mode;
-			this.clearConfig();
-			switch (mode) {
-			case DEMODULATE:
-				this.config = new AdcDemodConfig(this.name, this.board.getBuildProperties());
-				break;
-			case AVERAGE:
-				this.config = new AdcAverageConfig(this.name, this.board.getBuildProperties());
-				break;
-			}
+	public boolean[] interpretPhases(int[] Is, int[] Qs) {
+		Preconditions.checkArgument(Is.length == Qs.length, "Is and Qs must be of the same shape!");
+		//System.out.println("interpretPhases: channel " + channel + " crit phase: " + criticalPhase[channel]);
+		boolean[] switches = new boolean[Is.length];
+		for (int run = 0; run < Is.length; run++) {
+			switches[run] = Math.atan2(Qs[run], Is[run]) > criticalPhase;
 		}
+		return switches;
 	}
 	
-	/**
-	 * @return a list of all active demod channels, or -1 if in average mode.
-	 */
-	public List<Integer> getActiveChannels() {
-		List<Integer> l = Lists.newArrayList();
-		if (this.mode == AdcMode.AVERAGE)
-			l.add(-1);
-		else if (this.mode == AdcMode.DEMODULATE) {
-			boolean[] usage = ((AdcDemodConfig)this.config).getChannelUsage();
-			for (int i = 0; i < usage.length; i++)
-				if (usage[i])
-					l.add(i);
-		}
-		return l;
+	public void setToDemodulate(int channel) {
+		Preconditions.checkArgument(channel <= MAX_CHANNELS, "ADC demod channel must be <= %s", MAX_CHANNELS);
+		this.mode = AdcMode.DEMODULATE;
+		this.demodChannel = channel;
+	}
+	public void setToAverage() {
+		this.mode = AdcMode.AVERAGE;
 	}
 	
 	// these are passthroughs to the config object. in most cases we do have to check that
@@ -149,39 +171,51 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 	@Override
 	public void setStartDelay(int startDelay)
 	{
-		config.setStartDelay(startDelay);
+		this.startDelay = startDelay;
 	}
 	@Override
 	public int getStartDelay() {
-		return config.getStartDelay();
+		return this.startDelay;
 	}
 	
 	public void setFilterFunction(String filterFunction, int stretchLen, int stretchAt) {
 		Preconditions.checkState(mode == AdcMode.DEMODULATE, "Channel must be in demodulate mode for setFilterFunction to be valid.");
-		((AdcDemodConfig)config).setFilterFunction(filterFunction, stretchLen, stretchAt);		
+		this.filterFunction = filterFunction;
+		this.stretchLen = stretchLen;
+		this.stretchAt = stretchAt;
 	}
-	public void setTrigMagnitude(int channel, int ampSin, int ampCos) {
+	public void setTrigMagnitude(int ampSin, int ampCos) {
 		Preconditions.checkState(mode == AdcMode.DEMODULATE, "Channel must be in demodulate mode for setTrigMagnitude to be valid.");
-		((AdcDemodConfig)config).setTrigMagnitude(channel, ampSin, ampCos);
+		Preconditions.checkArgument(ampSin > -1 && ampSin <= TRIG_AMP && ampCos > -1 && ampCos <= TRIG_AMP, 
+				"Trig Amplitudes must be 0-255 for channel '%s'", this.name);
+		this.ampSin = ampSin;
+		this.ampCos = ampCos;
 	}
-	public void setPhase(int channel, int dPhi, int phi0) {
+	public void setPhase(int dPhi, int phi0) {
 		Preconditions.checkState(mode == AdcMode.DEMODULATE, "Channel must be in demodulate mode for setPhase to be valid.");
-		((AdcDemodConfig)config).setPhase(channel, dPhi, phi0);
+		//Preconditions.checkArgument(phi0 >= 0 && phi0 < (int)Math.pow(2, LOOKUP_ACCUMULATOR_BITS),
+				//"phi0 must be between 0 and 2^%s", LOOKUP_ACCUMULATOR_BITS);
+		this.dPhi = dPhi;
+		this.phi0 = phi0;
 	}
-	public void setPhase(int channel, double frequency, double phase) {
+	public void setPhase(double frequency, double phase) {
 		Preconditions.checkState(mode == AdcMode.DEMODULATE, "Channel must be in demodulate mode for setPhase to be valid.");
-		((AdcDemodConfig)config).setPhase(channel, frequency, phase);
+		Preconditions.checkArgument(phase >= -Math.PI && phase <= Math.PI, "Phase must be between -pi and pi");
+		int dPhi = (int)Math.floor(frequency * Math.pow(2, LOOKUP_ACCUMULATOR_BITS) * DEMOD_TIME_STEP * Math.pow(10, -9.0));
+		int phi0 = (int)(phase * Math.pow(2, LOOKUP_ACCUMULATOR_BITS) / (2 * Math.PI));
+		setPhase(dPhi, phi0); 
 	}
-	public void turnChannelOn(int channel) {
-		Preconditions.checkState(mode == AdcMode.DEMODULATE, "Channel must be in demodulate mode for turnChannelOn to be valid.");
-		((AdcDemodConfig)config).turnChannelOn(channel);
+
+	@Override
+	public void clearConfig() {
+		this.criticalPhase = this.dPhi = this.phi0 = 0;
+		this.filterFunction = "";
+		this.stretchAt = this.stretchLen = this.startDelay = this.ampSin = this.ampCos = -1;
 	}
-	public void turnChannelOff(int channel) {
-		Preconditions.checkState(mode == AdcMode.DEMODULATE, "Channel must be in demodulate mode for turnChannelOff to be valid.");
-		((AdcDemodConfig)config).turnChannelOff(channel);
+
+	@Override
+	public int getDemodChannel() {
+		return this.demodChannel;
 	}
-	public boolean[] getChannelUsage(int channel) {
-		Preconditions.checkState(mode == AdcMode.DEMODULATE, "Channel must be in demodulate mode for getChannelUsage to be valid.");
-		return ((AdcDemodConfig)config).getChannelUsage();
-	}
+
 }

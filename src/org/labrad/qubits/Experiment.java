@@ -225,7 +225,7 @@ public class Experiment {
 		  if (isAdc()) {
 			  Preconditions.checkArgument(data.matchesType("(*i, *i)"), 
 					  "interpretData called with data type %s on an ADC channel. Qubit Sequencer mixup.", data.getType().toString());
-			  return ((AdcChannel)channel).interpretPhases(data.get(0).getIntArray(), data.get(1).getIntArray(), subChannel);
+			  return ((AdcChannel)channel).interpretPhases(data.get(0).getIntArray(), data.get(1).getIntArray());
 		  } else {
 			  Preconditions.checkArgument(data.matchesType("*w"), 
 					  "interpretData called with data type %s on a DAC channel. Qubit Sequencer mixup.", data.getType().toString());
@@ -319,9 +319,7 @@ public class Experiment {
 		  List<TimingOrderItem> to = Lists.newArrayList();
 		  for (TimingChannel t : getChannels(TimingChannel.class)) {
 			  if (t instanceof AdcChannel) {
-				  List<Integer> activeChannels = ((AdcChannel) t).getActiveChannels();
-				  for (Integer i : activeChannels)
-					  to.add(new TimingOrderItem(t,i.intValue()));
+				  to.add(new TimingOrderItem(t, t.getDemodChannel()));
 			  } else {
 				  to.add(new TimingOrderItem(t, -1));
 			  }

@@ -21,9 +21,8 @@ public class AdcChannelBuilder extends ChannelBuilderBase {
 	@Override
 	public Channel build() {
 	    String boardName = params.get(0);
-	    AdcChannel adc = new AdcChannel(name);
 	    AdcBoard board = resources.get(boardName, AdcBoard.class);
-	    adc.setAdcBoard(board);
+	    AdcChannel adc = new AdcChannel(name, board);
 	    return adc;
 	}
 

@@ -133,5 +133,11 @@ public class PreampChannel implements FiberChannel, TimingChannel {
     }
     return ans;
   }
+
+@Override
+public int getDemodChannel() {
+	// this is a bit of a kludge, only applies to ADCs.
+	return -1;
+}
     
 }

@@ -14,4 +14,6 @@ import org.labrad.qubits.resources.DacBoard;
  */
 public interface TimingChannel extends Channel {
 	public DacBoard getDacBoard();
+
+	public int getDemodChannel();
 }
