@@ -83,60 +83,59 @@ class ADRWrapper(DeviceWrapper):
 		self.ctxt = self.cxn.context()
 		# give us a blank log
 		self.logData = []
-		# initialize the state variables. most of these will get overwritten
-		# with defaults from the registry.
-		self.stateVars= {	
+		# initialize the state variables. 
+		# many of these will get overwritten with defaults from the registry.
+		self.stateVars= {	# FROM THE REGISTRY
 							# magging variables
-							'quenchLimit': 4.0,			# K
-							'cooldownLimit': 3.9,		# K
-							'rampWaitTime': 0.2,		# s
-							'voltageStepUp': 0.004, 	# V
-							'voltageStepDown': 0.004,	# V
-							'voltageLimit': 0.28,		# V
-							'targetCurrent': 8,			# A
-							'maxCurrent': 9,			# A
-							'fieldWaitTime': 2.0,		# min
-							'ruoxSwitch': 2,
-							'waitToMagDown': True,
-							'autoControl': False,
+							'quenchLimit': 4.0,			# K -- if we get above this temp when magging we are considered to have quenched
+							'cooldownLimit': 3.9,		# K -- below this temp we are ready to rock and roll
+							'rampWaitTime': 0.2,		# s -- min waiting time between voltage ramps (mag steps) during a mag
+							'voltageStepUp': 0.004, 	# V -- voltage ramp amount during mag up
+							'voltageStepDown': 0.004,	# V -- ... during mag down
+							'voltageLimit': 0.28,		# V -- don't do a mag step when mag diode voltages are > this
+							'targetCurrent': 8,			# A -- stop magging when we hit this current (will continue to drift up)
+							'maxCurrent': 9,			# A -- hard limit the power supply to this current
+							'fieldWaitTime': 45,		# min -- how long to wait at field before magging down (when autocontrolled)
+							'autoControl': False,		# whether to auto control the heat switch
 							'switchPosition': 2,		# switch position on the lock in amplifier box
 							# PID variables
 							'PIDsetTemp': 0.0 * labrad.units.K,		# setTemp is the temperature goal for PID control
 							'PIDcp': 2.0 * labrad.units.V / labrad.units.K,
 							'PIDcd': 70.0 * labrad.units.V * labrad.units.s / labrad.units.K,
 							'PIDci': 2.0,
-							'PIDint': 0,
 							'PIDintLimit': 0.4,
-							'PIDterr': 0,
-							'PIDloopCount': 0,
-							'PIDout': 0,
 							'PIDstepTimeout': 5,		# max amount of time we will remain in PID stepping loop
-							# scheduling variables
-							'schedulingActive': False,				# whether or not we will auto-mag up or down based on schedule.
-							'scheduledMagDownTime': 0,				# time to start magging down
-							'scheduledMagUpTime': time.time(),		# time to start magging up
-							'magUpCompletedTime': 0,				# time when mag up was completed
-							'magDownCompletedTime': 0,				# time when mag down was completed
-							'fieldWaitTime': 30,					# how long to wait after magging up (min)
-							# not really used, but you could shut it down this way
-							'alive': False,
 							# temperature recording variables
 							'recordTemp': False,		# whether we're recording right now
 							'recordingTemp': 250,		# start recording temps below this value
-							'tempDatasetName': None,	# name of the dataset we're currently recording temperature to
-							'datavaultPath': ["", "ADR", self.name],
-							'autoRecord': True,				# whether to start recording automatically
-							'tempDelayedCall': None,		# will be the twisted IDelayedCall object that the recording cycle is waiting on
+							'autoRecord': True,			# whether to start recording automatically
 							'tempRecordDelay':	10,		# every X seconds we record temp
+							# NOT FROM REGISTRY
+							'PIDint': 0,
+							'PIDterr': 0,
+							'PIDloopCount': 0,
+							'PIDout': 0,
+							# scheduling variables
+							'schedulingActive': False,				# whether or not we will auto-mag up or down based on schedule.
+							'scheduledMagDownTime': 0,				# time to start magging down
+							'scheduledMagUpTime': 0,				# time to start magging up
+							'magUpCompletedTime': 0,				# time when mag up was completed
+							'magDownCompletedTime': 0,				# time when mag down was completed
+							# temperature recording variables
+							'tempDelayedCall': None,					# will be the twisted IDelayedCall object that the recording cycle is waiting on							
+							'tempDatasetName': None,					# name of the dataset we're currently recording temperature to
+							'datavaultPath': ["", "ADR", self.name],
 							# logging variables
 							'logfile': '%s-log.txt' % self.name,	# the log file
-							'loglimit': 20,					# max # lines held in the log variable (i.e. in memory)
-							'voltages': [0*labrad.units.V]*8,
-							'temperatures': [0*labrad.units.K]*8,
-							'magVoltage': 0,
-							'magCurrent': 0,
-							'compressorStatus': False,
-							'missingCriticalPeripheral': True,	# if the compressor, lakeshore, or magnet goes missing, we need to hold any mag cycles in process
+							'loglimit': 20,							# max # lines held in the log variable (i.e. in memory)
+							'voltages': [0*labrad.units.V]*8,		# will hold the lakeshore 218 voltage readings
+							'temperatures': [0*labrad.units.K]*8,	# ... temperature readings
+							'magVoltage': 0,						# will hold the magnet (power supply) voltage reading
+							'magCurrent': 0,						# ... current reading
+							'compressorStatus': False,				# will hold status of compressor (pumping or not)
+							'missingCriticalPeripheral': True,		# if the lakeshore or magnet goes missing, we need to hold any mag cycles in process
+							# not really used, but you could shut it down this way
+							'alive': False,
 						}
 		# different possible statuses
 		self.possibleStatuses = ['cooling down', 'ready', 'waiting at field', 'waiting to mag up', 'magging up', 'magging down', 'ready to mag down', 'pid control']
@@ -210,32 +209,45 @@ class ADRWrapper(DeviceWrapper):
 					self.log('LabRAD connection lost.')
 					self.state('alive', False)
 					break
-				haveAllPeriphs = True
-				# update our voltages, etc
+				# also todo: have a little error message thing that can be displayed in the GUI status bar
+				# send requests to the lakeshore, magnet, and compressor servers
+				lakeshoreResponse = None
+				magnetResponse = None
+				compressorResponse = None
 				if 'lakeshore' in self.peripheralsConnected.keys():
-					ls = self.peripheralsConnected['lakeshore']
-					self.state('voltages', (yield ls.server.voltages(context=self.ctxt)), False)
-					self.state('temperatures', (yield ls.server.temperatures(context=self.ctxt)), False)
+					lakeshorePacket = self.peripheralsConnected['lakeshore'].server.packet(context=self.ctxt)
+					lakeshorePacket.voltages()
+					lakeshorePacket.temperatures()
+					lakeshoreResponse = lakeshorePacket.send()
+				if 'magnet' in self.peripheralsConnected.keys():
+					magnetPacket = self.peripheralsConnected['magnet'].server.packet(context=self.ctxt)
+					magnetPacket.voltage()
+					magnetPacket.current()
+					magnetResponse = magnetPacket.send()
+				if 'compressor' in self.peripheralsConnected.keys():
+					compressorPacket = self.peripheralsConnected['compressor'].server.packet(context=self.ctxt)
+					compressorPacket.status()
+					compressorResponse = compressorPacket.send()
+				# process the responses
+				if lakeshoreResponse:
+					ans = yield lakeshoreResponse
+					self.state('voltages', ans['voltages'], False)
+					self.state('temperatures', ans['temperatures'], False)
 				else:
-					haveAllPeriphs = False
 					self.state('voltages', [0*labrad.units.V]*8, False)
 					self.state('temperatures', [0*labrad.units.K]*8, False)
-			
-				if 'magnet' in self.peripheralsConnected.keys():
-					mag = self.peripheralsConnected['magnet']
-					self.state('magVoltage', (yield mag.server.voltage(context=self.ctxt)), False)
-					self.state('magCurrent', (yield mag.server.current(context=self.ctxt)), False)
+				if magnetResponse:
+					ans = yield magnetResponse
+					self.state('magVoltage', ans['voltage'], False)
+					self.state('magCurrent', ans['current'], False)
 				else:
-					haveAllPeriphs = False
 					self.state('magVoltage', 0*labrad.units.V, False)
-					self.state('magCurrent', 0*labrad.units.A, False)
-				
-				if 'compressor' in self.peripheralsConnected.keys():
-					comp = self.peripheralsConnected['compressor']
-					self.state('compressorStatus', (yield comp.server.status(context=self.ctxt)), False)
-				else:
-					haveAllPeriphs = False
-				
+					self.state('magCurrent', 0*labrad.units.A, False)					
+				if compressorResponse:
+					ans = yield compressorResponse
+					self.state('compressorStatus', ans['compressor'])
+				# see how we did
+				haveAllPeriphs = (magnetResponse is not None) and (lakeshoreResponse is not None) #(and compressorResponse is not None)
 				self.state('missingCriticalPeripheral', not haveAllPeriphs, False)
 				
 				# check to see if we should start recording temp
@@ -415,8 +427,8 @@ class ADRWrapper(DeviceWrapper):
 		""" If up is True, mags up a step. If up is False, mags down a step. """
 		# don't mag if we don't have all the peripherals we need!
 		if self.state('missingCriticalPeripheral'):
-			print "Missing peripheral! Cannot mag! Check lakeshore, compressor, and magnet!"
-			self.log("Missing peripheral! Cannot mag! Check lakeshore, compressor, and magnet!")
+			print "Missing peripheral! Cannot mag! Check lakeshore and magnet!"
+			self.log("Missing peripheral! Cannot mag! Check lakeshore and magnet!")
 			yield util.wakeupCall(1.0)
 			returnValue((False, False))
 		temps = self.state('temperatures')
@@ -474,6 +486,9 @@ class ADRWrapper(DeviceWrapper):
 	@inlineCallbacks
 	def setHeatSwitch(self, open):
 		""" open the heat switch (when open=True), or close it (when open=False) """
+		if 'heatswitch' not in self.peripheralsConnected.keys():
+			self.log('cannot open heat switch--server not connected!')
+			return
 		if open:
 			if HANDSOFF:
 				print "would open %s heat switch" % self.name
@@ -643,7 +658,7 @@ class ADRWrapper(DeviceWrapper):
 	
 	def stopRecording(self):
 		self.state('recordTemp', False)
-		#self.state('tempDatasetName', None)
+		self.state('tempDatasetName', None)
 		e = self.state('tempDelayedCall')
 		if e:
 			try:
