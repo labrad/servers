@@ -90,6 +90,8 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 	public boolean reconcile(AdcChannel other) {
 		if (this.board != other.board)
 			return false;
+		if (this == other)
+			return true;
 		Preconditions.checkArgument(this.mode == other.mode,
 				"Conflicting modes for ADC board %s", this.board.getName());
 		Preconditions.checkArgument(this.startDelay == other.startDelay,
@@ -133,9 +135,11 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 	
 	// add local packets. only really applicable for demod mode
 	public void addLocalPackets(Request runRequest) {
-		Preconditions.checkState(ampSin > -1 && ampCos > -1, "ADC Trig Magnitude not set on demod channel %s on channel '%s'", this.demodChannel, this.name);
-		runRequest.add("ADC Demod Phase", Data.valueOf((long)this.demodChannel), Data.valueOf(dPhi), Data.valueOf(phi0));
-		runRequest.add("ADC Trig Magnitude", Data.valueOf((long)this.demodChannel), Data.valueOf((long)ampSin), Data.valueOf((long)ampCos));
+		if (this.mode == AdcMode.AVERAGE) {
+			Preconditions.checkState(ampSin > -1 && ampCos > -1, "ADC Trig Magnitude not set on demod channel %s on channel '%s'", this.demodChannel, this.name);
+			runRequest.add("ADC Demod Phase", Data.valueOf((long)this.demodChannel), Data.valueOf(dPhi), Data.valueOf(phi0));
+			runRequest.add("ADC Trig Magnitude", Data.valueOf((long)this.demodChannel), Data.valueOf((long)ampSin), Data.valueOf((long)ampCos));
+		}
 	}
 	
 	//
@@ -143,8 +147,8 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 	//
 	
 	public void setCriticalPhase(double criticalPhase) {
-		Preconditions.checkState(criticalPhase >= 0.0 && criticalPhase <= 2*Math.PI,
-		"Critical phase must be between 0 and 2PI");
+		Preconditions.checkState(criticalPhase >= -Math.PI && criticalPhase <= Math.PI,
+		"Critical phase must be between -PI and PI");
 		this.criticalPhase = criticalPhase;
 	}
 	public boolean[] interpretPhases(int[] Is, int[] Qs) {

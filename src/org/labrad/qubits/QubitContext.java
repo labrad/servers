@@ -1238,6 +1238,7 @@ public class QubitContext extends AbstractServerContext {
 		long[][][] raw = extractLastAdcData();
 		double[][] ans = new double[raw.length][];
 		for (int i = 0; i < raw.length; i++) {
+			ans[i] = new double[raw[i][0].length];
 			for (int j = 0; j < raw[i][0].length; j++) {
 				ans[i][j] = Math.atan2(raw[i][1][j], raw[i][0][j]);
 			}
