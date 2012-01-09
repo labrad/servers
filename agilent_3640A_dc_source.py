@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Agilent 3640A DC Source
-version = 1.1
+version = 1.2
 description = Controls the Agilent 3640A DC Power Supply.
 
 [startup]
@@ -30,15 +30,25 @@ timeout = 20
 ### END NODE INFO
 """
 
+# these variables for operating in the persistent switch supply mode
+# (for the ADR superconducting magnet)
+VOLT_LIMIT = 10
+CURRENT = 0.047
+
 from labrad import types as T, util
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
+
+class AgilentDCWrapper(GPIBDeviceWrapper):
+    def initialize(self):
+        self.psMode = False
             
 class AgilentDCSource(GPIBManagedServer):
     """Controls the Agilent 3640A DC Power Supply."""
     name = 'Agilent 3640A DC Source'
     deviceName = 'Agilent Technologies E3640A'
+    deviceWrapper = AgilentDCWrapper
         
     @setting(10, state='b', returns='b')
     def output(self, c, state=None):
@@ -60,7 +70,7 @@ class AgilentDCSource(GPIBManagedServer):
         is off or the device is voltage-limited, etc.
         """
         dev = self.selectedDevice(c)
-        if curr is not None:
+        if not dev.psMode and curr is not None:
             yield dev.write('CURR %g' % float(curr))
         ans = yield dev.query('MEAS:CURR?')
         returnValue(float(ans))
@@ -69,7 +79,7 @@ class AgilentDCSource(GPIBManagedServer):
     def set_current(self, c, curr=None):
         """ Identical to current(curr), but returns the set value of current, not the measured value. """
         dev = self.selectedDevice(c)
-        if curr is not None:
+        if not dev.psMode and curr is not None:
             yield self.current(curr)
         returnValue(float( (yield self.selectedDevice(c).query('CURR?')) ))
 
@@ -82,7 +92,7 @@ class AgilentDCSource(GPIBManagedServer):
         is off or the device is current-limited, etc.
         """
         dev = self.selectedDevice(c)
-        if volt is not None:
+        if not dev.psMode and volt is not None:
             yield dev.write('VOLT %g' % float(volt))
         ans = yield dev.query('MEAS:VOLT?')
         returnValue(float(ans))
@@ -90,9 +100,24 @@ class AgilentDCSource(GPIBManagedServer):
     @setting(31, volt='v[V]', returns='v[V]')
     def set_voltage(self, c, volt=None):
         """ Identical to voltage(volt), but returns the set value of current, not the measured value. """
-        if volt is not None:
+        dev = self.selectedDevice(c)
+        if not dev.psMode and volt is not None:
             yield self.current(volt)
-        returnValue(float( (yield self.selectedDevice(c).query('VOLT?')) ))
+        returnValue(float( (yield dev.query('VOLT?')) ))
+        
+    @setting(40, mode='b', returns='b')
+    def persistent_switch_mode(self, c, mode=None):
+        '''
+        Gets/sets whether this device is in "persistent switch mode".
+        If so, it is fixed to 47 mA, and the only operation allowed is output on/off.
+        '''
+        dev = self.selectedDevice(c)
+        if mode is not None:
+            dev.psMode = mode
+            if mode:
+                yield dev.write('CURR %g' % CURRENT)
+                yield dev.write('VOLT %g' % VOLT_LIMIT)
+        returnValue(dev.psMode)
 
 __server__ = AgilentDCSource()
 
