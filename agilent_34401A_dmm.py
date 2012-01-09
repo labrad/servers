@@ -13,11 +13,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+
+
 """
 ### BEGIN NODE INFO
 [info]
 name = Agilent 34401A DMM
-version = 1.1
+version = 1.2
 description = 
 
 [startup]
@@ -30,12 +32,38 @@ timeout = 20
 ### END NODE INFO
 """
 
-from labrad.gpib import GPIBManagedServer
+from labrad.server import setting
+from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
+from twisted.internet.defer import inlineCallbacks, returnValue
 
 class AgilentDMMServer(GPIBManagedServer):
     name = 'Agilent 34401A DMM'
     deviceName = 'HEWLETT-PACKARD 34401A'
 
+    @setting(10, AC='b{AC}', returns='v[V]')
+    def voltage(self, c, AC=False):
+        """ Measures voltage. Defaults to DC voltage, unless AC = True. """
+        dev = self.selectedDevice(c)
+        s = 'AC' if AC else 'DC'
+        ans = yield dev.query('MEAS:VOLT:%s?' % s)
+        returnValue(float(ans))
+    
+    @setting(11, AC = 'b', returns='v[A]')
+    def current(self, c, AC=False):
+        """ Measures current. Defaults to DC current, unless AC = True.
+        """
+        dev = self.selectedDevice(c)
+        s = 'AC' if AC else 'DC'
+        ans = yield dev.query('MEAS:CURR:%s?' % s)
+        returnValue(float(ans))
+        
+    @setting(12, fourWire = 'b', returns='v[Ohm]')
+    def resistance(self, c, fourWire = False):
+        """ Measures resistance. Defaults to 2-wire measurement, unless fourWire = True. """
+        dev = self.selectedDevice(c)
+        ans = yield dev.query('MEAS:%s?' % ('FRES' if fourWire else 'RES'))
+        returnValue(float(ans))
+    
 __server__ = AgilentDMMServer()
 
 if __name__ == '__main__':

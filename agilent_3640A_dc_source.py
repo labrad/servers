@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Agilent 3640A DC Source
-version = 1.0
+version = 1.1
 description = Controls the Agilent 3640A DC Power Supply.
 
 [startup]
@@ -64,6 +64,14 @@ class AgilentDCSource(GPIBManagedServer):
             yield dev.write('CURR %g' % float(curr))
         ans = yield dev.query('MEAS:CURR?')
         returnValue(float(ans))
+        
+    @setting(21, curr='v[A]', returns='v[A]')
+    def set_current(self, c, curr=None):
+        """ Identical to current(curr), but returns the set value of current, not the measured value. """
+        dev = self.selectedDevice(c)
+        if curr is not None:
+            yield self.current(curr)
+        returnValue(float( (yield self.selectedDevice(c).query('CURR?')) ))
 
     @setting(30, volt='v[V]', returns='v[V]')
     def voltage(self, c, volt=None):
@@ -78,6 +86,13 @@ class AgilentDCSource(GPIBManagedServer):
             yield dev.write('VOLT %g' % float(volt))
         ans = yield dev.query('MEAS:VOLT?')
         returnValue(float(ans))
+        
+    @setting(31, volt='v[V]', returns='v[V]')
+    def set_voltage(self, c, volt=None):
+        """ Identical to voltage(volt), but returns the set value of current, not the measured value. """
+        if volt is not None:
+            yield self.current(volt)
+        returnValue(float( (yield self.selectedDevice(c).query('VOLT?')) ))
 
 __server__ = AgilentDCSource()
 
