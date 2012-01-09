@@ -85,17 +85,17 @@ class KepcoWrapper(GPIBDeviceWrapper):
         self.inLoop = True
         # see if our current has settled
         curr = float( (yield self.query("MEAS:CURR?")) )
-        print "in loop, curr = %s" % curr
+        #print "in loop, curr = %s" % curr
         if abs(curr - float( (yield self.query("CURR?")) )) < RESOLUTION:
             distance = self.targetCurrent['A'] - curr
-            print "need to move %f" % distance
+            #print "need to move %f" % distance
             if abs(distance) > RESOLUTION:
-                print "target not within resolution"
+                #print "target not within resolution"
                 yield self.write("OUTP ON")
                 change = np.sign(distance) * min(abs(distance), RAMP_RATE['A'] * self.timeInterval)
-                print "attempting to set to %f" % (curr + change)
+                #print "attempting to set to %f" % (curr + change)
                 yield self.write("CURR %f" % (curr + change))
-                print "output change by %f" % change
+                #print "output change by %f" % change
             else:
                 if abs(curr) < RESOLUTION:
                     yield self.write("OUTP OFF")
