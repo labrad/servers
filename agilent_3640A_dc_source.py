@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Agilent 3640A DC Source
-version = 1.2
+version = 1.3
 description = Controls the Agilent 3640A DC Power Supply.
 
 [startup]
@@ -35,6 +35,7 @@ timeout = 20
 VOLT_LIMIT = 10
 CURRENT = 0.047
 
+import time
 from labrad import types as T, util
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
@@ -43,6 +44,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 class AgilentDCWrapper(GPIBDeviceWrapper):
     def initialize(self):
         self.psMode = False
+        self.psChangeTime = 0
             
 class AgilentDCSource(GPIBManagedServer):
     """Controls the Agilent 3640A DC Power Supply."""
@@ -56,8 +58,10 @@ class AgilentDCSource(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if state is None:
             ans = yield dev.query('OUTP?')
-            state = bool(ans)
+            state = bool(int(ans))
         else:
+            if state != bool(int( (yield dev.query('OUTP?')) )):
+                dev.psChangeTime = time.time()
             yield dev.write('OUTP %d' % state)
         returnValue(state)
 
@@ -113,11 +117,25 @@ class AgilentDCSource(GPIBManagedServer):
         '''
         dev = self.selectedDevice(c)
         if mode is not None:
-            dev.psMode = mode
             if mode:
                 yield dev.write('CURR %g' % CURRENT)
                 yield dev.write('VOLT %g' % VOLT_LIMIT)
+                if not dev.psMode:
+                    dev.psChangeTime = time.time()
+            dev.psMode = mode
         returnValue(dev.psMode)
+        
+    @setting(41, returns='v[s]')
+    def persistent_switch_time_elapsed(self, c):
+        ''' 
+        returns the amount of time since the mode changed (on/off).
+        only valid in persistent switch mode (returns 0 if not).
+        '''
+        dev = self.selectedDevice(c)
+        if dev.psMode:
+            return time.time() - dev.psChangeTime
+        else:
+            return 0
 
 __server__ = AgilentDCSource()
 
