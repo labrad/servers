@@ -135,7 +135,7 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 	
 	// add local packets. only really applicable for demod mode
 	public void addLocalPackets(Request runRequest) {
-		if (this.mode == AdcMode.AVERAGE) {
+		if (this.mode == AdcMode.DEMODULATE) {
 			Preconditions.checkState(ampSin > -1 && ampCos > -1, "ADC Trig Magnitude not set on demod channel %s on channel '%s'", this.demodChannel, this.name);
 			runRequest.add("ADC Demod Phase", Data.valueOf((long)this.demodChannel), Data.valueOf(dPhi), Data.valueOf(phi0));
 			runRequest.add("ADC Trig Magnitude", Data.valueOf((long)this.demodChannel), Data.valueOf((long)ampSin), Data.valueOf((long)ampCos));
