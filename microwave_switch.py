@@ -90,24 +90,22 @@ class MicrowaveSwitch(LabradServer):
         cxn = self.client
         devices = []
         for dev in self.deviceslist:
-         #print "dev:", dev
-         for n, s in cxn.servers.items():
-          #print "name:", n
-          if n == dev['server']:
-           print "found server"
-           listdevs = yield cxn[dev['server']].list_devices()
-           for number, name in listdevs:
-            print "devname:", name
-            if name == dev['boardname']:
-             print "found device"
-             self.devices.append(dev)
-             yield cxn[dev['server']].select_device(dev['boardname'])
-             for i in dev['bits']:
-              if type(i)==IntType:
-               yield cxn[dev['server']].set_bit(i,False)
-              elif type(i)==ListType:
-               for j in i:
-                yield cxn[dev['server']].set_bit(j,False)
+            for n, s in cxn.servers.items():
+                if n == dev['server']:
+                    print "found server"
+                    listdevs = yield cxn[dev['server']].list_devices()
+                    for number, name in listdevs:
+                        print "devname:", name
+                        if name == dev['boardname']:
+                            print "found device"
+                            self.devices.append(dev)
+                            yield cxn[dev['server']].select_device(dev['boardname'])
+                            for i in dev['bits']:
+                                if type(i)==IntType:
+                                    yield cxn[dev['server']].set_bit(i,False)
+                                elif type(i)==ListType:
+                                    for j in i:
+                                        yield cxn[dev['server']].set_bit(j,False)
 
         
     @setting(0, 'List Devices', returns=['*(ws): List of uWave switches'])
