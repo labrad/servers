@@ -274,14 +274,14 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
 
     uwaveSourceID = yield reg.get(keys.ANRITSUID)    
     uwaveSource = yield microwaveSourceServer(cxn,uwaveSourceID)
-    anritsuPower = yield reg.get(keys.ANRITSUPOWER)
+    uwaveSourcePower = yield reg.get(keys.ANRITSUPOWER)
     carrierFreq = yield reg.get(keys.PULSECARRIERFREQ)
     sens = yield reg.get(keys.SCOPESENSITIVITY)
     yield switch.switch(boardname) #Hack to select the correct microwave switch
     yield switch.switch(0)
     yield uwaveSource.select_device(uwaveSourceID)
     yield uwaveSource.frequency(carrierFreq)
-    yield uwaveSource.amplitude(anritsuPower)
+    yield uwaveSource.amplitude(uwaveSourcePower)
     yield uwaveSource.output(True)
     
     #Set up the scope
@@ -337,7 +337,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     setupType = yield reg.get(keys.IQWIRING)
     yield ds.add_parameter(keys.IQWIRING, setupType)
     yield ds.add_parameter(keys.PULSECARRIERFREQ, carrierFreq)
-    yield ds.add_parameter(keys.ANRITSUPOWER, anritsuPower)
+    yield ds.add_parameter(keys.ANRITSUPOWER, uwaveSourcePower)
     yield ds.add_parameter(keys.TIMEOFFSET, offsettime)
     yield ds.add(np.transpose(\
         [1e9*(starttime+timestep*np.arange(np.alen(traceA)-2)),
@@ -477,24 +477,27 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
     """Determines relative I and Q amplitudes by canceling the undesired
        sideband at different sideband frequencies."""
 
+    reg = cxn.registry
+    yield reg.cd(['', keys.SESSIONNAME, boardname])
+
     fpga = cxn.ghz_fpgas
     yield fpga.select_device(boardname)
-    anr = cxn.anritsu_server
+
+    uwaveSourceID = yield reg.get(keys.ANRITSUID)
+    uwaveSource = yield microwaveSourceServer(cxn, uwaveSourceID)
+
     spec = cxn.spectrum_analyzer_server
     scope = cxn.sampling_scope
     ds = cxn.data_vault
-    reg = cxn.registry
-    yield reg.cd(['', keys.SESSIONNAME, boardname])
     spectID = yield reg.get(keys.SPECTID)
     spec.select_device(spectID)
     yield spectInit(spec)
 
-    anritsuID = yield reg.get(keys.ANRITSUID)
-    anritsuPower = yield reg.get(keys.ANRITSUPOWER)
+    uwaveSourcePower = yield reg.get(keys.ANRITSUPOWER)
     yield cxn.microwave_switch.switch(boardname)
-    yield anr.select_device(anritsuID)
-    yield anr.amplitude(anritsuPower)
-    yield anr.output(True)
+    yield uwaveSource.select_device(uwaveSourceID)
+    yield uwaveSource.amplitude(uwaveSourcePower)
+    yield uwaveSource.output(True)
 
     print 'Sideband calibration from %g GHz to %g GHz in steps of %g GHz...' \
        %  (scanparams['carrierMin'],scanparams['carrierMax'],
@@ -523,11 +526,11 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
         datapoint = [freq]
         for sidebandfreq in sidebandfreqs:
             print '    sideband frequency: %g GHz' % sidebandfreq
-            comp = yield sideband(anr, spec, fpga, corrector, freq, sidebandfreq)
+            comp = yield sideband(uwaveSource, spec, fpga, corrector, freq, sidebandfreq)
             datapoint += [np.real(comp), np.imag(comp)]
         yield ds.add(datapoint)
         freq += scanparams['sidebandCarrierStep']
-    yield anr.output(False)
+    yield uwaveSource.output(False)
     yield spectDeInit(spec)
     yield cxn.microwave_switch.switch(0)
     returnValue(datasetNumber(dataset))
