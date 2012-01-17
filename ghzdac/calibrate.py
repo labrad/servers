@@ -39,6 +39,21 @@ DACMIN= 1 << 13
 PERIOD = 2000
 SCOPECHANNEL = 2
 
+@inlineCallbacks
+def microwaveSourceServer(cxn, ID):
+    anritsus = yield cxn.anritsu_server.list_devices()
+    anritsus = [dev[1] for dev in anritsus]
+    hittites = yield cxn.hittite_t2100_server.list_devices()
+    hittites = [dev[1] for dev in hittites]
+    if ID in anritsus:
+        server = 'anritsu_server'
+    elif ID in hittites:
+        server = 'hittite_t2100_server'
+    else:
+        raise Exception('Microwave source %s not found' %ID)
+    returnValue(cxn.servers[server])
+    
+
 def validSBstep(f):
     return round(0.5*np.clip(f,2.0/PERIOD,1.0)*PERIOD)*2.0/PERIOD
 
@@ -139,55 +154,62 @@ def zero(anr, spec, fpga, freq):
 
 @inlineCallbacks
 def zeroFixedCarrier(cxn, boardname):
-    fpga = cxn.ghz_fpgas
-    yield fpga.select_device(boardname)
-    yield cxn.microwave_switch.switch(boardname)
-    anr = cxn.anritsu_server
-    spec = cxn.spectrum_analyzer_server
-    
     reg = cxn.registry
     yield reg.cd(['',keys.SESSIONNAME,boardname])
+
+    fpga = cxn.ghz_fpgas
+    yield fpga.select_device(boardname)
+
+    switch = cxn.microwave_switch
+    yield switch.switch(boardname)
+    
+    spec = cxn.spectrum_analyzer_server
     spectID = yield reg.get(keys.SPECTID)
     spec.select_device(spectID)
     yield spectInit(spec)
 
-    anritsuID = yield reg.get(keys.ANRITSUID)
-    anritsuPower = yield reg.get(keys.ANRITSUPOWER)
+    uwaveSourceID = yield reg.get(keys.ANRITSUID)
+    uwaveSource = yield microwaveSourceServer(cxn,uwaveSourceID)
+    
+    uwavePower = yield reg.get(keys.ANRITSUPOWER)
     frequency = (yield reg.get(keys.PULSECARRIERFREQ))['GHz']
-    yield anr.select_device(anritsuID)
-    yield anr.amplitude(anritsuPower)
-    yield anr.output(True)
+    yield uwaveSource.select_device(uwaveSourceID)
+    yield uwaveSource.amplitude(uwavePower)
+    yield uwaveSource.output(True)
 
     print 'Zero calibration...'
 
-    daczeros = yield zero(anr,spec,fpga,frequency)
+    daczeros = yield zero(uwaveSource,spec,fpga,frequency)
 
-    yield anr.output(False)
+    yield uwaveSource.output(False)
     yield spectDeInit(spec)
-    yield cxn.microwave_switch.switch(0)
+    yield switch.switch(0)
     returnValue(daczeros)
-    
 
 
 @inlineCallbacks
 def zeroScanCarrier(cxn, scanparams, boardname):
     """Measures the DAC zeros in function of the carrier frequency."""
-    fpga = cxn.ghz_fpgas
-    yield fpga.select_device(boardname)
-    yield cxn.microwave_switch.switch(boardname)
-    anr = cxn.anritsu_server
-    spec = cxn.spectrum_analyzer_server
     reg = cxn.registry
     yield reg.cd(['',keys.SESSIONNAME,boardname])
+
+    fpga = cxn.ghz_fpgas
+    yield fpga.select_device(boardname)
+    
+    switch = cxn.microwave_switch
+    yield switch.switch(boardname)
+    
+    spec = cxn.spectrum_analyzer_server
     spectID = yield reg.get(keys.SPECTID)
     spec.select_device(spectID)
     yield spectInit(spec)
 
-    anritsuID = yield reg.get(keys.ANRITSUID)
-    anritsuPower = yield reg.get(keys.ANRITSUPOWER)
-    yield anr.select_device(anritsuID)
-    yield anr.amplitude(anritsuPower)
-    yield anr.output(True)
+    uwaveSourceID = yield reg.get(keys.ANRITSUID)
+    uwaveSource = yield microwaveSourceServer(cxn, uwaveSourceID)
+    uwavePower = yield reg.get(keys.ANRITSUPOWER)
+    yield uwaveSource.select_device(uwaveSourceID)
+    yield uwaveSource.amplitude(uwavePower)
+    yield uwaveSource.output(True)
 
     print 'Zero calibration from %g GHz to %g GHz in steps of %g GHz...' % \
         (scanparams['carrierMin'],scanparams['carrierMax'],scanparams['carrierStep'])
@@ -198,13 +220,13 @@ def zeroScanCarrier(cxn, scanparams, boardname):
                            [('Frequency', 'GHz')],
                            [('DAC zero', 'A', 'clics'),
                             ('DAC zero', 'B', 'clics')])
-    yield ds.add_parameter(keys.ANRITSUPOWER, anritsuPower)
+    yield ds.add_parameter(keys.ANRITSUPOWER, uwavePower)
 
     freq = scanparams['carrierMin']
     while freq < scanparams['carrierMax']+0.001*scanparams['carrierStep']:
-        yield ds.add([freq]+(yield zero(anr, spec, fpga, freq)))
+        yield ds.add([freq]+(yield zero(uwaveSource, spec, fpga, freq)))
         freq += scanparams['carrierStep']
-    yield anr.output(False)
+    yield uwaveSource.output(False)
     yield spectDeInit(spec)
     yield cxn.microwave_switch.switch(0)
     returnValue(int(dataset[1][:5]))
@@ -248,17 +270,19 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     reg = cxn.registry
     yield reg.cd(['', keys.SESSIONNAME, boardname])
 
-    anr = cxn.anritsu_server
-    anritsuID = yield reg.get(keys.ANRITSUID)
+    switch = cxn.microwave_switch
+
+    uwaveSourceID = yield reg.get(keys.ANRITSUID)    
+    uwaveSource = yield microwaveSourceServer(cxn,uwaveSourceID)
     anritsuPower = yield reg.get(keys.ANRITSUPOWER)
     carrierFreq = yield reg.get(keys.PULSECARRIERFREQ)
     sens = yield reg.get(keys.SCOPESENSITIVITY)
-    yield cxn.microwave_switch.switch(boardname) #Hack to select the correct microwave switch
-    yield cxn.microwave_switch.switch(0)
-    yield anr.select_device(anritsuID)
-    yield anr.frequency(carrierFreq)
-    yield anr.amplitude(anritsuPower)
-    yield anr.output(True)
+    yield switch.switch(boardname) #Hack to select the correct microwave switch
+    yield switch.switch(0)
+    yield uwaveSource.select_device(uwaveSourceID)
+    yield uwaveSource.frequency(carrierFreq)
+    yield uwaveSource.amplitude(anritsuPower)
+    yield uwaveSource.output(True)
     
     #Set up the scope
     scope = cxn.sampling_scope
@@ -304,7 +328,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
         exit
     #set output to zero    
     yield fpga.dac_run_sram([baseline]*4)
-    yield anr.output(False)
+    yield uwaveSource.output(False)
     
     ds = cxn.data_vault
     yield ds.cd(['',keys.SESSIONNAME,boardname],True)
