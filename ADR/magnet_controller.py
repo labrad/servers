@@ -63,7 +63,7 @@ K, A, V, T = Unit('K'), Unit('A'), Unit('V'), Unit('T')
 TEMP_LIMIT = 6.5 * K
 CURRENT_LIMIT = 17.17 * A
 VOLTAGE_LIMIT = 0.75 * V
-CURRENT_STEP = 0.1 * A
+CURRENT_STEP = 0.3 * A
 CURRENT_RESOLUTION = 0.01 * A
 FIELD_CURRENT_RATIO = 0.2823 * T / A
 
@@ -119,30 +119,35 @@ class MagnetWrapper(DeviceWrapper):
         
     @inlineCallbacks
     def mainLoop(self):
-        print 'loop executing'
+        #print 'loop executing'
         # do our updates asynch
         defers = [self.doDevice(dev) for dev in self.devs.keys()]
         for defer in defers:
             yield defer
+        # do we have all devices?
         if not('OK' == self.devs[POWER]['status'] and 'OK' == self.devs[DMM]['status'] and 'OK' == self.devs[DC]['status'] and 'OK' == self.devs[TEMPERATURE]['status']):
+            # if not, update status, do nothing
             self.status = 'Missing Devices'
-        # check the temperature
-        if self.status != 'Missing Devices' and self.checkTemperature():
-            try:
-                self.status = 'OK'
-                # if we don't have a current setpoint, set it to the one in the power supply
-                if math.isnan(self.setCurrent) and self.devs[POWER]['status'] == 'OK':
-                    self.current((yield self.devs[POWER]['server'].set_current(context=self.ctxt)))
-                # see about a mag
-                yield self.doMagCycle()
-            except Exception as e:
-                print e
         else:
-            # we are over temperature
-            # shut down the magnet if it's running
-            if self.devs[POWER]['status'] == 'OK' and abs(self.devs[POWER]['values'][0]) > CURRENT_RESOLUTION:
-                yield self.devs[POWER]['server'].set_current(0*A, context=self.ctxt)
-            self.status = 'Over Temperature'
+            # if so, do stuff
+            # check the temperature
+            if self.checkTemperature():
+                try:
+                    # if we don't have a current setpoint, set it to the setpoint of the power supply
+                    if math.isnan(self.setCurrent) and self.devs[POWER]['status'] == 'OK':
+                        self.current(self.devs[POWER]['values'][1])
+                    # see about a mag
+                    yield self.doMagCycle()
+                    self.status = 'OK'
+                except Exception as e:
+                    print "Exception in main loop: %s" % str(e)
+            else:
+                # we are over temperature
+                # shut down the magnet if it's running
+                if self.devs[POWER]['status'] == 'OK' and abs(self.devs[POWER]['values'][0]) > CURRENT_RESOLUTION:
+                    self.devs[POWER]['server'].shut_off()
+                    self.current(0*A)
+                self.status = 'Over Temperature'
             
     @inlineCallbacks
     def doDevice(self, dev):
@@ -205,7 +210,7 @@ class MagnetWrapper(DeviceWrapper):
             return
         amount = min(abs(diff), CURRENT_STEP) * sign(diff)
         yield self.devs[POWER]['server'].set_current(self.devs[POWER]['values'][0] + amount, context=self.ctxt)
-        print 'mag step -> %s' % amount
+        print 'mag step -> %s' % (self.devs[POWER]['values'][0] + amount)
 
     def checkTemperature(self):
         ''' Checks that the magnet temperature is safe. '''

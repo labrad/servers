@@ -110,6 +110,8 @@ class KepcoWrapper(GPIBDeviceWrapper):
         
     
         
+    
+        
         
 class KepcoServer(GPIBManagedServer):
     name = 'Kepco BOP 20-20'
@@ -147,6 +149,16 @@ class KepcoServer(GPIBManagedServer):
             s = 'ON' if on else 'OFF'
             yield self.selectedDevice(c).write("OUTP %s" % s)
         returnValue(bool(int( (yield self.selectedDevice(c).query("OUTP?")) )))
+        
+    @setting(31, 'Shut Off')
+    def shut_off(self, c):
+        ''' Immediately turns off the power supply. Use in case of magnet quench (only)! '''
+        dev = self.selectedDevice(c)
+        dev.targetCurrent = 0 * A
+        yield dev.write("OUTP OFF")
+        yield dev.write("VOLT 1")
+        yield dev.write("CURR 0")
+        
         
         
 __server__ = KepcoServer()
