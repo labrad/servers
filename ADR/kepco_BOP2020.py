@@ -156,7 +156,7 @@ class KepcoServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         dev.targetCurrent = 0 * A
         yield dev.write("OUTP OFF")
-        yield dev.write("VOLT 1")
+        yield dev.write("VOLT 1")   # set voltage to 1 so the magnet can drain at the max allowed rate
         yield dev.write("CURR 0")
         
         

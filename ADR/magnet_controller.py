@@ -31,7 +31,7 @@ timeout = 20
 """
 
 '''
-Some general comments on the way this servers works:
+Some general comments on the way this server works:
 -- It is a collection of other servers. These servers are the Kepco power supply, Agilent 34401A DMM, and the Agilent 3640A DC source.
 -- Other servers may be added: Lakeshore 218 for temperature monitoring.
 -- On connecting to the powers supply for the first time, we must set our setpoint to the power supply setpoint so as not to interrupt.
@@ -55,7 +55,7 @@ from twisted.internet.task import LoopingCall
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 from OrderedDict import OrderedDict # if we ever go to 2.7 we can use collections.OrderedDict
-import math
+import math, time
 
 K, A, V, T = Unit('K'), Unit('A'), Unit('V'), Unit('T')
 
@@ -66,10 +66,11 @@ VOLTAGE_LIMIT = 0.75 * V
 CURRENT_STEP = 0.3 * A
 CURRENT_RESOLUTION = 0.01 * A
 FIELD_CURRENT_RATIO = 0.2823 * T / A
+PS_COOLING_TIME = 450   # seconds
 
 # registry and data vault paths
 CONFIG_PATH = ['', 'Servers', 'Magnet Controller']
-DATA_PATH = ['', 'Magnet Controller']
+DATA_PATH = ['', 'ADR', 'Magnet Controller']
 
 # servers/devices
 POWER = 'Kepco BOP 20-20'       # the main power supply
@@ -103,8 +104,22 @@ class MagnetWrapper(DeviceWrapper):
         self.devs = OrderedDict()
         self.devs[POWER] = {'server' : None, 'values': [NaN] * len(POWER_SETTINGS), 'status': 'not initialized', 'settings': POWER_SETTINGS}
         self.devs[DMM] = {'server' : None, 'values': [NaN] * len(DMM_SETTINGS), 'status': 'not initialized', 'settings': DMM_SETTINGS}
-        self.devs[DC] = {'server' : None, 'values': [NaN] * len(DC_SETTINGS), 'status': 'not initialized', 'settings': DC_SETTINGS}
+        self.devs[DC] = {'server' : None, 'values': [NaN] * len(DC_SETTINGS), 'status': 'not initialized', 'settings': DC_SETTINGS, 'extras': ['output', 'persistent_switch_mode', 'persistent_switch_time_elapsed']}
         self.devs[TEMPERATURE] = {'server': None, 'values': [NaN] * len(TEMPERATURE_SETTINGS), 'status': 'not initialized', 'settings': TEMPERATURE_SETTINGS, 'flatten': True, 'pickOneValue': 1}
+        
+        # Persistent Switch
+        self.psHeated = None            # T/F for switch heated or not
+        self.psCurrent = NaN * A        # current when switch was cooled/closed
+        self.psTime = 0                 # time since switch state was last changed
+        self.psRequestedState = None    # None=leave as is, T = heated, F = cooled
+        self.psStatus = 'Not started'
+        
+        # DV logging stuff
+        self.dv = None
+        self.dvName = None
+        self.dvRecordDelay = 5 # record every X seconds
+        self.dvLastTimeRecorded = 0
+        self.dvStatus = 'Not started'
         
         # the main loop stuff
         self.timeInterval = 0.2
@@ -148,6 +163,10 @@ class MagnetWrapper(DeviceWrapper):
                     self.devs[POWER]['server'].shut_off()
                     self.current(0*A)
                 self.status = 'Over Temperature'
+        # record data
+        self.doDataVault()
+        # persistent switch
+        self.doPersistentSwitch()
             
     @inlineCallbacks
     def doDevice(self, dev):
@@ -160,6 +179,9 @@ class MagnetWrapper(DeviceWrapper):
             p = self.devs[dev]['server'].packet(context = self.ctxt)
             for s in self.devs[dev]['settings']:
                 p[s](key=s)
+            if 'extras' in self.devs[dev].keys():
+                for s in self.devs[dev]['extras']:
+                    p[s](key=s)
             try:
                 # try to get our data
                 ans = yield p.send(context = self.ctxt)
@@ -169,6 +191,10 @@ class MagnetWrapper(DeviceWrapper):
                     self.devs[dev]['values'] = [item for sublist in self.devs[dev]['values'] for item in sublist]
                 if 'pickOneValue' in self.devs[dev].keys():
                     self.devs[dev]['values'] = [self.devs[dev]['values'][self.devs[dev]['pickOneValue']]]
+                if 'pickSubset' in self.devs[dev].keys():
+                    self.devs[dev]['values'] = [self.devs[dev]['values'][x] for x in self.devs[dev]['pickSubset']]
+                if 'extras' in self.devs[dev].keys():
+                    self.devs[dev]['extraValues'] = [ans[s] for s in self.devs[dev]['extras']]
                 self.devs[dev]['status'] = 'OK'
             except Error as e:
                 # catch labrad error (usually DeviceNotSelectedError) -- select our device if we have one
@@ -211,6 +237,125 @@ class MagnetWrapper(DeviceWrapper):
         amount = min(abs(diff), CURRENT_STEP) * sign(diff)
         yield self.devs[POWER]['server'].set_current(self.devs[POWER]['values'][0] + amount, context=self.ctxt)
         print 'mag step -> %s' % (self.devs[POWER]['values'][0] + amount)
+        
+    def doPersistentSwitch(self):
+        ''' Handle the persistent switch.
+        '''
+        # make sure we have the server/device
+        if self.devs[DC]['status'] != 'OK':
+            self.psStatus = 'No server/device'
+            return
+        # is DC supply in PS mode?
+        if not self.devs[DC]['extraValues'][1]:
+            # asynch send message to put in PS Mode
+            self.devs[DC]['server'].persistent_switch_mode(True, context=self.ctxt)
+            self.psStatus = 'Setting PS mode on device.'
+            return
+        self.psHeated = self.devs[DC]['extraValues'][0]
+        self.psTime = self.devs[DC]['extraValues'][2]
+        # Logic:
+        # if desired state == None, set desired state = current state
+        # if desired state == None or desired state == current state == heated, do nothing
+        # if desired state == cooled and current state == cooled,
+        #   if time > required time, mag to zero
+        # if desired state == cooled and current state == heated,
+        #   if current value is at setpoint, turn off switch heating, record current value
+        # if desired state == heated and current state == cooled,
+        #   if current value is not at recorded value, mag to recorded value
+        #   if current value is at recorded value, heat switch
+        if self.psRequestedState is None:
+            self.psRequestedState = self.psHeated
+            if not self.psRequestedState:
+                self.psCurrent = self.setCurrent
+        if self.psRequestedState is True and self.psHeated is True:
+            if self.psTime < PS_COOLING_TIME:
+                self.psStatus = 'Waiting for heating'
+                return
+            else:
+                self.psStatus = "Heated"
+                return
+        if self.psRequestedState is False and self.psHeated is False:
+            if self.psTime > PS_COOLING_TIME and abs(self.setCurrent) > CURRENT_RESOLUTION:
+                self.current(0)
+                self.psStatus = 'Cooled; turning off power'
+                return
+            elif self.psTime > PS_COOLING_TIME and abs(self.devs[POWER]['values'][0]) >= CURRENT_RESOLUTION:
+                self.psStatus = 'Cooled; powering down'
+                return
+            elif self.psTime > PS_COOLING_TIME and abs(self.devs[POWER]['values'][0]) < CURRENT_RESOLUTION:
+                self.psStatus = 'Cooled; power off'
+                return
+            else: # waiting for switch to cool
+                self.psStatus = 'Waiting for cooling'
+                return
+        if self.psRequestedState is False and self.psHeated is True:
+            # check for current to be at setpoint
+            if abs(self.setCurrent - self.devs[POWER]['values'][0]) < CURRENT_RESOLUTION:
+                self.psCurrent = self.devs[POWER]['values'][0]
+                self.devs[DC]['server'].output(False, context=self.ctxt)   # do the deed, asynch
+                self.psStatus = 'Turned heater off'
+                return
+            else:
+                self.psStatus = 'Heated; Waiting for current setpoint'
+                return
+        if self.psRequestedState is True and self.psHeated is False:
+            # ramp to appropriate current
+            self.current(self.psCurrent)
+            if abs(self.psCurrent - self.devs[POWER]['values'][0]) < CURRENT_RESOLUTION:
+                # we're at the appropriate current
+                self.devs[DC]['server'].output(True, context=self.ctxt)
+                self.psStatus = 'Turned heater on'
+                return
+            else:
+                self.psStatus = 'Cooled; Powering up'
+                return
+        # if we made it here it's a programming error!
+        self.psStatus = "Error in code!"
+        
+    def doDataVault(self):
+        ''' Record data if the appropriate time has passed.
+        If we need to create a new dataset, do it.
+        No need to wait on the return, though. 
+        As we do this asynchronously there is a slight danger of one of the add data packets
+        arriving ahead of the create dataset packets, but in a practical sense this should
+        never happen.'''
+        # time, status check
+        if self.status != 'OK' or time.time() - self.dvLastTimeRecorded < self.dvRecordDelay:
+            return
+        self.dvLastTimeRecorded = t = time.time()
+        # server check
+        if self.dv is None and 'Data Vault' in self.cxn.servers:
+            self.dv = self.cxn.data_vault
+        elif self.dv is None:
+            self.dvStatus = 'Data Vault server not found.'
+            return
+        # get together our data
+        data = [t]
+        for x in self.devs.keys():
+            data += self.devs[x]['values']
+        p = self.dv.packet(context=self.ctxt)
+        # dataset check
+        if not self.dvName:
+            self.dvName = 'Magnet Controller Log - %s - %s' % (self.nodeName, time.strftime("%Y-%m-%d %H:%M"))
+            p.cd(DATA_PATH, True)
+            p.new(self.dvName, ['time [s]'], ['Current (Power Supply) [A]', 'Current (Power Supply Setpoint) [A]', 'Voltage (Power Supply) [V]',
+                'Voltage (Power Supply Setpoint) [V]', 'Voltage (Magnet) [V]', 'Current (Heater) [A]', 'Voltage (Heater) [V]', 'Temperature (4K) [K]'])
+            p.add_parameters(('Start Time (str)', time.strftime("%Y-%m-%d %H:%M")), ('Start Time (int)', time.time()))
+        # add the data
+        p.add(data)
+        d = p.send(context=self.ctxt)
+        d.addErrback(self.handleDVError)
+        self.dvStatus = 'Logging'
+            
+    def handleDVError(self, failure):
+        ''' this is an errback added to the call to the data vault.
+        if it gets called (i.e. there is an exception in the DV call),
+        we assume that we need to create a data set. '''
+        print 'dv error!'
+        failure.trap(Error)
+        self.dvName = None
+        self.dv = None
+        self.dvStatus = 'Creating new dataset'
 
     def checkTemperature(self):
         ''' Checks that the magnet temperature is safe. '''
@@ -238,7 +383,7 @@ class MagnetWrapper(DeviceWrapper):
             
     def getStatus(self):
         ''' returns all the statuses '''
-        return [self.status] + [self.devs[dev]['status'] for dev in self.devs.keys()]
+        return [self.status, self.dvStatus, self.psStatus] + [self.devs[dev]['status'] for dev in self.devs.keys()]
             
     def getValues(self):
         ''' returns all the applicable values of this magnet controller. '''
@@ -248,6 +393,25 @@ class MagnetWrapper(DeviceWrapper):
             r += self.devs[dev]['values']
         return r
         #return self.devs[POWER]['values'] + self.devs[DMM]['values'] + self.devs[DC]['values'] + [self.devs[TEMPERATURE]['values'][1]]
+        
+    def persistentSwitch(self, newState):
+        ''' sets/gets the desired state of the switch.
+        True = heated = open (leave it this way when magging)
+        False = cooled = closed (for steady field)
+        Note that the process of opening/closing the switch is an involved one.
+        '''
+        if newState is not None:
+            self.psRequestedState = bool(newState)
+        return self.psRequestedState
+        
+    def psSetCurrent(self, newCurrent):
+        if newCurrent is not None:
+            if not isinstance(current, Value):
+                current = Value(float(current), 'A')
+            self.psCurrent = current.inUnitsOf('A')
+            self.psCurrent = max(-CURRENT_LIMIT, min(CURRENT_LIMIT, self.psCurrent))
+        return self.psCurrent
+        
 
 class MagnetServer(DeviceServer):
     name = 'Magnet Controller'
@@ -280,9 +444,9 @@ class MagnetServer(DeviceServer):
         Power supply current, voltage, DMM/magnet voltage, DC source/persistent switch current, voltage, 4K plate temperature '''
         return self.selectedDevice(c).getValues()
         
-    @setting(22, 'Get Status', returns='(sssss)')
+    @setting(22, 'Get Status', returns='(sssssss)')
     def get_status(self, c):
-        ''' Returns all the statuses (overall, power supply, DMM, DC source, lakeshore temperatures). '''
+        ''' Returns all the statuses (overall, data logging, persistent switch, power supply, DMM, DC source, lakeshore temperatures). '''
         return self.selectedDevice(c).getStatus()
         
     @setting(23, 'Current Setpoint', current='v[A]', returns='v[A]')
@@ -290,6 +454,22 @@ class MagnetServer(DeviceServer):
         ''' Sets the target current and returns the target current. If there is no argument, only returns the target.\n
             Note that the hard limit on the power supply is just under 15 A, though it will let you set it higher. '''
         return self.selectedDevice(c).current(current)
+        
+    @setting(24, 'Persistent Switch', newState='b', returns='b')
+    def persisting_switch(self, c, newState=None):
+        ''' sets/gets the desired state of the switch.
+        True = heated = open (leave it this way when magging)
+        False = cooled = closed (for steady field)
+        Note that the process of opening/closing the switch is an involved one.
+        '''
+        return self.selectedDevice(c).persistentSwitch(newState)
+        
+    @setting(25, 'PS Set Current', newCurrent='v[A]', returns='v[A]')
+    def ps_set_current(self, c, newCurrent=None):
+        ''' Gets what the server remembers the current to be when the persistent switch was cooled.
+        This is the value it must mag to when we want to heat the switch again.
+        Note that you can modify this (with this function), but do so CAREFULLY!'''
+        return self.selectedDevice(c).psSetCurrent(newCurrent)
 
 __server__ = MagnetServer()
 
