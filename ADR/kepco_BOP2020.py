@@ -36,7 +36,7 @@ from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from labrad.units import Unit
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.task import LoopingCall
-import numpy as np
+import numpy as np, time
 
 V, A = Unit('V'), Unit('A')
 
@@ -68,6 +68,7 @@ class KepcoWrapper(GPIBDeviceWrapper):
         self.targetCurrent = float( (yield self.query("MEAS:CURR?")) ) * A
         print "STARTUP CURENT %s" % self.targetCurrent
         
+        self.lastTime = 0
         self.inLoop = False
         self.timeInterval = 0.2
         self.loop = LoopingCall(self.mainLoop)
@@ -92,7 +93,8 @@ class KepcoWrapper(GPIBDeviceWrapper):
             if abs(distance) > RESOLUTION:
                 #print "target not within resolution"
                 yield self.write("OUTP ON")
-                change = np.sign(distance) * min(abs(distance), RAMP_RATE['A'] * self.timeInterval)
+                deltaT = min(time.time() - self.lastTime, 1)
+                change = np.sign(distance) * min(abs(distance), RAMP_RATE['A'] * deltaT)
                 #print "attempting to set to %f" % (curr + change)
                 yield self.write("CURR %f" % (curr + change))
                 #print "output change by %f" % change
@@ -100,6 +102,7 @@ class KepcoWrapper(GPIBDeviceWrapper):
                 if abs(curr) < RESOLUTION:
                     yield self.write("OUTP OFF")
         
+        self.lastTime = time.time()
         self.inLoop = False
     
     def set_current(self, current = None):
