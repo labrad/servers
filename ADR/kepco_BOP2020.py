@@ -69,7 +69,7 @@ class KepcoWrapper(GPIBDeviceWrapper):
         print "STARTUP CURENT %s" % self.targetCurrent
         
         self.inLoop = False
-        self.timeInterval = 1
+        self.timeInterval = 0.2
         self.loop = LoopingCall(self.mainLoop)
         self.loopDone = self.loop.start(self.timeInterval, now=True)
     
