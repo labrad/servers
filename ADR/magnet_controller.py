@@ -160,7 +160,7 @@ class MagnetWrapper(DeviceWrapper):
                 # we are over temperature
                 # shut down the magnet if it's running
                 if self.devs[POWER]['status'] == 'OK' and abs(self.devs[POWER]['values'][0]) > CURRENT_RESOLUTION:
-                    self.devs[POWER]['server'].shut_off()
+                    self.devs[POWER]['server'].shut_off(context=self.ctxt)
                     self.current(0*A)
                 self.status = 'Over Temperature'
         # record data
@@ -320,7 +320,7 @@ class MagnetWrapper(DeviceWrapper):
         arriving ahead of the create dataset packets, but in a practical sense this should
         never happen.'''
         # time, status check
-        if self.status != 'OK' or time.time() - self.dvLastTimeRecorded < self.dvRecordDelay:
+        if (self.status != 'OK' and self.status != 'Over Temperature') or time.time() - self.dvLastTimeRecorded < self.dvRecordDelay:
             return
         self.dvLastTimeRecorded = t = time.time()
         # server check
