@@ -163,10 +163,16 @@ class MagnetWrapper(DeviceWrapper):
                     self.devs[POWER]['server'].shut_off(context=self.ctxt)
                     self.current(0*A)
                 self.status = 'Over Temperature'
-        # record data
-        self.doDataVault()
-        # persistent switch
-        self.doPersistentSwitch()
+        try:
+            # record data
+            self.doDataVault()
+        except Exception as e:
+            print "Exception in data vault"
+        try:
+            # persistent switch
+            self.doPersistentSwitch()
+        except Exception as e:
+            print "Exception in persistent switch"
             
     @inlineCallbacks
     def doDevice(self, dev):
@@ -318,7 +324,7 @@ class MagnetWrapper(DeviceWrapper):
         No need to wait on the return, though. 
         As we do this asynchronously there is a slight danger of one of the add data packets
         arriving ahead of the create dataset packets, but in a practical sense this should
-        never happen.'''
+        never happen with the multi-second delay we normally use.'''
         # time, status check
         if (self.status != 'OK' and self.status != 'Over Temperature') or time.time() - self.dvLastTimeRecorded < self.dvRecordDelay:
             return
@@ -330,7 +336,7 @@ class MagnetWrapper(DeviceWrapper):
             self.dvStatus = 'Data Vault server not found.'
             return
         # get together our data
-        data = [t]
+        data = [t, self.magnetCurrent(), self.current()]
         for x in self.devs.keys():
             data += self.devs[x]['values']
         p = self.dv.packet(context=self.ctxt)
@@ -338,7 +344,7 @@ class MagnetWrapper(DeviceWrapper):
         if not self.dvName:
             self.dvName = 'Magnet Controller Log - %s - %s' % (self.nodeName, time.strftime("%Y-%m-%d %H:%M"))
             p.cd(DATA_PATH, True)
-            p.new(self.dvName, ['time [s]'], ['Current (Power Supply) [A]', 'Current (Power Supply Setpoint) [A]', 'Voltage (Power Supply) [V]',
+            p.new(self.dvName, ['time [s]'], ['Current (Magnet) [A]', 'Current (Setpoint) [A]', 'Current (Power Supply) [A]', 'Current (Power Supply Setpoint) [A]', 'Voltage (Power Supply) [V]',
                 'Voltage (Power Supply Setpoint) [V]', 'Voltage (Magnet) [V]', 'Current (Heater) [A]', 'Voltage (Heater) [V]', 'Temperature (4K) [K]'])
             p.add_parameters(('Start Time (str)', time.strftime("%Y-%m-%d %H:%M")), ('Start Time (int)', time.time()))
         # add the data
@@ -371,7 +377,7 @@ class MagnetWrapper(DeviceWrapper):
         ''' Checks that the voltage is below the limit. '''
         return abs(self.devs[DMM]['values'][0]) < VOLTAGE_LIMIT
             
-    def current(self, current):
+    def current(self, current=None):
         ''' change the current setpoint. '''
         if current is None:
             return self.setCurrent
@@ -380,6 +386,14 @@ class MagnetWrapper(DeviceWrapper):
         self.setCurrent = current.inUnitsOf('A')
         self.setCurrent = max(-CURRENT_LIMIT, min(CURRENT_LIMIT, self.setCurrent))
         return self.setCurrent
+        
+    def magnetCurrent(self):
+        ''' Get the magnet current. This is either the power supply current (if the heater is on)
+        or the remembered current if we're in persistent mode. '''
+        if self.psHeated is True:
+            return self.psCurrent
+        else:
+            return self.devs[POWER]['values'][0]
             
     def getStatus(self):
         ''' returns all the statuses '''
@@ -388,7 +402,7 @@ class MagnetWrapper(DeviceWrapper):
     def getValues(self):
         ''' returns all the applicable values of this magnet controller. '''
         # a little hackish because we only return the 4K temperature
-        r = []
+        r = [self.magnetCurrent(), self.current()]
         for dev in self.devs.keys():
             r += self.devs[dev]['values']
         return r
@@ -438,15 +452,20 @@ class MagnetServer(DeviceServer):
         print devList
         returnValue(devList)
         
-    @setting(21, 'Get Values', returns='(v[A] v[A] v[V] v[V] v[V] v[A] v[V] v[K])')
+    @setting(21, 'Get Values', returns='(v[A] v[A] v[A] v[A] v[V] v[V] v[V] v[A] v[V] v[K])')
     def get_values(self, c):
-        ''' Returns all the relevant values.
-        Power supply current, voltage, DMM/magnet voltage, DC source/persistent switch current, voltage, 4K plate temperature '''
+        ''' Returns all the relevant values.\n
+        Magnet Current [A], Current Setpoint, PS Current [A], PS Current Setpoint, PS Voltage [V], PS Voltage Setpoint,
+        Magnet Voltage [V], Switch Current [A], Switch Voltage [V], 4K Temperature [K]'''
+        # note: when you change this function keep the comment in the same form - one comma separated label per value
+        # on the second line (i.e. after \n)
         return self.selectedDevice(c).getValues()
         
     @setting(22, 'Get Status', returns='(sssssss)')
     def get_status(self, c):
-        ''' Returns all the statuses (overall, data logging, persistent switch, power supply, DMM, DC source, lakeshore temperatures). '''
+        ''' Returns all the statuses.\n
+        Overall, Data logging, Switch, Power Supply, DMM, DC Source, Temperature'''
+        # also keep in the same format
         return self.selectedDevice(c).getStatus()
         
     @setting(23, 'Current Setpoint', current='v[A]', returns='v[A]')
@@ -456,7 +475,7 @@ class MagnetServer(DeviceServer):
         return self.selectedDevice(c).current(current)
         
     @setting(24, 'Persistent Switch', newState='b', returns='b')
-    def persisting_switch(self, c, newState=None):
+    def persistent_switch(self, c, newState=None):
         ''' sets/gets the desired state of the switch.
         True = heated = open (leave it this way when magging)
         False = cooled = closed (for steady field)
