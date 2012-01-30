@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = ADR Server
-version = 0.211
+version = 0.212
 description =
 
 [startup]
@@ -613,7 +613,8 @@ class ADRWrapper(DeviceWrapper):
 					('resistance', 'ruox', 'Ohm'),
 					('temperature', 'ruox', 'K'),
 					('voltage', 'magnet', 'V'),
-					('current', 'magnet', 'Amp'),]
+					('current', 'magnet', 'Amp'),
+                                        ('temperature', 'ch5: aux', 'K'),]
 			name = "Temperature Log - %s" % time.strftime("%Y-%m-%d %H:%M")
 			dv.new(name, indeps, deps, context=self.ctxt)
 			self.state('tempDatasetName', name)
@@ -624,7 +625,7 @@ class ADRWrapper(DeviceWrapper):
 		I, V = (self.state('magCurrent'), self.state('magVoltage'))
 		t = int(time.time())
 		# save the data
-		dv.add([t, temps[0], temps[1], temps[2], volts[3], ruox[1], ruox[0], V, I], context=self.ctxt)
+		dv.add([t, temps[0], temps[1], temps[2], volts[3], ruox[1], ruox[0], V, I, temps[4]], context=self.ctxt)
 		# log!
 		#self.log("Temperature log recorded: %s" % time.strftime("%Y-%m-%d %H:%M", time.localtime(t)))
 		
@@ -670,8 +671,8 @@ class ADRWrapper(DeviceWrapper):
 		"""
 		determines whether we should start recording.
 		"""
-		temp = self.state('temperatures')[1]
-		return temp < self.state('recordingTemp')
+		temps = self.state('temperatures')
+		return temps[0] < self.state('recordingTemp') or temps[1] < self.state('recordingTemp')
 		
 	def shouldStopRecording(self):
 		"""

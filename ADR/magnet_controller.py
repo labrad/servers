@@ -398,7 +398,7 @@ class MagnetWrapper(DeviceWrapper):
     def magnetCurrent(self):
         ''' Get the magnet current. This is either the power supply current (if the heater is on)
         or the remembered current if we're in persistent mode. '''
-        if self.psHeated is True:
+        if self.psHeated is False:
             return self.psCurrent
         else:
             return self.devs[POWER]['values'][0]
