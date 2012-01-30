@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Magnet Controller
-version = 0.1
+version = 0.2
 description =
 
 [startup]
@@ -343,6 +343,7 @@ class MagnetWrapper(DeviceWrapper):
         # dataset check
         if not self.dvName:
             self.dvName = 'Magnet Controller Log - %s - %s' % (self.nodeName, time.strftime("%Y-%m-%d %H:%M"))
+            self.dvNew = True
             p.cd(DATA_PATH, True)
             p.new(self.dvName, ['time [s]'], ['Current (Magnet) [A]', 'Current (Setpoint) [A]', 'Current (Power Supply) [A]', 'Current (Power Supply Setpoint) [A]', 'Voltage (Power Supply) [V]',
                 'Voltage (Power Supply Setpoint) [V]', 'Voltage (Magnet) [V]', 'Current (Heater) [A]', 'Voltage (Heater) [V]', 'Temperature (4K) [K]'])
@@ -350,8 +351,15 @@ class MagnetWrapper(DeviceWrapper):
         # add the data
         p.add(data)
         d = p.send(context=self.ctxt)
+        d.addCallback(self.handleDVCreateCallback)
         d.addErrback(self.handleDVError)
         self.dvStatus = 'Logging'
+
+    def handleDVCreateCallback(self, response):
+        ''' called after dataset is created. just to get the correct name, really. '''
+        if self.dvNew:
+            self.dvName = response.new[1]
+            self.dvNew = False
             
     def handleDVError(self, failure):
         ''' this is an errback added to the call to the data vault.
@@ -449,7 +457,7 @@ class MagnetServer(DeviceServer):
             regPacket.get('Node Name', key='node')
             regAns = yield regPacket.send()
             devList.append((name, (regAns['node'], self.client), {}))
-        print devList
+        #print devList
         returnValue(devList)
         
     @setting(21, 'Get Values', returns='(v[A] v[A] v[A] v[A] v[V] v[V] v[V] v[A] v[V] v[K])')
@@ -489,6 +497,15 @@ class MagnetServer(DeviceServer):
         This is the value it must mag to when we want to heat the switch again.
         Note that you can modify this (with this function), but do so CAREFULLY!'''
         return self.selectedDevice(c).psSetCurrent(newCurrent)
+        
+    @setting(30, 'Get Dataset Name', returns='*s')
+    def get_dataset_name(self, c):
+        ''' returns the path and name of the logging dataset. '''
+        dev = self.selectedDevice(c)
+        if dev.dvName is None:
+            return None
+        else:
+            return DATA_PATH + [self.selectedDevice(c).dvName]
 
 __server__ = MagnetServer()
 
