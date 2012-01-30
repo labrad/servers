@@ -359,6 +359,16 @@ public class QubitContext extends AbstractServerContext {
 		AdcChannel channel = getChannel(id, AdcChannel.class);
 		channel.setCriticalPhase(phase.getValue());
 	}
+	
+	@Setting(id = 291,
+			name = "Reverse Critical Phase Comparison",
+			doc = "By default we do atan2(Q, I) > criticalPhase. Give this function" +
+					"True and we do < instead (for this ADC channel).")
+	public void reverse_critical_phase_comparison(@Accepts({"s", "ss"}) Data id,
+			@Accepts("b{reverse}") Data reverse) {
+		AdcChannel channel = getChannel(id, AdcChannel.class);
+		channel.reverseCriticalPhase(reverse.getBool());
+	}
 
 	//
 	// Memory

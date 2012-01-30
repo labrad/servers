@@ -38,6 +38,8 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 	int demodChannel;		// which demod channel are we (demod mode only)
 	int dPhi, phi0;			// passed to "ADC Demod Phase" setting of FPGA server (demod mode only)
 	int ampSin, ampCos;		// passed to "ADC Trig Magnitude" setting (demod mode only)
+
+	private boolean reverseCriticalPhase;
 	
 	public AdcChannel(String name, AdcBoard board) {
 		this.name = name;
@@ -156,7 +158,10 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 		//System.out.println("interpretPhases: channel " + channel + " crit phase: " + criticalPhase[channel]);
 		boolean[] switches = new boolean[Is.length];
 		for (int run = 0; run < Is.length; run++) {
-			switches[run] = Math.atan2(Qs[run], Is[run]) > criticalPhase;
+			if (this.reverseCriticalPhase)
+				switches[run] = Math.atan2(Qs[run], Is[run]) < criticalPhase;
+			else
+				switches[run] = Math.atan2(Qs[run], Is[run]) > criticalPhase;
 		}
 		return switches;
 	}
@@ -215,11 +220,16 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 		this.criticalPhase = this.dPhi = this.phi0 = 0;
 		this.filterFunction = "";
 		this.stretchAt = this.stretchLen = this.startDelay = this.ampSin = this.ampCos = -1;
+		this.reverseCriticalPhase = false;
 	}
 
 	@Override
 	public int getDemodChannel() {
 		return this.demodChannel;
+	}
+
+	public void reverseCriticalPhase(boolean reverse) {
+		this.reverseCriticalPhase = reverse;
 	}
 
 }
