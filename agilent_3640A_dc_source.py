@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Agilent 3640A DC Source
-version = 1.3
+version = 1.4
 description = Controls the Agilent 3640A DC Power Supply.
 
 [startup]
@@ -33,7 +33,7 @@ timeout = 20
 # these variables for operating in the persistent switch supply mode
 # (for the ADR superconducting magnet)
 VOLT_LIMIT = 10
-CURRENT = 0.047
+CURRENT = 0.020
 
 import time
 from labrad import types as T, util
