@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Data Vault
-version = 2.3.3
+version = 2.3.4
 description = Store and retrieve numeric data
 
 [startup]
@@ -29,6 +29,15 @@ message = 987654321
 timeout = 5
 ### END NODE INFO
 """
+
+# CHANGELOG
+#
+# 31 January 2012 - Dan Sank and Ted White
+# Added setting to dump existing open sessions in Session._sessions.
+# We did this because the data vault seems to be leaking memory.
+# We think sessions are never getting garbage collected
+# even after all listening contexts expire. We want to be able to view all
+# existing sessions to see if this is causing the memory leak.
 
 from __future__ import with_statement
 
@@ -913,6 +922,17 @@ class DataVault(LabradServer):
     onDataAvailable = Signal(543619, 'signal: data available', '')
     onNewParameter = Signal(543620, 'signal: new parameter', '')
     onCommentsAvailable = Signal(543621, 'signal: comments available', '')
+    
+    
+    @setting(5, returns=['*s'])
+    def dump_existing_sessions(self, c):
+        sessions = []
+        for session in Session.getAll():
+            sessionString=''
+            for s in session.path:
+                sessionString += s+'/'
+            sessions.append(sessionString)
+        return sessions
     
     @setting(6, tagFilters=['s', '*s'], includeTags='b',
                 returns=['*s{subdirs}, *s{datasets}',
