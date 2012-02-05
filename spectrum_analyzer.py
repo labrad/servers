@@ -245,6 +245,13 @@ class SpectrumAnalyzer(GPIBManagedServer):
         numavs = yield dev.query(':AVER:COUN?')
         returnValue(int(numavs))
         
+    @setting(705, 'Query 10 MHz ref', returns=['s'])
+    def check_extref(self, c):
+        """Checks whether EXT 10 MHz ref is used. Returns 'EXT' or 'INT'."""
+        dev = self.selectedDevice(c)
+        idn = yield dev.query(':CAL:FREQ:REF?')
+        returnValue(idn)        
+        
 
 ##  Attempt to set average type.  SA does not accept value.
 ##  Gives error: "illegal paramter value"
