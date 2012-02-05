@@ -40,6 +40,15 @@ PERIOD = 2000
 SCOPECHANNEL = 2
 
 @inlineCallbacks
+def assertSpecAnalLock(server, device):
+    p = server.packet()
+    p.select_device(device)
+    p.query_10_mhz_ref(key='ref')
+    ans = yield p.send()
+    if ans['ref'] != 'EXT':
+        raise Exception('Spectrum analyzer %s external 10MHz reference not locked!' %device)
+        
+@inlineCallbacks
 def microwaveSourceServer(cxn, ID):
     anritsus = yield cxn.anritsu_server.list_devices()
     anritsus = [dev[1] for dev in anritsus]
@@ -167,7 +176,7 @@ def zeroFixedCarrier(cxn, boardname):
     spectID = yield reg.get(keys.SPECTID)
     spec.select_device(spectID)
     yield spectInit(spec)
-
+    yield assertSpecAnalLock(spec, spectID)
     uwaveSourceID = yield reg.get(keys.ANRITSUID)
     uwaveSource = yield microwaveSourceServer(cxn,uwaveSourceID)
     
@@ -203,7 +212,7 @@ def zeroScanCarrier(cxn, scanparams, boardname):
     spectID = yield reg.get(keys.SPECTID)
     spec.select_device(spectID)
     yield spectInit(spec)
-
+    yield assertSpecAnalLock(spec, spectID)
     uwaveSourceID = yield reg.get(keys.ANRITSUID)
     uwaveSource = yield microwaveSourceServer(cxn, uwaveSourceID)
     uwavePower = yield reg.get(keys.ANRITSUPOWER)
@@ -213,7 +222,6 @@ def zeroScanCarrier(cxn, scanparams, boardname):
 
     print 'Zero calibration from %g GHz to %g GHz in steps of %g GHz...' % \
         (scanparams['carrierMin'],scanparams['carrierMax'],scanparams['carrierStep'])
-
     ds = cxn.data_vault
     yield ds.cd(['',keys.SESSIONNAME,boardname],True)
     dataset = yield ds.new(keys.ZERONAME,
@@ -492,7 +500,8 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
     spectID = yield reg.get(keys.SPECTID)
     spec.select_device(spectID)
     yield spectInit(spec)
-
+    yield assertSpecAnalLock(spec, spectID)
+    
     uwaveSourcePower = yield reg.get(keys.ANRITSUPOWER)
     yield cxn.microwave_switch.switch(boardname)
     yield uwaveSource.select_device(uwaveSourceID)
