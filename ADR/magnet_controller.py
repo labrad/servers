@@ -62,9 +62,13 @@ K, A, V, T = Unit('K'), Unit('A'), Unit('V'), Unit('T')
 # hard limits
 TEMP_LIMIT = 6.5 * K
 CURRENT_LIMIT = 17.17 * A
-VOLTAGE_LIMIT = 0.75 * V
+VOLTAGE_LIMIT_DEFAULT = 0.3 * V
+VOLTAGE_LIMIT_MAX = 0.7 * V
+VOLTAGE_LIMIT_MIN = 0.05 * V
 CURRENT_STEP = 0.3 * A
 CURRENT_RESOLUTION = 0.01 * A
+VOLTAGE_STEP = 0.01 * V
+VOLTAGE_RESOLUTION = 0.01 * V
 FIELD_CURRENT_RATIO = 0.2823 * T / A
 PS_COOLING_TIME = 450   # seconds
 
@@ -98,6 +102,7 @@ class MagnetWrapper(DeviceWrapper):
         # state variables of this object
         self.status = 'Missing Devices'
         self.setCurrent = Value(NaN, 'A')
+        self.voltageLimit = VOLTAGE_LIMIT_DEFAULT
         self.temperatureOverride = False    # if True, ignore temperature checks
         
         # devices we must link to
@@ -150,9 +155,10 @@ class MagnetWrapper(DeviceWrapper):
                 try:
                     # if we don't have a current setpoint, set it to the setpoint of the power supply
                     if math.isnan(self.setCurrent) and self.devs[POWER]['status'] == 'OK':
-                        self.current(self.devs[POWER]['values'][1])
+                        self.current(self.devs[POWER]['values'][0])
                     # see about a mag
-                    yield self.doMagCycle()
+                    #yield self.doMagCycle()
+                    self.doMagCycle()
                     self.status = 'OK'
                 except Exception as e:
                     print "Exception in main loop: %s" % str(e)
@@ -226,7 +232,7 @@ class MagnetWrapper(DeviceWrapper):
             self.devs[dev]['status'] = 'No Server'
             self.devs[dev]['values'] = [NaN] * len(self.devs[dev]['settings'])
 
-    @inlineCallbacks
+#    @inlineCallbacks
     def doMagCycle(self):
         ''' Do a mag cycle if applicable. Here are the rules:
         -- Must have connection to all servers, below temperature. (status = OK)
@@ -235,15 +241,35 @@ class MagnetWrapper(DeviceWrapper):
         '''
         if self.status != 'OK':
             return
-        if not self.checkVoltage():
+        # is the set current where we want it to be?
+        if self.devs[POWER]['values'][1] < abs(self.setCurrent):
+            self.devs[POWER]['server'].set_current(abs(self.setCurrent), context=self.ctxt)
+        # if the supply setpoint is above the server setpoint
+        # and the supply value is below the supply setpoint
+        # then set the supply setpoint to max(supply value, server setpoint)
+        # (prevents us from leaving the supply setpoint at some high number when magging down)
+        print self.devs[POWER]['values'][1], self.setCurrent, self.devs[POWER]['values'][0]
+        if self.devs[POWER]['values'][1] > abs(self.setCurrent) + CURRENT_RESOLUTION:
+            if abs(self.devs[POWER]['values'][0]) < self.devs[POWER]['values'][1]:
+                newcurr = max(abs(self.devs[POWER]['values'][0])+ CURRENT_RESOLUTION*2, abs(self.setCurrent))
+                self.devs[POWER]['server'].set_current(newcurr, context=self.ctxt)
+        # have we reached the target?
+        if abs(self.devs[POWER]['values'][0] - self.setCurrent) < CURRENT_RESOLUTION:
+            # set the voltage so that the magnet voltage is zero
+            newvolt = self.devs[POWER]['values'][2] - self.devs[DMM]['values'][0]
+            self.devs[POWER]['server'].set_voltage(newvolt, context=self.ctxt)
+            print 'done magging! %s' % newvolt
             return
-        diff = self.setCurrent - self.devs[POWER]['values'][0]
-        if abs(diff) < CURRENT_RESOLUTION:
-            return
-        amount = min(abs(diff), CURRENT_STEP) * sign(diff)
-        yield self.devs[POWER]['server'].set_current(self.devs[POWER]['values'][0] + amount, context=self.ctxt)
-        print 'mag step -> %s' % (self.devs[POWER]['values'][0] + amount)
-        
+        # is the magnet voltage below the limit?
+        if self.setCurrent < self.devs[POWER]['values'][0] and self.devs[DMM]['values'][0] > -self.voltageLimit:
+            newvolt = self.devs[POWER]['values'][2] - VOLTAGE_STEP
+            print "mag step -> %s" % newvolt
+            self.devs[POWER]['server'].set_voltage(newvolt, context=self.ctxt)
+        elif self.setCurrent > self.devs[POWER]['values'][0] and self.devs[DMM]['values'][0] < self.voltageLimit:
+            newvolt = self.devs[POWER]['values'][2] + VOLTAGE_STEP
+            print "mag step -> %s" % newvolt
+            self.devs[POWER]['server'].set_voltage(newvolt, context=self.ctxt)
+                
     def doPersistentSwitch(self):
         ''' Handle the persistent switch.
         '''
@@ -380,10 +406,6 @@ class MagnetWrapper(DeviceWrapper):
         except Exception as e:
             print "Exception in checkTemperature: %s" % e
             return False
-    
-    def checkVoltage(self):
-        ''' Checks that the voltage is below the limit. '''
-        return abs(self.devs[DMM]['values'][0]) < VOLTAGE_LIMIT
             
     def current(self, current=None):
         ''' change the current setpoint. '''
@@ -413,6 +435,7 @@ class MagnetWrapper(DeviceWrapper):
         r = [self.magnetCurrent(), self.current()]
         for dev in self.devs.keys():
             r += self.devs[dev]['values']
+        r.insert(7, self.voltageLimit)
         return r
         #return self.devs[POWER]['values'] + self.devs[DMM]['values'] + self.devs[DC]['values'] + [self.devs[TEMPERATURE]['values'][1]]
         
@@ -460,11 +483,11 @@ class MagnetServer(DeviceServer):
         #print devList
         returnValue(devList)
         
-    @setting(21, 'Get Values', returns='(v[A] v[A] v[A] v[A] v[V] v[V] v[V] v[A] v[V] v[K])')
+    @setting(21, 'Get Values', returns='(v[A] v[A] v[A] v[A] v[V] v[V] v[V] v[V] v[A] v[V] v[K])')
     def get_values(self, c):
         ''' Returns all the relevant values.\n
         Magnet Current [A], Current Setpoint, PS Current [A], PS Current Setpoint, PS Voltage [V], PS Voltage Setpoint,
-        Magnet Voltage [V], Switch Current [A], Switch Voltage [V], 4K Temperature [K]'''
+        Magnet Voltage [V], Magnet Voltage Setpoint [V], Switch Current [A], Switch Voltage [V], Magnet Temperature [K]'''
         # note: when you change this function keep the comment in the same form - one comma separated label per value
         # on the second line (i.e. after \n)
         return self.selectedDevice(c).getValues()
@@ -495,8 +518,18 @@ class MagnetServer(DeviceServer):
     def ps_set_current(self, c, newCurrent=None):
         ''' Gets what the server remembers the current to be when the persistent switch was cooled.
         This is the value it must mag to when we want to heat the switch again.
-        Note that you can modify this (with this function), but do so CAREFULLY!'''
+        Note that you can modify this (with this function), but do so CAREFULLY!
+        Setting heating the switch when the current in the magnet and the current of the supply
+        are mismatched is a BAD THING (tm).'''
         return self.selectedDevice(c).psSetCurrent(newCurrent)
+
+    @setting(26, 'Voltage Limit', newLimit='v[V]', returns='v[V]')
+    def voltage_limit(self, c, newLimit=None):
+        ''' Gets/sets the voltage limit used when magging. Max = 0.7 V, min = 0.05 V.
+        This sets how fast we mag. 0.1 is slow, 0.3 is a good speed, anything faster is ZOOM!'''
+        if newLimit is not None:
+            self.selectedDevice(c).voltageLimit = min(max(newLimit, VOLTAGE_LIMIT_MIN), VOLTAGE_LIMIT_MAX)
+        return self.selectedDevice(c).voltageLimit
         
     @setting(30, 'Get Dataset Name', returns='*s')
     def get_dataset_name(self, c):
@@ -506,6 +539,11 @@ class MagnetServer(DeviceServer):
             return None
         else:
             return DATA_PATH + [self.selectedDevice(c).dvName]
+
+    @setting(31, 'Get Field', returns='v[T]')
+    def get_field(self, c):
+        ''' returns the field. (magnet current * field-to-current ratio) '''
+        return self.selectedDevice(c).magnetCurrent() * FIELD_CURRENT_RATIO
 
 __server__ = MagnetServer()
 
