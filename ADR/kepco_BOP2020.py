@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Kepco BOP 20-20
-version = 0.2
+version = 0.31
 description = 
 
 [startup]
@@ -40,81 +40,14 @@ import numpy as np, time
 
 V, A = Unit('V'), Unit('A')
 
-VOLT_LIMIT = 1.0 * V
+VOLT_LIMIT = 0.9 * V
 CURRENT_LIMIT = 17.17 * A
-RAMP_RATE = 0.036 * A # (per second)
-RESOLUTION = 0.001 # power supply measurement resolution, in amps
-
-# make a list:
-# clear
-# dwell
-# add current levels
-# count -> 1
-# execute
-
-# stop a list:
-# set current to current level
-# mode:fix
 
 class KepcoWrapper(GPIBDeviceWrapper):
     @inlineCallbacks
     def initialize(self):
-        if not int( (yield self.query("FUNC:MODE?")) ):
-            yield self.write("FUNC:MODE CURR")
-        if float( (yield self.query("VOLT?")) ) > VOLT_LIMIT['V']:
-            yield self.write("VOLT %f" % VOLT_LIMIT['V'])
-            
-        # don't change target current if we just turned on server now
-        self.targetCurrent = float( (yield self.query("MEAS:CURR?")) ) * A
-        print "STARTUP CURENT %s" % self.targetCurrent
-        
-        self.lastTime = 0
-        self.inLoop = False
-        self.timeInterval = 0.2
-        self.loop = LoopingCall(self.mainLoop)
-        self.loopDone = self.loop.start(self.timeInterval, now=True)
-    
-    @inlineCallbacks
-    def shutdown(self):
-        self.loop.stop()
-        yield self.loopDone
-    
-    @inlineCallbacks
-    def mainLoop(self):
-        if self.inLoop:
-            return
-        self.inLoop = True
-        # see if our current has settled
-        curr = float( (yield self.query("MEAS:CURR?")) )
-        #print "in loop, curr = %s" % curr
-        if abs(curr - float( (yield self.query("CURR?")) )) < RESOLUTION:
-            distance = self.targetCurrent['A'] - curr
-            #print "need to move %f" % distance
-            if abs(distance) > RESOLUTION:
-                #print "target not within resolution"
-                yield self.write("OUTP ON")
-                deltaT = min(time.time() - self.lastTime, 1)
-                change = np.sign(distance) * min(abs(distance), RAMP_RATE['A'] * deltaT)
-                #print "attempting to set to %f" % (curr + change)
-                yield self.write("CURR %f" % (curr + change))
-                #print "output change by %f" % change
-            else:
-                if abs(curr) < RESOLUTION:
-                    yield self.write("OUTP OFF")
-        
-        self.lastTime = time.time()
-        self.inLoop = False
-    
-    def set_current(self, current = None):
-        if current is not None:
-            self.targetCurrent = min(current, CURRENT_LIMIT)
-            self.targetCurrent = max(current, -CURRENT_LIMIT)
-        return self.targetCurrent
-        
-    
-        
-    
-        
+        if int( (yield self.query("FUNC:MODE?")) ):
+            yield self.write("FUNC:MODE VOLT")
         
 class KepcoServer(GPIBManagedServer):
     name = 'Kepco BOP 20-20'
@@ -135,7 +68,7 @@ class KepcoServer(GPIBManagedServer):
         ''' Sets the voltage limit and returns the voltage limit. If there is no argument, only returns the limit.\n
             Note that the hard limit on the power supply is just under 1 V, though it will let you set it higher. '''
         if voltage is not None:
-            voltage = min(voltage, VOLT_LIMIT)
+            voltage = min(max(voltage, -VOLT_LIMIT), VOLT_LIMIT)
             yield self.selectedDevice(c).write("VOLT %f" % voltage['V'])
         returnValue(float( (yield self.selectedDevice(c).query("VOLT?")) ))
 
@@ -143,25 +76,24 @@ class KepcoServer(GPIBManagedServer):
     def set_current(self, c, current=None):
         ''' Sets the target current and returns the target current. If there is no argument, only returns the target.\n
             Note that the hard limit on the power supply is just under 15 A, though it will let you set it higher. '''
-        return self.selectedDevice(c).set_current(current)
+        if current is not None:
+            current = min(max(current, -CURRENT_LIMIT), CURRENT_LIMIT)
+            yield self.selectedDevice(c).write("CURR %f" % current['A'])
+        returnValue(float( (yield self.selectedDevice(c).query("CURR?")) ))
     
     @setting(30, 'Output', on='b', returns='b')
     def output(self, c, on=None):
         ''' Sets the output state to ON (T) or OFF (F), and returns the current output state. If there is no argument, only returns current state. '''
         if on is not None:
             s = 'ON' if on else 'OFF'
-            yield self.selectedDevice(c).write("OUTP %s" % s)
+            yield self.selectedDevice(c).write("FUNC:MODE VOLT;OUTP %s" % s)
         returnValue(bool(int( (yield self.selectedDevice(c).query("OUTP?")) )))
         
     @setting(31, 'Shut Off')
     def shut_off(self, c):
         ''' Immediately turns off the power supply. Use in case of magnet quench (only)! '''
         dev = self.selectedDevice(c)
-        dev.targetCurrent = 0 * A
-        yield dev.write("OUTP OFF")
-        yield dev.write("VOLT 1")   # set voltage to 1 so the magnet can drain at the max allowed rate
-        yield dev.write("CURR 0")
-        
+        yield dev.write("OUTP OFF;FUNC:MODE CURR;CURR 0;VOLT 1")
         
         
 __server__ = KepcoServer()
