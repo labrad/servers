@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = ADR Server
-version = 0.214
+version = 0.215
 description =
 
 [startup]
@@ -246,9 +246,9 @@ class ADRWrapper(DeviceWrapper):
                 if compressorResponse:
                     try:
                         ans = yield compressorResponse
-                            self.state('compressorStatus', ans['status'])
-                        except Exception as e:
-                            self.log("Exception in compressor: %s" % e.__str__())
+                        self.state('compressorStatus', ans['status'], False)
+                    except Exception as e:
+                        self.log("Exception in compressor: %s" % e.__str__())
                 # see how we did
                 haveAllPeriphs = (magnetResponse is not None) and (lakeshoreResponse is not None) #(and compressorResponse is not None)
                 self.state('missingCriticalPeripheral', not haveAllPeriphs, False)
@@ -682,7 +682,7 @@ class ADRWrapper(DeviceWrapper):
         determines whether to stop recording.
         conditions: temp > 250K, --???
         """
-                return not self.shouldStartRecording()
+        return not self.shouldStartRecording()
 
         
         
