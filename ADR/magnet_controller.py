@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Magnet Controller
-version = 0.2
+version = 0.21
 description =
 
 [startup]
@@ -64,13 +64,13 @@ TEMP_LIMIT = 6.5 * K
 CURRENT_LIMIT = 17.17 * A
 VOLTAGE_LIMIT_DEFAULT = 0.3 * V
 VOLTAGE_LIMIT_MAX = 0.7 * V
-VOLTAGE_LIMIT_MIN = 0.05 * V
+VOLTAGE_LIMIT_MIN = 0.01 * V
 CURRENT_STEP = 0.3 * A
 CURRENT_RESOLUTION = 0.01 * A
-VOLTAGE_STEP = 0.01 * V
+VOLTAGE_STEP = 0.002 * V
 VOLTAGE_RESOLUTION = 0.01 * V
 FIELD_CURRENT_RATIO = 0.2823 * T / A
-PS_COOLING_TIME = 450   # seconds
+PS_COOLING_TIME = 240   # seconds
 
 # registry and data vault paths
 CONFIG_PATH = ['', 'Servers', 'Magnet Controller']
@@ -107,7 +107,7 @@ class MagnetWrapper(DeviceWrapper):
         
         # devices we must link to
         self.devs = OrderedDict()
-        self.devs[POWER] = {'server' : None, 'values': [NaN] * len(POWER_SETTINGS), 'status': 'not initialized', 'settings': POWER_SETTINGS}
+        self.devs[POWER] = {'server' : None, 'values': [NaN] * len(POWER_SETTINGS), 'status': 'not initialized', 'settings': POWER_SETTINGS, 'extras': ['output']}
         self.devs[DMM] = {'server' : None, 'values': [NaN] * len(DMM_SETTINGS), 'status': 'not initialized', 'settings': DMM_SETTINGS}
         self.devs[DC] = {'server' : None, 'values': [NaN] * len(DC_SETTINGS), 'status': 'not initialized', 'settings': DC_SETTINGS, 'extras': ['output', 'persistent_switch_mode', 'persistent_switch_time_elapsed']}
         self.devs[TEMPERATURE] = {'server': None, 'values': [NaN] * len(TEMPERATURE_SETTINGS), 'status': 'not initialized', 'settings': TEMPERATURE_SETTINGS, 'flatten': True, 'pickOneValue': 1}
@@ -241,6 +241,13 @@ class MagnetWrapper(DeviceWrapper):
         '''
         if self.status != 'OK':
             return
+        if self.psStatus.startswith('Cooled'):
+            self.doMagCycleSwitchCooled()
+        elif not self.psStatus.startswith('Heated'):
+            return
+        if self.devs[POWER]['extraValues'][0] == False:
+            self.devs[POWER]['server'].voltage_mode(context=self.ctxt)
+            self.devs[POWER]['server'].output(True, context=self.ctxt)
         # is the set current where we want it to be?
         if self.devs[POWER]['values'][1] < abs(self.setCurrent):
             self.devs[POWER]['server'].set_current(abs(self.setCurrent), context=self.ctxt)
@@ -251,7 +258,7 @@ class MagnetWrapper(DeviceWrapper):
         print self.devs[POWER]['values'][1], self.setCurrent, self.devs[POWER]['values'][0]
         if self.devs[POWER]['values'][1] > abs(self.setCurrent) + CURRENT_RESOLUTION:
             if abs(self.devs[POWER]['values'][0]) < self.devs[POWER]['values'][1]:
-                newcurr = max(abs(self.devs[POWER]['values'][0])+ CURRENT_RESOLUTION*2, abs(self.setCurrent))
+                newcurr = max(abs(self.devs[POWER]['values'][0])+ CURRENT_RESOLUTION*100, abs(self.setCurrent))
                 self.devs[POWER]['server'].set_current(newcurr, context=self.ctxt)
         # have we reached the target?
         if abs(self.devs[POWER]['values'][0] - self.setCurrent) < CURRENT_RESOLUTION:
@@ -268,6 +275,19 @@ class MagnetWrapper(DeviceWrapper):
         elif self.setCurrent > self.devs[POWER]['values'][0] and self.devs[DMM]['values'][0] < self.voltageLimit:
             newvolt = self.devs[POWER]['values'][2] + VOLTAGE_STEP
             print "mag step -> %s" % newvolt
+            self.devs[POWER]['server'].set_voltage(newvolt, context=self.ctxt)
+
+    def doMagCycleSwitchCooled(self):
+        ''' this is called when the persistent switch is cold. '''
+        if abs(self.devs[POWER]['values'][0] - self.setCurrent) < CURRENT_RESOLUTION * 5:
+            if abs(self.setCurrent) < CURRENT_RESOLUTION:
+                self.devs[POWER]['server'].output(False, context=self.ctxt)
+            return
+        if self.setCurrent < self.devs[POWER]['values'][0]:
+            newvolt = self.devs[POWER]['values'][2] - VOLTAGE_STEP
+            self.devs[POWER]['server'].set_voltage(newvolt, context=self.ctxt)
+        else:
+            newVolt = self.devs[POWER]['values'][2] + VOLTAGE_STEP
             self.devs[POWER]['server'].set_voltage(newvolt, context=self.ctxt)
                 
     def doPersistentSwitch(self):
@@ -333,7 +353,7 @@ class MagnetWrapper(DeviceWrapper):
         if self.psRequestedState is True and self.psHeated is False:
             # ramp to appropriate current
             self.current(self.psCurrent)
-            if abs(self.psCurrent - self.devs[POWER]['values'][0]) < CURRENT_RESOLUTION:
+            if abs(self.psCurrent - self.devs[POWER]['values'][0]) < CURRENT_RESOLUTION * 5:
                 # we're at the appropriate current
                 self.devs[DC]['server'].output(True, context=self.ctxt)
                 self.psStatus = 'Turned heater on'
@@ -451,9 +471,9 @@ class MagnetWrapper(DeviceWrapper):
         
     def psSetCurrent(self, newCurrent):
         if newCurrent is not None:
-            if not isinstance(current, Value):
-                current = Value(float(current), 'A')
-            self.psCurrent = current.inUnitsOf('A')
+            if not isinstance(newCurrent, Value):
+                newCurrent = Value(float(newCurrent), 'A')
+            self.psCurrent = newCurrent.inUnitsOf('A')
             self.psCurrent = max(-CURRENT_LIMIT, min(CURRENT_LIMIT, self.psCurrent))
         return self.psCurrent
         
@@ -525,7 +545,7 @@ class MagnetServer(DeviceServer):
 
     @setting(26, 'Voltage Limit', newLimit='v[V]', returns='v[V]')
     def voltage_limit(self, c, newLimit=None):
-        ''' Gets/sets the voltage limit used when magging. Max = 0.7 V, min = 0.05 V.
+        ''' Gets/sets the voltage limit used when magging. Max = 0.7 V, min = 0.01 V.
         This sets how fast we mag. 0.1 is slow, 0.3 is a good speed, anything faster is ZOOM!'''
         if newLimit is not None:
             self.selectedDevice(c).voltageLimit = min(max(newLimit, VOLTAGE_LIMIT_MIN), VOLTAGE_LIMIT_MAX)

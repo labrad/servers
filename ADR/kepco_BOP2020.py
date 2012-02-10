@@ -86,15 +86,23 @@ class KepcoServer(GPIBManagedServer):
         ''' Sets the output state to ON (T) or OFF (F), and returns the current output state. If there is no argument, only returns current state. '''
         if on is not None:
             s = 'ON' if on else 'OFF'
-            yield self.selectedDevice(c).write("FUNC:MODE VOLT;OUTP %s" % s)
+            yield self.selectedDevice(c).write("OUTP %s" % s)
         returnValue(bool(int( (yield self.selectedDevice(c).query("OUTP?")) )))
         
     @setting(31, 'Shut Off')
     def shut_off(self, c):
         ''' Immediately turns off the power supply. Use in case of magnet quench (only)! '''
         dev = self.selectedDevice(c)
-        yield dev.write("OUTP OFF;FUNC:MODE CURR;CURR 0;VOLT 1")
-        
+        dev.write("OUTP OFF")
+        dev.write("FUNC:MODE CURR")
+        dev.write("CURR 0")
+        dev.write("VOLT 1")
+
+    @setting(32, 'Voltage Mode')
+    def voltage_mode(self, c):
+        ''' Put back into voltage mode (e.g. after a shut off) '''
+        dev = self.selectedDevice(c)
+        yield dev.write("FUNC:MODE VOLT")
         
 __server__ = KepcoServer()
 
