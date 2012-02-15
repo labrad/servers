@@ -1206,7 +1206,7 @@ class FPGAServer(DeviceServer):
                 ans = yield bg.run(runners, reps, setupReqs, set(setupState), c['master_sync'], getTimingData, timingOrder)
                 # for ADCs in demodulate mode, store their I and Q ranges to check for possible clipping
                 for runner in runners:
-                    if isinstance(runner, AdcRunner) and runner.runMode == 'demodulate' and getTimingData:
+                    if getTimingData and isinstance(runner, AdcRunner) and runner.runMode == 'demodulate' and runner.dev.devName in timingOrder:
                         c[runner.dev]['ranges'] = runner.ranges
                 returnValue(ans)
             except TimeoutError, err:
