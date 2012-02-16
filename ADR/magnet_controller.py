@@ -77,7 +77,7 @@ CONFIG_PATH = ['', 'Servers', 'Magnet Controller']
 DATA_PATH = ['', 'ADR', 'Magnet Controller']
 
 # servers/devices
-POWER = 'Kepco ABC'       # the main power supply
+POWER = 'Kepco BOP 20-20'       # the main power supply
 POWER_SETTINGS = ['current', 'set_current', 'voltage', 'set_voltage']
 DMM = 'Agilent 34401A DMM'      # the DMM to monitor magnet voltage
 DMM_SETTINGS = ['voltage']
