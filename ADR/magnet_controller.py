@@ -64,7 +64,7 @@ TEMP_LIMIT = 6.5 * K
 CURRENT_LIMIT = 17.17 * A
 VOLTAGE_LIMIT_DEFAULT = 0.3 * V
 VOLTAGE_LIMIT_MAX = 0.7 * V
-VOLTAGE_LIMIT_MIN = 0.01 * V
+VOLTAGE_LIMIT_MIN = 0.001 * V
 CURRENT_STEP = 0.3 * A
 CURRENT_RESOLUTION = 0.01 * A
 VOLTAGE_STEP = 0.002 * V
@@ -77,7 +77,7 @@ CONFIG_PATH = ['', 'Servers', 'Magnet Controller']
 DATA_PATH = ['', 'ADR', 'Magnet Controller']
 
 # servers/devices
-POWER = 'Kepco BOP 20-20'       # the main power supply
+POWER = 'Kepco ABC'       # the main power supply
 POWER_SETTINGS = ['current', 'set_current', 'voltage', 'set_voltage']
 DMM = 'Agilent 34401A DMM'      # the DMM to monitor magnet voltage
 DMM_SETTINGS = ['voltage']
@@ -500,7 +500,7 @@ class MagnetServer(DeviceServer):
             regPacket.get('Node Name', key='node')
             regAns = yield regPacket.send()
             devList.append((name, (regAns['node'], self.client), {}))
-        #print devList
+        print devList
         returnValue(devList)
         
     @setting(21, 'Get Values', returns='(v[A] v[A] v[A] v[A] v[V] v[V] v[V] v[V] v[A] v[V] v[K])')

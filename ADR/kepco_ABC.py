@@ -52,7 +52,7 @@ class KepcoWrapper(GPIBDeviceWrapper):
         
 class KepcoServer(GPIBManagedServer):
     name = 'Kepco ABC'
-    deviceName = 'KEPCO ABC363'
+    deviceName = 'KEPCO ABC-3603'
     deviceWrapper = KepcoWrapper
 
     @setting(10, 'Voltage', returns=['v[V]'])
