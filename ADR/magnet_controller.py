@@ -62,13 +62,14 @@ K, A, V, T = Unit('K'), Unit('A'), Unit('V'), Unit('T')
 # hard limits
 TEMP_LIMIT = 6.5 * K
 CURRENT_LIMIT = 17.17 * A
-VOLTAGE_LIMIT_DEFAULT = 0.3 * V
+VOLTAGE_RESOLUTION = 0.0006 * V
+VOLTAGE_LIMIT_DEFAULT = 0.1 * V
 VOLTAGE_LIMIT_MAX = 0.7 * V
-VOLTAGE_LIMIT_MIN = 0.001 * V
-CURRENT_STEP = 0.3 * A
-CURRENT_RESOLUTION = 0.01 * A
-VOLTAGE_STEP = 0.002 * V
-VOLTAGE_RESOLUTION = 0.01 * V
+VOLTAGE_LIMIT_MIN = VOLTAGE_RESOLUTION
+VOLTAGE_STEP = VOLTAGE_RESOLUTION
+
+CURRENT_RESOLUTION = 0.002 * A
+
 FIELD_CURRENT_RATIO = 0.2823 * T / A
 PS_COOLING_TIME = 240   # seconds
 
@@ -77,14 +78,18 @@ CONFIG_PATH = ['', 'Servers', 'Magnet Controller']
 DATA_PATH = ['', 'ADR', 'Magnet Controller']
 
 # servers/devices
-POWER = 'Kepco BOP 20-20'       # the main power supply
+POWER = 1       # the main power supply
 POWER_SETTINGS = ['current', 'set_current', 'voltage', 'set_voltage']
-DMM = 'Agilent 34401A DMM'      # the DMM to monitor magnet voltage
+DMM = 2      # the DMM to monitor magnet voltage
 DMM_SETTINGS = ['voltage']
-DC = 'Agilent 3640A DC Source'  # the DC source to heat the persistent switch
+DMM2 = 3
+DMM2_SETTINGS = ['current']
+DC = 4  # the DC source to heat the persistent switch
 DC_SETTINGS = ['current', 'voltage']
-TEMPERATURE = 'Lakeshore Diodes'
+TEMPERATURE = 5
 TEMPERATURE_SETTINGS = ['temperatures']
+
+SERVERS = {POWER: 'Kepco BOP 20-20', DMM: 'Agilent 34401A DMM', DMM2: 'Agilent 34401A DMM', DC: 'Agilent 3640A DC Source', TEMPERATURE: 'Lakeshore Diodes'}
 
 NaN = float('nan')
 
@@ -108,9 +113,11 @@ class MagnetWrapper(DeviceWrapper):
         # devices we must link to
         self.devs = OrderedDict()
         self.devs[POWER] = {'server' : None, 'values': [NaN] * len(POWER_SETTINGS), 'status': 'not initialized', 'settings': POWER_SETTINGS, 'extras': ['output']}
-        self.devs[DMM] = {'server' : None, 'values': [NaN] * len(DMM_SETTINGS), 'status': 'not initialized', 'settings': DMM_SETTINGS}
+        self.devs[DMM] = {'server' : None, 'values': [NaN] * len(DMM_SETTINGS), 'status': 'not initialized', 'settings': DMM_SETTINGS, 'gpib address': 24,}
         self.devs[DC] = {'server' : None, 'values': [NaN] * len(DC_SETTINGS), 'status': 'not initialized', 'settings': DC_SETTINGS, 'extras': ['output', 'persistent_switch_mode', 'persistent_switch_time_elapsed']}
         self.devs[TEMPERATURE] = {'server': None, 'values': [NaN] * len(TEMPERATURE_SETTINGS), 'status': 'not initialized', 'settings': TEMPERATURE_SETTINGS, 'flatten': True, 'pickOneValue': 1}
+        self.devs[DMM2] = {'server': None, 'values': [NaN] * len(DMM2_SETTINGS), 'status': 'not initialized', 'settings': DMM2_SETTINGS, 'gpib address': 22,}
+        
         
         # Persistent Switch
         self.psHeated = None            # T/F for switch heated or not
@@ -166,7 +173,7 @@ class MagnetWrapper(DeviceWrapper):
                 # we are over temperature
                 # shut down the magnet if it's running
                 if self.devs[POWER]['status'] == 'OK' and abs(self.devs[POWER]['values'][0]) > CURRENT_RESOLUTION:
-                    self.devs[POWER]['server'].shut_off(context=self.ctxt)
+                    self.devs[POWER]['server'].shut_off(context=self.devs[POWER]['context'])
                     self.current(0*A)
                 self.status = 'Over Temperature'
         try:
@@ -184,11 +191,12 @@ class MagnetWrapper(DeviceWrapper):
     def doDevice(self, dev):
         # do we need a server? if so, connect to it
         if not self.devs[dev]['server'] and dev in self.cxn.servers:
-            self.devs[dev]['server'] = self.cxn[dev]
+            self.devs[dev]['server'] = self.cxn[SERVERS[dev]]
+            self.devs[dev]['context'] = self.devs[dev]['server'].context()
         # do we have a server? if so, get our data
         if self.devs[dev]['server']:
             # build packet out of requested settings
-            p = self.devs[dev]['server'].packet(context = self.ctxt)
+            p = self.devs[dev]['server'].packet()
             for s in self.devs[dev]['settings']:
                 p[s](key=s)
             if 'extras' in self.devs[dev].keys():
@@ -196,7 +204,7 @@ class MagnetWrapper(DeviceWrapper):
                     p[s](key=s)
             try:
                 # try to get our data
-                ans = yield p.send(context = self.ctxt)
+                ans = yield p.send(context = self.devs[dev]['context'])
                 self.devs[dev]['values'] = [ans[s] for s in self.devs[dev]['settings']]
                 # couple of special cases
                 if 'flatten' in self.devs[dev].keys():
@@ -212,12 +220,18 @@ class MagnetWrapper(DeviceWrapper):
                 # catch labrad error (usually DeviceNotSelectedError) -- select our device if we have one
                 self.devs[dev]['values'] = [NaN] * len(self.devs[dev]['settings'])
                 if 'DeviceNotSelectedError' in e.msg or 'NoDevicesAvailableError' in e.msg:
-                    devs = yield self.devs[dev]['server'].list_devices(context=self.ctxt)
+                    print 1
+                    devs = yield self.devs[dev]['server'].list_devices(context = self.devs[dev]['context'])
                     found = False
                     for d in devs:
+                        if 'gpib address' in self.devs[dev].keys():
+                            print d[1]
+                            if not d[1].endswith(str(self.devs[dev]['gpib address'])):
+                                continue
                         if self.nodeName.upper() in d[1].upper():
+                            print 2
                             found = True
-                            yield self.devs[dev]['server'].select_device(d[0], context=self.ctxt)
+                            yield self.devs[dev]['server'].select_device(d[0], context = self.devs[dev]['context'])
                             self.devs[dev]['status'] = 'Found Device'
                     if not found:
                         self.devs[dev]['status'] = 'No Device'
@@ -246,11 +260,11 @@ class MagnetWrapper(DeviceWrapper):
         elif not self.psStatus.startswith('Heated'):
             return
         if self.devs[POWER]['extraValues'][0] == False:
-            self.devs[POWER]['server'].voltage_mode(context=self.ctxt)
-            self.devs[POWER]['server'].output(True, context=self.ctxt)
+            self.devs[POWER]['server'].voltage_mode(context=self.devs[POWER]['context'])
+            self.devs[POWER]['server'].output(True, context=self.devs[POWER]['context'])
         # is the set current where we want it to be?
         if self.devs[POWER]['values'][1] < abs(self.setCurrent):
-            self.devs[POWER]['server'].set_current(abs(self.setCurrent), context=self.ctxt)
+            self.devs[POWER]['server'].set_current(abs(self.setCurrent), context=self.devs[POWER]['context'])
         # if the supply setpoint is above the server setpoint
         # and the supply value is below the supply setpoint
         # then set the supply setpoint to max(supply value, server setpoint)
@@ -259,36 +273,36 @@ class MagnetWrapper(DeviceWrapper):
         if self.devs[POWER]['values'][1] > abs(self.setCurrent) + CURRENT_RESOLUTION:
             if abs(self.devs[POWER]['values'][0]) < self.devs[POWER]['values'][1]:
                 newcurr = max(abs(self.devs[POWER]['values'][0])+ CURRENT_RESOLUTION*100, abs(self.setCurrent))
-                self.devs[POWER]['server'].set_current(newcurr, context=self.ctxt)
+                self.devs[POWER]['server'].set_current(newcurr, context=self.devs[POWER]['context'])
         # have we reached the target?
         if abs(self.devs[POWER]['values'][0] - self.setCurrent) < CURRENT_RESOLUTION:
             # set the voltage so that the magnet voltage is zero
             newvolt = self.devs[POWER]['values'][2] - self.devs[DMM]['values'][0]
-            self.devs[POWER]['server'].set_voltage(newvolt, context=self.ctxt)
+            self.devs[POWER]['server'].set_voltage(newvolt, context=self.devs[POWER]['context'])
             print 'done magging! %s' % newvolt
             return
         # is the magnet voltage below the limit?
         if self.setCurrent < self.devs[POWER]['values'][0] and self.devs[DMM]['values'][0] > -self.voltageLimit:
             newvolt = self.devs[POWER]['values'][2] - VOLTAGE_STEP
             print "mag step -> %s" % newvolt
-            self.devs[POWER]['server'].set_voltage(newvolt, context=self.ctxt)
+            self.devs[POWER]['server'].set_voltage(newvolt, context=self.devs[POWER]['context'])
         elif self.setCurrent > self.devs[POWER]['values'][0] and self.devs[DMM]['values'][0] < self.voltageLimit:
             newvolt = self.devs[POWER]['values'][2] + VOLTAGE_STEP
             print "mag step -> %s" % newvolt
-            self.devs[POWER]['server'].set_voltage(newvolt, context=self.ctxt)
+            self.devs[POWER]['server'].set_voltage(newvolt, context=self.devs[POWER]['context'])
 
     def doMagCycleSwitchCooled(self):
         ''' this is called when the persistent switch is cold. '''
         if abs(self.devs[POWER]['values'][0] - self.setCurrent) < CURRENT_RESOLUTION * 5:
             if abs(self.setCurrent) < CURRENT_RESOLUTION:
-                self.devs[POWER]['server'].output(False, context=self.ctxt)
+                self.devs[POWER]['server'].output(False, context=self.devs[POWER]['context'])
             return
         if self.setCurrent < self.devs[POWER]['values'][0]:
             newvolt = self.devs[POWER]['values'][2] - VOLTAGE_STEP
-            self.devs[POWER]['server'].set_voltage(newvolt, context=self.ctxt)
+            self.devs[POWER]['server'].set_voltage(newvolt, context=self.devs[POWER]['context'])
         else:
             newVolt = self.devs[POWER]['values'][2] + VOLTAGE_STEP
-            self.devs[POWER]['server'].set_voltage(newvolt, context=self.ctxt)
+            self.devs[POWER]['server'].set_voltage(newvolt, context=self.devs[POWER]['context'])
                 
     def doPersistentSwitch(self):
         ''' Handle the persistent switch.
@@ -300,7 +314,7 @@ class MagnetWrapper(DeviceWrapper):
         # is DC supply in PS mode?
         if not self.devs[DC]['extraValues'][1]:
             # asynch send message to put in PS Mode
-            self.devs[DC]['server'].persistent_switch_mode(True, context=self.ctxt)
+            self.devs[DC]['server'].persistent_switch_mode(True, context=self.devs[DC]['context'])
             self.psStatus = 'Setting PS mode on device.'
             return
         self.psHeated = self.devs[DC]['extraValues'][0]
@@ -344,7 +358,7 @@ class MagnetWrapper(DeviceWrapper):
             # check for current to be at setpoint
             if abs(self.setCurrent - self.devs[POWER]['values'][0]) < CURRENT_RESOLUTION:
                 self.psCurrent = self.devs[POWER]['values'][0]
-                self.devs[DC]['server'].output(False, context=self.ctxt)   # do the deed, asynch
+                self.devs[DC]['server'].output(False, context=self.devs[DC]['context'])   # do the deed, asynch
                 self.psStatus = 'Turned heater off'
                 return
             else:
@@ -355,7 +369,7 @@ class MagnetWrapper(DeviceWrapper):
             self.current(self.psCurrent)
             if abs(self.psCurrent - self.devs[POWER]['values'][0]) < CURRENT_RESOLUTION * 5:
                 # we're at the appropriate current
-                self.devs[DC]['server'].output(True, context=self.ctxt)
+                self.devs[DC]['server'].output(True, context=self.devs[DC]['context'])
                 self.psStatus = 'Turned heater on'
                 return
             else:
@@ -392,7 +406,7 @@ class MagnetWrapper(DeviceWrapper):
             self.dvNew = True
             p.cd(DATA_PATH, True)
             p.new(self.dvName, ['time [s]'], ['Current (Magnet) [A]', 'Current (Setpoint) [A]', 'Current (Power Supply) [A]', 'Current (Power Supply Setpoint) [A]', 'Voltage (Power Supply) [V]',
-                'Voltage (Power Supply Setpoint) [V]', 'Voltage (Magnet) [V]', 'Current (Heater) [A]', 'Voltage (Heater) [V]', 'Temperature (4K) [K]'])
+                'Voltage (Power Supply Setpoint) [V]', 'Voltage (Magnet) [V]', 'Current (Heater) [A]', 'Voltage (Heater) [V]', 'Temperature (4K) [K]', 'Current (DMM2) [A]'])
             p.add_parameters(('Start Time (str)', time.strftime("%Y-%m-%d %H:%M")), ('Start Time (int)', time.time()))
         # add the data
         p.add(data)
@@ -413,6 +427,7 @@ class MagnetWrapper(DeviceWrapper):
         we assume that we need to create a data set. '''
         print 'dv error!'
         failure.trap(Error)
+        print failure
         self.dvName = None
         self.dv = None
         self.dvStatus = 'Creating new dataset'
@@ -443,7 +458,8 @@ class MagnetWrapper(DeviceWrapper):
         if self.psHeated is False:
             return self.psCurrent
         else:
-            return self.devs[POWER]['values'][0]
+            return self.devs[DMM2]['values'][0]
+            #return self.devs[POWER]['values'][0]
             
     def getStatus(self):
         ''' returns all the statuses '''
@@ -503,19 +519,19 @@ class MagnetServer(DeviceServer):
         print devList
         returnValue(devList)
         
-    @setting(21, 'Get Values', returns='(v[A] v[A] v[A] v[A] v[V] v[V] v[V] v[V] v[A] v[V] v[K])')
+    @setting(21, 'Get Values', returns='(v[A] v[A] v[A] v[A] v[V] v[V] v[V] v[V] v[A] v[V] v[K] v[A])')
     def get_values(self, c):
         ''' Returns all the relevant values.\n
         Magnet Current [A], Current Setpoint, PS Current [A], PS Current Setpoint, PS Voltage [V], PS Voltage Setpoint,
-        Magnet Voltage [V], Magnet Voltage Setpoint [V], Switch Current [A], Switch Voltage [V], Magnet Temperature [K]'''
+        Magnet Voltage [V], Magnet Voltage Setpoint [V], Switch Current [A], Switch Voltage [V], Magnet Temperature [K], Magnet Current 2 [A]'''
         # note: when you change this function keep the comment in the same form - one comma separated label per value
         # on the second line (i.e. after \n)
         return self.selectedDevice(c).getValues()
         
-    @setting(22, 'Get Status', returns='(sssssss)')
+    @setting(22, 'Get Status', returns='(ssssssss)')
     def get_status(self, c):
         ''' Returns all the statuses.\n
-        Overall, Data logging, Switch, Power Supply, DMM, DC Source, Temperature'''
+        Overall, Data logging, Switch, Power Supply, DMM, DC Source, Temperature, DMM2'''
         # also keep in the same format
         return self.selectedDevice(c).getStatus()
         
