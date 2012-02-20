@@ -34,6 +34,8 @@ import keys
 #e.g. 0xA sets trigger S1 and S3
 trigger = 0xFL << 28
 
+FPGA_SERVER_NAME = 'ghz_fpgas'
+
 DACMAX= 1 << 13 - 1
 DACMIN= 1 << 13
 PERIOD = 2000
@@ -166,7 +168,7 @@ def zeroFixedCarrier(cxn, boardname):
     reg = cxn.registry
     yield reg.cd(['',keys.SESSIONNAME,boardname])
 
-    fpga = cxn.ghz_fpgas
+    fpga = cxn[FPGA_SERVER_NAME]
     yield fpga.select_device(boardname)
 
     switch = cxn.microwave_switch
@@ -202,7 +204,7 @@ def zeroScanCarrier(cxn, scanparams, boardname):
     reg = cxn.registry
     yield reg.cd(['',keys.SESSIONNAME,boardname])
 
-    fpga = cxn.ghz_fpgas
+    fpga = cxn[FPGA_SERVER_NAME]
     yield fpga.select_device(boardname)
     
     switch = cxn.microwave_switch
@@ -309,7 +311,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     trigger_positive()
     yield p.send()
 
-    fpga = cxn.ghz_fpgas
+    fpga = cxn[FPGA_SERVER_NAME]
     yield fpga.select_device(boardname)
     offsettime = yield reg.get(keys.TIMEOFFSET)
 
@@ -371,7 +373,7 @@ def calibrateDCPulse(cxn,boardname,channel):
     reg = cxn.registry
     yield reg.cd(['',keys.SESSIONNAME,boardname])
 
-    fpga = cxn.ghz_fpgas
+    fpga = cxn[FPGA_SERVER_NAME]
     fpga.select_device(boardname)
 
     dac_baseline = -0x2000
@@ -488,7 +490,7 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
     reg = cxn.registry
     yield reg.cd(['', keys.SESSIONNAME, boardname])
 
-    fpga = cxn.ghz_fpgas
+    fpga = cxn[FPGA_SERVER_NAME]
     yield fpga.select_device(boardname)
 
     uwaveSourceID = yield reg.get(keys.ANRITSUID)
