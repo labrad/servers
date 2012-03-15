@@ -937,7 +937,7 @@ class DataVault(LabradServer):
     @setting(6, tagFilters=['s', '*s'], includeTags='b',
                 returns=['*s{subdirs}, *s{datasets}',
                          '*(s*s){subdirs}, *(s*s){datasets}'])
-    def dir(self, c, tagFilters=['-trash'], includeTags=None):
+    def dir(self, c, tagFilters=['-trash'], includeTags=False):
         """Get subdirectories and datasets in the current directory."""
         #print 'dir:', tagFilters, includeTags
         if isinstance(tagFilters, str):
