@@ -43,15 +43,16 @@ timeout = 20
 
 class DataVaultProxy(LabradServer):
     """Intefaces to data vault"""
-    name = 'Data Vault Proxy'
+    name = 'Data Vault'
         
     @inlineCallbacks
     def initServer(self):
         self.cxnCentral = yield labrad.connectAsync(host='jingle')
+        self.dv = self.cxnCentral.data_vault
         
     @setting(5, returns=['*s'])
     def dump_existing_sessions(self, c):
-        result = yield self.clientCentral.data_vault.dump_existing_sessions(context=c)
+        result = yield self.dv.dump_existing_sessions(context=c)
         returnValue(result)
     
     @setting(6, tagFilters=['s', '*s'], includeTags='b',
@@ -59,7 +60,7 @@ class DataVaultProxy(LabradServer):
                          '*(s*s){subdirs}, *(s*s){datasets}'])
     def dir(self, c, tagFilters=['-trash'], includeTags=False):
         """Get subdirectories and datasets in the current directory."""
-        result = yield self.cxnCentral.data_vault.dir(tagFilters, includeTags, context=c.ID)
+        result = yield self.dv.dir(tagFilters, includeTags, context=c.ID)
         returnValue(result)
     
     @setting(7, path=['{get current directory}',
@@ -75,7 +76,7 @@ class DataVaultProxy(LabradServer):
         is set to true, new directories will be created as needed.
         Returns the path to the new current directory.
         """
-        result = yield self.cxnCentral.data_vault.cd(path, create, context=c.ID)
+        result = yield self.dv.cd(path, create, context=c.ID)
         returnValue(result)
             
     @setting(8, name='s', returns='*s')
@@ -87,7 +88,7 @@ class DataVaultProxy(LabradServer):
         Directory name cannot be empty.  Returns the path to the
         created directory.
         """
-        result = yield self.cxnCentral.data_vault.mkdir(name, context=c.ID)
+        result = yield self.dv.mkdir(name, context=c.ID)
         returnValue(result)
         
     @setting(9, name='s',
@@ -106,7 +107,7 @@ class DataVaultProxy(LabradServer):
         a legend entry that should be unique for each trace.
         Returns the path and name for this dataset.
         """
-        result = yield self.cxnCentral.data_vault.new(name, independents, dependents, context=c.ID)
+        result = yield self.dv.new(name, independents, dependents, context=c.ID)
         returnValue(result)
         
     @setting(10, name=['s', 'w'], returns='(*s{path}, s{name})')
@@ -116,7 +117,7 @@ class DataVaultProxy(LabradServer):
         You can specify the dataset by name or number.
         Returns the path and name for this dataset.
         """
-        result = yield self.cxnCentral.data_vault.new(name, context=c.ID)
+        result = yield self.dv.open(name, context=c.ID)
         returnValue(result)
         
     @setting(20, data=['*v: add one row of data',
@@ -129,7 +130,7 @@ class DataVaultProxy(LabradServer):
         to the total number of variables in the data set
         (independents + dependents).
         """
-        result = yield self.cxnCentral.data_vault.add(data, context=c.ID)
+        result = yield self.dv.add(data, context=c.ID)
         returnValue(result)
 
     @setting(21, limit='w', startOver='b', returns='*2v')
@@ -142,7 +143,7 @@ class DataVaultProxy(LabradServer):
         of the dataset.  By default, only new data that has not been seen
         in this context is returned.
         """
-        result = yield self.cxnCentral.data_vault.get(limit, startover, context=c.ID)
+        result = yield self.dv.get(limit, startover, context=c.ID)
         returnValue(result)
     
     @setting(100, returns='(*(ss){independents}, *(sss){dependents})')
@@ -154,37 +155,37 @@ class DataVaultProxy(LabradServer):
         Label is meant to be an axis label, which may be shared among several
         traces, while legend is unique to each trace.
         """
-        result = yield self.cxnCentral.data_vault.variables(context=c.ID)
+        result = yield self.dv.variables(context=c.ID)
         returnValue(result)
 
     @setting(120, returns='*s')
     def parameters(self, c):
         """Get a list of parameter names."""
-        result = yield self.cxnCentral.data_vault.parameters(context=c.ID)
+        result = yield self.dv.parameters(context=c.ID)
         returnValue(result)
 
     @setting(121, 'add parameter', name='s', returns='')
     def add_parameter(self, c, name, data):
         """Add a new parameter to the current dataset."""
-        result = yield self.cxnCentral.data_vault.add_parameter(name, data, context=c.ID)
+        result = yield self.dv.add_parameter(name, data, context=c.ID)
         returnValue(result)
 
     @setting(124, 'add parameters', params='?{((s?)(s?)...)}', returns='')
     def add_parameters(self, c, params):
         """Add a new parameter to the current dataset."""
-        result = yield self.cxnCentral.data_vault.add_parameters(params, context=c.ID)
+        result = yield self.dv.add_parameters(params, context=c.ID)
         returnValue(result)
         
     @setting(126, 'get name', returns='s')
     def get_name(self, c):
         """Get the name of the current dataset."""
-        result = yield self.cxnCentral.data_vault.get_name(context=c.ID)
+        result = yield self.dv.get_name(context=c.ID)
         returnValue(result)
 
     @setting(122, 'get parameter', name='s')
     def get_parameter(self, c, name, case_sensitive=True):
         """Get the value of a parameter."""
-        result = yield self.cxnCentral.data_vault.get_parameter(name, case_sensitive, context=c.ID)
+        result = yield self.dv.get_parameter(name, case_sensitive, context=c.ID)
         returnValue(result)
 
     @setting(123, 'get parameters')
@@ -195,7 +196,7 @@ class DataVaultProxy(LabradServer):
         If the set has no parameters, nothing is returned (since empty clusters
         are not allowed).
         """
-        result = yield self.cxnCentral.data_vault.get_parameters(context=c.ID)
+        result = yield self.dv.get_parameters(context=c.ID)
         returnValue(result)
 
     @setting(125, 'import parameters',
@@ -206,21 +207,21 @@ class DataVaultProxy(LabradServer):
     def import_parameters(self, c, subdirs=None):
         """Reads all entries from the current registry directory, optionally
         including subdirectories, as parameters into the current dataset."""
-        result = yield self.cxnCentral.data_vault.import_parameters(subdirs, context=c.ID)
+        result = yield self.dv.import_parameters(subdirs, context=c.ID)
         returnValue(result)
         
 
     @setting(200, 'add comment', comment=['s'], user=['s'], returns=[''])
     def add_comment(self, c, comment, user='anonymous'):
         """Add a comment to the current dataset."""
-        result = yield self.cxnCentral.data_vault.add_comment(comment, user, context=c.ID)
+        result = yield self.dv.add_comment(comment, user, context=c.ID)
         returnValue(result)
         
     @setting(201, 'get comments', limit=['w'], startOver=['b'],
                                   returns=['*(t, s{user}, s{comment})'])
     def get_comments(self, c, limit=None, startOver=False):
         """Get comments for the current dataset."""
-        result = yield self.cxnCentral.data_vault.get_comments(limit, startOver, context=c.ID)
+        result = yield self.dv.get_comments(limit, startOver, context=c.ID)
         returnValue(result)
 
     @setting(300, 'update tags', tags=['s', '*s'],
@@ -236,7 +237,7 @@ class DataVaultProxy(LabradServer):
 
         The directories and datasets must be in the current directory.
         """
-        result = yield self.cxnCentral.data_vault.update_tags(tags, dirs, datasets, context=c.ID)
+        result = yield self.dv.update_tags(tags, dirs, datasets, context=c.ID)
         returnValue(result)
 
     @setting(301, 'get tags',
@@ -244,7 +245,7 @@ class DataVaultProxy(LabradServer):
                   returns='*(s*s)*(s*s)')
     def get_tags(self, c, dirs, datasets):
         """Get tags for directories and datasets in the current dir."""
-        result = yield self.cxnCentral.data_vault.get_tags(dirs, datasets, context=c.ID)
+        result = yield self.dv.get_tags(dirs, datasets, context=c.ID)
         returnValue(result)
         
         
