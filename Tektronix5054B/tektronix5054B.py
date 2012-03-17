@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Tektronix TDS 5054B-NV Oscilloscope
-version = 0.2
+version = 1.0
 description = Talks to the Tektronix 5054B oscilloscope
 
 [startup]
@@ -292,9 +292,9 @@ class Tektronix5054BServer(GPIBManagedServer):
         recordLength = stop-start+1
         
         dev = self.selectedDevice(c)
-
         #DAT:SOU - set waveform source channel
         yield dev.write('DAT:SOU CH%d' %channel)
+
         #DAT:ENC - data format (binary/ascii)
         yield dev.write('DAT:ENC RIB')
         #Set number of bytes per point
@@ -319,6 +319,46 @@ class Tektronix5054BServer(GPIBManagedServer):
 
         returnValue((time, traceVolts))
 
+    @setting(203, channel = 'i', start = 'i', stop = 'i', returns='*v[us] {time axis} *v[mW] {scope trace}')
+    def get_math_trace(self, c, channel, start=1, stop=10000):
+        """Get a trace from the scope.
+        OUTPUT - (array voltage in volts, array time in seconds)
+        """
+##        DATA ENCODINGS
+##        RIB - signed, MSB first
+##        RPB - unsigned, MSB first
+##        SRI - signed, LSB first
+##        SRP - unsigned, LSB first
+        wordLength = 4 #Hardcoding to set data transer word length to 4 bytes
+        recordLength = stop-start+1
+        
+        dev = self.selectedDevice(c)
+        #DAT:SOU - set math source channel
+        yield dev.write('DAT:SOU MATH%d' %channel)
+        #DAT:ENC - data format (binary/ascii)
+        yield dev.write('DAT:ENC RIB')
+        #Set number of bytes per point
+        yield dev.write('DAT:WID %d' %wordLength)
+        #Starting and stopping point
+        yield dev.write('DAT:STAR %d' %start)
+        yield dev.write('DAT:STOP %d' %stop)
+        #Transfer waveform preamble
+        preamble = yield dev.query('WFMP?')
+        position = yield dev.query('MATH%d:POSITION?' %channel) # in units of divisions
+        #Transfer waveform data
+        binary = yield dev.query('CURV?')
+        #Parse waveform preamble
+        wattsPerDiv, secPerDiv, wattUnits, timeUnits = _parsePreamble(preamble)
+        wattUnitScaler = Value(1, wattUnits)['mW'] # converts the units out of the scope to mW
+        timeUnitScaler = Value(1, timeUnits)['us']
+        #Parse binary
+        trace = _parseBinaryData(binary,wordLength = wordLength)
+        #Convert from binary to volts
+        traceVolts = (trace * wattUnitScaler)
+        time = numpy.linspace(0, HORZ_DIVISIONS * secPerDiv * timeUnitScaler,len(traceVolts))#recordLength)
+
+        returnValue((time, traceVolts))
+
 def _parsePreamble(preamble):
     ###TODO: parse the rest of the preamble and return the results as a useful dictionary
     preamble = preamble.split(';')
@@ -330,23 +370,35 @@ def _parsePreamble(preamble):
         return float(number), units
     
     voltsPerDiv, voltUnits = parseString(vertInfo[2])
+    if voltUnits == 'VV':
+        voltUnits ='W'
+    if voltUnits == 'mVV':
+        voltUnits = 'W'
+    if voltUnits == 'uVV':
+        voltUnits = 'W'
+    if voltUnits == 'nVV':
+        voltUnits = 'W'
     secPerDiv, timeUnits = parseString(vertInfo[3])
     return (voltsPerDiv, secPerDiv, voltUnits, timeUnits)
 
 def _parseBinaryData(data, wordLength):
     """Parse binary data packed as string of RIBinary
     """
-    formatChars = {'1':'b','2':'h'}
+    formatChars = {'1':'b','2':'h', '4':'f'}
     formatChar = formatChars[str(wordLength)]
 
     #Get rid of header crap
-    header = data[0:6]
-    dat = data[7:]
     #unpack binary data
     if wordLength == 1:
         dat = numpy.array(unpack(formatChar*(len(dat)/wordLength),dat))
     elif wordLength == 2:
+        header = data[0:6]
+        dat = data[7:]
         dat = numpy.array(unpack('>' + formatChar*(len(dat)/wordLength),dat))
+    elif wordLength == 4:
+        header = data[0:6]
+        dat = data[7:]
+        dat = numpy.array(unpack('>' + formatChar*(len(dat)/wordLength),dat))      
     return dat
 
 __server__ = Tektronix5054BServer()
