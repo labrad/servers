@@ -26,7 +26,7 @@ from twisted.internet.reactor import callLater
 """
 ### BEGIN NODE INFO
 [info]
-name = Data Vault
+name = Data Vault Proxy
 version = 1.0
 description = Proxies the data vault so that all LabRAD colonies can use the same data vault
 instancename = %LABRADNODE% Data Vault Proxy
