@@ -57,7 +57,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from OrderedDict import OrderedDict # if we ever go to 2.7 we can use collections.OrderedDict
 import math, time
 
-K, A, V, T = Unit('K'), Unit('A'), Unit('V'), Unit('T')
+K, A, V, T, Ohm = Unit('K'), Unit('A'), Unit('V'), Unit('T'), Unit('Ohm')
 
 # hard limits
 TEMP_LIMIT = 6.5 * K
@@ -66,7 +66,9 @@ VOLTAGE_RESOLUTION = 0.0006 * V
 VOLTAGE_LIMIT_DEFAULT = 0.1 * V
 VOLTAGE_LIMIT_MAX = 0.7 * V
 VOLTAGE_LIMIT_MIN = VOLTAGE_RESOLUTION
-VOLTAGE_STEP = VOLTAGE_RESOLUTION
+VOLTAGE_STEP = VOLTAGE_RESOLUTION * 3
+
+DMM2_RESISTANCE = 5.2 * Ohm
 
 CURRENT_RESOLUTION = 0.002 * A
 
@@ -116,7 +118,7 @@ class MagnetWrapper(DeviceWrapper):
         self.devs[DMM] = {'server' : None, 'values': [NaN] * len(DMM_SETTINGS), 'status': 'not initialized', 'settings': DMM_SETTINGS, 'gpib address': 24,}
         self.devs[DC] = {'server' : None, 'values': [NaN] * len(DC_SETTINGS), 'status': 'not initialized', 'settings': DC_SETTINGS, 'extras': ['output', 'persistent_switch_mode', 'persistent_switch_time_elapsed']}
         self.devs[TEMPERATURE] = {'server': None, 'values': [NaN] * len(TEMPERATURE_SETTINGS), 'status': 'not initialized', 'settings': TEMPERATURE_SETTINGS, 'flatten': True, 'pickOneValue': 1}
-        self.devs[DMM2] = {'server': None, 'values': [NaN] * len(DMM2_SETTINGS), 'status': 'not initialized', 'settings': DMM2_SETTINGS, 'gpib address': 22,}
+        self.devs[DMM2] = {'server': None, 'values': [NaN] * len(DMM2_SETTINGS), 'status': 'not initialized', 'settings': DMM2_SETTINGS, 'gpib address': 27,}
         
         
         # Persistent Switch
@@ -190,7 +192,7 @@ class MagnetWrapper(DeviceWrapper):
     @inlineCallbacks
     def doDevice(self, dev):
         # do we need a server? if so, connect to it
-        if not self.devs[dev]['server'] and dev in self.cxn.servers:
+        if not self.devs[dev]['server'] and SERVERS[dev] in self.cxn.servers:
             self.devs[dev]['server'] = self.cxn[SERVERS[dev]]
             self.devs[dev]['context'] = self.devs[dev]['server'].context()
         # do we have a server? if so, get our data
@@ -220,16 +222,14 @@ class MagnetWrapper(DeviceWrapper):
                 # catch labrad error (usually DeviceNotSelectedError) -- select our device if we have one
                 self.devs[dev]['values'] = [NaN] * len(self.devs[dev]['settings'])
                 if 'DeviceNotSelectedError' in e.msg or 'NoDevicesAvailableError' in e.msg:
-                    print 1
                     devs = yield self.devs[dev]['server'].list_devices(context = self.devs[dev]['context'])
                     found = False
                     for d in devs:
                         if 'gpib address' in self.devs[dev].keys():
-                            print d[1]
+                            #print d[1]
                             if not d[1].endswith(str(self.devs[dev]['gpib address'])):
                                 continue
                         if self.nodeName.upper() in d[1].upper():
-                            print 2
                             found = True
                             yield self.devs[dev]['server'].select_device(d[0], context = self.devs[dev]['context'])
                             self.devs[dev]['status'] = 'Found Device'
@@ -237,6 +237,7 @@ class MagnetWrapper(DeviceWrapper):
                         self.devs[dev]['status'] = 'No Device'
                 elif 'Target' in e.msg and 'unknown' in e.msg:
                     # server has been turned off
+                    #print e.msg
                     self.devs[dev]['server'] = None
                     self.devs[dev]['status'] = 'No Server'
                 else:
@@ -458,8 +459,8 @@ class MagnetWrapper(DeviceWrapper):
         if self.psHeated is False:
             return self.psCurrent
         else:
-            return self.devs[DMM2]['values'][0]
-            #return self.devs[POWER]['values'][0]
+            #return (self.devs[DMM2]['values'][0] / DMM2_RESISTANCE).inUnitsOf("A")
+            return self.devs[POWER]['values'][0]
             
     def getStatus(self):
         ''' returns all the statuses '''
@@ -516,14 +517,14 @@ class MagnetServer(DeviceServer):
             regPacket.get('Node Name', key='node')
             regAns = yield regPacket.send()
             devList.append((name, (regAns['node'], self.client), {}))
-        print devList
+        #print devList
         returnValue(devList)
         
     @setting(21, 'Get Values', returns='(v[A] v[A] v[A] v[A] v[V] v[V] v[V] v[V] v[A] v[V] v[K] v[A])')
     def get_values(self, c):
         ''' Returns all the relevant values.\n
         Magnet Current [A], Current Setpoint, PS Current [A], PS Current Setpoint, PS Voltage [V], PS Voltage Setpoint,
-        Magnet Voltage [V], Magnet Voltage Setpoint [V], Switch Current [A], Switch Voltage [V], Magnet Temperature [K], Magnet Current 2 [A]'''
+        Magnet Voltage [V], Magnet Voltage Setpoint [V], Switch Current [A], Switch Voltage [V], Magnet Temperature [K], Voltage 2 [A]'''
         # note: when you change this function keep the comment in the same form - one comma separated label per value
         # on the second line (i.e. after \n)
         return self.selectedDevice(c).getValues()
