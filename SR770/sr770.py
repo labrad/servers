@@ -591,7 +591,7 @@ class SR770Server(GPIBManagedServer):
         linewidth = span/NUM_POINTS
         freqStart = yield self.start_frequency(c)
         #Check the window type
-        window = self.window(c)
+        window = yield self.window(c, trace)
         if not window=='UNIFORM':
             raise Exception('Window must be set to uniform for power spectral amplitude')
         #Start the averagine cycle
