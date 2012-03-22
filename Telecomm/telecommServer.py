@@ -40,9 +40,12 @@ from twisted.python import log
 
 import smtplib
 
-SMS_PATH = ['Servers','Telecomm','sms_users']
+REGISTRY_PATH = ['','Servers','Telecomm']
+SMS_KEY = 'smsUsers'
+DOMAIN_KEY = 'domain'
+SERVER_KEY = 'smtpServer'
 
-def textMessage(recipients, subject, msg, username='LabRAD',attempts=2):
+def textMessage(recipients, subject, msg, domain, server, username='LabRAD',attempts=2):
     """Send a text message to one or more recipients
 
     INPUTS:
@@ -55,13 +58,9 @@ def textMessage(recipients, subject, msg, username='LabRAD',attempts=2):
     """
     if not isinstance(recipients,list):
         recipients = [recipients]
-    try:
-        email(recipients, subject, msg, username,attempts=attempts)
-    except:
-        print 'Text message failed'
-        raise
+    return email(recipients, subject, msg, domain, server, username, attempts=attempts)
 
-def email(toAddrs,subject,msg,username='LabRAD',attempts=2,noisy=False):
+def email(toAddrs, subject, msg, domain, server, username='LabRAD', attempts=2, noisy=False):
     """Send an email to one or more recipients
 
     INPUTS:
@@ -69,23 +68,29 @@ def email(toAddrs,subject,msg,username='LabRAD',attempts=2,noisy=False):
     subject - str: Subject of the message
     msg - str: message to send
     username - str, optional: PCS account name to stick on the message. Defaults to 'LabRAD'
+    
+    RETURNS
+    (success, failedList)
     """
-    fromAddr = username+'@physics.ucsb.edu'
+    fromAddr = username+'@'+domain
     if not isinstance(toAddrs,list):
         toAddrs = [toAddrs]
-    header = """From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n"""%(fromAddr,", ".join(toAddrs), subject)
-    message = header+msg
     if noisy:
         print 'Sending message:\r\n-------------------------\r\n'+message+'\r\n-------------------------\r\n'
         print '\n'
     for attempt in range(attempts):
         try:
-            print 'Sending message from %s' %fromAddr
-            server = smtplib.SMTP('smtp.physics.ucsb.edu')
-            server.sendmail(fromAddr, toAddrs, message)
-            print 'Message sent'
-            server.quit()
-            break
+            #Construct message string
+            header = """From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n"""%(fromAddr,", ".join(toAddrs), subject)
+            message = header+msg
+            #Get connection to smtp server and send message
+            server = smtplib.SMTP(server)
+            result = server.sendmail(fromAddr, toAddrs, message)
+            #Update the toAddrs list to include only recipients for which mail sending failed
+            toAddrs = result.keys()
+            #Messaging was a success, but some recipients may have failed
+            return (True, toAddrs)
+            
         except Exception:
             print 'Attempt %d failed. Message not sent' %(attempt+1)
             if attempt<attempts-1:
@@ -93,7 +98,7 @@ def email(toAddrs,subject,msg,username='LabRAD',attempts=2,noisy=False):
                 continue
             else:
                 print 'Maximum retries reached'
-                raise
+                return (False, toAddrs)
 
 class TelecommServer(LabradServer):
     """Server to send email and text messages"""
@@ -101,51 +106,55 @@ class TelecommServer(LabradServer):
     
     @inlineCallbacks
     def initServer(self):
-        print 'initializing server'
-        self.sms_users={}
-        yield self._refreshSmsUsers()
+        print 'initializing server...'
+        self.smsUsers = None
+        self.smtpServer = None
+        self.domain = None
+        yield self._refreshConnectionData()
+        print 'initialization complete.'
     
     @inlineCallbacks
     def stopServer(self):
         pass
-
+        
     @inlineCallbacks
-    def _refreshSmsUsers(self):
+    def _refreshConnectionData(self):
+        print 'Refreshing connection data...'
         cxn = self.client
         reg = cxn.registry
         p = reg.packet()
-        p.cd('')
-        for d in SMS_PATH[0:-1]:
-            p.cd(d)
-        p.get(SMS_PATH[-1],key='userlist')
+        p.cd(REGISTRY_PATH)
+        p.get(SMS_KEY, key='userlist')
+        p.get(DOMAIN_KEY, key='domain')
+        p.get(SERVER_KEY, key='server')
         resp = yield p.send()
-        print resp['userlist']
-        self.sms_users=dict(resp['userlist'])
+        self.smsUsers=dict(resp['userlist'])
+        self.domain = resp['domain']
+        self.smtpServer = resp['server']
+        print 'Refresh complete.'
         
-    @setting(10, toAddrs=['s','*s'], subject='s', msg='s', username='s', returns='b')
+    @setting(10, toAddrs=['s','*s'], subject='s', msg='s', username='s', returns='b{success}*s{failures}')
     def send_mail(self, c, toAddrs, subject, msg, username='LabRAD'):
-        try:
-            email(toAddrs,subject,msg,username)
-            return True
-        except:
-            return False
+        success, failures = email(toAddrs, subject, msg, self.domain, self.smtpServer, username)
+        return (success, failures)
             
-    @setting(11, subject='s', msg='s', recipients=['*s','s'], returns='b')
+    @setting(11, subject='s', msg='s', recipients=['*s','s'], returns='b{success}*s{failures}')
     def send_sms(self, c, subject, msg, recipients):
         if not isinstance(recipients,list):
             recipients = [recipients]
-        try:
-            recipients = [self.sms_users[name.upper()] for name in recipients]
-            print recipients
-            textMessage(recipients,subject,msg)
-            return True
-        except:
-            return False
+        recipients = [self.smsUsers[name.upper()] for name in recipients]
+        success, failures = textMessage(recipients, subject, msg, self.domain, self.smtpServer)
+        return (success, failures)
+
+
+    @setting(12, returns='ss')
+    def dump_data(self, c):
+        return (str(self.domain), str(self.smtpServer))
 
     @setting(20, returns='')
-    def refresh(self, c):
-        self._refreshSmsUsers()
-    
+    def refresh_connection_data(self, c):
+        yield self._refreshConnectionData()
+        
 __server__ = TelecommServer()
 
 if __name__ == '__main__':
