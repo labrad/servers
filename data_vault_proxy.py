@@ -143,7 +143,7 @@ class DataVaultProxy(LabradServer):
         of the dataset.  By default, only new data that has not been seen
         in this context is returned.
         """
-        result = yield self.dv.get(limit, startover, context=c.ID)
+        result = yield self.dv.get(limit, startOver, context=c.ID)
         returnValue(result)
     
     @setting(100, returns='(*(ss){independents}, *(sss){dependents})')
