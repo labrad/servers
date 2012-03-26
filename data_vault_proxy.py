@@ -14,7 +14,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # CHANGELOG
-#
+# 26 March 2012 - Daniel Sank
+# Went through and added code to deal with the fact that a lot of the
+# python function implementations of LabRAD settings have arguments
+# with default values that are of different type than the types
+# expected by LabRAD. This meant that when arguments were unspecified,
+# the default python arguments would be passed into the invocation of
+# the real data vault. This caused an error because the python type
+# was icompatible with (unflattenable to) the expected LabRAD type.
 
 
 import labrad
@@ -27,7 +34,7 @@ from twisted.internet.reactor import callLater
 ### BEGIN NODE INFO
 [info]
 name = Data Vault Proxy
-version = 1.0
+version = 1.1
 description = Proxies the data vault so that all LabRAD colonies can use the same data vault
 instancename = %LABRADNODE% Data Vault Proxy
 
@@ -52,7 +59,7 @@ class DataVaultProxy(LabradServer):
         
     @setting(5, returns=['*s'])
     def dump_existing_sessions(self, c):
-        result = yield self.dv.dump_existing_sessions(context=c)
+        result = yield self.dv.dump_existing_sessions(context=c.ID)
         returnValue(result)
     
     @setting(6, tagFilters=['s', '*s'], includeTags='b',
@@ -76,7 +83,10 @@ class DataVaultProxy(LabradServer):
         is set to true, new directories will be created as needed.
         Returns the path to the new current directory.
         """
-        result = yield self.dv.cd(path, create, context=c.ID)
+        if path is not None:
+            result = yield self.dv.cd(path, create, context=c.ID)
+        else:
+            result = yield self.dv.cd('', create, context=c.ID)
         returnValue(result)
             
     @setting(8, name='s', returns='*s')
@@ -143,7 +153,10 @@ class DataVaultProxy(LabradServer):
         of the dataset.  By default, only new data that has not been seen
         in this context is returned.
         """
-        result = yield self.dv.get(limit, startOver, context=c.ID)
+        if limit is not None:
+            result = yield self.dv.get(limit, startOver, context=c.ID)
+        else:
+            result = yield self.dv.get(context=c.ID)
         returnValue(result)
     
     @setting(100, returns='(*(ss){independents}, *(sss){dependents})')
@@ -207,7 +220,10 @@ class DataVaultProxy(LabradServer):
     def import_parameters(self, c, subdirs=None):
         """Reads all entries from the current registry directory, optionally
         including subdirectories, as parameters into the current dataset."""
-        result = yield self.dv.import_parameters(subdirs, context=c.ID)
+        if subdirs is not None:
+            result = yield self.dv.import_parameters(subdirs, context=c.ID)
+        else:
+            reslut = yield self.dv.import_parameters(context=c.ID)
         returnValue(result)
         
 
@@ -221,7 +237,10 @@ class DataVaultProxy(LabradServer):
                                   returns=['*(t, s{user}, s{comment})'])
     def get_comments(self, c, limit=None, startOver=False):
         """Get comments for the current dataset."""
-        result = yield self.dv.get_comments(limit, startOver, context=c.ID)
+        if limit is not None:
+            result = yield self.dv.get_comments(limit, startOver, context=c.ID)
+        else:
+            result = yield self.dv.get_comments(context=c.ID)
         returnValue(result)
 
     @setting(300, 'update tags', tags=['s', '*s'],
@@ -237,7 +256,10 @@ class DataVaultProxy(LabradServer):
 
         The directories and datasets must be in the current directory.
         """
-        result = yield self.dv.update_tags(tags, dirs, datasets, context=c.ID)
+        if datasets is not None:
+            result = yield self.dv.update_tags(tags, dirs, datasets, context=c.ID)
+        else:
+            result = yield self.dv.update_tags(tags, dirs, context=c.ID)
         returnValue(result)
 
     @setting(301, 'get tags',
