@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = DAC Calibration
-version = 1.1.1
+version = 1.1.2
 description = Calibrate sequences for the GHz DAC boards.
 
 [startup]
@@ -29,6 +29,13 @@ message = 987654321
 timeout = 5
 ### END NODE INFO
 """
+
+
+# CHANGELOG:
+#
+# 2012 April 12 - Jim Wenner
+#
+# See correction.py - changed logic string in setSettling.
 
 from twisted.internet.defer import inlineCallbacks, returnValue
 
