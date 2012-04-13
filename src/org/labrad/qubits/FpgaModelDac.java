@@ -292,7 +292,8 @@ public abstract class FpgaModelDac implements FpgaModel {
     }
     // check that the total sram sequence is not too long
     if (sram.length > this.dacBoard.getBuildProperties().get("SRAM_LEN")) {
-      throw new RuntimeException("SRAM sequence exceeds maximum length");
+      throw new RuntimeException("SRAM sequence exceeds maximum length. Length = " + sram.length + "; allowed = " +
+      		this.dacBoard.getBuildProperties().get("SRAM_LEN"));
     }
     return sram;
   }
