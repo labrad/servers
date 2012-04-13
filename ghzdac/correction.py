@@ -17,6 +17,16 @@
 import numpy as np
 
 
+# CHANGELOG
+#
+# 2012 April 12 - Jim Wenner
+#
+# Changed logic string in setSettling from np.any(self.decayRates!=rates)
+# to not (np.array_equal(self.decayRates,rates). With any(!=), if
+# self.decayRates is empty, the output will be an empty array and not
+# False, so the section to change self.decayRates is not entered.
+
+
 def cosinefilter(n, width=0.4):
     """cosinefilter(n,width) cosine lowpass filter
     n samples from 0 to 1 GHz
@@ -795,8 +805,8 @@ class DACcorrection:
         s = np.size(rates)
         rates = np.reshape(np.asarray(rates),s)
         amplitudes = np.reshape(np.asarray(amplitudes),s)
-        if np.any(self.decayRates != rates) or \
-           np.any(self.decayAmplitudes != amplitudes):
+        if not (np.array_equal(self.decayRates,rates) or \
+           np.array_equal(self.decayAmplitudes,amplitudes)):
             self.decayRates = rates
             self.decayAmplitudes = amplitudes
             self.precalc = np.array([])
