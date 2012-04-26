@@ -48,6 +48,14 @@ class AgilentFunctionGenerator(GPIBManagedServer):
         """Puts generator into DC mode with given voltage."""
         dev = self.selectedDevice(c)
         dev.write(':APPL:DC DEF, DEF, %f' % float(f))
+      
+    @setting(12, 'set impedance', setting='s', returns='')      
+    def set_impedance(self, c, setting = '50'):
+        allowed = ['50', 'INF']
+        if setting not in allowed:
+            raise Exception('allowed settings are: %s' % allowed)
+        dev = self.selectedDevice(c)
+        dev.write('OUTP:LOAD %s' % setting)
 
 
 
