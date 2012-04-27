@@ -40,6 +40,10 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 	int ampSin, ampCos;		// passed to "ADC Trig Magnitude" setting (demod mode only)
 
 	private boolean reverseCriticalPhase;
+
+	private int offsetI;
+
+	private int offsetQ;
 	
 	public AdcChannel(String name, AdcBoard board) {
 		this.name = name;
@@ -159,9 +163,9 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 		boolean[] switches = new boolean[Is.length];
 		for (int run = 0; run < Is.length; run++) {
 			if (this.reverseCriticalPhase)
-				switches[run] = Math.atan2(Qs[run], Is[run]) < criticalPhase;
+				switches[run] = Math.atan2(Qs[run]+this.offsetQ, Is[run]+this.offsetI) < criticalPhase;
 			else
-				switches[run] = Math.atan2(Qs[run], Is[run]) > criticalPhase;
+				switches[run] = Math.atan2(Qs[run]+this.offsetQ, Is[run]+this.offsetI) > criticalPhase;
 		}
 		return switches;
 	}
@@ -221,6 +225,8 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 		this.filterFunction = "";
 		this.stretchAt = this.stretchLen = this.startDelay = this.ampSin = this.ampCos = -1;
 		this.reverseCriticalPhase = false;
+		this.offsetI = 0;
+		this.offsetQ = 0;
 	}
 
 	@Override
@@ -230,6 +236,18 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 
 	public void reverseCriticalPhase(boolean reverse) {
 		this.reverseCriticalPhase = reverse;
+	}
+
+	public void setIqOffset(int offsetI, int offsetQ) {
+		this.offsetI = offsetI;
+		this.offsetQ = offsetQ;
+		
+	}
+	
+	public int[] getOffsets() {
+		int[] arr = new int[2];
+		arr[0] = this.offsetI; arr[1] = this.offsetQ;
+		return arr;
 	}
 
 }
