@@ -203,19 +203,19 @@ public class Experiment {
 	  private int subChannel;
 	  
 	  public TimingOrderItem(TimingChannel c, int i) {
-		  channel = c; subChannel = i;
+		  this.channel = c; subChannel = i;
 	  }
 	  public TimingOrderItem(TimingChannel c) {
 		  this(c, -1);
 	  }
 	  public String toString() {
 		  if (subChannel == -1)
-			  return channel.getDacBoard().getName();
+			  return getChannel().getDacBoard().getName();
 		  else
-			  return channel.getDacBoard().getName() + "::" + subChannel;
+			  return getChannel().getDacBoard().getName() + "::" + subChannel;
 	  }
 	  public boolean isAdc() {
-		  return channel instanceof AdcChannel;
+		  return getChannel() instanceof AdcChannel;
 	  }
 	  /**
 	   * @param data Must be *w (DACs) or (*i{I}, *i{Q}) (ADCs)
@@ -225,13 +225,16 @@ public class Experiment {
 		  if (isAdc()) {
 			  Preconditions.checkArgument(data.matchesType("(*i, *i)"), 
 					  "interpretData called with data type %s on an ADC channel. Qubit Sequencer mixup.", data.getType().toString());
-			  return ((AdcChannel)channel).interpretPhases(data.get(0).getIntArray(), data.get(1).getIntArray());
+			  return ((AdcChannel)getChannel()).interpretPhases(data.get(0).getIntArray(), data.get(1).getIntArray());
 		  } else {
 			  Preconditions.checkArgument(data.matchesType("*w"), 
 					  "interpretData called with data type %s on a DAC channel. Qubit Sequencer mixup.", data.getType().toString());
-			  return ((PreampChannel)channel).interpretSwitches(data.getWordArray());
+			  return ((PreampChannel)getChannel()).interpretSwitches(data.getWordArray());
 		  }
 	  }
+	public TimingChannel getChannel() {
+		return channel;
+	}
   }
   
   private final List<Data> setupPackets = Lists.newArrayList();

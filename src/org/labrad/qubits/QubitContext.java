@@ -370,6 +370,14 @@ public class QubitContext extends AbstractServerContext {
 		channel.reverseCriticalPhase(reverse.getBool());
 	}
 
+	@Setting(id = 292,
+			name = "Set IQ Offsets",
+			doc = "Bother Dan")
+	public void set_iq_offset(@Accepts({"s", "ss"}) Data id, @Accepts("ii") Data offsets) {
+		AdcChannel channel = getChannel(id, AdcChannel.class);
+		channel.setIqOffset(offsets.get(0).getInt(),offsets.get(1).getInt());
+	}
+	
 	//
 	// Memory
 	//
@@ -1249,8 +1257,10 @@ public class QubitContext extends AbstractServerContext {
 		double[][] ans = new double[raw.length][];
 		for (int i = 0; i < raw.length; i++) {
 			ans[i] = new double[raw[i][0].length];
+			List<Integer> adcIndices = this.getExperiment().adcTimingOrderIndices();
+			int[] offsets = ((AdcChannel)this.getExperiment().getTimingChannels().get(adcIndices.get(i)).getChannel()).getOffsets();
 			for (int j = 0; j < raw[i][0].length; j++) {
-				ans[i][j] = Math.atan2(raw[i][1][j], raw[i][0][j]);
+				ans[i][j] = Math.atan2(raw[i][1][j]+offsets[1], raw[i][0][j]+offsets[0]);
 			}
 		}
 		return ans;
