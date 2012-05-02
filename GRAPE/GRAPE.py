@@ -24,10 +24,18 @@ from labrad import util
 from twisted.internet import defer, reactor
 from twisted.internet.defer import returnValue
 
+import os
+
+
+def writeParameterFile(path, parameters):
+    #open file
+    for k,v in parameters.keys():
+        
+
 class GRAPE(LabradServer):
     """Invokes GRAPE algorithm on the local machine"""
     name = "GRAPE"
-
+    
     @setting(20, session = '*s', returns = '')
     def initializeSession(self, c, session):
         """Get a registry wrapper for the user's session and keep it in this context"""
@@ -43,9 +51,21 @@ class GRAPE(LabradServer):
         control = qubits[controlIdx]
         target = qubits[targetIdx]
         #Write relevant parameters to file
+        writeParameterFile(c['parameterFilename'], 
         #Invoke GRAPE
+        os.system(<run GRAPE>)
         #Read GRAPE result from file and parse
         #Return result
+    
+    @setting(31, path = '*s')
+    def cd(self, c, path):
+        os.chdir(path)
+    
+    @setting(32, filename='s')
+    def setParameterFileName(self, c, filename):
+        c['parameterFileName'] = filename
+        
+    
     
 if __name__=="__main__":
     from labrad import util
