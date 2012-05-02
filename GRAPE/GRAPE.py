@@ -27,17 +27,35 @@ from twisted.internet.defer import returnValue
 import os
 
 
-def writeParameterFile(path, parameters):
-    #open file
-    for k,v in parameters.keys():
-        
+CONTROL_PARAMETERS = {}
 
+TARGET_PARAMETERS = {}
+
+def writeParameterFile(path, control, target):
+    toWrite = []
+    for parameter, alias, unitTag in CONTROL_PARAMETERS:
+        toWrite.append((alias, control[parameter], unitTag))
+    for parameter, alias, unitTage in TARGET_PARAMETERS:
+        toWrite.append((alias, target[parameter], unitTag))
+    f = #<open file for writing>
+    for alias, value, unitTag in toWrite:
+        f.write('<'+alias+'>')
+        f.write(makeWriteable(value, unitTag))
+        f.write('</'+alias+'>')
+    f.close
+    
+def makeWriteable(value, unitTag):
+    if unitTag == '':
+        return str(value)
+    else:
+        return str(value[unitTag])
+    
 class GRAPE(LabradServer):
     """Invokes GRAPE algorithm on the local machine"""
     name = "GRAPE"
     
     @setting(20, session = '*s', returns = '')
-    def initializeSession(self, c, session):
+    def session(self, c, session):
         """Get a registry wrapper for the user's session and keep it in this context"""
         cxn = self.client
         reg = registry.RegistryWrapper(cxn, session)
@@ -51,13 +69,14 @@ class GRAPE(LabradServer):
         control = qubits[controlIdx]
         target = qubits[targetIdx]
         #Write relevant parameters to file
-        writeParameterFile(c['parameterFilename'], 
+        writeParameterFile(c['parameterFilename'], control, target)
         #Invoke GRAPE
         os.system(<run GRAPE>)
         #Read GRAPE result from file and parse
         #Return result
+        return np.array([[0,0],[0,0]])
     
-    @setting(31, path = '*s')
+    @setting(31, path = 's')
     def cd(self, c, path):
         os.chdir(path)
     
