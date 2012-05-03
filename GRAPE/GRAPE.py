@@ -18,6 +18,23 @@
 # 2012 April 29
 # Created
 
+#NOTES FOR DANIEL E.
+#
+# > import labrad
+# > cxn = labrad.connect()
+# > grape = cxn.grape
+#
+# > grape
+# This will show a list of all available commands (settings) on the server
+#
+# > grape.controlZ
+# This will show a list of input parameters needs to run controlZ
+#
+# > grape.controlZ(parameters...)
+# Actually run the code.
+#
+# Definitely need to check that file writing code is correct. Just check online tutorial.
+
 from labrad.server import LabradServer, setting
 from labrad import util 
 
@@ -60,38 +77,40 @@ class GRAPE(LabradServer):
     """Invokes GRAPE algorithm on the local machine"""
     name = "GRAPE"
     
-#    @setting(20, session = '*s', returns = '')
-#    def session(self, c, session):
-#        """Get a registry wrapper for the user's session and keep it in this context"""
-#        cxn = self.client
-#        reg = registry.RegistryWrapper(cxn, session)
-#        c['sample'] = reg        
-        
-#    @setting(30, controlIdx = 'i', targetIdx = 'i', returns = '*2v')
-#    def controlZ(self, c, controlIdx, targetIdx):
-#        """Buids GRAPE control z sequence from """
-#        cxn = self.client
-#        sample, qubits = datakingUtil.loadQubits(c['sample'])
-#        control = qubits[controlIdx]
-#        target = qubits[targetIdx]
-#	# Need to set this up so that it writes two files with usage of Hnl or not!
-#        #Write relevant parameters to file
-#	os.chdir('/home/daniel/UCSB_CZ/')
-#        writeParameterFile('Run1_InputData.dat', control, target)
-#        writeParameterFile('Run2_InputData.dat', control, target)
-#        #Invoke GRAPE
-#        os.system(EXECUTABLE)
-#        #Read GRAPE result from file and parse
-#        #Get result and turn it into a numpy array
-#        return result
-    
-#    @setting(31, path = 's')
-#    def cd(self, c, path):
-#        os.chdir(path)
-    
-#    @setting(32, filename='s')
-#    def setParameterFileName(self, c, filename):
-#        c['parameterFileName'] = filename
+    @setting(20, session = '*s', returns = '')
+    def session(self, c, session):
+        """Get a registry wrapper for the user's session and keep it in this context"""
+        cxn = self.client
+        reg = registry.RegistryWrapper(cxn, session)
+        c['sample'] = reg        
+       
+    @setting(30, controlIdx = 'i', targetIdx = 'i', returns = '*2v')
+    def controlZ(self, c, controlIdx, targetIdx):
+        """Buids GRAPE control z sequence from """
+        cxn = self.client
+        #Load qubit description files from the LabRAD registry
+        sample, qubits = datakingUtil.loadQubits(c['sample'])
+        #Pick out the two qubits that we actually want to use
+        control = qubits[controlIdx]
+        target = qubits[targetIdx]
+        # Need to set this up so that it writes two files with usage of Hnl or not!
+        # Write relevant parameters to file
+        os.chdir('/home/daniel/UCSB_CZ/')
+        writeParameterFile('Run1_InputData.dat', control, target)
+        writeParameterFile('Run2_InputData.dat', control, target)
+        #Invoke GRAPE
+        os.system(EXECUTABLE)
+        # Read GRAPE result from file and parse
+        # Get result and turn it into a numpy array
+        return result
+   
+    @setting(31, path = 's')
+    def cd(self, c, path):
+        os.chdir(path)
+   
+    @setting(32, filename='s')
+    def setParameterFileName(self, c, filename):
+        c['parameterFileName'] = filename
         
     
     
