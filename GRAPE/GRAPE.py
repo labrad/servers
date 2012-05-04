@@ -172,8 +172,9 @@ class GRAPE(LabradServer):
         #Invoke GRAPE
         os.system(EXECUTABLE+' '+RunNameString)
         # Read GRAPE result from file and parse
+        data = np.loadtxt('/home/daniel/UCSB_CZ/Output/'+RunNameString+'_2/controls_final.dat')
         # Get result and turn it into a numpy array
-        returnValue(np.array([[1,2],[5,6]]))
+        returnValue(data)
       
     @setting(32, 'Set Parameter Filename', filename='s')
     def setParameterFileName(self, c, filename):
