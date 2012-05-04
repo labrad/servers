@@ -30,6 +30,9 @@ timeout = 20
 ### END NODE INFO
 """
 
+#TODO
+#Document input/output values
+
 from labrad import types as T, util
 from labrad.server import LabradServer, setting, Signal
 from labrad.types import Error
@@ -133,7 +136,8 @@ class TelecommServer(LabradServer):
         self.smtpServer = resp['server']
         print 'Refresh complete.'
         
-    @setting(10, toAddrs=['s','*s'], subject='s', msg='s', username='s', returns='b{success}*s{failures}')
+    @setting(10, toAddrs=['s{email address of recipient}','*s{array of recipient email addresses}'],
+                 subject='s', msg='s', username='s', returns='b{success}*s{failures}')
     def send_mail(self, c, toAddrs, subject, msg, username='LabRAD'):
         success, failures = email(toAddrs, subject, msg, self.domain, self.smtpServer, username)
         return (success, failures)
