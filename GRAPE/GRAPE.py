@@ -35,16 +35,20 @@
 #
 # Definitely need to check that file writing code is correct. Just check online tutorial.
 
+import numpy as np
+
 from labrad.server import LabradServer, setting
 from labrad import util 
 
 from twisted.internet import defer, reactor
-from twisted.internet.defer import returnValue
+from twisted.internet.defer import inlineCallbacks, returnValue
 
 from pyle.dataking import util as datakingUtil
 from pyle import registry
 
 import os
+
+KEYS = ['f10', 'piAmp']
 
 GRAPERunName = 'InterfaceTest'
 EXECUTABLE = './UCSB_GRAPE_CZ.sh'+GRAPERunName
@@ -56,71 +60,96 @@ NONQUBIT_PARAMETERS = [('BusFrequency','BusFrequency','GHz'),('GateTime','GateTi
 STRING_PARAMETERS =[('Run Name','Run Name',''),('StartPulse','StartPulse',''),('Filter','Filter',''),('NonLinFile','NonLineFile_1',''),('NonLinFile','NonLineFile_2','')]
 
 # Function to write the input GRAPE needs
-def writeParameterFile(path, control, target, nonqubit):
-    toWrite = []
-    #For each parameter name, get that parameter's value from
-    #the qubit dictionary and stick it in a list along with
-    #it's GRAPE name and unit. Later the unit will be used to
-    #turn LabRAD Values into pure floats in the desired unit.
-    for parameter, grapeName, unitTag in CONTROL_PARAMETERS:
-        toWrite.append((grapeName, control[parameter], unitTag))
-    for parameter, grapeName, unitTage in TARGET_PARAMETERS:
-        toWrite.append((grapeName, target[parameter], unitTag))
-    for parameter, grapeName, unitTage in NONQUBIT_PARAMETERS:
-        toWrite.append((grapeName, nonqubit[parameter], unitTag))
-    #for parameter, grapeName, unitTage in SIMULATION_PARAMETERS:
-    #    toWrite.append((grapeName, simulation[parameter], unitTag))
-    #At this point, toWrite will look like this:
-    #[(<GRAPE name>, <value> ie. 5.6MHz, 'GHz'), (similar...)]
-    print 'Got to file writing block'
+def writeParameterFile(path, qubit1, qubit2, nonqubit):
+    toWrite = qubit1.items() + qubit2.items() + nonqubit.items()
+    
     f = open(path,'w')
     #Start by writting experimental parameters to the file
-    for grapeName, value, unitTag in toWrite:
-        f.write('<'+grapeName+'>\n')
-	f.write('\t')
-        f.write(makeWriteable(value, unitTag))
-	f.write('\n')
-        f.write('</'+grapeName+'>\n')
+    for key, value in toWrite:
+        f.write('<'+key+'>\n')
+        f.write('\t')
+        f.write(makeWriteable(value))
+        f.write('\n')
+        f.write('</'+key+'>\n')
     f.write('<Stop>')
-    f.close
+    f.close()
+        
     
-def makeWriteable(value, unitTag):
-    if unitTag == '':
-        return str(value)
+def makeWriteable(value):
+    if value.isCompatible('ns'):
+        return str(value['ns'])
+    elif value.isCompatible('GHz'):
+        return str(value['GHz'])
     else:
-        return str(value[unitTag])
-    
+        return str(value.value)
+        
+        
 class GRAPE(LabradServer):
     """Invokes GRAPE algorithm on the local machine"""
     name = "GRAPE"
-    
-    @setting(30, qubit0 = '*(sv)', qubit1 = '*(sv)', nonqubit = '*(sv)', returns = '*2v')
-    def controlZ(self, c, qubit0, qubit1, nonqubit):
+
+    @inlineCallbacks
+    def readQubitParameters(self, session, qubit1Idx, qubit2Idx):
+        cxn = self.client
+        reg = cxn.registry
+        yield reg.cd(session)
+        config = yield reg.get('config')
+        qubitNames = [config[i] for i in [qubit1Idx, qubit2Idx]]
+        qubits = []
+        for i,name in zip([1,2],qubitNames):
+            q = {}
+            yield reg.cd(name)
+            d = yield reg.dir()
+            keys = d[1]
+            for key in keys:
+                if key in KEYS:
+                    val = yield reg.get(key)
+                    q[key+'_'+str(i)] = val
+                else:
+                    continue
+            qubits.append(q)
+            #Go back to starting directory
+            yield reg.cd(session)
+        returnValue(qubits)
+        
+    @setting(30, qubit1Idx = 'i', qubit2Idx = 'i', returns = '*2v')
+    def controlZ(self, c, qubit1Idx, qubit2Idx):
         """Buids GRAPE control z sequence from """
-        #Take lists of (name,value) and pack them into python dictionaries
-        #for each qubit
-        qubit0 = dict(qubit0.aslist)
-        qubit1 = dict(qubit1.aslist)
+        #Read qubit values from registry
+        qubits = yield self.readQubitParameters(c['session'], qubit1Idx, qubit2Idx)
+        qubit1 = qubits[0]
+        qubit2 = qubits[1]
         # Need to set this up so that it writes two files with usage of Hnl or not!
         # Write relevant parameters to file
         os.chdir('/home/daniel/UCSB_CZ/')
         print 'Changed dir'
-        writeParameterFile('Run1_InputData.dat', qubit0, qubit1)
-        writeParameterFile('Run2_InputData.dat', qubit0, qubit1)
+        writeParameterFile('Run1_InputData.dat', qubit1, qubit2, c['cz'])
+        writeParameterFile('Run2_InputData.dat', qubit1, qubit2, c['cz'])
         #Invoke GRAPE
         # os.system(EXECUTABLE)
         # Read GRAPE result from file and parse
         # Get result and turn it into a numpy array
-        return np.array([[1,2],[5,6]])
-   
-    @setting(31, path = 's')
-    def cd(self, c, path):
-        os.chdir(path)
-   
-    @setting(32, filename='s')
+        returnValue(np.array([[1,2],[5,6]]))
+      
+    @setting(32, 'Set Parameter Filename', filename='s')
     def setParameterFileName(self, c, filename):
         c['parameterFileName'] = filename
         
+    @setting(33, 'Session', session='*s')
+    def session(self, c, session):
+        c['session'] = session
+    
+    @setting(35, 'Set control Z Parameters', gateTime='v[ns]', busFreq='v[GHz]', numBufPixels='i', numSubPixels='i', runName='s', anharmFile0 = 's', anharmFile1 = 's')
+    def setCzParameters(self, c, gateTime, busFreq, numBufPixels, numSubPixels, runName, anharmFile0, anharmFile1):
+        c['cz'] = {
+                   'busFreq':       busFreq,
+                   'gateTime':      gateTime,
+                   'numBufPixels':  numBufPixels,
+                   'numSubPixels':  numSubPixels,
+                   'runName':       runName,
+                   'anharmFile0':   anharmFile0,
+                   'anharmFile1':   anharmFile1
+                   }
     
     
 if __name__=="__main__":
