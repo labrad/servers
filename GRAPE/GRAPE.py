@@ -23,6 +23,7 @@
 # > import labrad
 # > cxn = labrad.connect()
 # > grape = cxn.grape
+# > from labrad.units import Value
 #
 # > grape
 # This will show a list of all available commands (settings) on the server
@@ -30,10 +31,11 @@
 # > grape.controlZ
 # This will show a list of input parameters needs to run controlZ
 #
-# > grape.controlZ(parameters...)
-# Actually run the code.
-#
-# Definitely need to check that file writing code is correct. Just check online tutorial.
+# > path = ['','Daniel','Benchmarking','w110427A','r4c9','120504']
+# > grape.session(path)
+# #Define control parameters
+# > grape.set_control_z_parameters(Value(40.0,'ns'), ..., ..., ...)
+# > result = grape.controlz(index1, index2)
 
 import numpy as np
 
