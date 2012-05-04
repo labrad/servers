@@ -77,7 +77,7 @@ def writeParameterFile(path, qubit1, qubit2, nonqubit):
         
     
 def makeWriteable(value):
-    if isinstance(value, Value)
+    if isinstance(value, Value):
         if value.isCompatible('ns'):
             return str(value['ns'])
         elif value.isCompatible('GHz'):
