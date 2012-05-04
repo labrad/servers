@@ -51,10 +51,10 @@ from pyle import registry
 
 import os
 
-KEYS = ['f10', 'piAmp']
+KEYS = ['swapTimeBus', 'f10', 'f21']
 
 GRAPERunName = 'InterfaceTest'
-EXECUTABLE = './UCSB_GRAPE_CZ.sh'+GRAPERunName
+EXECUTABLE = './UCSB_GRAPE_CZ.sh'
 
 CONTROL_PARAMETERS = [('swapBusTime','swapBusTime_1','ns'),('f10', 'f10_1', 'GHz'),('f20', 'f21_1', 'GHz')]
 TARGET_PARAMETERS = [('swapBusTime','swapBusTime_1','ns'),('f10', 'f10_2', 'GHz'),('f20', 'f21_1', 'GHz')]
@@ -63,7 +63,7 @@ NONQUBIT_PARAMETERS = [('BusFrequency','BusFrequency','GHz'),('GateTime','GateTi
 STRING_PARAMETERS =[('Run Name','Run Name',''),('StartPulse','StartPulse',''),('Filter','Filter',''),('NonLinFile','NonLineFile_1',''),('NonLinFile','NonLineFile_2','')]
 
 # Function to write the input GRAPE needs
-def writeParameterFile(path, qubit1, qubit2, nonqubit):
+def writeParameterFile_1(path, RunNameString, qubit1, qubit2, nonqubit):
     toWrite = qubit1.items() + qubit2.items() + nonqubit.items()
     
     f = open(path,'w')
@@ -74,10 +74,49 @@ def writeParameterFile(path, qubit1, qubit2, nonqubit):
         f.write(makeWriteable(value))
         f.write('\n')
         f.write('</'+key+'>\n')
-    f.write('<Stop>')
+    f.write('<Run Name>\n')
+    f.write('\t'+RunNameString+'_1\n')
+    f.write('</Run Name>\n')
+    f.write('<NonLinFlag>\n')
+    f.write('\t0\n')
+    f.write('</NonLinFlag>\n')
+    f.write('<StartPulse>\n')
+    f.write('\tDefault\n')
+    f.write('</StartPulse>\n')
+    f.write('<Filter>\n')
+    f.write('\tVoid\n')
+    f.write('</Filter>\n')
+    f.write('<Stop>\n')
     f.close()
         
+# Function to write the input GRAPE needs
+def writeParameterFile_2(path, RunNameString, qubit1, qubit2, nonqubit):
+    toWrite = qubit1.items() + qubit2.items() + nonqubit.items()
     
+    f = open(path,'w')
+    #Start by writting experimental parameters to the file
+    for key, value in toWrite:
+        f.write('<'+key+'>\n')
+        f.write('\t')
+        f.write(makeWriteable(value))
+        f.write('\n')
+        f.write('</'+key+'>\n')
+    f.write('<Run Name>\n')
+    f.write('\t'+RunNameString+'_2\n')
+    f.write('</Run Name>\n')
+    f.write('<NonLinFlag>\n')
+    f.write('\t0\n')
+    f.write('</NonLinFlag>\n')
+    f.write('<StartPulse>\n')
+    f.write('\tExternal\n')
+    f.write('</StartPulse>\n')
+    f.write('<Filter>\n')
+    f.write('\tGaussian\n')
+    f.write('</Filter>\n')
+    f.write('<Stop>\n')
+    f.close()
+
+
 def makeWriteable(value):
     if isinstance(value, Value):
         if value.isCompatible('ns'):
@@ -118,8 +157,8 @@ class GRAPE(LabradServer):
             yield reg.cd(session)
         returnValue(qubits)
         
-    @setting(30, qubit1Idx = 'i', qubit2Idx = 'i', returns = '*2v')
-    def controlZ(self, c, qubit1Idx, qubit2Idx):
+    @setting(30, qubit1Idx = 'i', qubit2Idx = 'i', RunNameString='s', returns = '*2v')
+    def controlZ(self, c, qubit1Idx, qubit2Idx, RunNameString):
         """Buids GRAPE control z sequence from """
         #Read qubit values from registry
         qubits = yield self.readQubitParameters(c['session'], qubit1Idx, qubit2Idx)
@@ -128,11 +167,10 @@ class GRAPE(LabradServer):
         # Need to set this up so that it writes two files with usage of Hnl or not!
         # Write relevant parameters to file
         os.chdir('/home/daniel/UCSB_CZ/')
-        print 'Changed dir'
-        writeParameterFile('Run1_InputData.dat', qubit1, qubit2, c['cz'])
-        writeParameterFile('Run2_InputData.dat', qubit1, qubit2, c['cz'])
+        writeParameterFile_1('Run1_InputData.dat', RunNameString, qubit1, qubit2, c['cz'])
+        writeParameterFile_2('Run2_InputData.dat', RunNameString, qubit1, qubit2, c['cz'])
         #Invoke GRAPE
-        # os.system(EXECUTABLE)
+        os.system(EXECUTABLE+' '+RunNameString)
         # Read GRAPE result from file and parse
         # Get result and turn it into a numpy array
         returnValue(np.array([[1,2],[5,6]]))
@@ -145,16 +183,19 @@ class GRAPE(LabradServer):
     def session(self, c, session):
         c['session'] = session
     
-    @setting(35, 'Set control Z Parameters', gateTime='v[ns]', busFreq='v[GHz]', numBufPixels='i', numSubPixels='i', runName='s', anharmFile0 = 's', anharmFile1 = 's')
-    def setCzParameters(self, c, gateTime, busFreq, numBufPixels, numSubPixels, runName, anharmFile0, anharmFile1):
+    @setting(35, 'Set control Z Parameters', gateTime='v[ns]',Tolerance='v', numBufPixels='i', MaxIter='i',  numSubPixels='i', param='v', busFreq='v[GHz]', anharmFile0 = 's', anharmFile1 = 's')
+    def setCzParameters(self, c, gateTime, Tolerance, numBufPixels, MaxIter, numSubPixels, param, busFreq, anharmFile0, anharmFile1):
         c['cz'] = {
-                   'busFreq':       busFreq,
-                   'gateTime':      gateTime,
-                   'numBufPixels':  numBufPixels,
-                   'numSubPixels':  numSubPixels,
-                   'runName':       runName,
-                   'anharmFile0':   anharmFile0,
-                   'anharmFile1':   anharmFile1
+
+                   'Gate Time':             gateTime,
+                   'Tolerance':             Tolerance,
+                   'Buffer Pixels':         numBufPixels,
+                   'Maximum Iterations':    MaxIter,
+                   'SubPixels':             numSubPixels,
+                   'Parameter':             param,
+                   'BusFrequency':          busFreq,
+                   'NonLineFile_1':         anharmFile0,
+                   'NonLineFile_2':         anharmFile1
                    }
     
     
