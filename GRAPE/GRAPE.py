@@ -49,22 +49,39 @@ import os
 GRAPERunName = 'InterfaceTest'
 EXECUTABLE = './UCSB_GRAPE_CZ.sh'+GRAPERunName
 
-#CONTROL_PARAMETERS = [(<LabRAD name>, <GRAPE name>, <unitTag>)]
+CONTROL_PARAMETERS = [('swapBusTime','swapBusTime_1','ns'),('f10', 'f10_1', 'GHz'),('f20', 'f21_1', 'GHz')]
+TARGET_PARAMETERS = [('swapBusTime','swapBusTime_1','ns'),('f10', 'f10_2', 'GHz'),('f20', 'f21_1', 'GHz')]
+NONQUBIT_PARAMETERS = [('BusFrequency','BusFrequency','GHz'),('GateTime','GateTime','ns'),('Tolerence','Tolerence',''),('Buffer Pixels','Buffer Pixels',''),('Maximum Iterations','Maximum Iterations',''),('SubPixels','SubPixels',''),('Parameter','Parameter',''),('NonLinFlag','NonLinFlag','')]
 
-#TARGET_PARAMETERS = {}
+STRING_PARAMETERS =[('Run Name','Run Name',''),('StartPulse','StartPulse',''),('Filter','Filter',''),('NonLinFile','NonLineFile_1',''),('NonLinFile','NonLineFile_2','')]
 
 # Function to write the input GRAPE needs
-def writeParameterFile(path, control, target):
+def writeParameterFile(path, control, target, nonqubit):
     toWrite = []
+    #For each parameter name, get that parameter's value from
+    #the qubit dictionary and stick it in a list along with
+    #it's GRAPE name and unit. Later the unit will be used to
+    #turn LabRAD Values into pure floats in the desired unit.
     for parameter, grapeName, unitTag in CONTROL_PARAMETERS:
         toWrite.append((grapeName, control[parameter], unitTag))
     for parameter, grapeName, unitTage in TARGET_PARAMETERS:
         toWrite.append((grapeName, target[parameter], unitTag))
-    f = open(path)
-    for alias, value, unitTag in toWrite:
-        f.write('<'+grapeName+'>')
+    for parameter, grapeName, unitTage in NONQUBIT_PARAMETERS:
+        toWrite.append((grapeName, nonqubit[parameter], unitTag))
+    #for parameter, grapeName, unitTage in SIMULATION_PARAMETERS:
+    #    toWrite.append((grapeName, simulation[parameter], unitTag))
+    #At this point, toWrite will look like this:
+    #[(<GRAPE name>, <value> ie. 5.6MHz, 'GHz'), (similar...)]
+    print 'Got to file writing block'
+    f = open(path,'w')
+    #Start by writting experimental parameters to the file
+    for grapeName, value, unitTag in toWrite:
+        f.write('<'+grapeName+'>\n')
+	f.write('\t')
         f.write(makeWriteable(value, unitTag))
-        f.write('</'+grapeName+'>')
+	f.write('\n')
+        f.write('</'+grapeName+'>\n')
+    f.write('<Stop>')
     f.close
     
 def makeWriteable(value, unitTag):
@@ -77,32 +94,24 @@ class GRAPE(LabradServer):
     """Invokes GRAPE algorithm on the local machine"""
     name = "GRAPE"
     
-    @setting(20, session = '*s', returns = '')
-    def session(self, c, session):
-        """Get a registry wrapper for the user's session and keep it in this context"""
-        cxn = self.client
-        reg = registry.RegistryWrapper(cxn, session)
-        c['sample'] = reg        
-       
-    @setting(30, controlIdx = 'i', targetIdx = 'i', returns = '*2v')
-    def controlZ(self, c, controlIdx, targetIdx):
+    @setting(30, qubit0 = '*(sv)', qubit1 = '*(sv)', nonqubit = '*(sv)', returns = '*2v')
+    def controlZ(self, c, qubit0, qubit1, nonqubit):
         """Buids GRAPE control z sequence from """
-        cxn = self.client
-        #Load qubit description files from the LabRAD registry
-        sample, qubits = datakingUtil.loadQubits(c['sample'])
-        #Pick out the two qubits that we actually want to use
-        control = qubits[controlIdx]
-        target = qubits[targetIdx]
+        #Take lists of (name,value) and pack them into python dictionaries
+        #for each qubit
+        qubit0 = dict(qubit0.aslist)
+        qubit1 = dict(qubit1.aslist)
         # Need to set this up so that it writes two files with usage of Hnl or not!
         # Write relevant parameters to file
         os.chdir('/home/daniel/UCSB_CZ/')
-        writeParameterFile('Run1_InputData.dat', control, target)
-        writeParameterFile('Run2_InputData.dat', control, target)
+        print 'Changed dir'
+        writeParameterFile('Run1_InputData.dat', qubit0, qubit1)
+        writeParameterFile('Run2_InputData.dat', qubit0, qubit1)
         #Invoke GRAPE
-        os.system(EXECUTABLE)
+        # os.system(EXECUTABLE)
         # Read GRAPE result from file and parse
         # Get result and turn it into a numpy array
-        return result
+        return np.array([[1,2],[5,6]])
    
     @setting(31, path = 's')
     def cd(self, c, path):
