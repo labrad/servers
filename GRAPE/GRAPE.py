@@ -37,6 +37,7 @@
 
 import numpy as np
 
+from labrad.units import Value
 from labrad.server import LabradServer, setting
 from labrad import util 
 
@@ -76,12 +77,15 @@ def writeParameterFile(path, qubit1, qubit2, nonqubit):
         
     
 def makeWriteable(value):
-    if value.isCompatible('ns'):
-        return str(value['ns'])
-    elif value.isCompatible('GHz'):
-        return str(value['GHz'])
+    if isinstance(value, Value)
+        if value.isCompatible('ns'):
+            return str(value['ns'])
+        elif value.isCompatible('GHz'):
+            return str(value['GHz'])
+        else:
+            return str(value.value)
     else:
-        return str(value.value)
+        return str(value)
         
         
 class GRAPE(LabradServer):
