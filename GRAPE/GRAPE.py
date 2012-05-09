@@ -56,9 +56,9 @@ KEYS = ['swapTimeBus', 'f10', 'f21']
 GRAPERunName = 'InterfaceTest'
 EXECUTABLE = './UCSB_GRAPE_CZ.sh'
 
-CONTROL_PARAMETERS = [('swapBusTime','swapBusTime_1','ns'),('f10', 'f10_1', 'GHz'),('f20', 'f21_1', 'GHz')]
-TARGET_PARAMETERS = [('swapBusTime','swapBusTime_1','ns'),('f10', 'f10_2', 'GHz'),('f20', 'f21_1', 'GHz')]
-NONQUBIT_PARAMETERS = [('BusFrequency','BusFrequency','GHz'),('GateTime','GateTime','ns'),('Tolerence','Tolerence',''),('Buffer Pixels','Buffer Pixels',''),('Maximum Iterations','Maximum Iterations',''),('SubPixels','SubPixels',''),('Parameter','Parameter',''),('NonLinFlag','NonLinFlag','')]
+#CONTROL_PARAMETERS = [('swapBusTime','swapBusTime_1','ns'),('f10', 'f10_1', 'GHz'),('f20', 'f21_1', 'GHz')]
+#TARGET_PARAMETERS = [('swapBusTime','swapBusTime_1','ns'),('f10', 'f10_2', 'GHz'),('f20', 'f21_1', 'GHz')]
+#NONQUBIT_PARAMETERS = [('BusFrequency','BusFrequency','GHz'),('GateTime','GateTime','ns'),('Tolerence','Tolerence',''),('Buffer Pixels','Buffer Pixels',''),('Maximum Iterations','Maximum Iterations',''),('SubPixels','SubPixels',''),('Parameter','Parameter',''),('NonLinFlag','NonLinFlag','')]
 
 STRING_PARAMETERS =[('Run Name','Run Name',''),('StartPulse','StartPulse',''),('Filter','Filter',''),('NonLinFile','NonLineFile_1',''),('NonLinFile','NonLineFile_2','')]
 
@@ -184,8 +184,8 @@ class GRAPE(LabradServer):
     def session(self, c, session):
         c['session'] = session
     
-    @setting(35, 'Set control Z Parameters', gateTime='v[ns]',Tolerance='v', numBufPixels='i', MaxIter='i',  numSubPixels='i', param='v', busFreq='v[GHz]', anharmFile0 = 's', anharmFile1 = 's')
-    def setCzParameters(self, c, gateTime, Tolerance, numBufPixels, MaxIter, numSubPixels, param, busFreq, anharmFile0, anharmFile1):
+    @setting(35, 'Set control Z Parameters', gateTime='v[ns]',Tolerance='v', numBufPixels='i', MaxIter='i',  numSubPixels='i', targetphase='v', busFreq='v[GHz]', anharmFile0 = 's', anharmFile1 = 's')
+    def setCzParameters(self, c, gateTime, Tolerance, numBufPixels, MaxIter, numSubPixels, targetphase, busFreq, anharmFile0, anharmFile1):
         c['cz'] = {
 
                    'Gate Time':             gateTime,
@@ -193,7 +193,7 @@ class GRAPE(LabradServer):
                    'Buffer Pixels':         numBufPixels,
                    'Maximum Iterations':    MaxIter,
                    'SubPixels':             numSubPixels,
-                   'Parameter':             param,
+                   'Target Phase':          targetphase,
                    'BusFrequency':          busFreq,
                    'NonLineFile_1':         anharmFile0,
                    'NonLineFile_2':         anharmFile1
