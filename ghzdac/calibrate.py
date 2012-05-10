@@ -83,7 +83,8 @@ def spectFreq(spec,freq):
 def signalPower(spec):
     """returns the mean power in mW read by the spectrum analyzer"""
     dBs = yield spec.gpib_query('*TRG;*OPC?;:TRAC:MATH:MEAN? TRACE1')
-    returnValue(10.0**(0.1*float(dBs[3:])))
+    dBs=dBs.split(';')[1]
+    returnValue(10.0**(0.1*float(dBs)))
 
 
 def makeSample(a,b):
