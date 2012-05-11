@@ -36,8 +36,7 @@ public class Constants {
   public static final String HITTITE_SERVER = "Hittite T2100 Server";
   public static final String ANRITSU_SERVER = "Anritsu Server";
   public static final String DC_RACK_SERVER = "DC Rack";
-  //public static final String GHZ_DAC_SERVER = "GHz FPGAs Test";
-  public static final String GHZ_DAC_SERVER = "GHz FPGAs Vince";
+  public static final String GHZ_DAC_SERVER = "GHz FPGAs";
   
   /*
    * Registry information
