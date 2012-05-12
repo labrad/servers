@@ -105,7 +105,7 @@ def writeParameterFile_2(path, RunNameString, qubit1, qubit2, nonqubit):
     f.write('\t'+RunNameString+'_2\n')
     f.write('</Run Name>\n')
     f.write('<NonLinFlag>\n')
-    f.write('\t0\n')
+    f.write('\t1\n')
     f.write('</NonLinFlag>\n')
     f.write('<StartPulse>\n')
     f.write('\tExternal\n')
