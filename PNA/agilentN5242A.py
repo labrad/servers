@@ -402,8 +402,8 @@ class AgilentPNAServer(GPIBManagedServer):
         The 64-bit numbers are unpacked using the struct.unpack
         function from the standard library.
         """
-        yield dev.write("SENS:CORR:STAT ON")
         yield dev.write("CALC:PAR:SEL '%s'" % _parName(meas))
+        yield dev.write("SENS:CORR:STAT ON")
         yield dev.write("CALC:DATA? SDATA")
         yield dev.read(bytes=1L) # throw away first byte
         
