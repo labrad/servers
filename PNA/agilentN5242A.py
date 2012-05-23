@@ -216,7 +216,7 @@ class AgilentPNAServer(GPIBManagedServer):
         sparams = yield self.getSweepData(dev, c['meas'])
         returnValue((freq, sparams))
         
-    @setting(124, log='b', returns='*v[Hz]*2c')
+    @setting(124, log='b')
     def freq_sweep_phase(self, c, log=False):
         """Initiate a frequency sweep.
 
@@ -244,7 +244,7 @@ class AgilentPNAServer(GPIBManagedServer):
             freq = numpy.linspace(fstar, fstop, npoints)
             
         # wait for sweep to finish
-        sparams = yield self.getSweepDataPhase(dev, c['meas'])
+        phase = yield self.getSweepDataPhase(dev, c['meas'])
         returnValue((freq, phase))
 
     @setting(101, returns='*v[Hz]*2c')
@@ -419,8 +419,8 @@ class AgilentPNAServer(GPIBManagedServer):
         returnValue(sdata)
         
     @inlineCallbacks
-    def getPhase(self, dev, measurements):
-        sdata = [(yield self.getFormatedData(dev, m)) for m in measurements]
+    def getPhaseData(self, dev, measurements):
+        sdata = [(yield self.getFormattedData(dev, m)) for m in measurements]
         returnValue(sdata)
 
     def sweepFactor(self, c):
@@ -500,10 +500,10 @@ class AgilentPNAServer(GPIBManagedServer):
             
         yield dev.read(bytes=1L) # read last byte and discard
 
-        nPoints = dataLen / 16
+        nPoints = dataLen / 8
         
-        _parse = lambda s: unpack('>dd', s)
-        data = [_parse(dataStr[16*n]) for n in range(nPoints)]
+        _parse = lambda s: unpack('>d', s)
+        data = [_parse(dataStr[8*n:8*(n+1)]) for n in range(nPoints)]
         
         returnValue(data)
 
