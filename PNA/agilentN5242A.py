@@ -180,10 +180,16 @@ class AgilentPNAServer(GPIBManagedServer):
         """Get or set the x/y attenuation (ignored...)."""
         dev = self.selectedDevice(c)
         
-    @setting(123, corr=['w'], returns=[''])
+    @setting(123, corr=['w'], returns=['w'])
     def electrical_delay(self, c, corr=None):
         """add an electrical delay to cancel the phase difference due to the the cable length"""
         dev = self.selectedDevice(c)
+        if corr is None:
+            resp = yield dev.query('CALC:CORR:EDEL:TIME?')
+            n = long(resp)
+        elif isinstance(n, float):
+            yield dev.write('CALC:CORR:EDEL:TIME %fNS' % corr)
+        returnValue(n)
 
     @setting(100, log='b', returns='*v[Hz]*2c')
     def freq_sweep(self, c, log=False):
