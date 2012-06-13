@@ -79,7 +79,7 @@ def _parName(meas):
 
 class AgilentPNAServer(GPIBManagedServer):
     name = 'PNA_X'
-    deviceName = 'Agilent Technologies N5242A'
+    deviceName = ['Agilent Technologies N5242A','Agilent Technologies N5230A']
     deviceWrapper = PNAWrapper
 
     def initContext(self, c):
@@ -180,16 +180,16 @@ class AgilentPNAServer(GPIBManagedServer):
         """Get or set the x/y attenuation (ignored...)."""
         dev = self.selectedDevice(c)
         
-    @setting(123, corr=['w'], returns=['w'])
+    @setting(123, corr=['v[ns]'], returns=['v[ns]'])
     def electrical_delay(self, c, corr=None):
         """add an electrical delay to cancel the phase difference due to the the cable length"""
         dev = self.selectedDevice(c)
         if corr is None:
             resp = yield dev.query('CALC:CORR:EDEL:TIME?')
-            n = long(resp)
-        elif isinstance(n, float):
+            corr = T.Value(float(resp), 'ns')
+        elif isinstance(corr, T.Value):
             yield dev.write('CALC:CORR:EDEL:TIME %fNS' % corr)
-        returnValue(n)
+        returnValue(corr)
 
     @setting(100, log='b', returns='*v[Hz]*2c')
     def freq_sweep(self, c, log=False):
@@ -274,6 +274,23 @@ class AgilentPNAServer(GPIBManagedServer):
             for i, c in enumerate(s):
                 s[i] = T.Complex(c)
         returnValue((power, sparams))
+        
+    @setting(189)
+    def power_sweep_phase(self, c):
+        """Initiate a power sweep."""
+        dev = self.selectedDevice(c)
+
+        resp = yield dev.query('SOUR:POW:STAR?; STOP?')
+        pstar, pstop = [float(p) for p in resp.split(';')]
+
+        sweeptime, npoints = yield self.startSweep(dev, 'POW')
+        if sweeptime > 1:
+            sweeptime *= self.sweepFactor(c)
+            yield util.wakeupCall(sweeptime)
+        power = util.linspace(pstar, pstop, npoints)
+        power = [T.Value(p, 'dBm') for p in power]
+        phase = yield self.getSweepDataPhase(dev, c['meas'])
+        returnValue((power, phase))
         
     @setting(111, name=['s'], returns=['*2v'])
     def power_sweep_save(self, c, name='untitled'):
@@ -452,7 +469,6 @@ class AgilentPNAServer(GPIBManagedServer):
         function from the standard library.
         """
         yield dev.write("CALC:PAR:SEL '%s'" % _parName(meas))
-        yield dev.write("SENS:CORR:STAT ON")
         yield dev.write("CALC:DATA? SDATA")
         yield dev.read(bytes=1L) # throw away first byte
         
@@ -490,8 +506,7 @@ class AgilentPNAServer(GPIBManagedServer):
         function from the standard library.
         """
         yield dev.write("CALC:PAR:SEL '%s'" % _parName(meas))
-        yield dev.write("CALC:FORM:PHAS")
-        yield dev.write("SENS:CORR:STAT ON")
+        yield dev.write("CALC:FORM PHAS")
         yield dev.write("CALC:DATA? FDATA")
         yield dev.read(bytes=1L) # throw away first byte
         
