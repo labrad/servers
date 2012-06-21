@@ -216,6 +216,15 @@ class ColdSwitchWrapper(DeviceWrapper):
             yield self.resetPulse()
             yield util.wakeupCall(2)
         self.state[switch] = '0'
+    
+    @inlineCallbacks
+    def updateRegistry(self, reg)
+        yield reg.cd(['', 'Servers', 'Cold Switch', 'Links'], True)
+        p = reg.packet()
+        p.set(self.name,(self.server,self.port,self.state))
+        yield p.send()
+    
+      
         
         
         
@@ -227,6 +236,7 @@ class ColdSwitchServer(DeviceServer):
     @inlineCallbacks
     def initServer(self):
         print 'loading config info...',
+        self.reg = self.client.registry()
         yield self.loadConfigInfo()
         print 'done.'
         yield DeviceServer.initServer(self)
@@ -234,7 +244,7 @@ class ColdSwitchServer(DeviceServer):
     @inlineCallbacks
     def loadConfigInfo(self):
         """Load configuration information from the registry."""
-        reg = self.client.registry()
+        reg = self.reg
         yield reg.cd(['', 'Servers', 'Cold Switch', 'Links'], True)
         dirs, keys = yield reg.dir()
         p = reg.packet()
@@ -262,7 +272,9 @@ class ColdSwitchServer(DeviceServer):
     def change_voltage(self, c, data):
         """Changes the voltage applied to set or reset the switch"""
         dev = self.selectedDevice(c)
+        reg = self.client.registry()
         voltage = yield dev.changeAppliedVoltage(data)
+        yield dev.updateRegistry(self.reg)
         returnValue(voltage)
         
     @setting(457, 'set switch1', data='w', returns='s')
@@ -272,10 +284,12 @@ class ColdSwitchServer(DeviceServer):
               {'1':'g','2':'h','3':'i','4':'j','5':'k','6':'l'},
               {'1':'m','2':'n','3':'o','4':'p','5':'q','6':'r'}]
         dev = self.selectedDevice(c)
+        reg = self.client.registry()
         if dev.state[0]== 'null':
             returnValue('null')
         else:
             channel =  yield dev.setFirstSwitchChannel(data, commandList[0])
+            yield dev.updateRegistry(self.reg)
             returnValue(channel)
     
     @setting(458, 'set switch2', data='w', returns='s')
@@ -289,6 +303,7 @@ class ColdSwitchServer(DeviceServer):
             returnValue('null')
         else:
             channel = yield dev.setFirstSwitchChannel(data, commandList[1])
+            yield dev.updateRegistry(self.reg)
             returnValue(channel)
     
     @setting(459, 'set switch3', data='w', returns='s')
@@ -302,6 +317,7 @@ class ColdSwitchServer(DeviceServer):
             returnValue('null')
         else:
             channel = yield dev.setFirstSwitchChannel(data, commandList[2])
+            yield dev.updateRegistry(self.reg)
             returnValue(channel)
     
     @setting(461, 'get set trace')
@@ -337,6 +353,7 @@ class ColdSwitchServer(DeviceServer):
             returnValue('null')
         else:
             yield dev.masterReset(switch, commandList[switch])
+            yield dev.updateRegistry(self.reg)
     
 
 TIMEOUT = 1
