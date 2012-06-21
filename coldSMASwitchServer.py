@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Cold Switch Server
-version = 1.0
+version = 1.1
 description = 
 
 [startup]
