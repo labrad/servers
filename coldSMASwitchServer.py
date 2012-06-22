@@ -218,11 +218,15 @@ class ColdSwitchWrapper(DeviceWrapper):
         self.state[switch] = '0'
     
     @inlineCallbacks
-    def updateRegistry(self, reg)
+    def updateRegistry(self, reg):
         yield reg.cd(['', 'Servers', 'Cold Switch', 'Links'], True)
         p = reg.packet()
-        p.set(self.name,(self.server,self.port,self.state))
+        name = self.name.split( )
+        key = name[0]
+        ss = name[0]+' '+name[1]+' '+name[2]
+        p.set(key,(ss,self.port,self.state))
         yield p.send()
+        
     
       
         
@@ -257,24 +261,24 @@ class ColdSwitchServer(DeviceServer):
     def findDevices(self):
         """Find available devices from list stored in the registry."""
         devs = []
-        for name, (server, port, oldState) in self.serialLinks.items():
-            if server not in self.client.servers:
+        for name, (serServer, port, oldState) in self.serialLinks.items():
+            if serServer not in self.client.servers:
                 continue
-            server = self.client[server]
+            server = self.client[serServer]
             ports = yield server.list_serial_ports()
             if port not in ports:
                 continue
-            devName = '%s - %s' % (server, port)
-            devs += [(name, (server, port, oldState))]
+            devName = '%s - %s' % (serServer, port)
+            devs += [(devName, (server, port, oldState))]
         returnValue(devs)
          
     @setting(456, 'change voltage', data='w', returns='s')
     def change_voltage(self, c, data):
         """Changes the voltage applied to set or reset the switch"""
         dev = self.selectedDevice(c)
-        reg = self.client.registry()
+        reg = self.client.registry
         voltage = yield dev.changeAppliedVoltage(data)
-        yield dev.updateRegistry(self.reg)
+        yield dev.updateRegistry(reg)
         returnValue(voltage)
         
     @setting(457, 'set switch1', data='w', returns='s')
@@ -284,12 +288,12 @@ class ColdSwitchServer(DeviceServer):
               {'1':'g','2':'h','3':'i','4':'j','5':'k','6':'l'},
               {'1':'m','2':'n','3':'o','4':'p','5':'q','6':'r'}]
         dev = self.selectedDevice(c)
-        reg = self.client.registry()
+        reg = self.client.registry
         if dev.state[0]== 'null':
             returnValue('null')
         else:
             channel =  yield dev.setFirstSwitchChannel(data, commandList[0])
-            yield dev.updateRegistry(self.reg)
+            yield dev.updateRegistry(reg)
             returnValue(channel)
     
     @setting(458, 'set switch2', data='w', returns='s')
@@ -299,11 +303,12 @@ class ColdSwitchServer(DeviceServer):
               {'1':'g','2':'h','3':'i','4':'j','5':'k','6':'l'},
               {'1':'m','2':'n','3':'o','4':'p','5':'q','6':'r'}]
         dev = self.selectedDevice(c)
+        reg = self.client.registry
         if dev.state[1]== 'null':
             returnValue('null')
         else:
             channel = yield dev.setFirstSwitchChannel(data, commandList[1])
-            yield dev.updateRegistry(self.reg)
+            yield dev.updateRegistry(reg)
             returnValue(channel)
     
     @setting(459, 'set switch3', data='w', returns='s')
@@ -313,11 +318,12 @@ class ColdSwitchServer(DeviceServer):
               {'1':'g','2':'h','3':'i','4':'j','5':'k','6':'l'},
               {'1':'m','2':'n','3':'o','4':'p','5':'q','6':'r'}]
         dev = self.selectedDevice(c)
+        reg = self.client.registry
         if dev.state[2]== 'null':
             returnValue('null')
         else:
             channel = yield dev.setFirstSwitchChannel(data, commandList[2])
-            yield dev.updateRegistry(self.reg)
+            yield dev.updateRegistry(reg)
             returnValue(channel)
     
     @setting(461, 'get set trace')
