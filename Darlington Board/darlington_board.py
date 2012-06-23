@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Darlington Board
-version = 1.0
+version = 1.0.1
 description = USB Darlington board driving the microwave switch
 instancename = %LABRADNODE% Darlington Board
 
@@ -114,6 +114,7 @@ class CSBBoardServer(LabradServer):
                 bit=['w: bit number'],
                 value=['b: bit value'])
     def set_bit(self,c, bit, value):
+        """Set a single data bit on the darlington board"""
         if 'board' not in c:
             raise NoDeviceSelectedError()
         if (bit < 1) or (bit > self.nChannels[c['board']]):
