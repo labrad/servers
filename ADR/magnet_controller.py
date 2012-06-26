@@ -83,7 +83,7 @@ DATA_PATH = ['', 'ADR', 'Magnet Controller']
 POWER = 1       # the main power supply
 POWER_SETTINGS = ['current', 'set_current', 'voltage', 'set_voltage']
 DMM = 2      # the DMM to monitor magnet voltage
-DMM_SETTINGS = ['voltage']
+DMM_SETTINGS = ['read_voltage']
 DMM2 = 3
 DMM2_SETTINGS = ['current']
 DC = 4  # the DC source to heat the persistent switch
@@ -115,7 +115,7 @@ class MagnetWrapper(DeviceWrapper):
         # devices we must link to
         self.devs = OrderedDict()
         self.devs[POWER] = {'server' : None, 'values': [NaN] * len(POWER_SETTINGS), 'status': 'not initialized', 'settings': POWER_SETTINGS, 'extras': ['output']}
-        self.devs[DMM] = {'server' : None, 'values': [NaN] * len(DMM_SETTINGS), 'status': 'not initialized', 'settings': DMM_SETTINGS, 'gpib address': 24,}
+        self.devs[DMM] = {'server' : None, 'values': [NaN] * len(DMM_SETTINGS), 'status': 'not initialized', 'settings': DMM_SETTINGS, 'gpib address': 24, 'init funcs': ['configure_voltage']}
         self.devs[DC] = {'server' : None, 'values': [NaN] * len(DC_SETTINGS), 'status': 'not initialized', 'settings': DC_SETTINGS, 'extras': ['output', 'persistent_switch_mode', 'persistent_switch_time_elapsed']}
         self.devs[TEMPERATURE] = {'server': None, 'values': [NaN] * len(TEMPERATURE_SETTINGS), 'status': 'not initialized', 'settings': TEMPERATURE_SETTINGS, 'flatten': True, 'pickOneValue': 1}
         self.devs[DMM2] = {'server': None, 'values': [NaN] * len(DMM2_SETTINGS), 'status': 'not initialized', 'settings': DMM2_SETTINGS, 'gpib address': 27,}
@@ -232,6 +232,10 @@ class MagnetWrapper(DeviceWrapper):
                         if self.nodeName.upper() in d[1].upper():
                             found = True
                             yield self.devs[dev]['server'].select_device(d[0], context = self.devs[dev]['context'])
+                            if 'init funcs' in self.devs[dev].keys():
+                                for i_f in self.devs[dev]['init funcs']:
+                                    print "calling %s" % i_f
+                                    self.devs[dev]['server'][i_f](context=self.devs[dev]['context'])
                             self.devs[dev]['status'] = 'Found Device'
                     if not found:
                         self.devs[dev]['status'] = 'No Device'
@@ -573,7 +577,7 @@ class MagnetServer(DeviceServer):
         ''' returns the path and name of the logging dataset. '''
         dev = self.selectedDevice(c)
         if dev.dvName is None:
-            return None
+            return ''
         else:
             return DATA_PATH + [self.selectedDevice(c).dvName]
 
