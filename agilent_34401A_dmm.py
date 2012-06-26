@@ -19,7 +19,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Agilent 34401A DMM
-version = 1.2
+version = 1.3
 description = 
 
 [startup]
@@ -62,6 +62,20 @@ class AgilentDMMServer(GPIBManagedServer):
         """ Measures resistance. Defaults to 2-wire measurement, unless fourWire = True. """
         dev = self.selectedDevice(c)
         ans = yield dev.query('MEAS:%s?' % ('FRES' if fourWire else 'RES'))
+        returnValue(float(ans))
+
+    @setting(13, vRange='v[V]', resolution ='v[V]')
+    def configure_voltage(self, c, vRange = 10, resolution = 0.0001):
+        """ Sets the DMM to voltage mode, with given range and resolution. """
+        dev = self.selectedDevice(c)
+        dev.write("CONF:VOLT:DC %s, %s" % (vRange, resolution))
+
+    @setting(14, returns='v[V]')
+    def read_voltage(self, c):
+        """ Does a 'READ' instead of 'MEAS'. Device must previously have been
+        set to voltage mode with configure_voltage. """
+        dev = self.selectedDevice(c)
+        ans = yield dev.query("READ?")
         returnValue(float(ans))
     
 __server__ = AgilentDMMServer()
