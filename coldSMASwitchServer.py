@@ -307,7 +307,7 @@ class ColdSwitchServer(DeviceServer):
         if dev.state[1]== 'null':
             returnValue('null')
         else:
-            channel = yield dev.setFirstSwitchChannel(data, commandList[1])
+            channel = yield dev.setSecondSwitchChannel(data, commandList[1])
             yield dev.updateRegistry(reg)
             returnValue(channel)
     
@@ -322,7 +322,7 @@ class ColdSwitchServer(DeviceServer):
         if dev.state[2]== 'null':
             returnValue('null')
         else:
-            channel = yield dev.setFirstSwitchChannel(data, commandList[2])
+            channel = yield dev.setThirdSwitchChannel(data, commandList[2])
             yield dev.updateRegistry(reg)
             returnValue(channel)
     
@@ -355,11 +355,12 @@ class ColdSwitchServer(DeviceServer):
                       {'1':'m','2':'n','3':'o','4':'p','5':'q','6':'r'}]
         switch = data-1
         dev = self.selectedDevice(c)
+        reg = self.client.registry
         if dev.state[switch]== 'null':
             returnValue('null')
         else:
             yield dev.masterReset(switch, commandList[switch])
-            yield dev.updateRegistry(self.reg)
+            yield dev.updateRegistry(reg)
     
 
 TIMEOUT = 1
