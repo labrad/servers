@@ -111,6 +111,7 @@ class MagnetWrapper(DeviceWrapper):
         self.setCurrent = Value(NaN, 'A')
         self.voltageLimit = VOLTAGE_LIMIT_DEFAULT
         self.temperatureOverride = False    # if True, ignore temperature checks
+        self.sensingMode = True
         
         # devices we must link to
         self.devs = OrderedDict()
@@ -279,22 +280,35 @@ class MagnetWrapper(DeviceWrapper):
             if abs(self.devs[POWER]['values'][0]) < self.devs[POWER]['values'][1]:
                 newcurr = max(abs(self.devs[POWER]['values'][0])+ CURRENT_RESOLUTION*100, abs(self.setCurrent))
                 self.devs[POWER]['server'].set_current(newcurr, context=self.devs[POWER]['context'])
-        # have we reached the target?
-        if abs(self.devs[POWER]['values'][0] - self.setCurrent) < CURRENT_RESOLUTION:
-            # set the voltage so that the magnet voltage is zero
-            newvolt = self.devs[POWER]['values'][2] - self.devs[DMM]['values'][0]
-            self.devs[POWER]['server'].set_voltage(newvolt, context=self.devs[POWER]['context'])
-            print 'done magging! %s' % newvolt
-            return
-        # is the magnet voltage below the limit?
-        if self.setCurrent < self.devs[POWER]['values'][0] and self.devs[DMM]['values'][0] > -self.voltageLimit:
-            newvolt = self.devs[POWER]['values'][2] - VOLTAGE_STEP
-            print "mag step -> %s" % newvolt
-            self.devs[POWER]['server'].set_voltage(newvolt, context=self.devs[POWER]['context'])
-        elif self.setCurrent > self.devs[POWER]['values'][0] and self.devs[DMM]['values'][0] < self.voltageLimit:
-            newvolt = self.devs[POWER]['values'][2] + VOLTAGE_STEP
-            print "mag step -> %s" % newvolt
-            self.devs[POWER]['server'].set_voltage(newvolt, context=self.devs[POWER]['context'])
+        
+        ## first, sensing mode
+        if self.sensingMode:
+            # have we reached the target?
+            if abs(self.devs[POWER]['values'][0] - self.setCurrent) < CURRENT_RESOLUTION:
+                self.devs[POWER]['server'].set_voltage(0, context=self.devs[POWER]['context'])
+            # do we go up or down?
+            elif self.setCurrent < self.devs[POWER]['values'][0]:
+                self.devs[POWER]['server'].set_voltage(-1 * abs(self.voltageLimit), context=self.devs[POWER]['context'])
+            elif self.setCurrent > self.devs[POWER]['values'][0]:
+                self.devs[POWER]['server'].set_voltage( 1 * abs(self.voltageLimit), context=self.devs[POWER]['context'])
+        ### now, old mode ("manual sensing")
+        else:
+            # have we reached the target?
+            if abs(self.devs[POWER]['values'][0] - self.setCurrent) < CURRENT_RESOLUTION:
+                # set the voltage so that the magnet voltage is zero
+                newvolt = self.devs[POWER]['values'][2] - self.devs[DMM]['values'][0]
+                self.devs[POWER]['server'].set_voltage(newvolt, context=self.devs[POWER]['context'])
+                print 'done magging! %s' % newvolt
+                return
+            # is the magnet voltage below the limit?
+            if self.setCurrent < self.devs[POWER]['values'][0] and self.devs[DMM]['values'][0] > -self.voltageLimit:
+                newvolt = self.devs[POWER]['values'][2] - VOLTAGE_STEP
+                print "mag step -> %s" % newvolt
+                self.devs[POWER]['server'].set_voltage(newvolt, context=self.devs[POWER]['context'])
+            elif self.setCurrent > self.devs[POWER]['values'][0] and self.devs[DMM]['values'][0] < self.voltageLimit:
+                newvolt = self.devs[POWER]['values'][2] + VOLTAGE_STEP
+                print "mag step -> %s" % newvolt
+                self.devs[POWER]['server'].set_voltage(newvolt, context=self.devs[POWER]['context'])
 
     def doMagCycleSwitchCooled(self):
         ''' this is called when the persistent switch is cold. '''
@@ -585,6 +599,15 @@ class MagnetServer(DeviceServer):
     def get_field(self, c):
         ''' returns the field. (magnet current * field-to-current ratio) '''
         return self.selectedDevice(c).magnetCurrent() * FIELD_CURRENT_RATIO
+        
+    @setting(32, 'Sensing Mode', newMode='b', returns='b')
+    def sensing_mode(self, c, newMode=None):
+        ''' Tell the server whether sensing wires are hooked up to the magnet
+        leads (T/F). Returns the current state. Use no argument to just query the state. '''
+        dev = self.selectedDevice(c)
+        if newMode is not None:
+            dev.sensingMode = newMode
+        return dev.sensingMode
 
 __server__ = MagnetServer()
 
