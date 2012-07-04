@@ -111,6 +111,7 @@ class AgilentPNAServer(GPIBManagedServer):
     def frequency_range(self, c, fs=None):
         """Get or set the frequency range."""
         dev = self.selectedDevice(c)
+        dev.write('SENS:SWE:TYPE LIN')
         if fs is None:
             resp = yield dev.query('SENS:FREQ:STAR?; STOP?')
             fs = tuple(T.Value(float(f), 'Hz') for f in resp.split(';'))
@@ -133,6 +134,7 @@ class AgilentPNAServer(GPIBManagedServer):
     def power_range(self, c, ps=None):
         """Get or set the power range."""
         dev = self.selectedDevice(c)
+        dev.write('SENS:SWE:TYPE POW')
         if ps is None:
             resp = yield dev.query('SOUR:POW:STAR?; STOP?')
             ps = tuple(T.Value(float(p), 'dBm') for p in resp.split(';'))
@@ -144,8 +146,7 @@ class AgilentPNAServer(GPIBManagedServer):
                     break
             if good_atten is None:
                 raise Exception('Power out of range.')
-            yield dev.write('SOUR:POW:ATT %f; STAR %f; STOP %f' % \
-                            (good_atten, ps[0], ps[1]))
+            yield dev.write('SOUR:POW:ATT %f; STAR %f; STOP %f' %(good_atten, ps[0], ps[1]))
         returnValue(ps)
 
     @setting(15, n=['w'], returns=['w'])
@@ -189,7 +190,6 @@ class AgilentPNAServer(GPIBManagedServer):
             corr = T.Value(float(resp), 'ns')
         elif isinstance(corr, T.Value):
             yield dev.write('CALC:CORR:EDEL:TIME %fNS' % corr)
-<<<<<<< .mine
         returnValue(corr)
     
     @setting(129, offs='w', returns='w')
@@ -213,9 +213,7 @@ class AgilentPNAServer(GPIBManagedServer):
         else:
             yield dev.write('SOUR:PHAS %f' % offs)
         returnValue(offs)
-=======
-        returnValue(corr)
->>>>>>> .r2107
+
 
     @setting(100, log='b', returns='*v[Hz]*2c')
     def freq_sweep(self, c, log=False):
