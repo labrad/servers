@@ -1,4 +1,4 @@
-# Copyright (C) 2007  Matthew Neeley
+# Copyright (C) 2012 Ted White
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -189,7 +189,33 @@ class AgilentPNAServer(GPIBManagedServer):
             corr = T.Value(float(resp), 'ns')
         elif isinstance(corr, T.Value):
             yield dev.write('CALC:CORR:EDEL:TIME %fNS' % corr)
+<<<<<<< .mine
         returnValue(corr)
+    
+    @setting(129, offs='w', returns='w')
+    def phase_offset(self, c, offs = None):
+        """add a phase offset to formatted data"""
+        dev = self.selectedDevice(c)
+        if offs is None:
+            resp = yield dev.query('CALC:CORR:OFFS:PHAS?')
+            offs = float(resp)
+        else:
+            yield dev.write('CALC:CORR:OFFS:PHAS %f' % offs)
+        returnValue(offs)
+        
+    @setting(127, offs='w', returns='w')
+    def source_phase_offset(self, c, offs = None):
+        """add a phase offset to formatted data"""
+        dev = self.selectedDevice(c)
+        if offs is None:
+            resp = yield dev.query('SOUR:PHAS?')
+            offs = float(resp)
+        else:
+            yield dev.write('SOUR:PHAS %f' % offs)
+        returnValue(offs)
+=======
+        returnValue(corr)
+>>>>>>> .r2107
 
     @setting(100, log='b', returns='*v[Hz]*2c')
     def freq_sweep(self, c, log=False):
