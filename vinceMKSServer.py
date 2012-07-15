@@ -47,10 +47,10 @@ class MKSServer(LabradServer):
     gaugeServers = [{
         'server': 'Vince Serial Server',
         'ID': None,
-        'gauges': [dict(port='COM9', ch1='Pot Low', ch2='Pot High'),
+        'gauges': [dict(port='COM5', ch1='Pot Low', ch2='Pot High'),
                    dict(port='COM7', ch1='Still',   ch2=''),
                    dict(port='COM8', ch1='Keg 1',   ch2='He Flow'),
-                   dict(port='COM5', ch1='Return',  ch2='')]
+                   dict(port='COM6', ch1='Return',  ch2='')]
         }]
 
     @inlineCallbacks
