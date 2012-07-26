@@ -288,6 +288,8 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     uwaveSourcePower = yield reg.get(keys.ANRITSUPOWER)
     carrierFreq = yield reg.get(keys.PULSECARRIERFREQ)
     sens = yield reg.get(keys.SCOPESENSITIVITY)
+    try:offs = yield reg.get(keys.SCOPEOFFSET)
+    except: print "this is a new registry key to correct for SS DC offset, please add 'Sampling Scope DC offset' key at 0.0 mV if you don't have it"
     yield switch.switch(boardname) #Hack to select the correct microwave switch
     yield switch.switch(0)
     yield uwaveSource.select_device(uwaveSourceID)
@@ -306,7 +308,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     record_length(5120).\
     average(128).\
     sensitivity(sens).\
-    offset(Value(0,'mV')).\
+    offset(offs).\
     time_step(Value(2,'ns')).\
     trigger_level(Value(0.18,'V')).\
     trigger_positive()
