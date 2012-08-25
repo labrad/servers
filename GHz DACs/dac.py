@@ -157,7 +157,7 @@ def regIdle(delay):
     regs[0] = 0 # do not start
     regs[1] = 0 # no readback
     regs[43] = 3 # IDLE mode
-    regs[44] = int(delay) # board delay
+    regs[44] = int(delay) # board delay. 1 August 2012: Why do we need delays when in idle mode? DTS
     return regs
 
 def processReadback(resp):
