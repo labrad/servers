@@ -40,6 +40,7 @@ class HittiteWrapper(GPIBDeviceWrapper):
 		self.frequency = yield self.getFrequency()
 		self.amplitude = yield self.getAmplitude()
 		self.output = yield self.getOutput()
+		self.status = yield self.getStatus()
 
 	@inlineCallbacks
 	def getOutput(self):
@@ -56,6 +57,11 @@ class HittiteWrapper(GPIBDeviceWrapper):
 		self.amplitude = yield self.query('SOUR:POW:LEV:AMPL?')#.addCallback(float)
 		returnValue(self.amplitude)
 
+	@inlineCallbacks
+	def getStatus(self):
+		self.status = yield self.query('*STB?')#.addCallback(float)
+		returnValue(self.status)
+        
 	@inlineCallbacks
 	def setFrequency(self, f):
 		f = f['Hz']
@@ -106,7 +112,14 @@ class HittiteServer(GPIBManagedServer):
 		if os is not None:
 			yield dev.setOutput(os)
 		returnValue(dev.output == 1)
-
+        
+	@setting(13, 'Status', returns=['i'])
+	def status(self, c):
+		"""Get the status byte."""
+		dev = self.selectedDevice(c)
+		byte = yield dev.status
+		returnValue(int(byte))
+        
 __server__ = HittiteServer()
 
 if __name__ == '__main__':
