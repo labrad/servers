@@ -1,0 +1,33 @@
+Server - Run Sequence
+ devs = devices in daisychain order
+ runners = [runnser(dev) for dev in devs]
+ ans = yield bg.run(runners, reps, setupReqs, set(setupState), c['master_sync'], getTimingData, timingOrder)
+ <Store range values>
+ returnValue(ans)
+
+
+board group run
+
+Figure out which pages to lock and set
+ pageLocks = pageLocks needed for this sequence
+
+Make load, setup, run, collect, and read packets
+
+try A:
+ yield Acquire pipe semaphore
+ try B:
+  yield acquire page locks
+  load = send load packets
+  getRunLock = acquire run lock
+  try C:
+   yield load
+   yield getRunLock
+   
+ finally B:
+  release page locks
+ 
+ 
+ 
+ 
+finally A:
+ release pipe semaphore
