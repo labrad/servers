@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Tektronix TDS 5054B-NV Oscilloscope
-version = 1.0
+version = 1.1
 description = Talks to the Tektronix 5054B oscilloscope
 
 [startup]
@@ -37,7 +37,7 @@ from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad.types import Value
-from struct import unpack
+from struct import unpack, calcsize
 
 import numpy, re
 
@@ -144,9 +144,11 @@ class Tektronix5054BServer(GPIBManagedServer):
             raise Exception('Probe attenuation factor not in '+str(probeFactors))
         returnValue(resp)
 
-    @setting(114, channel = 'i', state = '?', returns = '')
+    @setting(114, channel = '?', state = '?', returns = '')
     def channelOnOff(self, c, channel, state):
-        """Turn on or off a scope channel display
+        """Turn on or off a scope channel display.
+        State must be in [0,1,'ON','OFF'].
+        Channel must be int or string.
         """
         dev = self.selectedDevice(c)
         if isinstance(state, str):
@@ -155,7 +157,13 @@ class Tektronix5054BServer(GPIBManagedServer):
             raise Exception('state must be 0, 1, "ON", or "OFF"')
         if isinstance(state, int):
             state = str(state)
-        yield dev.write(('SEL:CH%d '+state) %channel)
+        if isinstance(channel, str):
+            channel = channel.upper()
+        elif isinstance(channel, int):
+            channel = 'CH%d' %channel
+        else:
+            raise Exception('channel must be int or string')
+        yield dev.write(('SEL:CH%s '+state) %channel)
 
     @setting(115, channel = 'i', invert = 'i', returns = ['i'])
     def invert(self, c, channel, invert = None):
@@ -275,7 +283,32 @@ class Tektronix5054BServer(GPIBManagedServer):
             resp = yield dev.query('HOR:SCA?')
         scale = float(resp)
         returnValue(scale)
-        
+
+    @setting(171, channel = 'i', definition = 's', returns = ['s'])
+    def math_define(self, c, channel, definition = None):
+        """Define a math channel. Definition of form '"Ch1+Ch2"'.
+        """
+        dev = self.selectedDevice(c)
+        if definition is None:
+            resp = yield dev.query('MATH%d:DEFI?' %channel)
+        else:
+            yield dev.write(('MATH%d:DEFI %s') %(channel,definition))
+            resp = yield dev.query('MATH%d:DEFI?' %channel)
+        returnValue(resp)
+
+    @setting(172, channel = 'i', scale = 'v', returns = ['v'])
+    def math_scale(self, c, channel, scale = None):
+        """Get or set the vertical scale of a math channel.
+        """
+        dev = self.selectedDevice(c)
+        if scale is None:
+            resp = yield dev.query('MATH%d:VERT:SCA?' %channel)
+        else:
+            scale = format(scale,'E')
+            yield dev.write(('MATH%d:VERT:SCA '+scale) %channel)
+            resp = yield dev.query('MATH%d:VERT:SCA?' %channel)
+        scale = float(resp)
+        returnValue(scale)        
     
     #Data acquisition settings
     @setting(201, channel = 'i', start = 'i', stop = 'i', returns='*v[ns] {time axis} *v[mV] {scope trace}')
@@ -393,11 +426,13 @@ def _parseBinaryData(data, wordLength):
         dat = numpy.array(unpack(formatChar*(len(dat)/wordLength),dat))
     elif wordLength == 2:
         header = data[0:6]
-        dat = data[7:]
+        dat = data[6:]
+        dat = dat[-calcsize('>' + formatChar*(len(dat)/wordLength)):]
         dat = numpy.array(unpack('>' + formatChar*(len(dat)/wordLength),dat))
     elif wordLength == 4:
         header = data[0:6]
-        dat = data[7:]
+        dat = data[6:]
+        dat = dat[-calcsize('>' + formatChar*(len(dat)/wordLength)):]
         dat = numpy.array(unpack('>' + formatChar*(len(dat)/wordLength),dat))      
     return dat
 
