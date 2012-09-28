@@ -413,6 +413,14 @@ class DacDevice(DeviceWrapper):
             returnValue(str(processReadback(r)['build']))
         return self.testMode(func)
 
+    def sramCount(self):
+        @inlineCallbacks
+        def func():
+            regs = regPing()
+            r = yield self._sendRegisters(regs)
+            returnValue(str(processReadback(r)['sramCounter']))
+        return self.testMode(func)
+        
     def initPLL(self):
         @inlineCallbacks
         def func():
