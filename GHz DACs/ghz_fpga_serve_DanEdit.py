@@ -577,6 +577,14 @@ class BoardGroup(object):
                     # if our collect fails due to a timeout, however, our triggers will not all
                     # be sent to the run context, so that it will stay blocked until after we
                     # cleanup and send the necessary triggers
+                    
+                    #Why is it ok to allow someone else to run if we aren't sure our sequence finished yet?
+                    #Don't we have to yield collectAll first?
+                    #I believe the answer to this is that the run can't actually happen until triggers are sent.
+                    #When are triggers sent? They are sent with the collect packet! This means that the next run
+                    #won't actually happen until we send our collect packet. That still means that someone else
+                    #can run while we are waiting for our packets to come in, which means that we may not yet
+                    #be finished running!
                     self.runLock.release()
                 
                 # wait for data to be collected (or timeout)
@@ -678,20 +686,30 @@ class BoardGroup(object):
     def recoverFromTimeout(self, runners, results):
         """Recover from a timeout error so that pipelining can proceed.
         
-        We clear the packet buffer for all boards, whether or not
-        they succeeded.  For boards that failed, we also send a
-        trigger to unlock the run context.
+        We clear the packet buffer for all boards, whether or not they
+        succeeded. We then check how many time each board its SRAM
+        sequence (or demod sequence for ADC boards), and store this value
+        in the respective runner object. Finally, for failed boards we
+        send a trigger to the master context.
         """
-        # I do NOT understand what's going on here - DTS
         for runner, (success, result) in zip(runners, results):
-            ctx = None if success else self.ctx
-            yield runner.dev.clear(triggerCtx=ctx).send()
+            yield runner.dev.clear().send()
+            yield runner.dev.pingRegister().send()
+            ans = yield runner.dev.read(1).send()
+            ans = runner.dev.processReadback(ans[3])
+            runner.sramCount = ans['sramCounter']
+            if not success:
+                yield runner.dev.trigger(self.ctx).send()
+            
         
     def timeoutReport(self, runners, results):
         """Create a nice error message explaining which boards timed out."""
         lines = ['Some boards failed:']
         for runner, (success, result) in zip(runners, results):
             line = runner.dev.devName + ': ' + ('OK' if success else 'timeout!')
+            lines.append(line)
+        for runner in runners:
+            line = runner.dev.devName + 'SRAM counter: ' + runner.sramCount
             lines.append(line)
         return '\n'.join(lines)
 
@@ -1211,10 +1229,6 @@ class FPGAServer(DeviceServer):
                         c[runner.dev]['ranges'] = runner.ranges
                 returnValue(ans)
             except TimeoutError, err:
-                #Ping each board to find out how many times SRAM fired on each board
-                for runner in runners:
-                    sramCount = yield runner.dev.sramCount()
-                    
                 # log attempt to stdout and file
                 import os
                 userpath = os.path.expanduser('~')
