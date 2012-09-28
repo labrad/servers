@@ -10,6 +10,14 @@ from util import littleEndian, TimedLock
 
 # CHANGELOG
 #
+# 2012 September 27 - Daniel Sank
+#
+# Register readback bytes 52, 53 (zero indexed) are SRAM counter bytes
+# as of build V7 build 11. I have modified processReadback accordingly.
+# Note that no functionality was lost in this change because those
+# readback bytes weren't being used. The documentation on the GHzDAC
+# notes that they used to be for memory checksum, but no longer.
+#
 # 2011 November 16 - Daniel Sank
 #
 # Changed params->buildParams and reworked the way boardParams gets stored.
@@ -168,6 +176,7 @@ def processReadback(resp):
         'noPllLatch': bool((a[58] & 0x80) > 0),
         'ackoutI2C': a[61],
         'I2Cbytes': a[69:61:-1],
+        'sramCounter': (a[53]<<8) + a[52]
     }
 
 def pktWriteSram(device, derp, data):
