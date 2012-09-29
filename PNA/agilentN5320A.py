@@ -182,34 +182,34 @@ class AgilentPNAServer(GPIBManagedServer):
 
     @setting(100, log='b', returns='*v[Hz]*2c')
     def freq_sweep(self, c, log=False):
-		"""Initiate a frequency sweep.
+        """Initiate a frequency sweep.
 
-		If log is False (the default), this will perform a
-		linear sweep.  If log is True, the sweep will be logarithmic.
-		"""
+        If log is False (the default), this will perform a
+        linear sweep.  If log is True, the sweep will be logarithmic.
+        """
 
-		dev = self.selectedDevice(c)
+        dev = self.selectedDevice(c)
 
-		resp = yield dev.query('SENS:FREQ:STAR?; STOP?')
-		fstar, fstop = [float(f) for f in resp.split(';')]
+        resp = yield dev.query('SENS:FREQ:STAR?; STOP?')
+        fstar, fstop = [float(f) for f in resp.split(';')]
 
-		sweepType = 'LOG' if log else 'LIN'
-		sweeptime, npoints = yield self.startSweep(dev, sweepType)
-		if sweeptime > 1:
-			sweeptime *= self.sweepFactor(c)
-			yield util.wakeupCall(2*sweeptime)  #needs factor of 2 since it runs both forward and backward 
+        sweepType = 'LOG' if log else 'LIN'
+        sweeptime, npoints = yield self.startSweep(dev, sweepType)
+        if sweeptime > 1:
+            sweeptime *= self.sweepFactor(c)
+            yield util.wakeupCall(sweeptime)  #needs factor of 2 since it runs both forward and backward 
 
-		if log:
-			## hack: should use numpy.logspace, but it seems to be broken
-			## for now, this works instead.
-			lim1, lim2 = numpy.log10(fstar), numpy.log10(fstop)
-			freq = 10**numpy.linspace(lim1, lim2, npoints)
-		else:
-			freq = numpy.linspace(fstar, fstop, npoints)
-			
-		# wait for sweep to finish
-		sparams = yield self.getSweepData(dev, c['meas'])
-		returnValue((freq, sparams))
+        if log:
+            ## hack: should use numpy.logspace, but it seems to be broken
+            ## for now, this works instead.
+            lim1, lim2 = numpy.log10(fstar), numpy.log10(fstop)
+            freq = 10**numpy.linspace(lim1, lim2, npoints)
+        else:
+            freq = numpy.linspace(fstar, fstop, npoints)
+        
+        # wait for sweep to finish
+        sparams = yield self.getSweepData(dev, c['meas'])
+        returnValue((freq, sparams))
 
     @setting(101, returns='*v[Hz]*2c')
     def power_sweep(self, c):
