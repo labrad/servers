@@ -10,6 +10,15 @@ from util import littleEndian, TimedLock
 
 # CHANGELOG
 #
+# 2012 October 2 - Daniel Sank
+# Version 2 (build2) now has an execution counter. This counts the
+# number of times the board executes since the last start command.
+# The externally available function AdcDevice.executionCount pings
+# the board register and retrieves this counter.
+# We have also added a packet preparation function regPingPacket
+# for pipelined use of the register.
+# Added the execution counter to the processReadback function.
+#
 # 2011 November 17 - Daniel Sank
 # Changed params->buildParams to match with changes in dac.py
 #
@@ -105,6 +114,7 @@ def processReadback(resp):
     return {
         'build': a[0],
         'noPllLatch': bool(a[1] > 0),
+        'executionCount': (a[3]<<8) + a[2]
     }
 
 def pktWriteSram(device, derp, data):
@@ -258,6 +268,10 @@ class AdcDevice(DeviceWrapper):
             p.send_trigger(triggerCtx)
         return p
     
+    def regPingPacket(self):
+        regs = regPing()
+        return self.makePacket().write(regs.tostring())
+    
     
     # board communication (can be called from within test mode)
     
@@ -329,6 +343,14 @@ class AdcDevice(DeviceWrapper):
             regs = regPing()
             r = yield self._sendRegisters(regs)
             returnValue(str(processReadback(r)['build']))
+        return self.testMode(func)
+    
+    def executionCount(self):
+        @inlineCallbacks
+        def func():
+            regs = regPing()
+            r = yield self._sendRegisters(regs)
+            returnValue(processReadback(r)['executionCount'])
         return self.testMode(func)
     
     def runAverage(self, filterFunc, filterStretchLen, filterStretchAt, demods):
