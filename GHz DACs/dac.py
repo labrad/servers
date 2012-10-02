@@ -176,7 +176,7 @@ def processReadback(resp):
         'noPllLatch': bool((a[58] & 0x80) > 0),
         'ackoutI2C': a[61],
         'I2Cbytes': a[69:61:-1],
-        'sramCounter': (a[53]<<8) + a[52]
+        'executionCounter': (a[53]<<8) + a[52]
     }
 
 def pktWriteSram(device, derp, data):
@@ -308,7 +308,12 @@ class DacDevice(DeviceWrapper):
         return p
     
     def collect(self, nPackets, timeout, triggerCtx):
-        """Create a packet to collect data on the FPGA."""
+        """
+        Create a packet to collect data on the FPGA.
+        
+        Note that if the collect times out, the optional trigger send
+        will not happen
+        """
         p = self.makePacket()
         p.timeout(T.Value(timeout, 's'))
         p.collect(nPackets)
@@ -336,7 +341,16 @@ class DacDevice(DeviceWrapper):
             p.send_trigger(triggerCtx)
         return p
 
-
+    def regPingPacket(self):
+        """
+        Pings the register for this board with readback after 2us.
+        You probably want to make sure the packet buffer is empty before
+        calling this function so you collect your readback correctly.
+        """
+        regs = regPing()
+        return self.makePacket().write(regs.tostring())
+    
+    
     # board communication (can be called from within test mode)
 
     def _sendSRAM(self, data):
@@ -412,13 +426,13 @@ class DacDevice(DeviceWrapper):
             r = yield self._sendRegisters(regs)
             returnValue(str(processReadback(r)['build']))
         return self.testMode(func)
-
-    def sramCount(self):
+        
+    def executionCount(self):
         @inlineCallbacks
         def func():
             regs = regPing()
             r = yield self._sendRegisters(regs)
-            returnValue(str(processReadback(r)['sramCounter']))
+            returnValue(processReadback(r)['executionCounter'])
         return self.testMode(func)
         
     def initPLL(self):
@@ -540,8 +554,6 @@ class DacDevice(DeviceWrapper):
             returnValue((success, MSD, MHD, t, (range(16), MSDbits, MHDbits), checkHex))
         return self.testMode(func)
     
-    
-    
     def setFIFO(self, chan, op, targetFifo):
         if targetFifo is None:
             # Grab targetFifo from registry if not specified.
@@ -576,9 +588,7 @@ class DacDevice(DeviceWrapper):
             ans = found, clkinv, PHOF, tries, targetFifo
             returnValue(ans)
         return self.testMode(func)
-        
-        
-        
+    
     @inlineCallbacks
     def _checkPHOF(self, op, fifoReadings, counterValue):
         # Determine for which PHOFs (FIFO offsets) the FIFO counter equals counterValue.
@@ -600,8 +610,6 @@ class DacDevice(DeviceWrapper):
                 break
         ans = int(PHOF), success
         returnValue(ans)
-    
-    
     
     def runBIST(self, cmd, shift, dataIn):
         """Run a BIST on the given SRAM sequence. (DAC only)"""
@@ -639,7 +647,6 @@ class DacDevice(DeviceWrapper):
             returnValue((lvds == theory and fifo == theory, theory, lvds, fifo))
         return self.testMode(func)
     
-
 
 def shiftSRAM(device, cmds, page):
     """Shift the addresses of SRAM calls for different pages.
