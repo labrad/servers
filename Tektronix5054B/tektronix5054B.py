@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Tektronix TDS 5054B-NV Oscilloscope
-version = 1.1
+version = 1.2
 description = Talks to the Tektronix 5054B oscilloscope
 
 [startup]
