@@ -257,6 +257,23 @@ class Tektronix5054BServer(GPIBManagedServer):
             raise Exception('Select valid trigger channel')
         returnValue(resp)
 
+    @setting(134, mode = 's', returns = ['s'])
+    def trigger_mode(self, c, mode = None):
+        """Get or set the trigger mode
+        Must be "AUTO" or "NORM"
+        """
+        dev = self.selectedDevice(c)
+        if mode is None:
+            resp = yield dev.query('TRIG:A:MOD?')
+        else:
+            mode = mode.upper()
+            if mode not in ['AUTO','NORM']:
+                raise Exception('Mode must be "AUTO" or "NORM".')
+            else:
+                yield dev.write('TRIG:A:MOD '+mode)
+                resp = yield dev.query('TRIG:A:MOD?')
+        returnValue(resp)
+
     @setting(151, position = 'v', returns = ['v'])
     def horiz_position(self, c, position = None):
         """Get or set the horizontal trigger position (as a percentage from the left edge of the screen)
