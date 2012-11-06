@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = SR830
-version = 2.5
+version = 2.6
 description = 
 
 [startup]
@@ -249,6 +249,20 @@ class SR830(GPIBManagedServer):
         ''' Turns the sensitivity down a notch. '''
         dev = self.selectedDevice(c)
         returnValue((yield self.sensitivity(c, int((yield dev.query('SENS?'))) - 1)))
+        
+    def auto_sensitivity(self, c):
+        r, sens = self.r(c), self.sensitivity(c)
+        while r/sens > 0.95:
+            #print "sensitivity up... ",
+            self.sensitivity_up(c)
+            self.inst.write("SENS " + str(int(self.inst.ask("SENS?")) + 1))
+            time.sleep(self.waitTime(c))
+            r, sens = self.getR(), SR830.convertSensitivity(self.inst.ask("SENS?"))
+        while r/sens < 0.35:
+            #print "sensitivity down... ",
+            self.sensitivity_down(c)
+            time.sleep(self.waitTime(c))
+            r, sens = self.getR(), SR830.convertSensitivity(self.inst.ask("SENS?"))
         
         
     @setting(32, 'Auto Gain')
