@@ -40,6 +40,7 @@ timeout = 20
 from labrad.devices import DeviceServer, DeviceWrapper
 from labrad import types as T, util
 from labrad.server import setting
+from labrad.units import Unit
 from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 import twisted.internet.error
@@ -98,6 +99,7 @@ class ADRWrapper(DeviceWrapper):
                             'fieldWaitTime': 45,		# min -- how long to wait at field before magging down (when autocontrolled)
                             'autoControl': False,		# whether to auto control the heat switch
                             'switchPosition': 2,		# switch position on the lock in amplifier box
+                            'lockinResistorBox': 1e6,   # resistance of the lockin resistor box
                             # PID variables
                             'PIDsetTemp': 0.0 * labrad.units.K,		# setTemp is the temperature goal for PID control
                             'PIDcp': 2.0 * labrad.units.V / labrad.units.K,
@@ -214,6 +216,7 @@ class ADRWrapper(DeviceWrapper):
                 lakeshoreResponse = None
                 magnetResponse = None
                 compressorResponse = None
+                lockinResponse = None
                 if 'lakeshore' in self.peripheralsConnected.keys():
                     lakeshorePacket = self.peripheralsConnected['lakeshore'].server.packet(context=self.ctxt)
                     lakeshorePacket.voltages()
@@ -228,6 +231,11 @@ class ADRWrapper(DeviceWrapper):
                     compressorPacket = self.peripheralsConnected['compressor'].server.packet(context=self.ctxt)
                     compressorPacket.status()
                     compressorResponse = compressorPacket.send()
+                if 'temperature_lockin' in self.peripheralsconnected.keys():
+                    lockinPacket = self.peripheralsConnected['temperature_lockin'].server.packet(context=self.ctxt)
+                    lockinPacket.auto_sensitivity()
+                    lockinPacket.r()
+                    lockinResponse = lockinPacket.send()
                 # process the responses
                 if lakeshoreResponse:
                     ans = yield lakeshoreResponse
@@ -249,6 +257,11 @@ class ADRWrapper(DeviceWrapper):
                         self.state('compressorStatus', ans['status'], False)
                     except Exception as e:
                         self.log("Exception in compressor: %s" % e.__str__())
+                if lockinResponse:
+                    ans = yield lockinResponse
+                    self.state('lockinVoltage', ans['r'], False)
+                else:
+                    self.state('lockinVoltage', None, False)
                 # see how we did
                 haveAllPeriphs = (magnetResponse is not None) and (lakeshoreResponse is not None) #(and compressorResponse is not None)
                 self.state('missingCriticalPeripheral', not haveAllPeriphs, False)
@@ -575,9 +588,13 @@ class ADRWrapper(DeviceWrapper):
     # interpreted from "RuOx thermometer.vi" LabView program, such as I can
     # the voltage reading is from lakeshore channel 4 (i.e. index 3)
     def ruoxStatus(self):
-        calib = self.state('voltToResCalibs')[self.state('switchPosition') - 1]
-        voltage = self.state('voltages')[self.state('ruoxChannel')].value
-        resistance = voltage / (calib)* 10**6 # may or may not need this factor of 10^6
+        lockin = self.state('lockinVoltage')
+        if lockin is None:
+            calib = self.state('voltToResCalibs')[self.state('switchPosition') - 1]
+            voltage = self.state('voltages')[self.state('ruoxChannel')].value
+            resistance = voltage / (calib)* 10**6 # may or may not need this factor of 10^6
+        else:
+            resistance = lockin['V'] * self.state('lockinResistorBox') * Unit('Ohm')
         temp = 0.0
         if resistance < self.state('resistanceCutoff'):
             # high temp (2 to 20 K)
