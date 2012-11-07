@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = ADR Server
-version = 0.215
+version = 0.220
 description =
 
 [startup]
@@ -231,7 +231,7 @@ class ADRWrapper(DeviceWrapper):
                     compressorPacket = self.peripheralsConnected['compressor'].server.packet(context=self.ctxt)
                     compressorPacket.status()
                     compressorResponse = compressorPacket.send()
-                if 'temperature_lockin' in self.peripheralsconnected.keys():
+                if 'temperature_lockin' in self.peripheralsConnected.keys():
                     lockinPacket = self.peripheralsConnected['temperature_lockin'].server.packet(context=self.ctxt)
                     lockinPacket.auto_sensitivity()
                     lockinPacket.r()
@@ -594,7 +594,7 @@ class ADRWrapper(DeviceWrapper):
             voltage = self.state('voltages')[self.state('ruoxChannel')].value
             resistance = voltage / (calib)* 10**6 # may or may not need this factor of 10^6
         else:
-            resistance = lockin['V'] * self.state('lockinResistorBox') * Unit('Ohm')
+            resistance = lockin['V'] * self.state('lockinResistorBox')
         temp = 0.0
         if resistance < self.state('resistanceCutoff'):
             # high temp (2 to 20 K)
