@@ -214,8 +214,7 @@ class Tektronix5104BServer(GPIBManagedServer):
                 raise Exception('state must be "SAM","PEAK","HIR","AVE","ENV"')        
             yield dev.write('ACQ:MOD '+mode)
             resp = yield dev.query('ACQ:MOD?')
-        mode_out = int(resp)
-        returnValue(mode_out)        
+        returnValue(resp)        
         
     @setting(119, navg = 'i', returns = ['i'])
     def numavg(self, c, navg = None):
@@ -295,23 +294,6 @@ class Tektronix5104BServer(GPIBManagedServer):
                 yield dev.write('TRIG:A:MOD '+mode)
                 resp = yield dev.query('TRIG:A:MOD?')
         returnValue(resp)
-       
-    @setting(134, mode = 's', returns = ['s'])
-    def trigger_mode(self, c, mode = None):
-        """Get or set the trigger mode
-        Must be "AUTO" or "NORM"
-        """
-        dev = self.selectedDevice(c)
-        if mode is None:
-            resp = yield dev.query('TRIG:A:MOD?')
-        else:
-            mode = mode.upper()
-            if mode not in ['AUTO','NORM']:
-                raise Exception('Mode must be "AUTO" or "NORM".')
-            else:
-                yield dev.write('TRIG:A:MOD '+mode)
-                resp = yield dev.query('TRIG:A:MOD?')
-        returnValue(resp)
 
     @setting(151, position = 'v', returns = ['v'])
     def horiz_position(self, c, position = None):
@@ -369,12 +351,12 @@ class Tektronix5104BServer(GPIBManagedServer):
         #Transfer waveform preamble
         preamble = yield dev.query('WFMP?')
         position = yield dev.query('CH%d:POSITION?' %channel) # in units of divisions
+        voltsPerDiv = yield dev.query('CH%d:SCA?' %channel)
+        secPerDiv = yield dev.query('HOR:SCA?')        
         #Transfer waveform data
         binary = yield dev.query('CURV?')
         #Parse waveform preamble
         #voltsPerDiv, secPerDiv, voltUnits, timeUnits = _parsePreamble(preamble)
-        voltsPerDiv = yield dev.query('CH%d:SCA?' %channel)
-        secPerDiv = yield dev.query('HOR:SCA?')
         #voltUnits = 1000*m
         
         #voltUnitScaler = Value(1, voltUnits)['mV'] # converts the units out of the scope to mV
@@ -385,8 +367,8 @@ class Tektronix5104BServer(GPIBManagedServer):
         #Parse binary
         trace = _parseBinaryData(binary,wordLength = wordLength)
         #Convert from binary to volts
-        traceVolts = (trace * (1/32768.0) * VERT_DIVISIONS/2 * voltsPerDiv - float(position) * voltsPerDiv) * voltUnitScaler
-        time = numpy.linspace(0, HORZ_DIVISIONS * secPerDiv * timeUnitScaler,len(traceVolts))#recordLength)
+        traceVolts = (trace * (1/32768.0) * VERT_DIVISIONS/2 * float(voltsPerDiv) - float(position) * float(voltsPerDiv) ) * voltUnitScaler
+        time = numpy.linspace(0, HORZ_DIVISIONS * float(secPerDiv) * timeUnitScaler,len(traceVolts))#recordLength)
 
         returnValue((time, traceVolts))
 
