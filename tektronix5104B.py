@@ -1,4 +1,4 @@
-# Copyright (C) 2011 Jim Wenner
+# Copyright (C) 2011 Jim Wenner, 2012 Rami Barends
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -12,7 +12,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
+#
+# 2012: added support for average mode
 """
 ### BEGIN NODE INFO
 [info]
@@ -170,6 +171,8 @@ class Tektronix5104BServer(GPIBManagedServer):
         invert = int(resp)
         returnValue(invert)
 
+        
+        
     @setting(116, channel = 'i', termination = 'v', returns = ['v'])
     def termination(self, c, channel, termination = None):
         """Get or set the a channels termination
@@ -199,6 +202,34 @@ class Tektronix5104BServer(GPIBManagedServer):
         position = float(resp)
         returnValue(position)
 
+    @setting(118, mode = 's', returns = ['s'])
+    def acquisition_mode(self, c, mode = None):
+        """Get or set acquisition mode
+        """
+        dev = self.selectedDevice(c)
+        if mode is None:
+            resp = yield dev.query('ACQ:MOD?')
+        else:
+            if mode not in ['SAM','PEAK','HIR','AVE','ENV']:
+                raise Exception('state must be "SAM","PEAK","HIR","AVE","ENV"')        
+            yield dev.write('ACQ:MOD '+mode)
+            resp = yield dev.query('ACQ:MOD?')
+        mode_out = int(resp)
+        returnValue(mode_out)        
+        
+    @setting(119, navg = 'i', returns = ['i'])
+    def numavg(self, c, navg = None):
+        """Get or set number of averages
+        """
+        dev = self.selectedDevice(c)
+        if navg is None:
+            resp = yield dev.query('ACQ:NUMAV?')
+        else:    
+            yield dev.write('ACQ:NUMAV %d' %navg)
+            resp = yield dev.query('ACQ:NUMAV?')
+        navg_out = int(resp)
+        returnValue(navg_out)          
+        
     @setting(131, slope = 's', returns = ['s'])
     def trigger_slope(self, c, slope = None):
         """Turn on or off a scope channel display
@@ -248,7 +279,23 @@ class Tektronix5104BServer(GPIBManagedServer):
         else:
             raise Exception('Select valid trigger channel')
         returnValue(resp)
-
+       
+    @setting(134, mode = 's', returns = ['s'])
+    def trigger_mode(self, c, mode = None):
+        """Sets or reads trigger mode
+        Must be 'AUTO' or 'NORM'
+        """
+        dev = self.selectedDevice(c)
+        if mode is None:
+            resp = yield dev.query('TRIG:A:MOD?')
+        else:
+            if mode not in ['AUTO','NORM']:
+                raise Exception('Slope must be "AUTO" or "NORM"')
+            else:
+                yield dev.write('TRIG:A:MOD '+mode)
+                resp = yield dev.query('TRIG:A:MOD?')
+        returnValue(resp)
+       
     @setting(134, mode = 's', returns = ['s'])
     def trigger_mode(self, c, mode = None):
         """Get or set the trigger mode
@@ -325,9 +372,16 @@ class Tektronix5104BServer(GPIBManagedServer):
         #Transfer waveform data
         binary = yield dev.query('CURV?')
         #Parse waveform preamble
-        voltsPerDiv, secPerDiv, voltUnits, timeUnits = _parsePreamble(preamble)
-        voltUnitScaler = Value(1, voltUnits)['mV'] # converts the units out of the scope to mV
-        timeUnitScaler = Value(1, timeUnits)['ns']
+        #voltsPerDiv, secPerDiv, voltUnits, timeUnits = _parsePreamble(preamble)
+        voltsPerDiv = yield dev.query('CH%d:SCA?' %channel)
+        secPerDiv = yield dev.query('HOR:SCA?')
+        #voltUnits = 1000*m
+        
+        #voltUnitScaler = Value(1, voltUnits)['mV'] # converts the units out of the scope to mV
+        #timeUnitScaler = Value(1, timeUnits)['ns']
+        
+        voltUnitScaler = 1000.0
+        timeUnitScaler = 1.0e9
         #Parse binary
         trace = _parseBinaryData(binary,wordLength = wordLength)
         #Convert from binary to volts
