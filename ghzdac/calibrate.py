@@ -389,29 +389,66 @@ def calibrateDCPulse(cxn,boardname,channel):
         pulse = makeSample(dac_pulse, dac_neutral)
         baseline = makeSample(dac_baseline, dac_neutral)
     #Set up the scope
-    scope = cxn.sampling_scope
-    scopeID = yield reg.get(keys.SCOPEID)
-    p = scope.packet().\
-    select_device(scopeID).\
-    reset().\
-    channel(SCOPECHANNEL).\
-    trace(1).\
-    record_length(5120).\
-    average(128).\
-    sensitivity(Value(100.0,'mV')).\
-    offset(Value(0,'mV')).\
-    time_step(Value(5,'ns')).\
-    trigger_level(Value(0.18,'V')).\
-    trigger_positive()
-    yield p.send()
+    @inlineCallbacks
+    def sample_chunk(sensitivity, offset_voltage, time_step = 20):
+        print sensitivity
+        print offset_voltage
+        scope = cxn.sampling_scope
+        scopeID = yield reg.get(keys.SCOPEID)
+        p = scope.packet().\
+        select_device(scopeID).\
+        reset().\
+        channel(SCOPECHANNEL).\
+        trace(1).\
+        record_length(5120).\
+        average(128).\
+        sensitivity(Value(sensitivity,'mV')).\
+        offset(Value(offset_voltage,'mV')).\
+        time_step(Value(time_step,'ns')).\
+        trigger_level(Value(0.18,'V')).\
+        trigger_positive()
+        yield p.send()
 
-    offsettime = yield reg.get(keys.TIMEOFFSET)
+        offsettime = yield reg.get(keys.TIMEOFFSET)
 
+        print 'Measuring step response...'
+        trace = yield measureImpulseResponse(fpga, scope, baseline, pulse,
+            dacoffsettime=offsettime['ns'], pulselength=500)
+            
+        data = np.transpose([1e9*(trace[0]+trace[1]*np.arange(np.alen(trace)-2)),trace[2:]])
+            
+        returnValue(data)
+        
+    CHUNKS = 11
+    sensitivity_buffer = 5.0 # in mV
     
-
-    print 'Measuring step response...'
-    trace = yield measureImpulseResponse(fpga, scope, baseline, pulse,
-        dacoffsettime=offsettime['ns'], pulselength=100)
+    sens = yield reg.get(keys.SCOPESENSITIVITY)
+    offset_voltages = np.linspace(-5*sens, 5*sens, CHUNKS) # in mV
+    dVoltage = offset_voltages[1]-offset_voltages[0]
+    sensitivity = dVoltage/10.0 + sensitivity_buffer
+    
+    # compile each data set chunk 
+    datas = []
+    for offset_voltage in offset_voltages:
+        data = yield sample_chunk(sensitivity, offset_voltage)
+        datas.append(data)
+        
+    # figure out where each data set switches over to the next
+    switchInds = []
+    for data, offset_voltage in zip(datas, offset_voltages):
+        thresholdVoltage = (offset_voltage + sensitivity*10.0/2.0)/1000.0# convert mV to V
+        switchInds.extend(np.argwhere(data[:,1]>thresholdVoltage)[:1])
+        
+    # compile the final trace
+    finalTrace = []
+    dataIndex = 0
+    for k in range(len(datas[0][:,0])):
+        if switchInds.count(k):
+            dataIndex+=1
+        finalTrace.append((datas[dataIndex][k,0], datas[dataIndex][k,1]))
+    
+    finalTrace = np.array(finalTrace)
+        
     # set the output to zero so that the fridge does not warm up when the
     # cable is plugged back in
     yield fpga.dac_run_sram([makeSample(dac_neutral, dac_neutral)]*4,False)
@@ -419,9 +456,9 @@ def calibrateDCPulse(cxn,boardname,channel):
     yield ds.cd(['', keys.SESSIONNAME, boardname],True)
     dataset = yield ds.new(keys.CHANNELNAMES[channel], [('Time','ns')],
                            [('Voltage','','V')])
+    offsettime = yield reg.get(keys.TIMEOFFSET)
     yield ds.add_parameter(keys.TIMEOFFSET, offsettime)
-    yield ds.add(np.transpose([1e9*(trace[0]+trace[1]*np.arange(np.alen(trace)-2)),
-        trace[2:]]))
+    yield ds.add(finalTrace)
     returnValue(datasetNumber(dataset))
 
 
