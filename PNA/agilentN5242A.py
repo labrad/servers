@@ -22,11 +22,11 @@ description = Talks to the Agilent PNA-X
 
 [startup]
 cmdline = %PYTHON% %FILE%
-timeout = 20
+timeout = 30
 
 [shutdown]
 message = 987654321
-timeout = 20
+timeout = 30
 ### END NODE INFO
 """
 
@@ -245,6 +245,7 @@ class AgilentPNAServer(GPIBManagedServer):
         # wait for sweep to finish
         sparams = yield self.getSweepData(dev, c['meas'])
         returnValue((freq, sparams))
+        
         
     @setting(124, log='b')
     def freq_sweep_phase(self, c, log=False):

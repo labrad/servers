@@ -47,7 +47,7 @@ from pyvisa import visa, vpp43
 ### BEGIN NODE INFO
 [info]
 name = GPIB Bus
-version = 1.3.2
+version = 1.3.2-no-refresh
 description = Gives access to GPIB devices via pyvisa.
 instancename = %LABRADNODE% GPIB Bus
 
@@ -82,8 +82,9 @@ class GPIBBusServer(LabradServer):
         When the refresh loop is shutdown, we will wait for this
         deferred to fire to indicate that it has terminated.
         """
-        self.refresher = LoopingCall(self.refreshDevices)
-        self.refresherDone = self.refresher.start(self.refreshInterval, now=True)
+        #self.refresher = LoopingCall(self.refreshDevices)
+        #self.refresherDone = self.refresher.start(self.refreshInterval, now=True)
+        self.refreshDevices()
         
     @inlineCallbacks
     def stopServer(self):
@@ -99,11 +100,11 @@ class GPIBBusServer(LabradServer):
         """
         try:
             addresses = visa.get_instruments_list()
-            try:
-                sockets = self.getSocketsList()
-                addresses = addresses + sockets
-            except:
-                pass
+            #try:
+            #    sockets = self.getSocketsList()
+            #    addresses = addresses + sockets
+            #except:
+            #    pass
             additions = set(addresses) - set(self.devices.keys())
             deletions = set(self.devices.keys()) - set(addresses)
             for addr in additions:
@@ -116,7 +117,7 @@ class GPIBBusServer(LabradServer):
                         instName = addr + '::INSTR'
                     else:
                         continue
-                    instr = visa.instrument(instName, timeout=1.0)
+                    instr = visa.instrument(instName, timeout=1.0, term_chars='')
                     instr.clear()
                     if addr.endswith('SOCKET'):
                         instr.term_chars = '\n'
@@ -212,6 +213,11 @@ class GPIBBusServer(LabradServer):
     def list_devices(self, c):
         """Get a list of devices on this bus."""
         return sorted(self.devices.keys())
+
+    @setting(21)
+    def refresh_devices(self, c):
+        ''' manually refresh devices '''
+        self.refreshDevices()
 
 __server__ = GPIBBusServer()
 
