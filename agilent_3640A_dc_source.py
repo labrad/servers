@@ -106,7 +106,7 @@ class AgilentDCSource(GPIBManagedServer):
         """ Identical to voltage(volt), but returns the set value of current, not the measured value. """
         dev = self.selectedDevice(c)
         if not dev.psMode and volt is not None:
-            yield self.current(volt)
+            yield self.voltage(volt)
         returnValue(float( (yield dev.query('VOLT?')) ))
         
     @setting(40, mode='b', returns='b')
