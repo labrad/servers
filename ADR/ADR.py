@@ -594,7 +594,7 @@ class ADRWrapper(DeviceWrapper):
             voltage = self.state('voltages')[self.state('ruoxChannel')].value
             resistance = voltage / (calib)* 10**6 # may or may not need this factor of 10^6
         else:
-            resistance = lockin['V'] / self.state('lockinCurrent') * Unit('Ohm')
+            resistance = lockin['V'] / float(self.state('lockinCurrent'))
         temp = 0.0
         if resistance < self.state('resistanceCutoff'):
             # high temp (2 to 20 K)
