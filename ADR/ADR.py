@@ -99,7 +99,7 @@ class ADRWrapper(DeviceWrapper):
                             'fieldWaitTime': 45,		# min -- how long to wait at field before magging down (when autocontrolled)
                             'autoControl': False,		# whether to auto control the heat switch
                             'switchPosition': 2,		# switch position on the lock in amplifier box
-                            'lockinResistorBox': 1e6,   # resistance of the lockin resistor box
+                            'lockinCurrent': 1e-8,      # current being put through Ruox (for use with lockin)
                             # PID variables
                             'PIDsetTemp': 0.0 * labrad.units.K,		# setTemp is the temperature goal for PID control
                             'PIDcp': 2.0 * labrad.units.V / labrad.units.K,
@@ -594,7 +594,11 @@ class ADRWrapper(DeviceWrapper):
             voltage = self.state('voltages')[self.state('ruoxChannel')].value
             resistance = voltage / (calib)* 10**6 # may or may not need this factor of 10^6
         else:
+<<<<<<< .mine
+            resistance = lockin['V'] / self.state('lockinCurrent') * Unit('Ohm')
+=======
             resistance = lockin['V'] * self.state('lockinResistorBox')
+>>>>>>> .r2338
         temp = 0.0
         if resistance < self.state('resistanceCutoff'):
             # high temp (2 to 20 K)
