@@ -445,6 +445,7 @@ def calibrateDCPulse(cxn,boardname,channel):
     for k in range(len(datas[0][:,0])):
         if switchInds.count(k):
             dataIndex+=1
+            continue
         finalTrace.append((datas[dataIndex][k,0], datas[dataIndex][k,1]))
     
     finalTrace = np.array(finalTrace)
