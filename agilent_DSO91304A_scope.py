@@ -16,8 +16,8 @@
 """
 ### BEGIN NODE INFO
 [info]
-name = Agilent DSO91304A Oscilloscope
-version = 0.1
+name = Agilent 13GHz DSO91304A Oscilloscope
+version = 0.2
 description = Talks to the Agilent DSO91304A 13GHz oscilloscope
 
 [startup]
@@ -43,17 +43,13 @@ import numpy, re
 
 COUPLINGS = ['AC', 'DC', 'GND']
 TRIG_CHANNELS = ['AUX','CH1','CH2','CH3','CH4','LINE']
-VERT_DIVISIONS = 10.0
+VERT_DIVISIONS = 8.0
 HORZ_DIVISIONS = 10.0
 SCALES = []
 
-class AgilentDSO91304AWrapper(GPIBDeviceWrapper):
-    pass
-
 class AgilentDSO91304AServer(GPIBManagedServer):
-    name = 'AGILENT 13GHZ DSO91304A OSCILLOSCOPE'
-    deviceName = 'AGILENT TECHNOLOGIES DSO91304A'
-    deviceWrapper = AgilentDSO91304AWrapper
+    name = 'AGILENT DSO91304A OSCILLOSCOPE'
+    deviceName = 'Agilent Technologies DSO91304A'
         
     @setting(11, returns=[])
     def reset(self, c):
@@ -147,26 +143,28 @@ class AgilentDSO91304AServer(GPIBManagedServer):
             raise Exception('Probe attenuation factor not in '+str(probeFactors))
         returnValue(resp)
 
-    @setting(114, channel = '?', state = '?', returns = '')
-    def channelOnOff(self, c, channel, state):
+    @setting(114, channel = 'i', state = '?', returns = 's')
+    def channelOnOff(self, c, channel, state = None):
         """Turn on or off a scope channel display.
         State must be in [0,1,'ON','OFF'].
-        Channel must be int or string.
+        Channel must be int.
+        If state is not specified, will return state of channel.
         """
         dev = self.selectedDevice(c)
-        if isinstance(state, str):
-            state = state.upper()
-        if state not in [0,1,'ON','OFF']:
-            raise Exception('state must be 0, 1, "ON", or "OFF"')
-        if isinstance(state, int):
-            state = str(state)
-        if isinstance(channel, str):
-            channel = channel.upper()
-        elif isinstance(channel, int):
-            channel = 'CH%d' %channel
+        if state is None:
+            resp = yield dev.query('CHAN%d:DISP?' %channel)
         else:
-            raise Exception('channel must be int or string')
-        yield dev.write(('CHAN%s:DISP '+state) %channel)
+            if isinstance(state, int):
+                state = str(state)
+            elif isinstance(state, str):
+                state = state.upper()
+            else:
+                raise Exception('state must be int or string')
+            if state not in ['0','1','ON','OFF']:
+                raise Exception('state must be 0, 1, "ON", or "OFF"')
+            yield dev.write(('CHAN%d:DISP '+state) %channel)
+            resp = yield dev.query('CHAN%d:DISP?' %channel)
+        returnValue(resp)
 
     @setting(115, channel = 'i', invert = 'i', returns = ['i'])
     def invertNONEXISTANT(self, c, channel, invert = None):
@@ -195,75 +193,75 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         position = float(resp)
         returnValue(position)
 
-    @setting(131, slope = 's', returns = ['s'])
-    def trigger_slopeNONEXISTANT(self, c, slope = None):
-        """Turn on or off a scope channel display
-        Must be 'RISE' or 'FALL'
+    @setting(131, channel = 'i', level = 'v', returns = 'v{level}')
+    def trigger_at(self, c, channel, level = None):
+        """Get or set the trigger source and the trigger voltage.
+        Channel must be one of 0 (AUX), 1, 2, 3, 4.
         """
-        raise Exception('Not yet implemented')
         dev = self.selectedDevice(c)
-        if slope is None:
-            resp = yield dev.query('TRIG:A:EDGE:SLO?')
-        else:
-            slope = slope.upper()
-            if slope not in ['RISE','FALL']:
-                raise Exception('Slope must be "RISE" or "FALL"')
-            else:
-                yield dev.write('TRIG:A:EDGE:SLO '+slope)
-                resp = yield dev.query('TRIG:A:EDGE:SLO?')
-        returnValue(resp)
-
-    @setting(132, level = 'v', returns = ['v'])
-    def trigger_levelNONEXISTANT(self, c, level = None):
-        """Get or set the vertical zero position of a channel in units of divisions
-        """
-        raise Exception('Not yet implemented')
-        dev = self.selectedDevice(c)
+        if channel==0:
+            channel = 'AUX'
+        elif isinstance(channel, int):
+            channel = 'CHAN%d' %channel
+        if channel not in ['AUX','CHAN1','CHAN2','CHAN3','CHAN4']:
+            raise Exception('Select valid trigger channel')
         if level is None:
-            resp = yield dev.query('TRIG:A:LEV?')
+            resp = yield dev.query('TRIG:LEV? %s' %channel)
         else:
-            yield dev.write(('TRIG:A:LEV %f') %level)
-            resp = yield dev.query('TRIG:A:LEV?')
+            yield dev.write('TRIG:LEV %s, %f' %(channel,level))
+            resp = yield dev.query('TRIG:LEV? %s' %channel)
         level = float(resp)
         returnValue(level)
 
-    @setting(133, channel = '?', returns = ['s'])
-    def trigger_channelNONEXISTANT(self, c, channel = None):
-        """Get or set the trigger source
-        Must be one of "AUX","LINE", 1, 2, 3, 4, "CH1", "CH2", "CH3", "CH4"
+    @setting(132, slope = 's', returns = ['s'])
+    def trigger_mode(self, c, slope = None):
+        """Change trigger mode. Use 'EDGE' for edge triggering.
+        Must be one of 'COMM','DEL','EDGE','GLIT','PATT','PWID','RUNT','SEQ',',SHOL','STAT','TIM','TRAN','TV',',WIND','SBUS1','SBUS2','SBUS3','SBUS4'.
         """
-        raise Exception('Not yet implemented')
         dev = self.selectedDevice(c)
-        if isinstance(channel, str):
-            channel = channel.upper()
-        if isinstance(channel, int):
-            channel = 'CH%d' %channel
-            
-        if channel is None:
-            resp = yield dev.query('TRIG:A:EDGE:SOU?')
-        elif channel in TRIG_CHANNELS:
-            yield dev.write('TRIG:A:EDGE:SOU '+channel)
-            resp = yield dev.query('TRIG:A:EDGE:SOU?')
+        if slope is None:
+            resp = yield dev.query('TRIG:MODE?')
         else:
-            raise Exception('Select valid trigger channel')
+            slope = slope.upper()
+            if slope not in ['COMM','DEL','EDGE','GLIT','PATT','PWID','RUNT','SEQ',',SHOL','STAT','TIM','TRAN','TV',',WIND','SBUS1','SBUS2','SBUS3','SBUS4']:
+                raise Exception('Slope must be valid type.')
+            else:
+                yield dev.write('TRIG:MODE '+slope)
+                resp = yield dev.query('TRIG:MODE?')
+        returnValue(resp)
+
+    @setting(133, slope = 's', returns = ['s'])
+    def trigger_edge_slope(self, c, slope = None):
+        """Change trigger edge slope.
+        Must be 'POS,' 'NEG', or 'EITH'er
+        """
+        dev = self.selectedDevice(c)
+        if slope is None:
+            resp = yield dev.query('TRIG:EDGE:SLOP?')
+        else:
+            slope = slope.upper()
+            if slope not in ['POS','NEG','EITH']:
+                raise Exception('Slope must be "RISE" or "FALL"')
+            else:
+                yield dev.write('TRIG:EDGE:SLOP '+slope)
+                resp = yield dev.query('TRIG:EDGE:SLOP?')
         returnValue(resp)
 
     @setting(134, mode = 's', returns = ['s'])
-    def trigger_modeNONEXISTANT(self, c, mode = None):
+    def trigger_sweep(self, c, mode = None):
         """Get or set the trigger mode
-        Must be "AUTO" or "NORM"
+        Must be "AUTO", "TRIG" (normal), or "SING" (single)
         """
-        raise Exception('Not yet implemented')
         dev = self.selectedDevice(c)
         if mode is None:
-            resp = yield dev.query('TRIG:A:MOD?')
+            resp = yield dev.query('TRIG:SWE?')
         else:
             mode = mode.upper()
-            if mode not in ['AUTO','NORM']:
-                raise Exception('Mode must be "AUTO" or "NORM".')
+            if mode not in ['AUTO','TRIG','SING']:
+                raise Exception('Mode must be "AUTO", "TRIG", or "SING".')
             else:
-                yield dev.write('TRIG:A:MOD '+mode)
-                resp = yield dev.query('TRIG:A:MOD?')
+                yield dev.write('TRIG:SWE '+mode)
+                resp = yield dev.query('TRIG:SWE?')
         returnValue(resp)
 
     @setting(150, side = 's', returns = ['s'])
@@ -280,8 +278,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
             else:
                 yield dev.write('TIM:REF '+side)
                 resp = yield dev.query('TIM:REF?')
-        position = float(resp)
-        returnValue(position)
+        returnValue(resp)
 
     @setting(151, position = 'v', returns = ['v'])
     def horiz_position(self, c, position = None):
@@ -312,68 +309,90 @@ class AgilentDSO91304AServer(GPIBManagedServer):
     
     #Data acquisition settings
     @setting(201, channel = 'i', start = 'i', stop = 'i', returns='*v[ns] {time axis} *v[mV] {scope trace}')
-    def get_traceNONEXISTANT(self, c, channel, start=1, stop=10000):
+    def get_trace(self, c, channel, start=1, stop=10000):
         """Get a trace from the scope.
         OUTPUT - (array voltage in volts, array time in seconds)
         """
-        raise Exception('Not yet implemented')
+        raise Exception('Doesnt work yet. Please fix lines defining traceVolts and time.')
 ##        DATA ENCODINGS
 ##        RIB - signed, MSB first
 ##        RPB - unsigned, MSB first
 ##        SRI - signed, LSB first
 ##        SRP - unsigned, LSB first
-        wordLength = 2 #Hardcoding to set data transer word length to 2 bytes
         recordLength = stop-start+1
+        wordLength = 2 #Hardcoding to set data transer word length to 2 bytes
         
         dev = self.selectedDevice(c)
         #DAT:SOU - set waveform source channel
-        yield dev.write('DAT:SOU CH%d' %channel)
+        yield dev.write('WAV:SOUR CH%d' %channel)
 
-        #DAT:ENC - data format (binary/ascii)
-        yield dev.write('DAT:ENC RIB')
-        #Set number of bytes per point
-        yield dev.write('DAT:WID %d' %wordLength)
+        #Read data MSB first
+        yield dev.write('WAV:BYT MSBF')
+        #Set 2 bytes per point
+        yield dev.write('WAV:FORM WORD')
         #Starting and stopping point
-        yield dev.write('DAT:STAR %d' %start)
-        yield dev.write('DAT:STOP %d' %stop)
+        #yield dev.write('DAT:STAR %d' %start)
+        #yield dev.write('DAT:STOP %d' %stop)
         #Transfer waveform preamble
-        preamble = yield dev.query('WFMP?')
-        position = yield dev.query('CH%d:POSITION?' %channel) # in units of divisions
+        preamble = yield dev.query('WAV:PRE?')
+        #position = yield dev.query('CH%d:POSITION?' %channel) # in units of divisions
         #Transfer waveform data
-        binary = yield dev.query('CURV?')
+        binary = yield dev.query('WAV:DATA?')
         #Parse waveform preamble
-        voltsPerDiv, secPerDiv, voltUnits, timeUnits = _parsePreamble(preamble)
-        voltUnitScaler = Value(1, voltUnits)['mV'] # converts the units out of the scope to mV
-        timeUnitScaler = Value(1, timeUnits)['ns']
+        preambleDict = _parsePreamble(preamble)
+        print preambleDict
+        voltUnitScaler = Value(1, preambleDict['yUnit'])['mV'] # converts the units out of the scope to mV
+        timeUnitScaler = Value(1e9, preambleDict['xUnit'])['ns']
         #Parse binary
         trace = _parseBinaryData(binary,wordLength = wordLength)
         #Convert from binary to volts
-        traceVolts = (trace * (1/32768.0) * VERT_DIVISIONS/2 * voltsPerDiv - float(position) * voltsPerDiv) * voltUnitScaler
-        time = numpy.linspace(0, HORZ_DIVISIONS * secPerDiv * timeUnitScaler,len(traceVolts))#recordLength)
+        traceVolts = ((trace*float(preambleDict['yStep'])+float(preambleDict['yOrigin']))) #* (1/32768.0))# * VERT_DIVISIONS/2 - float(0)) * float(preambleDict['yStep']) * voltUnitScaler
+        numPoints = int(preambleDict['numPoints'])
+        time = numpy.linspace(float(preambleDict['xFirst']), (numPoints-1) * float(preambleDict['xStep'])+float(preambleDict['xFirst']),numPoints)#recordLength)
 
         returnValue((time, traceVolts))
 
 def _parsePreamble(preamble):
-    ###TODO: parse the rest of the preamble and return the results as a useful dictionary
-    preamble = preamble.split(';')
-    vertInfo = preamble[5].split(',')
+    preambleVals = preamble.split(',')
+    preambleKeys = [('byteFormat',True),
+                    ('dataType',False),
+                    ('numPoints',True),
+                    ('count',False),
+                    ('xStep',True),
+                    ('xFirst',True),
+                    ('xRef',False),
+                    ('yStep',True),
+                    ('yOrigin',True),
+                    ('yRef',False),
+                    ('coupling',False),
+                    ('xRange',True),
+                    ('xLeftDisplay',True),
+                    ('yRange',True),
+                    ('yCenterDisplay',True),
+                    ('date',False),
+                    ('time',False),
+                    ('model',False),
+                    ('acquisitionMode',False),
+                    ('percentTimeBucketsComplete',False),
+                    ('xUnits',True),
+                    ('yUnits',True),
+                    ('maxBW',False),
+                    ('minBW',False)]
     
-    def parseString(string): # use 'regular expressions' to parse the string
-        number = re.sub(r'.*?([\d\.]+).*', r'\1', string)
-        units = re.sub(r'.*?([a-zA-z]+)/.*', r'\1', string)
-        return float(number), units
-    
-    voltsPerDiv, voltUnits = parseString(vertInfo[2])
-    if voltUnits == 'VV':
-        voltUnits ='W'
-    if voltUnits == 'mVV':
-        voltUnits = 'W'
-    if voltUnits == 'uVV':
-        voltUnits = 'W'
-    if voltUnits == 'nVV':
-        voltUnits = 'W'
-    secPerDiv, timeUnits = parseString(vertInfo[3])
-    return (voltsPerDiv, secPerDiv, voltUnits, timeUnits)
+    preambleDict = {}
+    for key,val in zip(preambleKeys,preambleVals):
+        if key[1]:
+            preambleDict[key[0]] = val
+    def unitType(num):
+        if num=='1':
+            return 'V'
+        elif num=='2':
+            return 'ns'
+        else:
+            raise Exception('Units not time or voltage')
+    preambleDict['xUnit'] = unitType(preambleDict['xUnits'])
+    preambleDict['yUnit'] = unitType(preambleDict['yUnits'])
+    return (preambleDict)
 
 def _parseBinaryData(data, wordLength):
     """Parse binary data packed as string of RIBinary
@@ -384,15 +403,17 @@ def _parseBinaryData(data, wordLength):
     #Get rid of header crap
     #unpack binary data
     if wordLength == 1:
+        lenHeader = int(data[1])
+        dat = data[(2+lenHeader):]
         dat = numpy.array(unpack(formatChar*(len(dat)/wordLength),dat))
     elif wordLength == 2:
-        header = data[0:6]
-        dat = data[6:]
+        lenHeader = int(data[1])
+        dat = data[(2+lenHeader):]
         dat = dat[-calcsize('>' + formatChar*(len(dat)/wordLength)):]
         dat = numpy.array(unpack('>' + formatChar*(len(dat)/wordLength),dat))
     elif wordLength == 4:
-        header = data[0:6]
-        dat = data[6:]
+        lenHeader = int(data[1])
+        dat = data[(2+lenHeader):]
         dat = dat[-calcsize('>' + formatChar*(len(dat)/wordLength)):]
         dat = numpy.array(unpack('>' + formatChar*(len(dat)/wordLength),dat))      
     return dat
