@@ -88,6 +88,7 @@ AMPLITUDE_UNITS = {
             'VRMS': 1,
             'DBV': 2,
             }
+
 PHASE_UNITS = {
             'DEGREES': 0,
             'RADIANS': 1
@@ -107,6 +108,7 @@ WINDOWS = {
             'HANNING': 2,
             'BLACKMANHARRIS': 3
             }
+            
 class SR770Wrapper(GPIBDeviceWrapper):
     #TODO
     #Set up device parameters and move logic code from settings to here so the device knows if a command will
@@ -611,6 +613,33 @@ class SR770Server(GPIBManagedServer):
         data = np.vstack((freqs,voltsRmsPerRtHz)).T
         returnValue(data)
 
+    @setting(102, trace='i{trace}', returns='*2v{[freq,sqrt(psd)]}')
+    def power_spectral_amplitude_ASCII(self, c, trace):
+        """Get the trace in spectral amplitude (RMS) units
+        
+        We take screen displayed values so that we don't have to worry
+        about window corrections.
+        """
+        dev = self.selectedDevice(c)
+        #Clear all status bytes
+        yield dev.clearStatusBytes()
+        #Check that display is log magnitude
+        disp = yield self.display(c, trace)
+        if disp[1]!='LOG MAG':
+            raise Exception('Display must be LOG MAG for power spectral amplitude retrieval')
+        span = yield self.span(c)
+        linewidth = span/NUM_POINTS
+        freqStart = yield self.start_frequency(c)
+        yield dev.start()
+        yield dev.waitForAveraging()
+        #Read from device
+        dataStr = yield dev.query('SPEC?%d\n' %trace)
+        #Convert to power spectral density
+        dataStr = dataStr.split(',')[0:-1]
+        voltsRmsPerRtHz = np.array([float(d) for d in dataStr])
+        freqs = np.linspace(freqStart['Hz'],(span+freqStart)['Hz'],NUM_POINTS)
+        data = np.vstack((freqs,voltsRmsPerRtHz)).T
+        returnValue(data)
 
 # helper methods
 def bin(x,width):
