@@ -628,7 +628,6 @@ class SR770Server(GPIBManagedServer):
         if disp[1]!='LOG MAG':
             raise Exception('Display must be LOG MAG for power spectral amplitude retrieval')
         span = yield self.span(c)
-        linewidth = span/NUM_POINTS
         freqStart = yield self.start_frequency(c)
         yield dev.start()
         yield dev.waitForAveraging()
