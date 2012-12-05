@@ -1,4 +1,4 @@
-# Copyright (C) 2007  Matthew Neeley
+# Copyright (C) 2012 Jim Wenner
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Agilent E4418B Power Meter
-version = 1.0
+version = 1.1
 description = Power meter.
 
 [startup]
@@ -46,7 +46,7 @@ class AgilentPMServer(GPIBManagedServer):
         resp = yield dev.query('FETC:POW:AC?')
         returnValue(float(resp))
 
-    @setting(101, 'Units', units=['s'], returns=['s'])
+    @setting(201, 'Units', units=['s'], returns=['s'])
     def units(self, c, units=None):
         """
         Get or set the power units.
@@ -58,7 +58,7 @@ class AgilentPMServer(GPIBManagedServer):
         resp = yield dev.query('UNIT:POW?')
         returnValue(resp)
 
-    @setting(102, 'Frequency', f=['v[Hz]'], returns=['v[Hz]'])
+    @setting(202, 'Frequency', f=['v[Hz]'], returns=['v[Hz]'])
     def frequency(self, c, f=None):
         """
         Get or set the calibration frequency.
@@ -68,6 +68,31 @@ class AgilentPMServer(GPIBManagedServer):
             yield dev.write('SENS:FREQ %fHz' %f)
         resp = yield dev.query('SENS:FREQ?')
         returnValue(float(resp))
+
+    @setting(301, 'Averaging OnOff', onoff=['b'], returns=['b'])
+    def averagingOnOff(self, c, onoff=None):
+        """
+        Turn averaging on or off.
+        If onoff is not specified, determine if averaging is on or off.
+        """
+        dev = self.selectedDevice(c)
+        if onoff is not None:
+            yield dev.write('SENS:AVER %d' %int(onoff))
+        resp = yield dev.query('SENS:AVER?')
+        returnValue(bool(int(resp)))
+
+    @setting(302, 'Averaging Length', num=['w'], returns=['w'])
+    def averagingLength(self, c, num=None):
+        """
+        Get or set the averaging length.
+        Allowable values between 1 and 1024.
+        """
+        dev = self.selectedDevice(c)
+        if num is not None:
+            yield dev.write('SENS:AVER:COUN %d' %num)
+        resp = yield dev.query('SENS:AVER:COUN?')
+        returnValue(int(resp))
+
 
 __server__ = AgilentPMServer()
 
