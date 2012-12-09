@@ -137,7 +137,7 @@ class ColdSwitchWrapper(DeviceWrapper):
             yield util.wakeupCall(1)
             self.state[0] = chan
             
-        if self.state[0]!=chan and chan=='0':
+        if self.state[0]!=chan and chan =='0':
             reschan = commands[self.state[0]]
             yield self.write(reschan)
             yield self.resetPulse()
@@ -161,7 +161,7 @@ class ColdSwitchWrapper(DeviceWrapper):
             yield util.wakeupCall(1)
             self.state[1] = chan
             
-        if self.state[0]!=chan and chan=='0':
+        if self.state[1]!=chan and chan=='0':
             reschan = commands[self.state[1]]
             yield self.write(reschan)
             yield self.resetPulse()
@@ -185,7 +185,7 @@ class ColdSwitchWrapper(DeviceWrapper):
             yield util.wakeupCall(1)
             self.state[2] = chan
             
-        if self.state[0]!=chan and chan=='0':
+        if self.state[2]!=chan and chan=='0':
             reschan = commands[self.state[2]]
             yield self.write(reschan)
             yield self.resetPulse()
