@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Sampling Scope
-version = 2.0
+version = 2.1
 description = 
 
 [startup]
@@ -157,6 +157,8 @@ class SamplingScope(GPIBManagedServer):
         startx = vals[0]
         stepx = vals[1]
         vals = vals[2:]
+        for _ in np.shape(vals)[:-1]:
+            vals = vals[0]
 
         out = [[(startx + i*stepx)*1e9, d] for i, d in enumerate(vals)]
         p = self.client[server].packet()
