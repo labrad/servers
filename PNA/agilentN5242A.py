@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = PNA_X
-version = 1.0
+version = 1.1
 description = Talks to the Agilent PNA-X
 
 [startup]
@@ -130,7 +130,25 @@ class AgilentPNAServer(GPIBManagedServer):
             yield dev.write('SOUR:POW %f' % p.value)
         returnValue(p)
 
-    @setting(14, ps=['(v[dBm], v[dBm])'], returns=['(v[dBm], v[dBm])'])
+    @setting(14, state = '?', returns = 's')
+    def powerOnOff(self, c, state=None):
+        """Turn on or off a scope channel display.
+        State must be in [0,1,'ON','OFF'].
+        Channel must be int or string.
+        """
+        dev = self.selectedDevice(c)
+        if state is not None:
+            if isinstance(state, str):
+                state = state.upper()
+            if state not in [0,1,'ON','OFF']:
+                raise Exception('state must be 0, 1, "ON", or "OFF"')
+            if isinstance(state, int):
+                state = str(state)
+            yield dev.write('OUTP '+state)
+        resp = yield dev.query('OUTP?')
+        returnValue(resp)
+
+    @setting(15, ps=['(v[dBm], v[dBm])'], returns=['(v[dBm], v[dBm])'])
     def power_range(self, c, ps=None):
         """Get or set the power range."""
         dev = self.selectedDevice(c)
@@ -149,7 +167,7 @@ class AgilentPNAServer(GPIBManagedServer):
             yield dev.write('SOUR:POW:ATT %f; STAR %f; STOP %f' %(good_atten, ps[0], ps[1]))
         returnValue(ps)
 
-    @setting(15, n=['w'], returns=['w'])
+    @setting(16, n=['w'], returns=['w'])
     def num_points(self, c, n=None):
         """Get or set the number of points."""
         dev = self.selectedDevice(c)
@@ -160,7 +178,7 @@ class AgilentPNAServer(GPIBManagedServer):
             yield dev.write('SENS:SWE:POIN %u' % n)
         returnValue(n)
 
-    @setting(16, av=['w'], returns=['w'])
+    @setting(17, av=['w'], returns=['w'])
     def averages(self, c, av=None):
         """Get or set the number of averages."""
         dev = self.selectedDevice(c)
@@ -345,7 +363,8 @@ class AgilentPNAServer(GPIBManagedServer):
 
         p = numpy.array(power)
         s = 20*numpy.log10(abs(numpy.array(sparams)))
-        data = numpy.vstack((p, s)).T
+        phases = numpy.angle(numpy.array(sparams))
+        data = numpy.vstack((p, s, phases)).T
         data = data.astype('float64')
 
         dv = self.client.data_vault
@@ -353,7 +372,7 @@ class AgilentPNAServer(GPIBManagedServer):
         bw = yield self.bandwidth(c)
         
         independents = ['power [dBm]']
-        dependents = [('log mag', Sij, 'dB') for Sij in c['meas']]
+        dependents = [('log mag', Sij, 'dB') for Sij in c['meas']]+[(Sij, 'phase', 'dB') for Sij in c['meas']]
         p = dv.packet()
         p.new(name, independents, dependents)
         p.add(data)
@@ -393,7 +412,8 @@ class AgilentPNAServer(GPIBManagedServer):
 
         f = numpy.array(freq)
         s = 20*numpy.log10(abs(numpy.array(sparams)))
-        data = numpy.vstack((f, s)).T
+        phases = numpy.angle(numpy.array(sparams))
+        data = numpy.vstack((f, s, phases)).T
         data = data.astype('float64')
 
         dv = self.client.data_vault
@@ -401,7 +421,7 @@ class AgilentPNAServer(GPIBManagedServer):
         bw = yield self.bandwidth(c)
         
         independents = ['frequency [Hz]']
-        dependents = [('log mag', Sij, 'dB') for Sij in c['meas']]
+        dependents = [(Sij, 'log mag', 'dB') for Sij in c['meas']]+[(Sij, 'phase', 'dB') for Sij in c['meas']]
         p = dv.packet()
         p.new(name, independents, dependents)
         p.add(data)
