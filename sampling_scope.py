@@ -200,12 +200,15 @@ class SamplingScope(GPIBManagedServer):
         returnValue(T.Value(float(s[3:-3]), 'V'))
         
     @setting(11, 'Start Time',
-                 data=['v[s]: Set Start Time'],
+                 data=['v[s]: Set Start Time',''],
                  returns=['v[s]: Start Time'])
-    def start_time(self, c, data):
+    def start_time(self, c, data=None):
         """Sets the start time of the trace."""
         dev = self.selectedDevice(c)
-        yield dev.write('MAINP %g' % data.value)
+        if data is not None:
+            yield dev.write('MAINP %g' % data.value)
+        resp = yield dev.query('MAINP?')
+        print resp
         returnValue(data)
 
     @setting(12, 'Time Step',
