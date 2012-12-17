@@ -665,6 +665,78 @@ def shiftSRAM(device, cmds, page):
             return cmd
     return [shiftAddr(cmd) for cmd in cmds]
 
+#Memory sequence functions
+
+class MemorySequence(list):
+        
+    def noOp(self):
+        self.append(0x000000)
+        return self
+        
+    def delayCycles(self, cycles):
+        assert cycles <= 0xfffff
+        cmd = 0x300000
+        cycles = int(cycles) & 0xfffff
+        self.append(cmd+cycles)
+        return self
+    
+    def fo(self, ch, data):
+        cmd = {0:0x100000, 1:0x200000}[ch]
+        cmd = cmd + (int(data) & 0xfffff)
+        self.append(cmd)
+        return self
+        
+    def fastbias(self, fo, fbDac, data, slow):
+        """Set a fastbias DAC
+        
+        fo - int: Which fiber to use on GHzDAC. Either 0 or 1
+        fbDac - int: Which fastbias DAC. Either 0 or 1
+        data: DAC level
+        slow: Slow or fast channel. 1 = slow, 0 = fast.
+            Only relevant for coarse DAC>
+        
+        NOTES:
+        fbDac slow  channel
+        0     0     FINE
+        0     1     N/A (ignored?)
+        1     0     COARSE FAST
+        1     1     COARSE SLOW
+        """
+        if fbDac not in [0,1]:
+            raise Exception('fbDac must be 0 or 1')
+        if slow not in [0,1]:
+            raise Exception('slow must be 0 or 1')
+        a = {0:0x100000,1:0x200000}[fo]
+        b = (data & 0xffff) << 3
+        c = fbDac << 19
+        d = slow << 2
+        self.append(a+b+c+d)
+        return self
+    
+    def sramStartAddress(self, addr):
+        self.append(0x800000 + addr)
+        return self
+    
+    def sramEndAddress(self, addr):
+        self.append(0xA00000 + addr)
+        return self
+    
+    def runSram(self):
+        self.append(0xC00000)
+        return self
+    
+    def startTimer(self):
+        self.append(0x400000)
+        return self
+    
+    def stopTimer(self):
+        self.append(0x400001)
+        return self
+    
+    def branchToStart(self):
+        self.append(0xf00000)
+        return self
+
 def getOpcode(cmd):
     return (cmd & 0xF00000) >> 20
 
