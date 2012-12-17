@@ -33,7 +33,8 @@ timeout = 20
 
 
 
-from labrad import types as T, util
+from labrad import util
+from labrad.units import Unit,Value
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -42,32 +43,107 @@ from struct import unpack
 
 import numpy, re
 
+BANDWIDTHS = ['TWE', 'ONE', 'FUL']
 COUPLINGS = ['AC', 'DC', 'GND']
 TRIG_CHANNELS = ['AUX','CH1','CH2','CH3','CH4','LINE']
 VERT_DIVISIONS = 10.0
 HORZ_DIVISIONS = 10.0
-SCALES = []
+VERT_SCALES_MV = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000]
 
 class Tektronix5104BWrapper(GPIBDeviceWrapper):
-    pass
+    
+    @inlineCallbacks
+    def reset(self):
+        yield self.write('*RST')
 
+    @inlineCallbacks
+    def clearBuffers(self):
+        yield self.write('*CLS')
+    
+    @inlineCallbacks
+    def channelBandwidth(self, ch, bw=None):
+        if bw is not None:
+            yield self.write('CH%d:BAN %s' %(ch,bw))
+        resp = yield self.query('CH%d:BAN?' %ch)
+        returnValue(resp)
+        
+    @inlineCallbacks
+    def coupling(self, ch, coup=None):
+        if coup is not None:
+            yield self.write('CH%d:COUP %s' %(ch, coup))
+        resultCoup = yield self.query('CH%d:COUP?' %ch)
+        returnValue(resultCoup)
+        
+    @inlineCallbacks
+    def invert(self, ch, invert=None):
+        if invert is not None:
+            yield self.write('CH%d:INV %d' %(ch, invert))
+        resp = yield self.query('CH%d:INV?' %ch)
+        returnValue(resp)        
+        
+    @inlineCallbacks
+    def measureType(self, slot, measType=None):
+        if measType is not None:
+            yield self.write('MEASU:MEAS%d:TYP %s' %(slot, measType))
+        measType = yield self.query('MEASU:MEAS%d:TYP?' %slot)
+        returnValue(measType)
+
+    @inlineCallbacks
+    def measureValue(self, slot):
+        result = yield self.query('MEASU:MEAS%d:UNI?;VAL?' %slot)
+        u, v = result.split(';')
+        v = float(v)
+        u = Unit(u[1:-1])
+        returnValue(v*u)
+        
+    @inlineCallbacks
+    def measureSource(self, slot, source=None):
+        if source is not None:
+            yield self.write('MEASU:MEAS%d:SOURCE[1] %s' %(slot,source))
+        resp = yield self.query('MEASU:MEAS%d:SOURCE[1]?' %slot)
+        returnValue(resp)
+        
+    @inlineCallbacks
+    def scale(self, ch, sc=None):
+        if sc is not None:
+            scaleStr_V = format(sc['V'], 'E')        
+            yield self.write('CH%d:SCA %s' %(ch, scaleStr_V))
+        resp = yield self.query('CH%d:SCA?' %ch)
+        returnValue(Value(float(resp),'V'))
+    
+    @inlineCallbacks
+    def horizScale(self, sc=None):
+        if sc is not None:
+            scStr_sec = format(sc['s'], 'E')
+            yield self.write('HOR:SCA %s' %scStr_sec)
+        resp = yield self.query('HOR:SCA?')
+        returnValue(Value(float(resp), 's'))
+    
+    @inlineCallbacks
+    def mathDefinition(self, slot, expression):
+        if expression is not None:
+            yield self.write('MATH%d:DEF %s' %(slot, expression))
+        resp = yield self.query('MATH%d:DEF?' %slot)
+        returnValue(resp)
+            
 class Tektronix5104BServer(GPIBManagedServer):
     name = 'TEKTRONIX 5104B OSCILLOSCOPE'
     deviceName = 'TEKTRONIX TDS5104B'
     deviceWrapper = Tektronix5104BWrapper
-        
+    
     @setting(11, returns=[])
     def reset(self, c):
         dev = self.selectedDevice(c)
-        yield dev.write('*RST')
+        yield dev.reset()
         # TODO wait for reset to complete
 
     @setting(12, returns=[])
     def clear_buffers(self, c):
         dev = self.selectedDevice(c)
-        yield dev.write('*CLS')
+        yield dev.clearBuffers()
 
-    #Channel settings
+    #CHANNEL SETTINGS
+    
     @setting(100, channel = 'i', returns = '(vvvvsvss)')
     def channel_info(self, c, channel):
         """channel(int channel)
@@ -75,60 +151,142 @@ class Tektronix5104BServer(GPIBManagedServer):
 
         OUTPUT
         Tuple of (probeAtten, termination, scale, position, coupling, bwLimit, invert, units)
-        """
-        #NOTES
-        #The scope's response to 'CH<x>?' is a string of format
-        #'1.0E1;1.0E1;2.5E1;0.0E0;DC;OFF;OFF;"V"'
-        #These strings represent respectively,
-        #probeAttenuation;termination;vertScale;vertPosition;coupling;bandwidthLimit;invert;vertUnit
 
+        NOTES
+        The scope's response to 'CH<x>?' is a string of format
+        '1.0E1;1.0E1;2.5E1;0.0E0;DC;OFF;OFF;"V"'
+        These strings represent respectively,
+        probeAttenuation;termination;vertScale;vertPosition;coupling;bandwidthLimit;invert;vertUnit
+        """
         dev = self.selectedDevice(c)
         resp = yield dev.query('CH%d?' %channel)
         bwLimit, coupling, deskew, offset, invert, position, scale, termination, probeCal, probeAtten, resistance, unit, textID, textSN, extAtten, extUnits, textLabel, xPos, yPos = resp.split(';')
 
         #Convert strings to numerical data when appropriate
-        probeAtten = T.Value(float(probeAtten),'')
-        termination = T.Value(float(termination),'')
-        scale = T.Value(float(scale),'')
-        position = T.Value(float(position),'')
+        probeAtten = Value(float(probeAtten),'')
+        termination = Value(float(termination),'')
+        scale = Value(float(scale),'')
+        position = Value(float(position),'')
         coupling = coupling
-        bwLimit = T.Value(float(bwLimit),'')
+        bwLimit = Value(float(bwLimit),'')
         invert = invert
         unit = unit[1:-1] #Get's rid of an extra set of quotation marks
 
         returnValue((probeAtten,termination,scale,position,coupling,bwLimit,invert,unit))
 
-    @setting(111, channel = 'i', coupling = 's', returns=['s'])
-    def coupling(self, c, channel, coupling = None):
+    @setting(101, channel = 'i', bw = 's', returns = 'v[Hz]')
+    def bandwidth(self, c, channel, bw = None):
+        """Get or set the bandwidth of a specified channel
+        
+        Bandwidths can be specified as strings. Allowed strings are \n
+        'TWE' : 20MHz \n        
+        'ONE' : 150MHz \n
+        'FIV' : 500MHz (*This one doesn't work so I removed it from the allowed list*) \n
+        'FUL': Remove bandwidth limit \n
+        
+        RETURNS \n
+        Value - bandwidth of this channel
+        
+        COMMENTS \n
+        When setting a bandwidth, no checking is done to ensure that the
+        requested value is actually selected in the device, although the
+        current value is queried and returned
+        
+        """
+        if (bw is not None) and (bw not in BANDWIDTHS):
+            raise Exception('Bandwidth must be one of the following: %s' %BANDWIDTHS)
+        dev = self.selectedDevice(c)
+        resp = yield dev.channelBandwidth(channel, bw)
+        bw = Value(float(resp),'Hz')
+        returnValue(bw)
+    
+    @setting(102, ch = 'i', coup = 's', returns='s')
+    def coupling(self, c, ch, coup = None):
         """Get or set the coupling of a specified channel
         Coupling can be "AC", "DC", or "GND"
         """
         dev = self.selectedDevice(c)
-        if coupling is None:
-            resp = yield dev.query('CH%d:COUP?' %channel)
-        else:
-            coupling = coupling.upper()
-            if coupling not in COUPLINGS:
-                raise Exception('Coupling must be "AC", "DC", or "GND"')
-            else:
-                yield dev.write(('CH%d:COUP '+coupling) %channel)
-                resp = yield dev.query('CH%d:COUP?' %channel)
+        if (coup is not None) and (coup not in COUPLINGS):
+            raise Exception('coupling must be in %s' %COUPLINGS)
+        resp = yield dev.coupling(ch, coup)       
         returnValue(resp)
 
-    @setting(112, channel = 'i', scale = 'v', returns = ['v'])
-    def scale(self, c, channel, scale = None):
+    @setting(103, ch = 'i', invert = ['s','i','b'], returns = 'i')
+    def invert(self, c, ch, invert = None):
+        """Get or set the inversion status of a channel
+        """
+        dev = self.selectedDevice(c)
+        if invert is not None:
+            if isinstance(invert, str):
+                invert = {'ON':1,'OFF':0}[invert]
+            elif isinstance(invert, bool):
+                invert = int(invert)
+            elif isinstance(invert, int):
+                pass
+        resp = yield dev.invert(ch, invert)
+        returnValue(int(resp))
+    
+    #VERTICAL
+
+    @setting(200, ch = 'i', sc = 'v[mV]', returns = 'v[mV]')
+    def scale(self, c, ch, sc = None):
         """Get or set the vertical scale of a channel
         """
         dev = self.selectedDevice(c)
-        if scale is None:
-            resp = yield dev.query('CH%d:SCA?' %channel)
-        else:
-            scale = format(scale,'E')
-            yield dev.write(('CH%d:SCA '+scale) %channel)
-            resp = yield dev.query('CH%d:SCA?' %channel)
-        scale = float(resp)
-        returnValue(scale)
-
+        result = yield dev.scale(ch, sc)
+        returnValue(result)
+    
+    #HORIZONTAL
+    
+    @setting(300, scale = 'v[s]', returns = 'v[s]')
+    def horiz_scale(self, c, scale = None):
+        """Get or set the horizontal scale
+        """
+        dev = self.selectedDevice(c)
+        resp = yield dev.horizScale(scale)
+        returnValue(resp)
+        
+    #MEASUREMENTS
+    
+    @setting(400, slot='i', measType = 's', returns='s')
+    def measure_type(self, c, slot, measType):
+        """Set the type of measurement for one of the measurement slots
+        
+        Available slots are 1 through 8
+        
+        For a complete list of possibly measurements see the programmer's
+        manual.
+        
+        """
+        if not (slot>=1 and slot<=8):
+            raise Exception('Measurement slot must be in range 1 to 8')
+        dev = self.selectedDevice(c)
+        result = yield dev.measureType(slot, measType)
+        returnValue(result)
+    
+    @setting(401, slot='i', returns='v')
+    def measure_value(self, c, slot):
+        dev = self.selectedDevice(c)
+        result = yield dev.measureValue(slot)
+        returnValue(result)
+    
+    @setting(402, slot='i', source='s', returns='')
+    def measure_source(self, c, slot, source=None):
+        raise Exception('this does not work for some weird reason')
+        dev = self.selectedDevice(c)
+        resp = yield dev.measureSource(slot, source)
+        returnValue(resp)
+        
+    #MATH
+    
+    @setting(500, slot='i', expression='s', returns='s')
+    def math_definition(self, c, slot, expression=None):
+        dev = self.selectedDevice(c)
+        resp = yield dev.mathDefinition(slot, expression)
+        returnValue(resp)
+    
+    #CHECKED BY DAN TO HERE
+    
     @setting(113, channel = 'i', factor = 'i', returns = ['s'])
     def probe(self, c, channel, factor = None):
         """Get or set the probe attenuation factor.
@@ -157,19 +315,6 @@ class Tektronix5104BServer(GPIBManagedServer):
         if isinstance(state, int):
             state = str(state)
         yield dev.write(('SEL:CH%d '+state) %channel)
-
-    @setting(115, channel = 'i', invert = 'i', returns = ['i'])
-    def invert(self, c, channel, invert = None):
-        """Get or set the inversion status of a channel
-        """
-        dev = self.selectedDevice(c)
-        if invert is None:
-            resp = yield dev.query('CH%d:INV?' %channel)
-        else:
-            yield dev.write(('CH%d:INV %d') %(channel,invert))
-            resp = yield dev.query('CH%d:INV?' %channel)
-        invert = int(resp)
-        returnValue(invert)
 
         
         
@@ -308,19 +453,6 @@ class Tektronix5104BServer(GPIBManagedServer):
         position = float(resp)
         returnValue(position)
 
-    @setting(152, scale = 'v', returns = ['v'])
-    def horiz_scale(self, c, scale = None):
-        """Get or set the horizontal scale
-        """
-        dev = self.selectedDevice(c)
-        if scale is None:
-            resp = yield dev.query('HOR:SCA?')
-        else:
-            scale = format(scale,'E')
-            yield dev.write('HOR:SCA '+scale)
-            resp = yield dev.query('HOR:SCA?')
-        scale = float(resp)
-        returnValue(scale)
         
     
     #Data acquisition settings
@@ -377,7 +509,7 @@ def _parsePreamble(preamble):
     preamble = preamble.split(';')
     vertInfo = preamble[5].split(',')
     
-    def parseString(string): # use 'regular expressions' to parse the string
+    def parseString(string):
         number = re.sub(r'.*?([\d\.]+).*', r'\1', string)
         units = re.sub(r'.*?([a-zA-z]+)/.*', r'\1', string)
         return float(number), units
