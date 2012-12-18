@@ -1,40 +1,59 @@
 Server - Run Sequence
- devs = devices in daisychain order
- runners = [runnser(dev) for dev in devs]
- while 1:
-  try:
-   ans = yield bg.run(runners, reps, setupReqs, set(setupState), c['master_sync'], getTimingData, timingOrder)
-  except TimeoutError, err:
-   log err to file and stdout
-   attempt += 1
-  if attempt >= retries:
-   raise
+    devs = [devices in daisy chain order]
+    runners = [runner(dev) for dev in devs]
+        defaults for DAC: mem = None
+                          sram = None
+                          startDelay = 0
+        defaults for ADC: None, errors raised if things not set
+        DacRunner(dev, reps, startDelay, mem, sram):
+            self._fixDualBlockSram()
+            if self.pageable(): truncate sram to fit in one page
+            self.nPackets = calculate expected number of data packets
+            self.memTime = time in seconds of one memory sequence, assumes SRAM is 12us
+            self.seqTime = TIMEOUT_FACTOR * (memTime * reps) + 1
+        AdcRunner(dev, reps, runMode, startDelay, filter, channels)
+            self.runMode = string representing run mode "demodulate" or "average"
+            self.mode = number indicating run mode for register packet
+            self.seqTime = TIMEOUT_FACTOR * (26us * reps) + 1
+    timingOrder = c['timing_order'], some logic here
+    while 1:
+        try:
+            ans = yield bg.run(runners, reps, setupReqs, set(setupState), c['master_sync'], getTimingData, timingOrder)
+        except TimeoutError, err:
+            log err to file and stdout
+            attempt += 1
+        if attempt >= retries:
+            raise
 
 Board group - run
- make packets:
-  loadpkts - load memory and SRAM. Fixes memory for master start delay, SRAM paging, etc.
-  setupPkts - external (nonpipelined) setup, eg. microwave source settings
-  runPkts - get list of (device, registers). Master and idle boards determined by simple logic.
-   p = self.server.packet(context = self.ctxt)
-   p.wait_for_trigger(0, key='nTriggers')
-   p.destination_mac(dev.MAC).write(regs)
-   #Note that here we're talking to the de server through the master context every time
-   #That's why we have to switch destination MAC for each write command.
-   #This is done so that we can set the number of triggers to wait for before actually sending
-   #the run packets.
-  collectPkts - Wait for packets to come back. Each collect command sends one trigger to
-                the master context.
-  readPkts - readout out specified number of packets
-  #Note that all packets are sent in each board's individual direct ethernet context, EXCEPT for
-  #the run packets. Those are sent by the master context.
+    check pageability
+        if not pageable: get both page locks
+    pkts = self.makePackets(runners, page, reps, timingOrder, sync)
+        loadpkts - load memory and SRAM for DAC. None for ADC.
+            Add delays before all SRAM calls on master board only.
+            Recompute memTime and seqTime
+            
+        setupPkts - external (nonpipelined) setup, eg. microwave source settings
+        runPkts - get list of (device, registers). Master and idle boards determined by simple logic.
+            p = self.server.packet(context = self.ctxt)
+            p.wait_for_trigger(0, key='nTriggers')
+            p.destination_mac(dev.MAC).write(regs)
+            #Note that here we're talking to the de server through the master context every time
+            #That's why we have to switch destination MAC for each write command.
+            #This is done so that we can set the number of triggers to wait for before actually sending
+            #the run packets.
+        collectPkts - Wait for packets to come back. Each collect command sends one trigger to the master context.
+        readPkts - readout out specified number of packets
+        #Note that all packets are sent in each board's individual direct ethernet context, EXCEPT for
+        #the run packets. Those are sent by the master context.
   
- try:
-    yield pipeSemaphore.acquire()
     try:
-        yield pageLock.acquire()
-    loadDone = self.sendAll(loadPkts, 'Load')
-    runNow = self.runLock.acquire()
-    try:
-        yield loadDone
-        yield runNow
-        bothPkt['nTriggers'] = self.prevTriggers
+        yield pipeSemaphore.acquire()
+        try:
+            yield pageLock.acquire()
+        loadDone = self.sendAll(loadPkts, 'Load')
+        runNow = self.runLock.acquire()
+        try:
+            yield loadDone
+            yield runNow
+            bothPkt['nTriggers'] = self.prevTriggers
