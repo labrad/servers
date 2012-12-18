@@ -466,7 +466,7 @@ class BoardGroup(object):
         # All boards:   000000
         # runners:      --XX-X
         # mode:         iimsis (i: idle, m: master, s: slave) -DTS
-        boards = []
+        boards = [] #List of (<device object>, <register bytes to write>)
         for board, delay in zip(self.boardOrder, self.boardDelays):
             if board in runnerInfo:
                 runner = runnerInfo[board]
@@ -531,7 +531,7 @@ class BoardGroup(object):
         """Run a sequence on this board group."""
         
         # check whether this sequence will fit in just one page
-        if all(dev.pageable() for dev in runners):
+        if all(runner.pageable() for runner in runners):
             # lock just one page
             page = self.pageNums.next()
             pageLocks = [self.pageLocks[page]]
@@ -1005,8 +1005,11 @@ class FPGAServer(DeviceServer):
         
         Data can be specified as a list of 32-bit words, or a pre-flattened byte string.
         """
+        #dev is a unique DAC device object. the command d = c.setdefault(dev, {})
+        #uses dev as a key in this context pointing at this context's parameters
+        #for this DAC object.
         dev = self.selectedDAC(c)
-        d = c.setdefault(dev, {}) #If c has a dev, return its value, otherwise insert do: c['dev']={} and return {}
+        d = c.setdefault(dev, {})
         if not isinstance(data, str):
             data = data.asarray.tostring()
         d['sram'] = data
@@ -1021,10 +1024,15 @@ class FPGAServer(DeviceServer):
         dev = self.selectedDAC(c)
         d = c.setdefault(dev, {})
         sram = d.get('sram', '')
+        #Convert SRAM blocks to byte strings
         if not isinstance(block1, str):
             block1 = block1.asarray.tostring()
         if not isinstance(block2, str):
             block2 = block2.asarray.tostring()
+        #The clock that counts the delay between sram blocks does not run
+        #at the same speed as the GHzDAC clock. We compute the number of
+        #delay clock cycles to undershoot the desired delay time, and
+        #shift the SRAM samples to make up the difference.
         delayPad = delay % dev.buildParams['SRAM_DELAY_LEN']
         delayBlocks = delay / dev.buildParams['SRAM_DELAY_LEN']
         # add padding to beginning of block2 to get delay right
@@ -1808,13 +1816,16 @@ class DacRunner(object):
         
         if self.pageable():
             # shorten our sram data so that it fits in one page
+            # Why is there a factor of 4 here? Is this because each SRAM
+            # word is 4 bytes? Check John's documentation
             self.sram = self.sram[:self.dev.buildParams['SRAM_PAGE_LEN']*4]
         
-        # calculate memory sequence time
-        self.memTime = sequenceTime(self.mem)
+        # calculate expected number of packets
         self.nTimers = timerCount(self.mem)
         self.nPackets = self.reps * self.nTimers / dac.TIMING_PACKET_LEN
-        self.seqTime = TIMEOUT_FACTOR * (self.memTime * self.reps) + 1
+        # calculate sequence time
+        self.memTime = sequenceTime_sec(self.mem)
+        self.seqTime = TIMEOUT_FACTOR * (self.memTime * self.reps) + 1 #Why is this +1 here?
     
     def pageable(self):
         """Check whether sequence fits in one page, based on SRAM addresses called by mem commands"""
@@ -1841,7 +1852,8 @@ class DacRunner(object):
         if isMaster:
             # this will be the master, so add delays before SRAM
             self.mem = addMasterDelay(self.mem)
-            self.memTime = sequenceTime(self.mem) # recalculate sequence time
+            #Recompute sequence time
+            self.memTime = sequenceTime_sec(self.mem) # recalculate sequence time
             self.seqTime = TIMEOUT_FACTOR * (self.memTime * self.reps) + 1 #added Oct 2 2012 - DTS
         return self.dev.load(self.mem, self.sram, page)
     
@@ -1890,6 +1902,7 @@ class AdcRunner(object):
             self.nPackets = reps
         else:
             raise Exception("Unknown run mode '%s' for board '%s'" % (self.runMode, self.dev.devName))
+        #16us acquisition time + 10us packet transmit. Not sure why the extra +1 is here
         self.seqTime = TIMEOUT_FACTOR * (26E-6 * self.reps) + 1
         
     def pageable(self):
@@ -1973,9 +1986,12 @@ def processSetupPackets(cxn, setupPkts):
 
 # commands for analyzing and manipulating FPGA memory sequences
 
-def sequenceTime(cmds):
-    """Conservative estimate of the length of a sequence in seconds."""
-    cycles = sum(cmdTime(c) for c in cmds)
+def sequenceTime_sec(cmds):
+    """Conservative estimate of the length of a sequence in seconds.
+    
+    cmds - list of numbers: memory commands for GHz DAC
+    """
+    cycles = sum(cmdTime_cycles(c) for c in cmds)
     return cycles * 40e-9 # assume 25 MHz clock -> 40 ns per cycle
 
 def getOpcode(cmd):
@@ -1984,30 +2000,40 @@ def getOpcode(cmd):
 def getAddress(cmd):
     return (cmd & 0x0FFFFF)
 
-def cmdTime(cmd):
-    """A conservative estimate of the number of cycles a given command takes."""
+def cmdTime_cycles(cmd):
+    """A conservative estimate of the number of cycles a given command takes.
+    
+    SRAM calls are assumed to take 12us. This is an upper bound.
+    """
     opcode = getOpcode(cmd)
+    #noOp, fiber 0 out, fiber 1 out, start/stop timer, sram start addr, sram end addr
     if opcode in [0x0, 0x1, 0x2, 0x4, 0x8, 0xA]:
         return 1
+    #branch to start
     if opcode == 0xF:
         return 2
+    #delay
     if opcode == 0x3:
-        return getAddress(cmd) + 1 # delay
+        return getAddress(cmd) + 1
+    #run sram
     if opcode == 0xC:
         # TODO: incorporate SRAMoffset when calculating sequence time.  This gives a max of up to 12 + 255 us
         return 25*12 # maximum SRAM length is 12us, with 25 cycles per us
 
-def addMasterDelay(cmds, delay=MASTER_SRAM_DELAY):
+def addMasterDelay(cmds, delay_us=MASTER_SRAM_DELAY):
     """Add delays to master board before SRAM calls.
     
     Creates a memory sequence with delays added before all SRAM
     calls to ensure that boards stay properly synchronized by
     allowing extra time for slave boards to reach the SRAM
     synchronization point.  The delay is specified in microseconds.
+    
+    TODO: check for repeated delay calls to make sure delays actually happen
     """
     newCmds = []
-    cycles = int(delay * 25) & 0x0FFFFF
-    delayCmd = 0x300000 + cycles
+    delayCycles = int(delay_us * 25) #memory clock speed is 25MHz
+    assert delayCycles < 0xFFFFF
+    delayCmd = 0x300000 + delayCycles
     for cmd in cmds:
         if getOpcode(cmd) == 0xC: # call SRAM
             newCmds.append(delayCmd) # add delay
