@@ -1,4 +1,6 @@
 software only:
+
+- addMasterDelay doesn't check for repeated delay calls. This needs to be fixed.
 - write test scripts to test board group configuration changes and device autodetection
 - write test scripts to test all aspects of datataking and running multiple boards (using FpgaEmulators)
 - update FpgaEmulators so they will recognize when a registry command is received while a command is still executing
