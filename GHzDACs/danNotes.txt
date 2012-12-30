@@ -26,34 +26,24 @@ Server - Run Sequence
             raise
 
 Board group - run
-    check pageability
-        if not pageable: get both page locks
+    if not all runners pageable: get both page locks
     pkts = self.makePackets(runners, page, reps, timingOrder, sync)
+        runnerInfo = dict(<board name>:<runner object>)
         loadpkts - load memory and SRAM for DAC. None for ADC.
             Add delays before all SRAM calls on master board only.
             Recompute memTime and seqTime
-            
-        setupPkts - external (nonpipelined) setup, eg. microwave source settings
-        runPkts - get list of (device, registers). Master and idle boards determined by simple logic.
-            p = self.server.packet(context = self.ctxt)
-            p.wait_for_trigger(0, key='nTriggers')
-            p.destination_mac(dev.MAC).write(regs)
-            #Note that here we're talking to the de server through the master context every time
-            #That's why we have to switch destination MAC for each write command.
-            #This is done so that we can set the number of triggers to wait for before actually sending
-            #the run packets.
-        collectPkts - Wait for packets to come back. Each collect command sends one trigger to the master context.
-        readPkts - readout out specified number of packets
+        setupPkts - WHAT IS THIS AND WHY ISN'T IT THE SAME AS LOADPKTS? Filter function definition seems messed up.
+        runPkts - makes three packets for direct ethernet, run, wait, and both.
+            run - send all register packets to boards
+            wait - wait for 0 triggers
+            both - wait for 0 triggers and then send all register packets to boards            
+        collectPkts - list of packets, one for each board
+            Wait for this board's nPackets to come into direct ethernet
+            Then send a trigger to the board group main context
+            If a timeout occurs while waiting for packets to come in, trigger not sent
+        readPkts - list of packets, one for each board
+            If this board is in the timingOrder read nPackets from direct_ethernet
+            otherwise discard
         #Note that all packets are sent in each board's individual direct ethernet context, EXCEPT for
         #the run packets. Those are sent by the master context.
-  
-    try:
-        yield pipeSemaphore.acquire()
-        try:
-            yield pageLock.acquire()
-        loadDone = self.sendAll(loadPkts, 'Load')
-        runNow = self.runLock.acquire()
-        try:
-            yield loadDone
-            yield runNow
-            bothPkt['nTriggers'] = self.prevTriggers
+    
