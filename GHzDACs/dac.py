@@ -312,13 +312,16 @@ class DacDevice(DeviceWrapper):
         Create a packet to collect data on the FPGA.
         
         Note that if the collect times out, the optional trigger send
-        will not happen
+        does NOT happen
         """
         p = self.makePacket()
         p.timeout(T.Value(timeout, 's'))
         p.collect(nPackets)
         # note that if a timeout error occurs the remainder of the packet
-        # is discarded, so that the trigger command will not be sent
+        # is discarded, so that the trigger command will not be sent.
+        #This really reall REALLY bad programming but I don't want to
+        #learn Delphi to fix the direct ethernet server. Just be happy
+        #that I put this note here so you know what the hell is going on.
         if triggerCtx is not None:
             p.send_trigger(triggerCtx)
         return p
