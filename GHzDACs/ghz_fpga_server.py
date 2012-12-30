@@ -519,9 +519,10 @@ class BoardGroup(object):
         # run all boards
         for dev, regs in data:
             bytes = regs.tostring()
-            #Why do we have set to the destination MAC every time?
-            #I think the dev talks to the direct ethernet in its
-            #own context, in which case we don't need this. DTS
+            #We must switch to each board's destination MAC each time we
+            #write data because our packets for the direct ethernet
+            #server is in the main context of the board group, and
+            #therefore does not have a specific destination MAC.
             run.destination_mac(dev.MAC).write(bytes)
             both.destination_mac(dev.MAC).write(bytes)
         return wait, run, both
