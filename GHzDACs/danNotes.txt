@@ -28,22 +28,70 @@ Server - Run Sequence
 Board group - run
     if not all runners pageable: get both page locks
     pkts = self.makePackets(runners, page, reps, timingOrder, sync)
-        runnerInfo = dict(<board name>:<runner object>)
+    loadPkts, boardSetupPkts, runPkts, collectPkts, readPkts = pkts
         loadpkts - load memory and SRAM for DAC. None for ADC.
             Add delays before all SRAM calls on master board only.
             Recompute memTime and seqTime
-        setupPkts - WHAT IS THIS AND WHY ISN'T IT THE SAME AS LOADPKTS? Filter function definition seems messed up.
-        runPkts - makes three packets for direct ethernet, run, wait, and both.
-            run - send all register packets to boards
-            wait - wait for 0 triggers
-            both - wait for 0 triggers and then send all register packets to boards            
-        collectPkts - list of packets, one for each board
-            Wait for this board's nPackets to come into direct ethernet
-            Then send a trigger to the board group main context
-            If a timeout occurs while waiting for packets to come in, trigger not sent
-        readPkts - list of packets, one for each board
-            If this board is in the timingOrder read nPackets from direct_ethernet
-            otherwise discard
+        setupPkts - 
+            DAC: nothing
+            ADC: setupPkts = [runner.setupPkt()]
+        runPkts - get list of (device, registers). Master and idle boards determined by simple logic.
+            p = self.server.packet(context = self.ctxt)
+            p.wait_for_trigger(0, key='nTriggers')
+            p.destination_mac(dev.MAC).write(regs)
+            #Note that here we're talking to the de server through the master context every time
+            #That's why we have to switch destination MAC for each write command.
+            #This is done so that we can set the number of triggers to wait for before actually sending
+            #the run packets.
+        collectPkts - Wait for packets to come back. Each collect command sends one trigger to the master context.
+        readPkts - readout out specified number of packets
         #Note that all packets are sent in each board's individual direct ethernet context, EXCEPT for
         #the run packets. Those are sent by the master context.
-    
+    setupPkts.extend(all the boardSetPkts)
+    setupState.update(state for state in boardSetupState)
+    Add setup packets and setup state to what was fed into run
+    try:
+        yield acquire pipe semaphore
+        try:
+            yield acquire pageLock
+            loadDone = self.sendAll(loadPkts, 'Load')
+            runNow = self.runLock.acquire()
+            try:
+                yield loadDone #Wait for load to finish
+                yield runNow   #Wait for run lock
+                waitPkt, runPkt, bothPkt = runPkts
+                waitPkt['nTriggers'] = self.prevTriggers
+                bothPkt['nTriggers'] = self.prevTriggers
+                self.prevTriggers = len(runners)
+                if need setup:
+                    r = yield waitPkt().send()
+                    try:
+                        yield send setup packets
+                        self.setupState = setupState
+                    except Exception:
+                        clear setup state
+                        raise
+                    yield runPkt.send()
+                else:
+                    r = yield bothPkt.send()
+                self.runWaitTimes = r['nTriggers']
+                yield self.readlock.acquire()
+                collectAll = send collect packets
+            finally:
+                self.runLock.release()
+            retults = yield collectAll
+        finally:
+            pageLock.release()
+        if not all (success for success,result in results):
+            print some errors
+            yield self.recoverFromTimeout(runners,results)
+            self.readLock.release()
+        boardOrder = [runner.dev.devName for runner in runners]
+        readAll = self.sendAll(readPkts,'Read',boardOrder)
+        self.readLock.release()
+        results = yield readAll
+        if getTimingData:
+            answers = extract data
+            returnValue(answers)
+    finally:
+        self.pipeSemaphore.release()
