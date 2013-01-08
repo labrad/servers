@@ -55,7 +55,6 @@ from util import littleEndian, TimedLock
 #   fifoCounter - FIFO counter necessary for the appropriate clock delay
 #   lvdsSD - LVDS SD necessary for the appropriate clock delay
 
-
 # TODO
 # Think of better variable names than self.params and self.boardParams
 
@@ -99,7 +98,7 @@ def regDebug(word1, word2, word3, word4):
     regs[21:25] = littleEndian(word3)
     regs[25:29] = littleEndian(word4)
     return regs
-    
+
 def regRunSram(dev, startAddr, endAddr, loop=True, blockDelay=0, sync=249):
     regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = (3 if loop else 4) #3: continuous, 4: single run
@@ -180,15 +179,40 @@ def processReadback(resp):
     }
 
 def pktWriteSram(device, derp, data):
-    assert 0 <= derp < device.buildParams['SRAM_WRITE_DERPS'], "SRAM derp out of range: %d" % derp 
+    """A DAC packet to write one derp of SRAM
+    
+    A derp is 256 words of SRAM, 1024 bytes
+    
+    derp - int: Which derp to write, ie address in SRAM
+    data - ndarray: array of SRAM words in <u4 format.
+           Maximum length is SRAM_WRITE_PKT_LEN words, ie one derp.
+           As of build 7 this is 256 words.
+           If less than a full derp is written, the rest of the derp is
+           populated with zeros.
+    """
+    assert 0 <= derp < device.buildParams['SRAM_WRITE_DERPS'], "SRAM derp out of range: %d" % derp
+    assert 0< len(data) <= self.buildParams['SRAM_WRITE_PKT_LEN'], "Tried to write %d words to SRAM derp"%len(data)
     data = np.asarray(data)
-    pkt = np.zeros(1026, dtype='<u1')
+    pkt = np.zeros(1026, dtype='<u1') #data length plus two bytes for write address (derp)
+    #DAC firmware assumes SRAM write address lowest 8 bits = 0, so here
+    #we're only setting the middle and high byte. This is good, because
+    #it means that each time we increment derp by 1, we increment our
+    #SRAM write address by 256, ie. one derp.
     pkt[0] = (derp >> 0) & 0xFF
     pkt[1] = (derp >> 8) & 0xFF
-    pkt[2:2+len(data)*4:4] = (data >> 0) & 0xFF
+    #Each sram word is four bytes long
+    #Our data as coming from makeSram is a np array of 4 byte integers
+    #with low bytes first. Because of this you would think that
+    #(data>>24)&0xFF is the least significant bytes. However, python
+    #thinks for you, and it turns out that data>>24 is the most
+    #significant byte. Go figure. The DAC expects the data with
+    #least significant byte first in each word.
+    #Note that if len(data)<SRAM_WRITE_PKT_LEN, ie. smaller than a full
+    #derp, we only take as much data as actually exists.
+    pkt[2:2+len(data)*4:4] = (data >> 0) & 0xFF  #Least significant byte of each word
     pkt[3:3+len(data)*4:4] = (data >> 8) & 0xFF
     pkt[4:4+len(data)*4:4] = (data >> 16) & 0xFF
-    pkt[5:5+len(data)*4:4] = (data >> 24) & 0xFF
+    pkt[5:5+len(data)*4:4] = (data >> 24) & 0xFF #Most significant byte
     #a, b, c, d = littleEndian(data)
     #pkt[2:2+len(data)*4:4] = a
     #pkt[3:3+len(data)*4:4] = b
@@ -269,24 +293,35 @@ class DacDevice(DeviceWrapper):
     def shutdown(self):
         """Called when this device is to be shutdown."""
         yield self.cxn.manager.expire_context(self.server.ID, context=self.ctx)
-
-
+    
     # packet creation functions
-
+    
     def makePacket(self):
         """Create a new packet to be sent to the ethernet server for this device."""
         return self.server.packet(context=self.ctx)
-
+    
     def makeSRAM(self, data, p, page=0):
-        """Update a packet for the ethernet server with SRAM commands."""
+        """Update a packet for the ethernet server with SRAM commands.
+        
+        Build parameters like SRAM_PAGE_LEN are in units of SRAM words,
+        each of which is 14+14+4=32 bits = 4 bytes long. Therefore the
+        actual length of corresponding byte strings have a *4 multiplier.
+        """
+        bytesPerDerp = self.buildParams['SRAM_WRITE_PKT_LEN']*4
         #Set starting write derp to the beginning of the chosen SRAM page
         writeDerp = page * self.buildParams['SRAM_PAGE_LEN'] / self.buildParams['SRAM_WRITE_PKT_LEN']
-        #Crete SRAM write commands and add them to the packet for the direct ethernet server
+        #Create SRAM write commands and add them to the packet for the direct ethernet server
         while len(data) > 0:
-            chunk, data = data[:self.buildParams['SRAM_WRITE_PKT_LEN']*4], data[self.buildParams['SRAM_WRITE_PKT_LEN']*4:]
+            #Chop off enough data for one write packet. This is
+            #SRAM_WRITE_PKT_LEN words, which is 4x more bytes.
+            #WARNING! string reassignment. Maybe use a pointer instead
+            #Note that slicing a np array as myArray[:N], if N is larger
+            #than the length of myArray, returns the entirty of myArray
+            #and does NOT wrap around to the beginning
+            chunk, data = data[:bytesPerDerp], data[bytesPerDerp:]
             chunk = np.fromstring(chunk, dtype='<u4')
-            pkt = pktWriteSram(self, writeDerp, chunk)
-            p.write(pkt.tostring())
+            dacPkt = pktWriteSram(self, writeDerp, chunk)
+            p.write(dacPkt.tostring())
             writeDerp += 1
 
     def makeMemory(self, data, p, page=0):
@@ -306,7 +341,7 @@ class DacDevice(DeviceWrapper):
         self.makeMemory(mem, p, page=page)
         self.makeSRAM(sram, p, page=page)
         return p
-    
+
     def collect(self, nPackets, timeout, triggerCtx=None):
         """
         Create a packet to collect data on the FPGA.
@@ -325,15 +360,15 @@ class DacDevice(DeviceWrapper):
         if triggerCtx is not None:
             p.send_trigger(triggerCtx)
         return p
-    
+
     def trigger(self, triggerCtx):
         """Create a packet to trigger the board group context."""
         return self.makePacket().send_trigger(triggerCtx)
-    
+
     def read(self, nPackets):
         """Create a packet to read data from the FPGA."""
         return self.makePacket().read(nPackets)
-            
+
     def discard(self, nPackets):
         """Create a packet to discard data on the FPGA."""
         return self.makePacket().discard(nPackets)
