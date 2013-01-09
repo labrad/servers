@@ -1051,10 +1051,13 @@ class FPGAServer(DeviceServer):
              block2='*w: SRAM Words for second block',
              delay='w: nanoseconds to delay',
              returns='')
-    def dac_sram_dual_block(self, c, block1, block2, delay):
+    def dac_sram_dual_block(self, c, block0, block1, delay):
         """Writes a dual-block SRAM sequence with a delay between the two blocks.
         
         COMMENTS
+        block0 and block1 should be passed in as byte strings.
+        Recall that each SRAM word is 4 bytes ;)
+        
         The amount of time spent idling between blocks is
         SRAM_DELAY_LEN * N where N is the value sent into register
         d[19] (zero indexed).
@@ -1063,23 +1066,23 @@ class FPGAServer(DeviceServer):
         d = c.setdefault(dev, {})
         sram = d.get('sram', '')
         #Convert SRAM blocks to byte strings
+        if not isinstance(block0, str):
+            block0 = block0.asarray.tostring()
         if not isinstance(block1, str):
             block1 = block1.asarray.tostring()
-        if not isinstance(block2, str):
-            block2 = block2.asarray.tostring()
-        #The clock that counts the delay between sram blocks does not run
-        #at the same speed as the GHzDAC clock. We compute the number of
-        #delay clock cycles to undershoot the desired delay time, and
-        #shift the SRAM samples to make up the difference.
+        #Block delays come in chunks of 1024ns. Thus we need to package
+        #the desired delay into an integral number of delay blocks, with
+        #the difference made up by adding data to block1
         delayPad = delay % dev.buildParams['SRAM_DELAY_LEN']
-        delayCycles = delay / dev.buildParams['SRAM_DELAY_LEN']
-        # add padding to beginning of block2 to get delay right
-        block2 = block1[-4:] * delayPad + block2
-        # add padding to end of block2 to ensure that we have a multiple of 4
-        endPad = 4 - (len(block2) / 4) % 4
+        delayBlocks = delay / dev.buildParams['SRAM_DELAY_LEN']
+        # add padding to beginning of block1 to get delay right
+        block1 = block0[-4:] * delayPad + block1
+        # add padding to end of block1 to ensure that its length is a
+        # multiple of 4
+        endPad = 4 - (len(block1) / 4) % 4
         if endPad != 4:
-            block2 = block2 + block2[-4:] * endPad
-        d['sram'] = (block1, block2, delayCycles)
+            block1 = block1 + block1[-4:] * endPad
+        d['sram'] = (block0, block1, delayBlocks)
 
     @setting(22, 'SRAM Address', addr='w', returns='')
     def dac_sram_address(self, c, addr):
@@ -1872,21 +1875,44 @@ class DacRunner(object):
     def _fixDualBlockSram(self):
         """If this sequence is for dual-block sram, fix memory addresses and build sram.
         
-        Note that because the sram sequence will be padded to take up the entire first block
-        of SRAM (before the delay section), this will automatically disable paging.
+        When this function completes
+          1. self.sram will be a byte string to be written to the
+             physical memory block
+          2. self.blockDelay will be an integer, the number of times
+             to repeate the delay block
+          3. The memory sequence is adjusted so that SRAM start addr
+             and SRAM end addr are set to properly execute the dual
+             blocks of SRAM.
+        
+        Input:
+              Block0            Block1
+              aaaaaaaaaaaaaDELAYbbbbbb
+        Output:
+        |00000aaaaaaaaaaaaa|bbbbbb
+        
+        The sram byte string is prepended with zeros to make sure that
+        our desired block0, represented by a's, lies with its end
+        exactly at the end of the physical memory block0. The two blocks
+        are concatened forming a single byte string.
+        
+        Note that because the sram sequence will be padded to take up the
+        entire first block of SRAM (before the delay section), this
+        disables paging.
         """
+        #Note that as this function executes self.sram should be a tuple of
+        #(block0,block1,delay) where block0 and block1 are strings
         if isinstance(self.sram, tuple):
             # update addresses in memory commands that call into SRAM
             self.mem = fixSRAMaddresses(self.mem, self.sram, self.dev)
             
             # combine blocks into one sram sequence to be uploaded
-            block0, block1, delay = self.sram
+            block0, block1, delayBlocks = self.sram
             #Prepend bloock0 with \x00's so that the actual signal data
             #exactly fills the first physical SRAM block
             #Note block0 length in bytes = 4*block0 length in words
             data = '\x00' * (self.dev.buildParams['SRAM_BLOCK0_LEN']*4 - len(block0)) + block0 + block1
             self.sram = data
-            self.blockDelay = delay
+            self.blockDelay = delayBlocks
     
     def loadPacket(self, page, isMaster):
         """Create pipelined load packet.  For DAC, upload mem and SRAM."""
@@ -2004,7 +2030,7 @@ def getCommand(cmds, chan):
         return cmds[chan]
     except:
         raise Exception("Allowed channels are %s." % sorted(cmds.keys()))
-
+    
 def processSetupPackets(cxn, setupPkts):
     """Process packets sent in flattened form into actual labrad packets on the given connection."""
     pkts = []
@@ -2023,10 +2049,10 @@ def processSetupPackets(cxn, setupPkts):
                 raise Exception('Malformed setup packet: ctx=%s, server=%s, settings=%s' % (ctxt, server, settings))
         pkts.append(p)
     return pkts
-
-
+    
+    
 # commands for analyzing and manipulating FPGA memory sequences
-
+    
 def sequenceTime_sec(cmds):
     """Conservative estimate of the length of a sequence in seconds.
     
@@ -2034,13 +2060,13 @@ def sequenceTime_sec(cmds):
     """
     cycles = sum(cmdTime_cycles(c) for c in cmds)
     return cycles * 40e-9 # assume 25 MHz clock -> 40 ns per cycle
-
+    
 def getOpcode(cmd):
     return (cmd & 0xF00000) >> 20
-
+    
 def getAddress(cmd):
     return (cmd & 0x0FFFFF)
-
+    
 def cmdTime_cycles(cmd):
     """A conservative estimate of the number of cycles a given command takes.
     
@@ -2060,7 +2086,7 @@ def cmdTime_cycles(cmd):
     if opcode == 0xC:
         # TODO: incorporate SRAMoffset when calculating sequence time.  This gives a max of up to 12 + 255 us
         return 25*12 # maximum SRAM length is 12us, with 25 cycles per us
-
+    
 def addMasterDelay(cmds, delay_us=MASTER_SRAM_DELAY):
     """Add delays to master board before SRAM calls.
     
@@ -2080,20 +2106,38 @@ def addMasterDelay(cmds, delay_us=MASTER_SRAM_DELAY):
             newCmds.append(delayCmd) # add delay
         newCmds.append(cmd)
     return newCmds
-
+    
 def fixSRAMaddresses(mem, sram, device):
     """Set the addresses of SRAM calls for multiblock sequences.
-
-    Takes a list of memory commands and an sram sequence (which
-    will be a tuple of blocks for a multiblock sequence) and updates
-    the call SRAM commands to the correct addresses.
     
-    The start address is set to point inside block0 at the first
-    sram word where we will have data
-    The end address is set to be start
+    The addresses are set according to the following diagrams:
     
+    FIG1
+    row1    00000000000000-------||-----00000
+    row2    ^             x     ^||^   x    ^
     
+    FIG2
+    row1    00000000000000-------|             |-----00000
+    row2    ^             x     ^|    DELAY    |^   x    ^
     
+    FIG1 shows the physical sram block whereas FIG2 shows the sram as
+    seen by the GHz clock, eg. including the inter-block delay.
+    
+    row1 represents the sram data:
+        0's indicate unused SRAM words
+        -'s indicate used SRAM words
+    row2 shows important points:
+        ^'s indicate the physical start and end points of the SRAM blocks
+        x's indicate where we want the sram to start and stop execution
+    
+    Note that in FIG2 the distance between the starting x and the final x
+    is larger than in FIG1. This means that the final SRAM word occurs at
+    a clock count DELAY later than you would expect given the its
+    _physical_ location in the memory block. This clock count is what
+    matters, so when we write the end address we have to include DELAY,
+    Block0 length + length of signal in block1 + DELAY = endAddr,
+    in other words, endAddr is equal to
+    # of 0s in block0 + # of -'s in block0 + # of -'s in block1 + DELAY
     """
     block0Len_words = len(sram[0])/4
     block1Len_words = len(sram[1])/4
@@ -2116,7 +2160,7 @@ def fixSRAMaddresses(mem, sram, device):
         else:
             return cmd
     return [fixAddr(cmd) for cmd in mem]
-
+    
 def maxSRAM(cmds):
     """Determines the maximum SRAM address used in a memory sequence.
 
@@ -2126,7 +2170,7 @@ def maxSRAM(cmds):
     def addr(cmd):
         return getAddress(cmd) if getOpcode(cmd) in [0x8, 0xA] else 0
     return max(addr(cmd) for cmd in cmds)
-
+    
 def timerCount(cmds):
     """Return the number of timer stops in a memory sequence.
 
