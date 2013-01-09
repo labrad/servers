@@ -7,7 +7,11 @@ Server - Run Sequence
         defaults for ADC: None, errors raised if things not set
         DacRunner(dev, reps, startDelay, mem, sram):
             self._fixDualBlockSram()
-            if self.pageable(): truncate sram to fit in one page
+                #At this point SRAM exists as block0, block1, delay
+                #Set the sram start and end addresses as shown in GHzDAC .doc
+                self.mem = fixSRAMaddresses(self.mem, self.sram, self.dev)
+                self.sram = <make a big string out of the two blocks>
+            if self.pageable():
             self.nPackets = calculate expected number of data packets
             self.memTime = time in seconds of one memory sequence, assumes SRAM is 12us
             self.seqTime = TIMEOUT_FACTOR * (memTime * reps) + 1
