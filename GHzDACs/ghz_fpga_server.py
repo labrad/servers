@@ -1881,6 +1881,9 @@ class DacRunner(object):
             
             # combine blocks into one sram sequence to be uploaded
             block0, block1, delay = self.sram
+            #Prepend bloock0 with \x00's so that the actual signal data
+            #exactly fills the first physical SRAM block
+            #Note block0 length in bytes = 4*block0 length in words
             data = '\x00' * (self.dev.buildParams['SRAM_BLOCK0_LEN']*4 - len(block0)) + block0 + block1
             self.sram = data
             self.blockDelay = delay
@@ -2083,22 +2086,32 @@ def fixSRAMaddresses(mem, sram, device):
 
     Takes a list of memory commands and an sram sequence (which
     will be a tuple of blocks for a multiblock sequence) and updates
-    the call SRAM commands to the correct addresses. 
+    the call SRAM commands to the correct addresses.
+    
+    The start address is set to point inside block0 at the first
+    sram word where we will have data
+    The end address is set to be start
+    
+    
+    
     """
+    block0Len_words = len(sram[0])/4
+    block1Len_words = len(sram[1])/4
+    delayBlocks = sram[2]
     if not isinstance(sram, tuple):
         return mem
-    sramCalls = sum(getOpcode(cmd) == 0xC for cmd in mem)
-    if sramCalls > 1:
+    numSramCalls = sum(getOpcode(cmd) == 0xC for cmd in mem)
+    if numSramCalls > 1:
         raise Exception('Only one SRAM call allowed in multi-block sequences.')
     def fixAddr(cmd):
         opcode, address = getOpcode(cmd), getAddress(cmd)
         if opcode == 0x8:
             # SRAM start address
-            address = device.buildParams['SRAM_BLOCK0_LEN'] - len(sram[0])/4
+            address = device.buildParams['SRAM_BLOCK0_LEN'] - block0Len_words
             return (opcode << 20) + address
         elif opcode == 0xA:
             # SRAM end address
-            address = device.buildParams['SRAM_BLOCK0_LEN'] + len(sram[1])/4 + device.buildParams['SRAM_DELAY_LEN'] * sram[2]
+            address = device.buildParams['SRAM_BLOCK0_LEN'] + block1Len_words + device.buildParams['SRAM_DELAY_LEN'] * delayBlocks
             return (opcode << 20) + address
         else:
             return cmd
