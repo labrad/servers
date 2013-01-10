@@ -761,6 +761,7 @@ public class QubitContext extends AbstractServerContext {
 		// if we don't have any preamp channels, add a start/stop timer to all boards.
 		// pomalley 5/10/11
 		//
+		/* Disabled because we don't use timing packets any more -- ERJ
 		if (expt.getTimerFpgas().size() == 0) {
 			expt.startTimer(new ArrayList<PreampChannel>());
 			expt.stopTimer(new ArrayList<PreampChannel>());
@@ -769,7 +770,7 @@ public class QubitContext extends AbstractServerContext {
 		// check timer state of each involved fpga
 		for (FpgaModelDac fpga : expt.getDacFpgas()) {
 			fpga.checkTimerStatus();
-		}
+		}*/
 
 		// check microwave source configuration
 		Map<MicrowaveSource, MicrowaveSourceConfig> uwaveConfigs = Maps.newHashMap();
