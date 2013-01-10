@@ -5,7 +5,6 @@ Immediate:
 - Verify start and end addr are kept within specified 4 word cell
 - Ask John to change start/end addr from counter to actual address match. Not sure if good idea
 - Check that unwritten words within a derp are defaulted to zeros
-- loadPkt and dac.load need to be modified to handle dual block SRAM.
 
 software only:
 
