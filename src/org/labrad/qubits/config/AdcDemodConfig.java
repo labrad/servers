@@ -78,9 +78,9 @@ public class AdcDemodConfig extends AdcBaseConfig {
 		DEMOD_TIME_STEP = buildProperties.get("DEMOD_TIME_STEP").intValue(); // in ns
 		
 		dPhi = new int[MAX_CHANNELS];// for (int i : dPhi) i--;
-		phi0 = new int[MAX_CHANNELS]; for (int i : phi0) i--;
-		ampSin = new int[MAX_CHANNELS]; for (int i : ampSin) i--;
-		ampCos = new int[MAX_CHANNELS]; for (int i : ampCos) i--;
+		phi0 = new int[MAX_CHANNELS]; //for (int i : phi0) i--;
+		ampSin = new int[MAX_CHANNELS]; for (int i=0; i<MAX_CHANNELS; i++) ampSin[i]=-1;
+		ampCos = new int[MAX_CHANNELS]; for (int i=0; i<MAX_CHANNELS; i++) ampCos[i]=-1;
 		inUse = new boolean[MAX_CHANNELS];
 		criticalPhase = new double[MAX_CHANNELS];
 	}

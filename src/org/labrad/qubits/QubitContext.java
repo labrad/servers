@@ -925,7 +925,8 @@ public class QubitContext extends AbstractServerContext {
 				+ "of the 'Get Data *' methods to retrieve the data in the desired format.")
 				public void run_experiment(long reps) throws InterruptedException, ExecutionException {
 		Preconditions.checkArgument(reps > 0, "Reps must be a positive integer");
-		Preconditions.checkArgument(reps % 30 == 0, "Reps must be a multiple of 30");
+		// multiple of 30 no longer required --ERJ
+		//Preconditions.checkArgument(reps % 30 == 0, "Reps must be a multiple of 30");  
 
 		if (configDirty || memDirty || sramDirty) {
 			build_sequence();
