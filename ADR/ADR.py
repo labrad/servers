@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = ADR Server
-version = 0.221
+version = 0.222
 description =
 
 [startup]
@@ -136,6 +136,7 @@ class ADRWrapper(DeviceWrapper):
                             'magCurrent': 0,						# ... current reading
                             'compressorStatus': False,				# will hold status of compressor (pumping or not)
                             'missingCriticalPeripheral': True,		# if the lakeshore or magnet goes missing, we need to hold any mag cycles in process
+                            'lockinVoltage': None,
                             # not really used, but you could shut it down this way
                             'alive': False,
                         }
