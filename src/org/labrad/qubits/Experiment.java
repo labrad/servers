@@ -395,7 +395,15 @@ public class Experiment {
   }
 
   /**
-   * Add a delay in the memory sequence.
+   * Add a delay command to exactly one board
+   * 
+   */
+  public void addSingleMemoryDelay(FpgaModelDac fpga, double delay_us) {
+    fpga.addMemoryDelay(delay_us);
+  }
+  
+  /**
+   * Add a delay in the memory sequence of all boards.
    * Only applies to DACs.
    */
   public void addMemoryDelay(double microseconds) {
