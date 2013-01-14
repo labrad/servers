@@ -447,6 +447,16 @@ public class QubitContext extends AbstractServerContext {
 		memDirty = true;
 	}
 
+	@Setting(id = 321,
+	  name = "Mem Delay Single",
+	  doc = "Add a delay to a single channel.")
+	  public void mem_delay_single(@Accepts({"(s v[us])", "((ss) v[us])"}) Data command) {
+	    FastBiasChannel ch = getChannel(command.get(0), FastBiasChannel.class);
+	    double delay_us = command.get(1).getValue();
+	    getExperiment().addSingleMemoryDelay(ch.getFpgaModel(), delay_us);
+	    memDirty = true;
+	}
+	
 	@Setting(id = 330,
 			name = "Mem Call SRAM",
 			doc = "Call the SRAM block specified by name."
@@ -662,7 +672,7 @@ public class QubitContext extends AbstractServerContext {
 
 	@Setting(id = 510,
 			name = "Set Start Delay",
-			doc = "Sets the hdgdgfdghdgfdghsdfstart delay for this channel; must be an ADC or IQ channel. " +
+			doc = "Sets the SRAM start delay (get fucked, Peter) for this channel; must be an ADC or IQ channel. " +
 			"First argument {s or (ss)}: channel (either device name or (device name, channel name) " +
 	"Second: delay, in clock cycles (w)")
 	public void adc_set_start_delay(@Accepts({"s", "ss"}) Data id,
@@ -1197,20 +1207,124 @@ public class QubitContext extends AbstractServerContext {
 		return Data.valueOf(reshaped, "rad");
 	}
 	
+	@Setting(id = 1113,
+	    name = "Get Data Raw Shifted",
+	    doc = "Gets the raw data from the ADC results, with the IQ offset applied")
+	    @Returns("*2w")
+	public Data get_data_raw_shifted(){
+	  int[][][] shiftedData = extractDataRawShifted();
+	  return Data.valueOf(shiftedData);
+	}
+	
+	public int[][][] extractDataRawShifted() {
+	  int[][][] raw = extractDataRaw();
+	  int[][][] ans = new int[raw.length][2][];
+	  int numRuns = raw[0][0].length;
+	  for (int whichAdcChannel = 0; whichAdcChannel < raw.length; whichAdcChannel++) {
+        List<Integer> adcIndices = this.getExperiment().adcTimingOrderIndices();
+        AdcChannel ch = (AdcChannel)this.getExperiment().getTimingChannels().get(adcIndices.get(whichAdcChannel)).getChannel();
+        int[] offsets = ch.getOffsets();
+        ans[whichAdcChannel][0] = new int[numRuns];
+        ans[whichAdcChannel][1] = new int[numRuns];
+	    for (int run = 0; run < raw[whichAdcChannel][0].length; run++) {
+	      ans[whichAdcChannel][0][run] = raw[whichAdcChannel][0][run] + offsets[0];
+	      ans[whichAdcChannel][1][run] = raw[whichAdcChannel][1][run] + offsets[1];
+	    }
+	  }
+	  return ans;
+	}
+	
+	@Setting(id = 1114,
+	    name = "Get Data IQ",
+	    doc = "Gets the averaged IQ data from the ADC results")
+	    @Returns("*2v")
+	public Data get_data_iq() {
+	  int[][][] rawData = extractDataRaw();
+	  int numChannels = rawData.length;
+	  //Average the runs together
+	  int numRuns = rawData[0][0].length;
+	  double averaged[][] = new double[numChannels][2];
+	  for (int ch = 0; ch< numChannels; ch++) {
+	    double sumI = 0;
+	    double sumQ = 0;
+	    for (int idx = 0; idx < numRuns; idx++) {
+	      sumI += rawData[ch][0][idx];
+	      sumQ += rawData[ch][1][idx];
+	    }
+	    averaged[ch][0] = sumI/numRuns;
+	    averaged[ch][1] = sumQ/numRuns;
+	  }
+	  return Data.valueOf(averaged);
+	}
+	
+    @Setting(id = 1115,
+      name = "Get Data IQ Shifted",
+      doc = "Gets the averaged IQ data from the ADC results, with shifting")
+      @Returns("*2v")
+    public Data get_data_iq_shifted() {
+      int[][][] shiftedData = extractDataRawShifted();
+      int numChannels = shiftedData.length;
+      //Average the runs together
+      int numRuns = shiftedData[0][0].length;
+      double averaged[][] = new double[numChannels][2];
+      for (int ch = 0; ch < numChannels; ch++) {
+        double sumI = 0;
+        double sumQ = 0;
+        for (int idx = 0; idx<numRuns; idx++) {
+          sumI += shiftedData[ch][0][idx];
+          sumQ += shiftedData[ch][1][idx];
+        }
+        averaged[ch][0] = sumI/numRuns;
+        averaged[ch][1] = sumQ/numRuns;
+      }
+      return Data.valueOf(averaged);
+    }
+      
+    @Setting(id = 1116,
+        name = "Get Data Phases",
+        doc = "Returns averaged phase of ADC results")
+        @Returns("*2v")
+    public Data get_data_phases() {
+      //Get raw phase data
+      double[][] rawPhases = extractDataPhases();
+      int numChannels = rawPhases.length;
+      int numRuns = rawPhases[0].length;
+      //Data returned will be an array with one element for each ADC channel
+      double[] averaged = new double[numChannels];
+      //For each channel...
+      for (int ch = 0; ch < numChannels; ch++) {
+        double sum = 0;
+        //...sum up all the phases...
+        for (int idx = 0; idx < numRuns; idx++) {
+          sum += rawPhases[ch][idx];
+        }
+        //...and divide by the number of runs.
+        averaged[ch] = sum/numRuns;
+      }
+      return Data.valueOf(averaged, "rad");
+    }
+    
+    
+	private int[][][] extractDataRaw() {
+	  int[][][] raw = extractLastAdcData(); //First index: which ADC channel
+	  return raw;
+	}
+
+	
 	// extract last ADC data as an array
-	private long[][][] extractLastAdcData() {
+	private int[][][] extractLastAdcData() {
 		if (lastData.matchesType("*2w"))
-			return new long[0][0][];
+			return new int[0][0][];
 		List<Data> adcs = Lists.newArrayList();
 		for (Data d : lastData.getClusterAsList()) {
 			if (!d.matchesType("*w"))
 				adcs.add(d);
 		}
-		long[][][] ans = new long[adcs.size()][2][];
+		int[][][] ans = new int[adcs.size()][2][];
 		for (int i = 0; i < adcs.size(); i++) {
 			List<Data> IsAndQs = adcs.get(i).getClusterAsList();
 			for (int j = 0; j < 2; j++) {
-				ans[i][j] = new long[IsAndQs.get(j).getArraySize()];
+				ans[i][j] = new int[IsAndQs.get(j).getArraySize()];
 				for (int k = 0; k < IsAndQs.get(j).getArraySize(); k++) {
 					//System.out.println(i + " " + j + " " + k);
 					ans[i][j][k] = IsAndQs.get(j).get(k).getInt();
@@ -1255,17 +1369,15 @@ public class QubitContext extends AbstractServerContext {
 	}
 	
 	private double[][] extractDataPhases() {
-		long[][][] raw = extractLastAdcData();
-		double[][] ans = new double[raw.length][];
-		for (int i = 0; i < raw.length; i++) {
-			ans[i] = new double[raw[i][0].length];
-			List<Integer> adcIndices = this.getExperiment().adcTimingOrderIndices();
-			int[] offsets = ((AdcChannel)this.getExperiment().getTimingChannels().get(adcIndices.get(i)).getChannel()).getOffsets();
-			for (int j = 0; j < raw[i][0].length; j++) {
-				ans[i][j] = Math.atan2(raw[i][1][j]+offsets[1], raw[i][0][j]+offsets[0]);
-			}
-		}
-		return ans;
+	  int[][][] raw = extractLastAdcData(); //First index: which ADC channel
+	  double[][] ans = new double[raw.length][];
+	  for (int whichAdcChannel = 0; whichAdcChannel < raw.length; whichAdcChannel++) {
+	    ans[whichAdcChannel] = new double[raw[whichAdcChannel][0].length];
+	    List<Integer> adcIndices = this.getExperiment().adcTimingOrderIndices();
+	    AdcChannel ch = (AdcChannel)this.getExperiment().getTimingChannels().get(adcIndices.get(whichAdcChannel)).getChannel();
+	    ans[whichAdcChannel] = ch.getPhases(raw[whichAdcChannel][1], raw[whichAdcChannel][0]);
+	  }
+	  return ans;
 	}
 
 
