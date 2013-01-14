@@ -1,5 +1,7 @@
 package org.labrad.qubits.mem;
 
+import org.labrad.qubits.FpgaModelDac;
+
 public class EndSequenceCommand implements MemoryCommand {
   private EndSequenceCommand() {}
 
@@ -11,5 +13,8 @@ public class EndSequenceCommand implements MemoryCommand {
 
   public long[] getBits() {
     return new long[] {0xF00000};
+  }
+  public double getTime_us(FpgaModelDac dac) {
+	  return dac.clocksToMicroseconds(1);
   }
 }

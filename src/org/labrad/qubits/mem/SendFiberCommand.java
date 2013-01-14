@@ -1,5 +1,6 @@
 package org.labrad.qubits.mem;
 
+import org.labrad.qubits.FpgaModelDac;
 import org.labrad.qubits.enums.DacFiberId;
 
 public class SendFiberCommand implements MemoryCommand {
@@ -20,5 +21,8 @@ public class SendFiberCommand implements MemoryCommand {
         throw new RuntimeException("Invalid DAC fiber id: " + channel);
     }
     return new long[] {send + (bits & 0x0FFFFF)};
+  }
+  public double getTime_us(FpgaModelDac dac) {
+	  return dac.clocksToMicroseconds(1);
   }
 }

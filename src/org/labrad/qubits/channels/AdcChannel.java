@@ -32,7 +32,6 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 
 	// configuration variables
 	AdcMode mode = AdcMode.UNSET;	// DEMODULATE, AVERAGE, UNSET
-	int startDelay;			// passed to start delay setting
 	String filterFunction; int stretchLen, stretchAt;	// passed to filter function setting
 	double criticalPhase;	// used to interpret phases (into T/F switches)
 	int demodChannel;		// which demod channel are we (demod mode only)
@@ -100,7 +99,7 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 			return true;
 		Preconditions.checkArgument(this.mode == other.mode,
 				"Conflicting modes for ADC board %s", this.board.getName());
-		Preconditions.checkArgument(this.startDelay == other.startDelay,
+		Preconditions.checkArgument(this.getStartDelay() == other.getStartDelay(),
 				"Conflicting start delays for ADC board %s", this.board.getName());
 		if (this.mode == AdcMode.DEMODULATE) {
 			Preconditions.checkArgument(this.filterFunction.equals(other.filterFunction),
@@ -123,15 +122,15 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 	// add global packets for this ADC board. should only be called on one channel per board!
 	public void addGlobalPackets(Request runRequest) {
 		if (this.mode == AdcMode.AVERAGE) {
-			Preconditions.checkState(startDelay > -1, "ADC Start Delay not set for channel '%s'", this.name);
+			Preconditions.checkState(getStartDelay() > -1, "ADC Start Delay not set for channel '%s'", this.name);
 			runRequest.add("ADC Run Mode", Data.valueOf("average"));
-			runRequest.add("Start Delay", Data.valueOf((long)this.startDelay));
+			runRequest.add("Start Delay", Data.valueOf((long)this.getStartDelay()));
 			runRequest.add("ADC Filter Func", Data.valueOf("balhQLIYFGDSVF"), Data.valueOf(42L), Data.valueOf(42L));
 		} else if (this.mode == AdcMode.DEMODULATE) {
-			Preconditions.checkState(startDelay > -1, "ADC Start Delay not set for channel '%s'", this.name);
+			Preconditions.checkState(getStartDelay() > -1, "ADC Start Delay not set for channel '%s'", this.name);
 			Preconditions.checkState(stretchLen > -1 && stretchAt > -1, "ADC Filter Func not set for channel '%s'", this.name);
 			runRequest.add("ADC Run Mode", Data.valueOf("demodulate"));
-			runRequest.add("Start Delay", Data.valueOf((long)this.startDelay));
+			runRequest.add("Start Delay", Data.valueOf((long)this.getStartDelay()));
 			runRequest.add("ADC Filter Func", Data.valueOf(this.filterFunction),
 					Data.valueOf((long)this.stretchLen), Data.valueOf((long)this.stretchAt));
 		} else {
@@ -187,18 +186,18 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 		this.mode = AdcMode.AVERAGE;
 	}
 	
-	// these are passthroughs to the config object. in most cases we do have to check that
-	// we are in the proper mode (average vs demod)
-	@Override
-	public void setStartDelay(int startDelay)
-	{
-		this.startDelay = startDelay;
-	}
 	@Override
 	public int getStartDelay() {
-		return this.startDelay;
+		return this.getFpgaModel().getStartDelay();
+	}
+
+	@Override
+	public void setStartDelay(int startDelay) {
+		this.getFpgaModel().setStartDelay(startDelay);
 	}
 	
+	// these are passthroughs to the config object. in most cases we do have to check that
+	// we are in the proper mode (average vs demod)	
 	public void setFilterFunction(String filterFunction, int stretchLen, int stretchAt) {
 		Preconditions.checkState(mode == AdcMode.DEMODULATE, "Channel must be in demodulate mode for setFilterFunction to be valid.");
 		this.filterFunction = filterFunction;
@@ -231,7 +230,7 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 	public void clearConfig() {
 		this.criticalPhase = this.dPhi = this.phi0 = 0;
 		this.filterFunction = "";
-		this.stretchAt = this.stretchLen = this.startDelay = this.ampSin = this.ampCos = -1;
+		this.stretchAt = this.stretchLen = this.ampSin = this.ampCos = -1;
 		this.reverseCriticalPhase = false;
 		this.offsetI = 0;
 		this.offsetQ = 0;

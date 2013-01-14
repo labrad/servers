@@ -501,7 +501,14 @@ public class QubitContext extends AbstractServerContext {
 		memDirty = true;
 	}
 
-
+	@Setting(id = 360,
+			name = "Mem Sync Delay",
+			doc = "Adds a memory delay to synchronize all channels.  Call last in the memory sequence.")
+		public void mem_sync_delay() {
+		
+	    getExperiment().addMemSyncDelay();
+	    memDirty = true;		
+	}
 	//
 	// SRAM
 	//
@@ -674,16 +681,11 @@ public class QubitContext extends AbstractServerContext {
 			name = "Set Start Delay",
 			doc = "Sets the SRAM start delay (get fucked, Peter) for this channel; must be an ADC or IQ channel. " +
 			"First argument {s or (ss)}: channel (either device name or (device name, channel name) " +
-	"Second: delay, in clock cycles (w)")
+			"Second: delay, in clock cycles (typically 4 ns) (w)")
 	public void adc_set_start_delay(@Accepts({"s", "ss"}) Data id,
-			@Accepts({"w", "v[us]"}) Data delay) {
+			@Accepts("i") int delay) {
 		StartDelayChannel ch = getChannel(id, StartDelayChannel.class);
-		int us;
-		if (delay.isInt())
-			us = delay.getInt();
-		else
-			us = (int)delay.getValue();
-		ch.setStartDelay(us);
+		ch.setStartDelay(delay);
 	}
 
 	@Setting(id = 520,

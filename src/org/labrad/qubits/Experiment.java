@@ -8,6 +8,7 @@ import java.util.Set;
 import org.labrad.data.Data;
 import org.labrad.qubits.channels.AdcChannel;
 import org.labrad.qubits.channels.Channel;
+import org.labrad.qubits.channels.FastBiasChannel;
 import org.labrad.qubits.channels.PreampChannel;
 import org.labrad.qubits.channels.TimingChannel;
 import org.labrad.qubits.enums.DacTriggerId;
@@ -411,7 +412,24 @@ public class Experiment {
       fpga.addMemoryDelay(microseconds);
     }
   }
-
+  
+  public void addMemSyncDelay() {
+	  //Find maximum sequence length on all fpgas
+	  double maxT_us=0;
+	  for (FpgaModel fpga : getFpgas()) {
+		  double t_us = fpga.getSequenceLengthPostSRAM_us();
+		  maxT_us = Math.max(maxT_us, t_us);
+	  }
+	  
+	  for (FpgaModelDac fpga : getDacFpgas()) {
+		  double t = fpga.getSequenceLength_us();
+		  if (t < maxT_us) {
+			  fpga.addMemoryDelay(maxT_us - t);
+		  } else {
+			  fpga.addMemoryNoop();
+		  }
+	  }
+  }
   /**
    * Call SRAM. Only applies to DACs.
    */
@@ -427,9 +445,9 @@ public class Experiment {
     }
   }
 
-  public void setSramDualBlockDelay(double delay) {
+  public void setSramDualBlockDelay(double delay_ns) {
     for (FpgaModelDac fpga : getDacFpgas()) {
-      fpga.setSramDualBlockDelay(delay);
+      fpga.setSramDualBlockDelay(delay_ns);
     }
   }
 
@@ -544,7 +562,7 @@ public class Experiment {
     for (String block : blocks) {
       end += getPaddedBlockLength(block);
       if (block.equals(name)) {
-        return end - 1;
+        return end - 1; //Zero indexing ;)
       }
     }
     throw new RuntimeException(String.format("Block '%s' not found", name));

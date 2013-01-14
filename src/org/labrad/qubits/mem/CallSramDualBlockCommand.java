@@ -1,5 +1,7 @@
 package org.labrad.qubits.mem;
 
+import org.labrad.qubits.FpgaModelDac;
+
 import com.google.common.base.Preconditions;
 
 public class CallSramDualBlockCommand implements MemoryCommand {
@@ -39,5 +41,11 @@ public class CallSramDualBlockCommand implements MemoryCommand {
                        0xA00000,
                        0xC00000};
   }
-
+  public double getTime_us(FpgaModelDac dac) {
+	  // Call Sram memory command includes 3 memory commands plus the SRAM sequence
+	  Preconditions.checkNotNull(delay, "Dual-block SRAM delay not set!");
+	  int b1len = dac.getExperiment().getBlockLength(block1);
+	  int b2len = dac.getExperiment().getBlockLength(block2);
+	  return dac.samplesToMicroseconds(b1len + b2len) + dac.clocksToMicroseconds(3) + this.delay/1000.0;
+  } 
 }

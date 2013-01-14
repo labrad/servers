@@ -24,10 +24,10 @@ import com.google.common.collect.Maps;
 
 public abstract class FpgaModelDac implements FpgaModel {
 
-  public final static double FREQUENCY = 25.0;
-  
-  public final static int MAX_MEM_LEN = 256;
-
+  public final static double FREQUENCY = 25.0;  // MHz
+  public final static double DAC_FREQUENCY_MHz = 1000;
+  public final static int MAX_MEM_LEN = 256; //words per derp
+  public final static int START_DELAY_UNIT_NS = 4;
   private DacBoard dacBoard;
   protected Experiment expt;
 
@@ -46,7 +46,11 @@ public abstract class FpgaModelDac implements FpgaModel {
   public DacBoard getDacBoard() {
     return dacBoard;
   }
-
+  
+  // This method is needed by the memory SRAM commands to compute their own length.
+  public Experiment getExperiment() {
+	  return expt;
+  }
   //
   // Start Delay - pomalley 5/4/2011
   //
@@ -108,10 +112,42 @@ public abstract class FpgaModelDac implements FpgaModel {
 
   public void addMemoryDelay(double microseconds) {
     int cycles = (int)microsecondsToClocks(microseconds);
-    addMemoryCommand(new DelayCommand(cycles));
+    int mem_size = this.memory.size();
+    if (mem_size > 0) {
+    	MemoryCommand last_cmd = this.memory.get(this.memory.size()-1);
+	    if (last_cmd instanceof DelayCommand) {
+	    	DelayCommand delay_cmd = (DelayCommand) last_cmd;
+	    	delay_cmd.setDelay(cycles + delay_cmd.getDelay());
+	    } else {
+	    	addMemoryCommand(new DelayCommand(cycles));
+	    }
+    } else {
+    	addMemoryCommand(new DelayCommand(cycles));
+    }
   }
 
-
+  @Override
+  public double getSequenceLength_us() {
+	  double t_us=this.startDelay * START_DELAY_UNIT_NS / 1000.0;
+	  for (MemoryCommand mem_cmd : this.memory) {
+		  t_us += mem_cmd.getTime_us(this);
+	  }
+	  return t_us;
+  }
+  @Override
+  public double getSequenceLengthPostSRAM_us() {
+	  double t_us=this.startDelay * START_DELAY_UNIT_NS / 1000.0;
+	  boolean SRAMStarted = false;
+	  for (MemoryCommand mem_cmd : this.memory) {
+		  if ( (mem_cmd instanceof CallSramDualBlockCommand) || (mem_cmd instanceof CallSramCommand)) {
+			  SRAMStarted = true;
+		  }
+		  if (SRAMStarted) {
+			  t_us += mem_cmd.getTime_us(this);
+		  }
+	  }
+	  return t_us;
+  }
   // timer logic
 
   /**
@@ -184,6 +220,9 @@ public abstract class FpgaModelDac implements FpgaModel {
     return (long)(microseconds * FREQUENCY);
   }
   
+  public double samplesToMicroseconds(long s) {
+	  return s / DAC_FREQUENCY_MHz;
+  }
 
   // SRAM calls
 
@@ -207,11 +246,11 @@ public abstract class FpgaModelDac implements FpgaModel {
     sramCalledDualBlock = true;
   }
 
-  public void setSramDualBlockDelay(double delay) {
-    sramDualBlockDelay = delay;
+  public void setSramDualBlockDelay(double delay_ns) {
+    sramDualBlockDelay = delay_ns;
     if (sramCalledDualBlock) {
       // need to update the already-created dual-block command
-      sramDualBlockCmd.setDelay(delay);
+      sramDualBlockCmd.setDelay(delay_ns);
     }
   }
 
@@ -229,8 +268,8 @@ public abstract class FpgaModelDac implements FpgaModel {
    * Get the bits of the memory sequence for this board
    */
   public long[] getMemory() {
-    // add initial noop and final mem commands
     List<MemoryCommand> mem = Lists.newArrayList(memory);
+    // add initial noop and final mem commands
     mem.add(0, NoopCommand.getInstance());
     mem.add(EndSequenceCommand.getInstance());
 

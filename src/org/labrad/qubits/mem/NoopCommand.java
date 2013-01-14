@@ -1,5 +1,7 @@
 package org.labrad.qubits.mem;
 
+import org.labrad.qubits.FpgaModelDac;
+
 public class NoopCommand implements MemoryCommand {
   private NoopCommand() {}
 
@@ -12,4 +14,7 @@ public class NoopCommand implements MemoryCommand {
   public long[] getBits() {
     return new long[] {0x000000};
   }
+  public double getTime_us(FpgaModelDac dac) {
+	  return dac.clocksToMicroseconds(1);
+  } 
 }

@@ -1,5 +1,7 @@
 package org.labrad.qubits.mem;
 
+import org.labrad.qubits.FpgaModelDac;
+
 public class CallSramCommand implements MemoryCommand {
   private String blockName;	
   private int startAddr, endAddr;
@@ -25,5 +27,8 @@ public class CallSramCommand implements MemoryCommand {
                        0xA00000 + (endAddr & 0x0FFFFF),
                        0xC00000};
   }
-
+  public double getTime_us(FpgaModelDac dac) {
+	  // Call Sram memory command includes 3 memory commands plus the SRAM sequence
+	  return dac.samplesToMicroseconds(endAddr-startAddr) + dac.clocksToMicroseconds(3);
+  } 
 }

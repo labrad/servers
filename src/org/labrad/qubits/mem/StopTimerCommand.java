@@ -1,5 +1,7 @@
 package org.labrad.qubits.mem;
 
+import org.labrad.qubits.FpgaModelDac;
+
 public class StopTimerCommand implements MemoryCommand {
   private StopTimerCommand() {}
 
@@ -12,4 +14,7 @@ public class StopTimerCommand implements MemoryCommand {
   public long[] getBits() {
     return new long[] {0x400001};
   }
+  public double getTime_us(FpgaModelDac dac) {
+	  return dac.clocksToMicroseconds(1);
+  } 
 }

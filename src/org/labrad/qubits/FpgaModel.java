@@ -6,7 +6,8 @@ public interface FpgaModel {
 
   public String getName();
   public DacBoard getDacBoard();	
-
+  public double getSequenceLength_us();
+  public double getSequenceLengthPostSRAM_us();
  /*
   //
   // SRAM
