@@ -157,15 +157,23 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 		"Critical phase must be between -PI and PI");
 		this.criticalPhase = criticalPhase;
 	}
+	public double[] getPhases(int[] Is, int []Qs) {
+	  double[] results = new double[Is.length];
+	  for (int run = 0; run<Is.length; run++) {
+	    results[run] = Math.atan2(Qs[run]+this.offsetQ, Is[run]+this.offsetI);
+	  }
+	  return results;
+	}
 	public boolean[] interpretPhases(int[] Is, int[] Qs) {
 		Preconditions.checkArgument(Is.length == Qs.length, "Is and Qs must be of the same shape!");
 		//System.out.println("interpretPhases: channel " + channel + " crit phase: " + criticalPhase[channel]);
 		boolean[] switches = new boolean[Is.length];
+		double[] phases = getPhases(Is, Qs);
 		for (int run = 0; run < Is.length; run++) {
 			if (this.reverseCriticalPhase)
-				switches[run] = Math.atan2(Qs[run]+this.offsetQ, Is[run]+this.offsetI) < criticalPhase;
+				switches[run] = phases[run] < criticalPhase;
 			else
-				switches[run] = Math.atan2(Qs[run]+this.offsetQ, Is[run]+this.offsetI) > criticalPhase;
+				switches[run] = phases[run] > criticalPhase;
 		}
 		return switches;
 	}
