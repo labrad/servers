@@ -97,7 +97,7 @@ DATA_FORMAT = '%%.%dG' % PRECISION
 FILE_TIMEOUT = 60 # how long to keep datafiles open if not accessed
 DATA_TIMEOUT = 300 # how long to keep data in memory if not accessed
 TIME_FORMAT = '%Y-%m-%d, %H:%M:%S'
-
+READ_SIZE_LIMIT_BYTES = 100000
 
 ## error messages
 
@@ -691,6 +691,8 @@ class Dataset:
         self.listeners = set()
     
     def getData(self, limit, start):
+        if limit is None and self._filesize() > READ_SIZE_LIMIT_BYTES:
+            raise Exception('Read in smaller chunks of data')
         if limit is None:
             data = self.data[start:]
         else:
@@ -1077,6 +1079,8 @@ class DataVault(LabradServer):
         of the dataset.  By default, only new data that has not been seen
         in this context is returned.
         """
+        if limit is None:
+            raise Exception('
         dataset = self.getDataset(c)
         c['filepos'] = 0 if startOver else c['filepos']
         data, c['filepos'] = dataset.getData(limit, c['filepos'])
