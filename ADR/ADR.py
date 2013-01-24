@@ -99,7 +99,7 @@ class ADRWrapper(DeviceWrapper):
                             'fieldWaitTime': 45,		# min -- how long to wait at field before magging down (when autocontrolled)
                             'autoControl': False,		# whether to auto control the heat switch
                             'switchPosition': 2,		# switch position on the lock in amplifier box
-                            'lockinCurrent': 1e-8,      # current being put through Ruox (for use with lockin)
+                            'lockinCurrent': 1e-9,      # current being put through Ruox (for use with lockin)
                             # PID variables
                             'PIDsetTemp': 0.0 * labrad.units.K,		# setTemp is the temperature goal for PID control
                             'PIDcp': 2.0 * labrad.units.V / labrad.units.K,
