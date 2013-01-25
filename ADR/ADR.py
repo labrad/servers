@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = ADR Server
-version = 0.222
+version = 0.223
 description =
 
 [startup]
@@ -705,7 +705,7 @@ class ADRWrapper(DeviceWrapper):
         
         
     #################################
-    # PERIPHERAL HANDLING FUNCTIONS	#
+    # PERIPHERAL HANDLING FUNCTIONS #
     #################################
     
     @inlineCallbacks
@@ -733,6 +733,16 @@ class ADRWrapper(DeviceWrapper):
         peripheralDict = {}
         for peripheral in keys: #all key names in this directory
             peripheralDict[peripheral] = ans[peripheral]
+        # pomalley 2013-01-25 -- refresh the GPIB bus when we do this
+        nodeList = [v[1] for v in peripheralDict.itervalues()]
+        deferredList = []
+        for node in set(nodeList):
+            for serverName, server in self.cxn.servers.iteritems():
+                if serverName.lower().startswith(node.lower()) and 'gpib' in serverName.lower():
+                    deferredList.append(server.refresh_devices())
+                    print "refreshing %s" % serverName
+        for d in deferredList:
+            yield d
         returnValue(peripheralDict)
 
     @inlineCallbacks
