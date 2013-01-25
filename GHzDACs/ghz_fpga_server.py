@@ -489,7 +489,7 @@ class BoardGroup(object):
         # set to idle mode. For example:
         # All boards:   000000
         # runners:      --XX-X
-        # mode:         iimsis (i: idle, m: master, s: slave) -DTS
+        # mode:           msis (i: idle, m: master, s: slave) -DTS
         boards = [] #List of (<device object>, <register bytes to write>)
         for board, delay in zip(self.boardOrder, self.boardDelays):
             if board in runnerInfo:
