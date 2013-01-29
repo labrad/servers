@@ -135,6 +135,10 @@ class ADRWrapper(DeviceWrapper):
                             'magVoltage': 0,						# will hold the magnet (power supply) voltage reading
                             'magCurrent': 0,						# ... current reading
                             'compressorStatus': False,				# will hold status of compressor (pumping or not)
+                            'compressorTemperatures': [0*labrad.units.K]*4,
+                            'compressorPressures': [0*labrad.units.Torr]*2,
+                            'compressorMotorCurrent': 0*labrad.units.A,
+                            'compressorCPUTemperature': 0*labrad.units.K,
                             'missingCriticalPeripheral': True,		# if the lakeshore or magnet goes missing, we need to hold any mag cycles in process
                             'lockinVoltage': None,
                             # not really used, but you could shut it down this way
@@ -231,6 +235,10 @@ class ADRWrapper(DeviceWrapper):
                 if 'compressor' in self.peripheralsConnected.keys():
                     compressorPacket = self.peripheralsConnected['compressor'].server.packet(context=self.ctxt)
                     compressorPacket.status()
+                    compressorPacket.temperatures()
+                    compressorPacket.pressures()
+                    compressorPacket.cpu_temp()
+                    compressorPacket.motor_current()
                     compressorResponse = compressorPacket.send()
                 if 'temperature_lockin' in self.peripheralsConnected.keys():
                     lockinPacket = self.peripheralsConnected['temperature_lockin'].server.packet(context=self.ctxt)
@@ -256,6 +264,10 @@ class ADRWrapper(DeviceWrapper):
                     try:
                         ans = yield compressorResponse
                         self.state('compressorStatus', ans['status'], False)
+                        self.state('compressorTemperatures', [x[0] for x in ans['temperatures']], False)
+                        self.state('compressorPressures', [x[0] for x in ans['pressures']], False)
+                        self.state('compressorCPUTemperature', ans['cpu_temp'], False)
+                        self.state('compressorMotorCurrent', ans['motor_current'], False)
                     except Exception as e:
                         self.log("Exception in compressor: %s" % e.__str__())
                 if lockinResponse:
@@ -635,8 +647,16 @@ class ADRWrapper(DeviceWrapper):
                     ('temperature', 'ruox', 'K'),
                     ('voltage', 'magnet', 'V'),
                     ('current', 'magnet', 'Amp'),
-                                        ('temperature', 'ch5: aux', 'K'),]
-            name = "Temperature Log - %s" % time.strftime("%Y-%m-%d %H:%M")
+                                        ('temperature', 'ch5: aux', 'K'),
+                                        ('temperature', 'CP Water In', 'K'),
+                                        ('temperature', 'CP Water Out', 'K'),
+                                        ('temperature', 'CP Helium', 'K'),
+                                        ('temperature', 'CP Oil', 'K'),
+                                        ('current', 'CP Motor', 'A'),
+                                        ('temperature', 'CP CPU', 'K'),
+                                        ('pressure', 'CP High Side', 'torr'), 
+                                        ('pressure', 'CP Low Side', 'torr')]
+            name = "ADR Log - %s" % time.strftime("%Y-%m-%d %H:%M")
             dv.new(name, indeps, deps, context=self.ctxt)
             self.state('tempDatasetName', name)
         # assemble the info
@@ -645,8 +665,13 @@ class ADRWrapper(DeviceWrapper):
         ruox = self.ruoxStatus()
         I, V = (self.state('magCurrent'), self.state('magVoltage'))
         t = int(time.time())
+        cpTemps = self.state('compressorTemperatures')
+        cpPress = self.state('compressorPressures')
+        cpCPU = self.state('compressorCPUTemperature')
+        cpMotor = self.state('compressorMotorCurrent')
         # save the data
-        dv.add([t, temps[0], temps[1], temps[2], volts[3], ruox[1], ruox[0], V, I, temps[4]], context=self.ctxt)
+        dv.add([t, temps[0], temps[1], temps[2], volts[3], ruox[1], ruox[0], V, I, temps[4]] + cpTemps + [cpMotor, cpCPU] + cpPress,
+            , context=self.ctxt)
         # log!
         #self.log("Temperature log recorded: %s" % time.strftime("%Y-%m-%d %H:%M", time.localtime(t)))
         
