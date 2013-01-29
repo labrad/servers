@@ -33,6 +33,9 @@ timeout = 5
 from labrad.devices import DeviceServer, DeviceWrapper
 from labrad.server import setting, inlineCallbacks, returnValue
 from labrad.units import degC, K, psi, torr, min as minutes, A
+import time
+
+CACHE_TIME = 0.8
 
 # registry (for info about where to connect)
 # Servers -> CP2800 Compressor
@@ -52,6 +55,14 @@ class CompressorDevice(DeviceWrapper):
         self.server = server
         self.ctx = server.context()
         self.port = port
+        # we will cache the values for many of the requests so as to reduce serial traffic
+        # status, temperatures, pressures, cpu temp, motor current
+        self.status, self.status_time = None, 0
+        self.temperatures, self.temperatures_time = None, 0
+        self.pressures, self.pressures_time = None, 0
+        self.cpu_temp, self.cpu_temp_time = None, 0
+        self.motor_current, self.motor_current_time = None, 0
+        
         p = self.packet()
         p.open(port)
         p.baudrate(115200)
@@ -95,8 +106,11 @@ class CompressorDevice(DeviceWrapper):
 
     @inlineCallbacks
     def compressorStatus(self):
-        ans = yield self.read('COMP_ON')
-        returnValue(bool(ans))
+        if time.time() - self.status_time > CACHE_TIME:
+            ans = yield self.read('COMP_ON')
+            self.status = bool(ans)
+            self.status_time = time.time()
+        returnValue(self.status)
 
     @inlineCallbacks
     def readArrays(self, keys, length, processFunc):
@@ -114,14 +128,18 @@ class CompressorDevice(DeviceWrapper):
 
     @inlineCallbacks
     def temperatures(self):
-        keys = 'TEMP_TNTH_DEG', 'TEMP_TNTH_DEG_MINS', 'TEMP_TNTH_DEG_MAXES'
-        vals = yield self.readArrays(keys, 4, toTemp)
-        returnValue(vals)
+        if time.time() - self.temperatures_time > CACHE_TIME:
+            keys = 'TEMP_TNTH_DEG', 'TEMP_TNTH_DEG_MINS', 'TEMP_TNTH_DEG_MAXES'
+            self.temperatures = yield self.readArrays(keys, 4, toTemp)
+            self.temperatures_time = time.time()
+        returnValue(self.temperatures)
 
     @inlineCallbacks
     def pressures(self):
-        keys = 'PRES_TNTH_PSI', 'PRES_TNTH_PSI_MINS', 'PRES_TNTH_PSI_MAXES'
-        vals = yield self.readArrays(keys, 2, toPress)
+        if time.time() - self.pressures_time > CACHE_TIME:
+            keys = 'PRES_TNTH_PSI', 'PRES_TNTH_PSI_MINS', 'PRES_TNTH_PSI_MAXES'
+            self.pressures = yield self.readArrays(keys, 2, toPress)
+            self.pressures_time = time.time()
         returnValue(vals)
 
     def clearMarkers(self):
@@ -217,8 +235,11 @@ class CompressorServer(DeviceServer):
     def cpu_temp(self, c):
         """Get the CPU temperature."""
         dev = self.selectedDevice(c)
-        ans = yield dev.read('CPU_TEMP')
-        returnValue(toTemp(ans))
+        if time.time() - dev.cpu_temp_time > CACHE_TIME:
+            ans = yield dev.read('CPU_TEMP')
+            dev.cpu_temp = toTemp(ans)
+            dev.cpu_temp_time = time.time()
+        returnValue(dev.cpu_temp)
 
     @setting(2100, 'Elapsed Time', returns='v[min]')
     def elapsed_time(self, c):
@@ -231,7 +252,10 @@ class CompressorServer(DeviceServer):
     def motor_current(self, c):
         """Get the motor current draw."""
         dev = self.selectedDevice(c)
-        ans = yield dev.read('MOTOR_CURR_A')
+        if time.time() - dev.cpu_temp_time > CACHE_TIME:
+            ans = yield dev.read('MOTOR_CURR_A')
+            self.motor_current = float(ans) * A
+            self.motor_current_time = time.time()
         returnValue(float(ans) * A)
     
 
