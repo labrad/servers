@@ -391,6 +391,12 @@ def calibrateDCPulse(cxn,boardname,channel):
     #Set up the scope
     @inlineCallbacks
     def sample_chunk(sensitivity, offset_voltage, time_step = 20):
+        
+        '''
+        This just returns the trace from the sampling scope for a given
+        sensitivity, offset voltage and time step
+        '''
+        
         print sensitivity
         print offset_voltage
         scope = cxn.sampling_scope
@@ -419,7 +425,16 @@ def calibrateDCPulse(cxn,boardname,channel):
             
         returnValue(data)
         
-    CHUNKS = 11
+    '''
+    The sampling scope does not have enough sensitivity to capture all of the important features of a step pulse
+    on one sensitivity setting. To get around this, we break the voltage sensitivity into a variable number of
+    CHUNKS and stitch them back together. We move through these chunks by changing the offset voltage.
+    
+    We pick a certain sensitivity value and then plug in different offset voltages to collect a higher sensitivity
+    trace throughout a voltage range.
+    '''
+        
+    CHUNKS = 5
     sensitivity_buffer = 5.0 # in mV
     
     sens = yield reg.get(keys.SCOPESENSITIVITY)
@@ -428,18 +443,28 @@ def calibrateDCPulse(cxn,boardname,channel):
     sensitivity = dVoltage/10.0 + sensitivity_buffer
     
     # compile each data set chunk 
+    # we collect the raw data for all of the different sensitivity settings
     datas = []
     for offset_voltage in offset_voltages:
         data = yield sample_chunk(sensitivity, offset_voltage)
         datas.append(data)
         
     # figure out where each data set switches over to the next
+    # we determine this by finding when the data starts to leave
+    # the sensitivity window to within the sensitivity buffer
+    # we record the index that we should be moving from one
+    # CHUNK to the next so we can stitch it together later.
+    
+    # NOTE: This is sortof a shitty algorithm and will 
+    # probably encounter issues if the size of the step
+    # pulse is changed.
     switchInds = []
     for data, offset_voltage in zip(datas, offset_voltages):
         thresholdVoltage = (offset_voltage + sensitivity*10.0/2.0)/1000.0# convert mV to V
         switchInds.extend(np.argwhere(data[:,1]>thresholdVoltage)[:1])
         
-    # compile the final trace
+    # compile the final trace by stiching together the
+    # various sensitivities at the switch indices
     finalTrace = []
     dataIndex = 0
     for k in range(len(datas[0][:,0])):
@@ -447,7 +472,7 @@ def calibrateDCPulse(cxn,boardname,channel):
             dataIndex+=1
         finalTrace.append((datas[dataIndex][k,0], datas[dataIndex][k,1]))
     
-    finalTrace = np.array(finalTrace)
+    finalTrace = np.array(finalTrace)[:-1,:] # the last data point sometimes is buggy
         
     # set the output to zero so that the fridge does not warm up when the
     # cable is plugged back in
