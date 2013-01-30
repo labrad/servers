@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = CP2800 Compressor
-version = 2.0
+version = 2.1
 description = Compressor for the ADR pulse tube cooler.
 
 [startup]
@@ -58,8 +58,8 @@ class CompressorDevice(DeviceWrapper):
         # we will cache the values for many of the requests so as to reduce serial traffic
         # status, temperatures, pressures, cpu temp, motor current
         self.status, self.status_time = None, 0
-        self.temperatures, self.temperatures_time = None, 0
-        self.pressures, self.pressures_time = None, 0
+        self._temperatures, self._temperatures_time = None, 0
+        self._pressures, self._pressures_time = None, 0
         self.cpu_temp, self.cpu_temp_time = None, 0
         self.motor_current, self.motor_current_time = None, 0
         
@@ -128,19 +128,19 @@ class CompressorDevice(DeviceWrapper):
 
     @inlineCallbacks
     def temperatures(self):
-        if time.time() - self.temperatures_time > CACHE_TIME:
+        if time.time() - self._temperatures_time > CACHE_TIME:
             keys = 'TEMP_TNTH_DEG', 'TEMP_TNTH_DEG_MINS', 'TEMP_TNTH_DEG_MAXES'
-            self.temperatures = yield self.readArrays(keys, 4, toTemp)
-            self.temperatures_time = time.time()
-        returnValue(self.temperatures)
+            self._temperatures = yield self.readArrays(keys, 4, toTemp)
+            self._temperatures_time = time.time()
+        returnValue(self._temperatures)
 
     @inlineCallbacks
     def pressures(self):
-        if time.time() - self.pressures_time > CACHE_TIME:
+        if time.time() - self._pressures_time > CACHE_TIME:
             keys = 'PRES_TNTH_PSI', 'PRES_TNTH_PSI_MINS', 'PRES_TNTH_PSI_MAXES'
-            self.pressures = yield self.readArrays(keys, 2, toPress)
-            self.pressures_time = time.time()
-        returnValue(vals)
+            self._pressures = yield self.readArrays(keys, 2, toPress)
+            self._pressures_time = time.time()
+        returnValue(self._pressures)
 
     def clearMarkers(self):
         """Clear Min/Max temperature and pressure markers."""
@@ -252,11 +252,11 @@ class CompressorServer(DeviceServer):
     def motor_current(self, c):
         """Get the motor current draw."""
         dev = self.selectedDevice(c)
-        if time.time() - dev.cpu_temp_time > CACHE_TIME:
+        if time.time() - dev.motor_current_time > CACHE_TIME:
             ans = yield dev.read('MOTOR_CURR_A')
-            self.motor_current = float(ans) * A
-            self.motor_current_time = time.time()
-        returnValue(float(ans) * A)
+            dev.motor_current = float(ans) * A
+            dev.motor_current_time = time.time()
+        returnValue(dev.motor_current)
     
 
 # compressor control protocol

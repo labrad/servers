@@ -136,7 +136,7 @@ class ADRWrapper(DeviceWrapper):
                             'magCurrent': 0,						# ... current reading
                             'compressorStatus': False,				# will hold status of compressor (pumping or not)
                             'compressorTemperatures': [0*labrad.units.K]*4,
-                            'compressorPressures': [0*labrad.units.Torr]*2,
+                            'compressorPressures': [0*labrad.units.torr]*2,
                             'compressorMotorCurrent': 0*labrad.units.A,
                             'compressorCPUTemperature': 0*labrad.units.K,
                             'missingCriticalPeripheral': True,		# if the lakeshore or magnet goes missing, we need to hold any mag cycles in process
@@ -671,7 +671,7 @@ class ADRWrapper(DeviceWrapper):
         cpMotor = self.state('compressorMotorCurrent')
         # save the data
         dv.add([t, temps[0], temps[1], temps[2], volts[3], ruox[1], ruox[0], V, I, temps[4]] + cpTemps + [cpMotor, cpCPU] + cpPress,
-            , context=self.ctxt)
+            context=self.ctxt)
         # log!
         #self.log("Temperature log recorded: %s" % time.strftime("%Y-%m-%d %H:%M", time.localtime(t)))
         
