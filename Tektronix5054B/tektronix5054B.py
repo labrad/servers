@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Tektronix TDS 5054B-NV Oscilloscope
-version = 1.2
+version = 1.3
 description = Talks to the Tektronix 5054B oscilloscope
 
 [startup]
@@ -442,13 +442,11 @@ def _parseBinaryData(data, wordLength):
     if wordLength == 1:
         dat = numpy.array(unpack(formatChar*(len(dat)/wordLength),dat))
     elif wordLength == 2:
-        header = data[0:6]
-        dat = data[6:]
+        dat = data[(int(data[1])+2):]
         dat = dat[-calcsize('>' + formatChar*(len(dat)/wordLength)):]
         dat = numpy.array(unpack('>' + formatChar*(len(dat)/wordLength),dat))
     elif wordLength == 4:
-        header = data[0:6]
-        dat = data[6:]
+        dat = data[(int(data[1])+2):]
         dat = dat[-calcsize('>' + formatChar*(len(dat)/wordLength)):]
         dat = numpy.array(unpack('>' + formatChar*(len(dat)/wordLength),dat))      
     return dat
