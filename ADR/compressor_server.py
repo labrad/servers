@@ -13,11 +13,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+# version 2.1: added caching of values to reduce amount written/read over serial
+# version 2.2: added allowed temperature and current ranges to throw out bogus data
+
 """
 ### BEGIN NODE INFO
 [info]
 name = CP2800 Compressor
-version = 2.1
+version = 2.2
 description = Compressor for the ADR pulse tube cooler.
 
 [startup]
@@ -36,6 +39,8 @@ from labrad.units import degC, K, psi, torr, min as minutes, A
 import time
 
 CACHE_TIME = 0.8
+ALLOWED_CURRENT_RANGE = [-100, 100]
+ALLOWED_TEMPERATURE_RANGE = [0, 500]
 
 # registry (for info about where to connect)
 # Servers -> CP2800 Compressor
@@ -130,8 +135,10 @@ class CompressorDevice(DeviceWrapper):
     def temperatures(self):
         if time.time() - self._temperatures_time > CACHE_TIME:
             keys = 'TEMP_TNTH_DEG', 'TEMP_TNTH_DEG_MINS', 'TEMP_TNTH_DEG_MAXES'
-            self._temperatures = yield self.readArrays(keys, 4, toTemp)
-            self._temperatures_time = time.time()
+            ts = yield self.readArrays(keys, 4, toTemp)
+            if [t for t in ts if t >= ALLOWED_TEMPERATURE_RANGE[0] and t <= ALLOWED_TEMPERATURE_RANGE[1]]:
+                self._temperatures = ts
+                self._temperatures_time = time.time()
         returnValue(self._temperatures)
 
     @inlineCallbacks
@@ -237,8 +244,10 @@ class CompressorServer(DeviceServer):
         dev = self.selectedDevice(c)
         if time.time() - dev.cpu_temp_time > CACHE_TIME:
             ans = yield dev.read('CPU_TEMP')
-            dev.cpu_temp = toTemp(ans)
-            dev.cpu_temp_time = time.time()
+            t = toTemp(ans)
+            if t >= ALLOWED_TEMPERATURE_RANGE[0] and t <= ALLOWED_TEMPERATURE_RANGE[1]:
+                dev.cpu_temp = toTemp(t)
+                dev.cpu_temp_time = time.time()
         returnValue(dev.cpu_temp)
 
     @setting(2100, 'Elapsed Time', returns='v[min]')
@@ -254,8 +263,10 @@ class CompressorServer(DeviceServer):
         dev = self.selectedDevice(c)
         if time.time() - dev.motor_current_time > CACHE_TIME:
             ans = yield dev.read('MOTOR_CURR_A')
-            dev.motor_current = float(ans) * A
-            dev.motor_current_time = time.time()
+            t = float(ans) * A
+            if t >= ALLOWED_CURRENT_RANGE[0] and t <= ALLOWED_CURRENT_RANGE[1]:
+                dev.motor_current = t
+                dev.motor_current_time = time.time()
         returnValue(dev.motor_current)
     
 
