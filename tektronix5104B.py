@@ -18,7 +18,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Tektronix TDS 5104B Oscilloscope
-version = 0.3
+version = 0.4
 description = Talks to the Tektronix 5104B oscilloscope
 
 [startup]
@@ -525,8 +525,7 @@ def _parseBinaryData(data, wordLength):
     formatChar = formatChars[str(wordLength)]
 
     #Get rid of header crap
-    header = data[0:7]
-    dat = data[7:]
+    dat = data[(int(data[1])+2):]
     #unpack binary data
     if wordLength == 1:
         dat = numpy.array(unpack(formatChar*(len(dat)/wordLength),dat))
