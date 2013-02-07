@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = ADR Server
-version = 0.223
+version = 0.224
 description =
 
 [startup]
@@ -601,6 +601,9 @@ class ADRWrapper(DeviceWrapper):
     # interpreted from "RuOx thermometer.vi" LabView program, such as I can
     # the voltage reading is from lakeshore channel 4 (i.e. index 3)
     def ruoxStatus(self):
+        lsTemps = self.state('temperatures')
+        if lsTemps[1]['K'] > 30:
+            return (lsTemps[1], 0.0 * labrad.units.Ohm)
         lockin = self.state('lockinVoltage')
         if lockin is None:
             calib = self.state('voltToResCalibs')[self.state('switchPosition') - 1]
