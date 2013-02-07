@@ -20,7 +20,7 @@
 ### BEGIN NODE INFO
 [info]
 name = CP2800 Compressor
-version = 2.2
+version = 2.2.1
 description = Compressor for the ADR pulse tube cooler.
 
 [startup]
@@ -136,7 +136,7 @@ class CompressorDevice(DeviceWrapper):
         if time.time() - self._temperatures_time > CACHE_TIME:
             keys = 'TEMP_TNTH_DEG', 'TEMP_TNTH_DEG_MINS', 'TEMP_TNTH_DEG_MAXES'
             ts = yield self.readArrays(keys, 4, toTemp)
-            if [t for t in ts if t >= ALLOWED_TEMPERATURE_RANGE[0] and t <= ALLOWED_TEMPERATURE_RANGE[1]]:
+            if [t for t in ts if t[0]['K'] >= ALLOWED_TEMPERATURE_RANGE[0] and t[0]['K'] <= ALLOWED_TEMPERATURE_RANGE[1]]:
                 self._temperatures = ts
                 self._temperatures_time = time.time()
         returnValue(self._temperatures)
@@ -246,7 +246,7 @@ class CompressorServer(DeviceServer):
             ans = yield dev.read('CPU_TEMP')
             t = toTemp(ans)
             if t >= ALLOWED_TEMPERATURE_RANGE[0] and t <= ALLOWED_TEMPERATURE_RANGE[1]:
-                dev.cpu_temp = toTemp(t)
+                dev.cpu_temp = t
                 dev.cpu_temp_time = time.time()
         returnValue(dev.cpu_temp)
 
