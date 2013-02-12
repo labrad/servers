@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = ADR Server
-version = 0.224
+version = 0.225
 description =
 
 [startup]
@@ -721,6 +721,8 @@ class ADRWrapper(DeviceWrapper):
         determines whether we should start recording.
         """
         temps = self.state('temperatures')
+        if len(self.peripheralsConnected.items()) == 0:
+            return False
         return temps[0] < self.state('recordingTemp') or temps[1] < self.state('recordingTemp')
         
     def shouldStopRecording(self):
