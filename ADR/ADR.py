@@ -723,7 +723,7 @@ class ADRWrapper(DeviceWrapper):
         temps = self.state('temperatures')
         if len(self.peripheralsConnected.items()) == 0:
             return False
-        return temps[0] < self.state('recordingTemp') or temps[1] < self.state('recordingTemp')
+        return temps[0] < self.state('recordingTemp') or temps[1] < self.state('recordingTemp') or self.state('compressorStatus')
         
     def shouldStopRecording(self):
         """
