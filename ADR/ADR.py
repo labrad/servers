@@ -637,46 +637,50 @@ class ADRWrapper(DeviceWrapper):
         dependent variables: 50 K temperature (lakeshore 1), 4 K temperature (lakeshore 2), magnet temp (lakeshore 3),
             ruox voltage (lakeshore 4), ruox temp (converted--keep calibration as well?), and power supply V and I
         """
-        dv = self.cxn.data_vault
-        if not self.state('tempDatasetName'):
-            # we need to create a new dataset
-            dv.cd(self.state('datavaultPath'), context=self.ctxt)
-            indeps = [('time', 's')]
-            deps = [('temperature', 'ch1: 50K', 'K'),
-                    ('temperature', 'ch2: 4K', 'K'),
-                    ('temperature', 'ch3: mag', 'K'),
-                    ('voltage', 'ruox', 'V'),
-                    ('resistance', 'ruox', 'Ohm'),
-                    ('temperature', 'ruox', 'K'),
-                    ('voltage', 'magnet', 'V'),
-                    ('current', 'magnet', 'Amp'),
-                                        ('temperature', 'ch5: aux', 'K'),
-                                        ('temperature', 'CP Water In', 'K'),
-                                        ('temperature', 'CP Water Out', 'K'),
-                                        ('temperature', 'CP Helium', 'K'),
-                                        ('temperature', 'CP Oil', 'K'),
-                                        ('current', 'CP Motor', 'A'),
-                                        ('temperature', 'CP CPU', 'K'),
-                                        ('pressure', 'CP High Side', 'torr'), 
-                                        ('pressure', 'CP Low Side', 'torr')]
-            name = "ADR Log - %s" % time.strftime("%Y-%m-%d %H:%M")
-            dv.new(name, indeps, deps, context=self.ctxt)
-            self.state('tempDatasetName', name)
-        # assemble the info
-        temps = self.state('temperatures')
-        volts = self.state('voltages')
-        ruox = self.ruoxStatus()
-        I, V = (self.state('magCurrent'), self.state('magVoltage'))
-        t = int(time.time())
-        cpTemps = self.state('compressorTemperatures')
-        cpPress = self.state('compressorPressures')
-        cpCPU = self.state('compressorCPUTemperature')
-        cpMotor = self.state('compressorMotorCurrent')
-        # save the data
-        dv.add([t, temps[0], temps[1], temps[2], volts[3], ruox[1], ruox[0], V, I, temps[4]] + cpTemps + [cpMotor, cpCPU] + cpPress,
-            context=self.ctxt)
-        # log!
-        #self.log("Temperature log recorded: %s" % time.strftime("%Y-%m-%d %H:%M", time.localtime(t)))
+        try:
+            dv = self.cxn.data_vault
+            if not self.state('tempDatasetName'):
+                # we need to create a new dataset
+                dv.cd(self.state('datavaultPath'), context=self.ctxt)
+                indeps = [('time', 's')]
+                deps = [('temperature', 'ch1: 50K', 'K'),
+                        ('temperature', 'ch2: 4K', 'K'),
+                        ('temperature', 'ch3: mag', 'K'),
+                        ('voltage', 'ruox', 'V'),
+                        ('resistance', 'ruox', 'Ohm'),
+                        ('temperature', 'ruox', 'K'),
+                        ('voltage', 'magnet', 'V'),
+                        ('current', 'magnet', 'Amp'),
+                                            ('temperature', 'ch5: aux', 'K'),
+                                            ('temperature', 'CP Water In', 'K'),
+                                            ('temperature', 'CP Water Out', 'K'),
+                                            ('temperature', 'CP Helium', 'K'),
+                                            ('temperature', 'CP Oil', 'K'),
+                                            ('current', 'CP Motor', 'A'),
+                                            ('temperature', 'CP CPU', 'K'),
+                                            ('pressure', 'CP High Side', 'torr'), 
+                                            ('pressure', 'CP Low Side', 'torr')]
+                name = "ADR Log - %s" % time.strftime("%Y-%m-%d %H:%M")
+                dv.new(name, indeps, deps, context=self.ctxt)
+                self.state('tempDatasetName', name)
+            # assemble the info
+            temps = self.state('temperatures')
+            volts = self.state('voltages')
+            ruox = self.ruoxStatus()
+            I, V = (self.state('magCurrent'), self.state('magVoltage'))
+            t = int(time.time())
+            cpTemps = self.state('compressorTemperatures')
+            cpPress = self.state('compressorPressures')
+            cpCPU = self.state('compressorCPUTemperature')
+            cpMotor = self.state('compressorMotorCurrent')
+            # save the data
+            dv.add([t, temps[0], temps[1], temps[2], volts[3], ruox[1], ruox[0], V, I, temps[4]] + cpTemps + [cpMotor, cpCPU] + cpPress,
+                context=self.ctxt)
+            # log!
+            #self.log("Temperature log recorded: %s" % time.strftime("%Y-%m-%d %H:%M", time.localtime(t)))
+        except Exception, e:
+            print "Exception in data logging: %s" % e.__str__()
+            self.log("Exception in data logging: %s" % e.__str__())
         
     @inlineCallbacks
     def tempCycle(self):
