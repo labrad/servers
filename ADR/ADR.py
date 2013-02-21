@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = ADR Server
-version = 0.228
+version = 0.229
 description =
 
 [startup]
@@ -946,7 +946,7 @@ class ADRServer(DeviceServer):
                 for dev in devs:
                     node = yield reg.get(dev)
                     node = node[1].split(' ')[0]
-                    if "node_" + node not in self.client.servers:
+                    if "node_" + node.lower() not in self.client.servers:
                         missingNodes.append(node)
                 if not missingNodes:
                     deviceList.append((name,(self.client,)))
