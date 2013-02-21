@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = ADR Server
-version = 0.226
+version = 0.228
 description =
 
 [startup]
@@ -50,8 +50,8 @@ import time, exceptions, labrad.util, labrad.units
 
 #Registry path to ADR configurations
 CONFIG_PATH = ['','Servers','ADR']
-# 9 Amps is the max, ladies and gentlemen
-PS_MAX_CURRENT = 9.0
+# 18 Amps is the max, ladies and gentlemen
+PS_MAX_CURRENT = 18.8
 # if HANDSOFF, don't actually do anything
 HANDSOFF = False
 
@@ -163,7 +163,12 @@ class ADRWrapper(DeviceWrapper):
     def loadDefaultsFromRegistry(self):
         reg = self.cxn.registry
         yield reg.cd(CONFIG_PATH, context=self.ctxt)
-        yield reg.cd("defaults", context=self.ctxt)
+        dirs = yield reg.dir(context=self.ctxt)
+        dirs = dirs[0]
+        if self.name + ' defaults' in dirs:
+            yield reg.cd(self.name + ' defaults', context=self.ctxt)
+        else:
+            yield reg.cd("defaults", context=self.ctxt)
         # look for a specific volt to res calibration
         keys = (yield reg.dir(context=self.ctxt))[1]
         if "volt to res %s" % self.name in keys:
@@ -212,7 +217,7 @@ class ADRWrapper(DeviceWrapper):
         p.open(dsName)
         p.get(-1, True)
         resp = yield p.send()
-        d = resp.get.asarray
+        d = resp.get.asarray[::-1]
         f = IUS(d[:,1], d[:,0], k=3)
         self.state('ruoxInterpolation', f)
         self.state('useRuoxInterpolation', True)
@@ -292,11 +297,18 @@ class ADRWrapper(DeviceWrapper):
                         self.state('compressorMotorCurrent', ans['motor_current'], False)
                     except Exception as e:
                         self.log("Exception in compressor: %s" % e.__str__())
+                else:
+                    self.state('compressorStatus', False, False)
+                    self.state('compressorTemperatures', [0*labrad.units.K]*4, False)
+                    self.state('compressorPressures', [0*labrad.units.torr]*2, False)
+                    self.state('compressorCPUTemperature', 0*labrad.units.K, False)
+                    self.state('compressorMotorCurrent', 0*labrad.units.A, False)
                 if lockinResponse:
                     ans = yield lockinResponse
                     self.state('lockinVoltage', ans['r'], False)
                 else:
                     self.state('lockinVoltage', None, False)
+                    
                 # see how we did
                 haveAllPeriphs = (magnetResponse is not None) and (lakeshoreResponse is not None) #(and compressorResponse is not None)
                 self.state('missingCriticalPeripheral', not haveAllPeriphs, False)
@@ -304,6 +316,7 @@ class ADRWrapper(DeviceWrapper):
                 # check to see if we should start recording temp
                 if (not self.state('recordTemp')) and self.state('autoRecord') and self.shouldStartRecording():
                     self.startRecording()
+
                 # now check through the different statuses
                 if self.currentStatus == 'cooling down':
                     yield util.wakeupCall(self.sleepTime)
@@ -924,8 +937,23 @@ class ADRServer(DeviceServer):
         resp = yield reg.dir()
         ADRNames = resp[0].aslist
         for name in ADRNames:
-            if name != 'defaults':
-                deviceList.append((name,(self.client,)))
+            if 'defaults' not in name:
+                # all required nodes must be present to create this device
+                yield reg.cd(name)
+                devs = yield reg.dir()
+                devs = devs[1].aslist
+                missingNodes = []
+                for dev in devs:
+                    node = yield reg.get(dev)
+                    node = node[1].split(' ')[0]
+                    if "node_" + node not in self.client.servers:
+                        missingNodes.append(node)
+                if not missingNodes:
+                    deviceList.append((name,(self.client,)))
+                else:
+                    print "device %s missing nodes %s" % (name, str(set(missingNodes)))
+                yield reg.cd(1)                
+            
         returnValue(deviceList)
 
 
