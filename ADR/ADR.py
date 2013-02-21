@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = ADR Server
-version = 0.225
+version = 0.226
 description =
 
 [startup]
@@ -141,6 +141,7 @@ class ADRWrapper(DeviceWrapper):
                             'compressorCPUTemperature': 0*labrad.units.K,
                             'missingCriticalPeripheral': True,		# if the lakeshore or magnet goes missing, we need to hold any mag cycles in process
                             'lockinVoltage': None,
+                            'useRuoxInterpolation': False,
                             # not really used, but you could shut it down this way
                             'alive': False,
                         }
@@ -178,6 +179,8 @@ class ADRWrapper(DeviceWrapper):
         p.get("ruox coefs high", key="rch")
         p.get("ruox coefs low", key="rcl")
         p.get(vtrKey, key="vtr")
+        if 'interpolation data' in keys:
+            p.get('interpolation data', key='iData')
         ans = yield p.send()
         self.state('ruoxCoefsHigh', map(lambda x: x.value, ans.rch))
         self.state('ruoxCoefsLow', map(lambda x: x.value, ans.rcl))
@@ -186,6 +189,9 @@ class ADRWrapper(DeviceWrapper):
         self.state('voltToResCalibs', map(lambda x: x.value, ans.vtr))
         self.state('resistanceCutoff', ans.rescut.value)
         self.state('ruoxChannel', ans.ruoxchan - 1)
+        if 'interpolation data' in keys:
+            iPath, iName = ans.iData
+            self.loadInterpolator(iPath, iName)
         # now do the state variables
         yield reg.cd("state variables", context=self.ctxt)
         (dirs, keys) = yield reg.dir(context=self.ctxt)
@@ -194,6 +200,22 @@ class ADRWrapper(DeviceWrapper):
             if isinstance(val, labrad.units.Value):
                 val = val.value
             self.state(key, val)
+    
+    @inlineCallbacks
+    def loadInterpolator(self, dsPath, dsName):
+        ''' Using RvsT data from the data vault, construct an interpolating function.
+        Requires scipy!'''
+        from scipy.interpolate import InterpolatedUnivariateSpline as IUS
+        ctx = self.cxn.data_vault.context()
+        p = self.cxn.data_vault.packet(context=ctx)
+        p.cd(dsPath)
+        p.open(dsName)
+        p.get(-1, True)
+        resp = yield p.send()
+        d = resp.get.asarray
+        f = IUS(d[:,1], d[:,0], k=3)
+        self.state('ruoxInterpolation', f)
+        self.state('useRuoxInterpolation', True)
     
     ##############################
     # STATE MANAGEMENT FUNCTIONS #
@@ -612,7 +634,9 @@ class ADRWrapper(DeviceWrapper):
         else:
             resistance = lockin['V'] / float(self.state('lockinCurrent'))
         temp = 0.0
-        if resistance < self.state('resistanceCutoff'):
+        if self.state('useRuoxInterpolation'):
+            temp = self.state('ruoxInterpolation')(resistance)
+        elif resistance < self.state('resistanceCutoff'):
             # high temp (2 to 20 K)
             temp = self.state('highTempRuoxCurve')(resistance, self.state('ruoxCoefsHigh'))
         else:
