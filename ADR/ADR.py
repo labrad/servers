@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = ADR Server
-version = 0.229
+version = 0.3
 description =
 
 [startup]
@@ -82,6 +82,7 @@ class ADRWrapper(DeviceWrapper):
 
         self.cxn = args[0]
         self.ctxt = self.cxn.context()
+        self._refreshPeripheralLock = False
         # give us a blank log
         self.logData = []
         # initialize the state variables. 
@@ -153,11 +154,30 @@ class ADRWrapper(DeviceWrapper):
         yield self.refreshPeripherals()
         # load our defaults from the registry
         yield self.loadDefaultsFromRegistry()
+        # listeners
+        yield self.registerListeners()
         # go!
         self.log("Initialization completed. Beginning cycle.")
         reactor.callLater(0.1, self.cycle)
         print "cycled"
         self.log('cycled')
+    
+    @inlineCallbacks
+    def registerListeners(self):
+        ''' register message listeners to refresh peripherals on device/server connect/disconnects '''
+        server_connect = lambda c, (s, payload): self.refreshPeripherals()
+        server_disconnect = lambda c, (s, payload): self.refreshPeripherals()
+        device_connect = lambda c, (s, payload): self.refreshPeripherals()
+        device_disconnect = lambda c, (s, payload): self.refreshPeripherals()
+        mgr = self.cxn.manager
+        self.cxn._cxn.addListener(server_connect, source=mgr.ID, ID=10001)
+        self.cxn._cxn.addListener(server_disconnect, source=mgr.ID, ID=10002)
+        self.cxn._cxn.addListener(device_connect, source=mgr.ID, ID=10003)
+        self.cxn._cxn.addListener(device_disconnect, source=mgr.ID, ID=10004)
+        yield mgr.subscribe_to_named_message('Server Connect', 10001, True)
+        yield mgr.subscribe_to_named_message('Server Disconnect', 10002, True)
+        yield mgr.subscribe_to_named_message('GPIB Device Connect', 10003, True)
+        yield mgr.subscribe_to_named_message('GPIB Device Disconnect', 10004, True)
     
     @inlineCallbacks
     def loadDefaultsFromRegistry(self):
@@ -780,40 +800,48 @@ class ADRWrapper(DeviceWrapper):
     #################################
     
     @inlineCallbacks
-    def refreshPeripherals(self):
-        self.allPeripherals = yield self.findPeripherals()
+    def refreshPeripherals(self, refreshGPIB=False):
+        while self._refreshPeripheralLock:
+            yield util.wakeupCall(0.25)
+        self._refreshPeripheralLock = True
+        self.allPeripherals = yield self.findPeripherals(refreshGPIB=refreshGPIB)
         print self.allPeripherals
         self.peripheralOrphans = {}
         self.peripheralsConnected = {}
         for peripheralName, idTuple in self.allPeripherals.items():
             yield self.attemptPeripheral((peripheralName, idTuple))
+        self._refreshPeripheralLock = False
 
     @inlineCallbacks
-    def findPeripherals(self):
+    def findPeripherals(self, refreshGPIB=False):
         """Finds peripheral device definitions for a given ADR (from the registry)
         OUTPUT
             peripheralDict - dictionary {peripheralName:(serverName,identifier)..}
         """
+        
         reg = self.cxn.registry
-        yield reg.cd(CONFIG_PATH + [self.name])
-        dirs, keys = yield reg.dir()
-        p = reg.packet()
+        ctxt = reg.context()
+        yield reg.cd(CONFIG_PATH + [self.name], context=ctxt)
+        dirs, keys = yield reg.dir(context=ctxt)
+        p = reg.packet(context=ctxt)
         for peripheral in keys:
             p.get(peripheral, key=peripheral)
-        ans = yield p.send()
+        ans = yield p.send(context=ctxt)
         peripheralDict = {}
         for peripheral in keys: #all key names in this directory
             peripheralDict[peripheral] = ans[peripheral]
         # pomalley 2013-01-25 -- refresh the GPIB bus when we do this
-        nodeList = [v[1] for v in peripheralDict.itervalues()]
-        deferredList = []
-        for node in set(nodeList):
-            for serverName, server in self.cxn.servers.iteritems():
-                if serverName.lower().startswith(node.lower()) and 'gpib' in serverName.lower():
-                    deferredList.append(server.refresh_devices())
-                    print "refreshing %s" % serverName
-        for d in deferredList:
-            yield d
+        # pomalley 2013-02-21 -- do it conditionally
+        if refreshGPIB:
+            nodeList = [v[1] for v in peripheralDict.itervalues()]
+            deferredList = []
+            for node in set(nodeList):
+                for serverName, server in self.cxn.servers.iteritems():
+                    if serverName.lower().startswith(node.lower()) and 'gpib' in serverName.lower():
+                        deferredList.append(server.refresh_devices())
+                        print "refreshing %s" % serverName
+            for d in deferredList:
+                yield d
         returnValue(peripheralDict)
 
     @inlineCallbacks
@@ -956,6 +984,11 @@ class ADRServer(DeviceServer):
             
         returnValue(deviceList)
 
+    @setting(211, 'refresh gpib')
+    def refresh_gpib(self, c):
+        '''Refreshes all relevant GPIB buses and then looks for peripherals.'''
+        dev = self.selectedDevice(c)
+        yield dev.refreshPeripherals(refreshGPIB=True)
 
     @setting(21, 'refresh peripherals', returns=[''])
     def refresh_peripherals(self,c):
