@@ -95,8 +95,8 @@ void loop(){
 }
 
 void handleCommand() {
-  Serial.print("command: ");
-  Serial.println(currentCommand);
+  //Serial.print("command: ");
+  //Serial.println(currentCommand);
   if (strcmp(currentCommand, "*IDN?") == 0) {
     sendIDN();
   } else if (strcmp(currentCommand, "STATUS?") == 0) {
