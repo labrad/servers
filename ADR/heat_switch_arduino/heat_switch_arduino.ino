@@ -29,7 +29,7 @@ CLOSE!     close the heat switch
 
 */
 
-const unsigned int sketchVersion = 1;
+const unsigned int sketchVersion = 2;
 
 const int openPin = 4;
 const int closePin = 5;
@@ -56,11 +56,13 @@ void setup() {
   // interrupt 0,1 -> pins 2,3 for arduino uno
   attachInterrupt(0, openInterrupt, CHANGE);
   attachInterrupt(1, closeInterrupt, CHANGE);
+  pinMode(2, INPUT_PULLUP);
+  pinMode(3, INPUT_PULLUP);
   pinMode(openPin, OUTPUT);
   pinMode(closePin, OUTPUT);
-  pinMode(touch4K1Kpin, INPUT);
-  pinMode(touch1K50mKpin, INPUT);
-  pinMode(touch4K50mKpin, INPUT);
+  pinMode(touch4K1Kpin, INPUT_PULLUP);
+  pinMode(touch1K50mKpin, INPUT_PULLUP);
+  pinMode(touch4K50mKpin, INPUT_PULLUP);
   resetCommand();
 }
 
@@ -139,24 +141,27 @@ void sendTouch() {
     break;
   }
   if (i == HIGH)
-    Serial.println("1");
-  else if (i == LOW)
     Serial.println("0");
+  else if (i == LOW)
+    Serial.println("1");
   else
     Serial.println("E");
 }
 
 
-// digitalWrite is relatively slow; according to a random website
-// doing a HIGH then LOW will give give a waveform high time of about
-// 3.3 microseconds, which is fine for our purposes.
+// the 1ms delay is to make sure the rising edge triggers the switch
+// this is a n00btastic way of doing it, because delay hangs the arduino
+// we should record the time, and then compare using millis() in the main loop
+// but it's only 1 ms, and it won't mess up serial comms (just delay), so whatever.
 void openSwitch() {
   digitalWrite(openPin, HIGH);
+  delay(1);
   digitalWrite(openPin, LOW);
 }
 
 void closeSwitch() {
   digitalWrite(closePin, HIGH);
+  delay(1);
   digitalWrite(closePin, LOW);
 }
 
