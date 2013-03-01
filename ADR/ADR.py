@@ -665,7 +665,10 @@ class ADRWrapper(DeviceWrapper):
             voltage = self.state('voltages')[self.state('ruoxChannel')].value
             resistance = voltage / (calib)* 10**6 # may or may not need this factor of 10^6
         else:
-            resistance = lockin['V'] / float(self.state('lockinCurrent'))
+            if lockin.units == 'Ohm':
+                resistance = lockin['Ohm']
+            else:
+                resistance = lockin['V'] / float(self.state('lockinCurrent'))
         temp = 0.0
         if self.state('useRuoxInterpolation'):
             temp = self.state('ruoxInterpolation')(resistance)
