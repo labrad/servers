@@ -382,7 +382,7 @@ class LakeshoreRuOxServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         return (dev.getSingleTemp(channel), dev.readings[channel-1][1])
         
-    @setting(111, "r", returns='(v[Ohm])')
+    @setting(111, "r", returns='v[Ohm]')
     def r(self, c):
         ''' return the resistance '''
         r = self.resistances(c)
