@@ -29,7 +29,7 @@ CLOSE!     close the heat switch
 
 */
 
-const unsigned int sketchVersion = 2;
+const unsigned int sketchVersion = 3;
 
 const int openPin = 4;
 const int closePin = 5;
@@ -155,13 +155,13 @@ void sendTouch() {
 // but it's only 1 ms, and it won't mess up serial comms (just delay), so whatever.
 void openSwitch() {
   digitalWrite(openPin, HIGH);
-  delay(1);
+  delay(100);
   digitalWrite(openPin, LOW);
 }
 
 void closeSwitch() {
   digitalWrite(closePin, HIGH);
-  delay(1);
+  delay(100);
   digitalWrite(closePin, LOW);
 }
 
