@@ -143,6 +143,7 @@ class ADRWrapper(DeviceWrapper):
                             'missingCriticalPeripheral': True,		# if the lakeshore or magnet goes missing, we need to hold any mag cycles in process
                             'lockinVoltage': None,
                             'useRuoxInterpolation': False,
+                            'ruoxTempCutoff': 20*labrad.units.K,
                             # not really used, but you could shut it down this way
                             'alive': False,
                         }
@@ -657,7 +658,7 @@ class ADRWrapper(DeviceWrapper):
     # the voltage reading is from lakeshore channel 4 (i.e. index 3)
     def ruoxStatus(self):
         lsTemps = self.state('temperatures')
-        if lsTemps[1]['K'] > 30:
+        if lsTemps[1]['K'] > self.state('ruoxTempCutoff'):
             return (lsTemps[1], 0.0 * labrad.units.Ohm)
         lockin = self.state('lockinVoltage')
         if lockin is None:
