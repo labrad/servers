@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = ADR Server
-version = 0.3
+version = 0.31
 description =
 
 [startup]
@@ -101,6 +101,8 @@ class ADRWrapper(DeviceWrapper):
                             'autoControl': False,		# whether to auto control the heat switch
                             'switchPosition': 2,		# switch position on the lock in amplifier box
                             'lockinCurrent': 1e-9,      # current being put through Ruox (for use with lockin)
+                            'delayHeatSwitchClose': True,   # don't close the heat switch until cold stage temp > 4K stage temp
+                            'heatSwitched': False,      # whether we've closed the heat switch for this mag-up. (internal use only)
                             # PID variables
                             'PIDsetTemp': 0.0 * labrad.units.K,		# setTemp is the temperature goal for PID control
                             'PIDcp': 2.0 * labrad.units.V / labrad.units.K,
@@ -372,6 +374,10 @@ class ADRWrapper(DeviceWrapper):
                     self.clear('scheduledMagDownTime')
                     (quenched, targetReached) = yield self.adrMagStep(True) # True = mag step up
                     self.log("%s mag step! Quenched: %s -- Target Reached: %s" % (self.name, quenched, targetReached))
+                    if (not self.state('heatSwitched')) and self.state('autoControl') and self.state('delayHeatSwitchClose'):
+                        if self.ruoxStatus()[0] >= self.self.state('temperatures')[1]:
+                            self.setHeatSwitch(False)
+                            self.state('heatSwitched', True)
                     if quenched:
                         self.log("QUENCHED!")
                         self.status('cooling down')
@@ -638,8 +644,11 @@ class ADRWrapper(DeviceWrapper):
         elif (newStatus is not None) and not (newStatus == self.currentStatus):
             self.currentStatus = newStatus
             if newStatus == 'magging up':
-                if self.state('autoControl'):
+                if self.state('autoControl') and not self.state('delayHeatSwitchClose'):
+                    self.state('heatSwitched', True)
                     self.setHeatSwitch(False)
+                else:
+                    self.state('heatSwitched', False)
                 self.psOutputOn()
             elif newStatus == 'magging down':
                 if self.state('autoControl'):
