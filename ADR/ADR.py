@@ -375,7 +375,7 @@ class ADRWrapper(DeviceWrapper):
                     (quenched, targetReached) = yield self.adrMagStep(True) # True = mag step up
                     self.log("%s mag step! Quenched: %s -- Target Reached: %s" % (self.name, quenched, targetReached))
                     if (not self.state('heatSwitched')) and self.state('autoControl') and self.state('delayHeatSwitchClose'):
-                        if self.ruoxStatus()[0] >= self.self.state('temperatures')[1]:
+                        if self.ruoxStatus()[0] >= self.state('temperatures')[1]:
                             self.setHeatSwitch(False)
                             self.state('heatSwitched', True)
                     if quenched:
