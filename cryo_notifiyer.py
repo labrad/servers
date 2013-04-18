@@ -35,11 +35,16 @@ from labrad        import util, types as T
 from labrad.server import LabradServer, setting
 from labrad.units  import Unit, mV, ns, deg, MHz, V, GHz, rad, s
 import datetime
-
 from twisted.python import log
 from twisted.internet import defer, reactor
 from twisted.internet.task import LoopingCall
 from twisted.internet.defer import inlineCallbacks, returnValue
+
+def td_to_seconds(td):
+    '''
+    Takes a timedelta object and returns the time interval in seconds
+    '''
+    return td.microseconds*1e-6 + td.seconds + td.days * 24.0 * 3600.0
 
 '''
 Registry keys:
@@ -56,49 +61,28 @@ class CryoNotifier(LabradServer):
     """Mass email when someone forgets to fill cryos"""
     name = 'Cryo Notifier'
     
-    @inlineCallbacks
     def initServer(self):
         # Build list of timers from registry
         # Connect to SMS server
         # Get list of allowed users
+        self.sent_notifications = set()
+        self.cold = False
+
         self.reg = self.client.registry
-        self.sms = self.client.telecomm_server
-        try:
-            nodename = util.getNodeName()
-            path = ['', 'Servers', self.name]
-            # try to load for this node
-            p = self.reg.packet()
-            p.cd(path)
-            p.get("timers", key="timers")
-            p.get("notify_users", key="users")
-            p.get("timers_enabled", key="enabled")
-            ans = yield p.send()
-            self.timers = dict(ans['timers'])
-            self.users = ans['users']
-            self.enabled = ans['enabled']
-        except:
-            print "unable to load setting from registry"
-            raise
+        self.path = ['', 'Servers', self.name]
         self.cb = LoopingCall(self.check_timers)
-        self.cb.start(interval=10.0)
-    @setting(5, returns='*(s,v[s])')
+        self.cb.start(interval=60.0, now=True)
+    @setting(5, returns='*(sv[s])') 
     def query_timers(self, c):
+        '''
+        Returns the list of timers and their time remaining. Expired
+        timers will have a negative time remaining.  If timing is
+        disabled all timers will list zero.
+        '''
         if self.enabled:
-            rv = yield self.read_timers()
+            rv = yield self.update_timers()
         else:
             rv = [(t, 0) for t in self.timers]
-        returnValue(rv)
-    @inlineCallbacks
-    def read_timers(self):
-        rv = []
-        p = self.reg.packet()
-        for timer_name in self.timers:
-            p.get('%s_reset' % timer_name, key=timer_name)
-        ans= yield p.send()
-        for timer_name in self.timers:
-            elapsed = datetime.datetime.now() - ans[timer_name]
-            remaining = self.timers[timer_name] - (elapsed.days*(24*3600)+elapsed.seconds)*s
-            rv.append((timer_name, remaining))
         returnValue(rv)
 
     @setting(10, timer_name='s', returns='v[s]')
@@ -108,21 +92,27 @@ class CryoNotifier(LabradServer):
         else:
             p = self.reg.packet()
             p.set("%s_reset" % timer_name, datetime.datetime.now())
-            p.send()
-            return self.timers[timer_name]
+            yield p.send()
+            returnValue(self.timers[timer_name][0])
 
     @setting(15, username='s', returns='b')
     def validate_user(self, c, username):
-        # Check to see if user is on list of valid users.
-        # If not, but they are known by SMS server, add them
-        # to list of users.
-
-        if self.enabled and (username in self.users):
+        '''
+        Check to see if user is on list of valid users.
+        If not, but they are known by SMS server, add them
+        to list of users.
+        '''
+        if not self.cold: # Allow anyone when fridge is warm
+            return True
+        if self.enabled and (username.lower() in [x.lower() for x in self.users]):
             return True
         else:
             return False
     @setting(20, enable='b')
     def enable_timers(self,c,enable):
+        '''
+        Turn on or off timing.  This should be turned on when the fridge is cold.
+        '''
         p = self.reg.packet()
         p.set("timers_enabled", enable)
         yield p.send()
@@ -130,37 +120,98 @@ class CryoNotifier(LabradServer):
         
     @setting(25, returns='*s')
     def allowed_users(self, c):
-        # Return list of users currently enabled for notification.
-        # Only these uses can use qubit sequencer
+        '''Return list of users currently enabled for notification.
+        Only these users should be able to use qubit sequencer.'''
         return self.users
 
     @inlineCallbacks
+    def update_timers(self):
+        '''
+        Helper function to read timers.
+        '''
+        rv = []
+        p = self.client.lakeshore_diodes.packet()
+        p.select_device()
+        p.temperatures()
+        ans = yield p.send()
+        self.cold = ans['temperatures'][1]['K'] < 10.0
+
+        p = self.reg.packet()
+        p.cd(self.path)
+        p.get('timers', key='timers')
+        p.get('timers_enabled', key='enabled')
+        p.get('notify_users', key='users')
+        p.get('notify_email', False, [], key='email')
+        ans = yield p.send()
+
+        self.users = ans['users']
+        self.email = ans['email']
+        self.enabled = ans['enabled']
+        timer_settings = dict(ans['timers'])
+
+        now = datetime.datetime.now()
+
+        p = self.reg.packet()
+        for timer_name in timer_settings:
+            p.get('%s_reset' % timer_name, True, now, key=timer_name)
+        ans= yield p.send()
+
+        self.timers = {}
+        for timer_name in timer_settings:
+            #print "updating timer %s with value (%s, %s)" % (timer_name, timer_settings[timer_name], ans[timer_name])
+            self.timers[timer_name] = (timer_settings[timer_name].inUnitsOf('s'), ans[timer_name])
+        remaining_time = [ (name, (x[0] - td_to_seconds(now-x[1])*s )) for name, x in self.timers.iteritems() ]
+        #print "remaining time:"
+        #print remaining_time
+        returnValue(remaining_time)
+                           
+    @inlineCallbacks
     def check_timers(self):
+        '''
+        Timed callback to check timers and send notifications.
+        '''
         # Refresh timer list from registry
         # if timer expired, and last notification > 30 min, notify users
         # update last notification
         # email, SMS
-        print "Checking timers"
-        if not self.enabled:
-            print "timers not enabled... skipping"
+        timer_list = yield self.update_timers()
+        #print "Checking timers"
+        if not (self.enabled and self.cold):
+            # print "timers not enabled or cryostat hot... skipping"
             return
-        timer_list = yield self.read_timers()
+
         timer_list = dict(timer_list)
         expire_list = []
         for t in timer_list:
             if timer_list[t] < (0*s):
-                expire_list.append(t)
+                #print "timer %s expired" % t
+                if t not in self.sent_notifications:
+                    self.sent_notifications.add(t)
+                    expire_list.append(t)
+                else:
+                    #print "Notification for %s already sent" % t
+                    pass
+            else:
+                #print "timer %s ok" % t
+                self.sent_notifications.discard(t)
         if expire_list:
             print "The following timers have expired: ", expire_list
-            print "Notifying the following users: "
+            print "Notifying the following users: ", self.users
             for u in self.users:
-                print "        ", u
                 try: # We send each SMS individiually in case one address fails
-                    p = self.sms.packet()
-                    p.send_sms("Cryo Alert", "%s cryos need to be filled." % expire_list, self.users)
-                    #yield p.send() Don't send until this is working!
+                    p = self.client.telecomm_server.packet()
+                    p.send_sms("Cryo Alert", "%s cryos need to be filled." % (expire_list,), self.users)
+                    if False: # Don't send until this is working...
+                        yield p.send() 
                 except:
                     print "Send to user %s failed!"
+            try:
+                p = self.client.telecomm_server.packet()
+                print "sending email notifications to: ", self.email
+                p.send_mail(self.email, "Cryo Alert", "%s cryos need to be filled." % (expire_list,))
+                yield p.send()
+            except:
+                print "Sending email to users %s failed" % self.email
 __server__ = CryoNotifier()
 
 if __name__ == '__main__':
