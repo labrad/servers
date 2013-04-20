@@ -151,6 +151,9 @@
 # dacN: *(s?), [(parameterName,value),(parameterName,value),...] Parameters
 # which are specific to individual boards. This is used for the default FIFO
 # counter, LVDS SD, etc. See examples in dac.py
+
+from __future__ import with_statement
+
 """
 TODO
 cmdTime_cycles does not properly estimate sram length
@@ -176,7 +179,6 @@ timeout = 20
 ### END NODE INFO
 """
 
-from __future__ import with_statement
 import sys
 import os
 import itertools
@@ -674,7 +676,6 @@ class BoardGroup(object):
             t0 = time.clock()
             results = yield readAll # wait for read to complete
             t1 = time.clock()
-            print 'yield readAll: %s' %(t1-t0)
     
             if getTimingData:
                 allDacs = True
@@ -1047,8 +1048,8 @@ class FPGAServer(DeviceServer):
         d['sram'] = data
 
     @setting(21, 'SRAM dual block',
-             block1='*w: SRAM Words for first block',
-             block2='*w: SRAM Words for second block',
+             block0='*w: SRAM Words for first block',
+             block1='*w: SRAM Words for second block',
              delay='w: nanoseconds to delay',
              returns='')
     def dac_sram_dual_block(self, c, block0, block1, delay):
@@ -1250,11 +1251,27 @@ class FPGAServer(DeviceServer):
         average mode return (*i,{I} *i{Q}); and ADC boards in demodulate
         mode also return (*i,{I} *i{Q}) for each channel.
         """
-        # TODO: also handle ADC boards here
+        # determine timing order
+        if getTimingData:
+            if c['timing_order'] is None:
+                if len(c['daisy_chain']):
+                    # changed in this version: require timing order to be specified for multiple boards
+                    raise Exception('You must specify a timing order to get data back from multiple boards')
+                else:
+                    # only running one board, which must be a DAC, so just get timing from it
+                    timingOrder = [d.devName for d in devs]
+            else:
+                timingOrder = c['timing_order']
+        else:
+            timingOrder = []
         
-        # Round stats up to multiple of the timing packet length
-        reps += dac.TIMING_PACKET_LEN - 1
-        reps -= reps % dac.TIMING_PACKET_LEN
+        #Round reps to multiple of 30 if DACs are in timing order
+        for chan in timingOrder:
+            if 'DAC' in chan:
+                # Round stats up to multiple of the timing packet length
+                reps += dac.TIMING_PACKET_LEN - 1
+                reps -= reps % dac.TIMING_PACKET_LEN
+                break
         
         if len(c['daisy_chain']):
             # run multiple boards, with first board as master
@@ -1297,21 +1314,8 @@ class FPGAServer(DeviceServer):
                 runner = AdcRunner(dev, reps, runMode, startDelay, filter, channels)
             else:
                 raise Exception("Unknown device type: %s" % dev) 
-            runners.append(runner)       
+            runners.append(runner)
 
-        # determine timing order
-        if getTimingData:
-            if c['timing_order'] is None:
-                if len(c['daisy_chain']):
-                    # changed in this version: require timing order to be specified for multiple boards
-                    raise Exception('You must specify a timing order to get data back from multiple boards')
-                else:
-                    # only running one board, which must be a DAC, so just get timing from it
-                    timingOrder = [d.devName for d in devs]
-            else:
-                timingOrder = c['timing_order']
-        else:
-            timingOrder = []
 
         # build setup requests
         setupReqs = processSetupPackets(self.client, setupPkts)
@@ -2155,7 +2159,7 @@ def fixSRAMaddresses(mem, sram, device):
             return (opcode << 20) + address
         elif opcode == 0xA:
             # SRAM end address
-            address = device.buildParams['SRAM_BLOCK0_LEN'] + block1Len_words + device.buildParams['SRAM_DELAY_LEN'] * delayBlocks
+            address = device.buildParams['SRAM_BLOCK0_LEN'] + block1Len_words + device.buildParams['SRAM_DELAY_LEN'] * delayBlocks - 1
             return (opcode << 20) + address
         else:
             return cmd
