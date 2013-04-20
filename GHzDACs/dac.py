@@ -191,7 +191,7 @@ def pktWriteSram(device, derp, data):
            populated with zeros.
     """
     assert 0 <= derp < device.buildParams['SRAM_WRITE_DERPS'], "SRAM derp out of range: %d" % derp
-    assert 0< len(data) <= self.buildParams['SRAM_WRITE_PKT_LEN'], "Tried to write %d words to SRAM derp"%len(data)
+    assert 0< len(data) <= device.buildParams['SRAM_WRITE_PKT_LEN'], "Tried to write %d words to SRAM derp"%len(data)
     data = np.asarray(data)
     pkt = np.zeros(1026, dtype='<u1') #data length plus two bytes for write address (derp)
     #DAC firmware assumes SRAM write address lowest 8 bits = 0, so here
