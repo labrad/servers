@@ -57,10 +57,22 @@ Registry keys:
     notify_users = ["user1, "user2"]
     timers_enabled = True
 '''
+@inlineCallbacks
+def start_server(cxn, node_name, server_name):
+    if server_name in cxn.servers:
+        returnValue(True)
+    if node_name in cxn.servers:
+        p = cxn[node_name].packet()
+        p.start(server_name)
+        yield p.send()
+        returnValue(True)
+    raise RuntimeError("Unable to start server %s" % server_name)
+
 class CryoNotifier(LabradServer):
     """Mass email when someone forgets to fill cryos"""
     name = 'Cryo Notifier'
-    
+
+    @inlineCallbacks
     def initServer(self):
         # Build list of timers from registry
         # Connect to SMS server
@@ -70,6 +82,7 @@ class CryoNotifier(LabradServer):
 
         self.reg = self.client.registry
         self.path = ['', 'Servers', self.name]
+        yield start_server(self.client, 'node_vince', 'telecomm_server')
         self.cb = LoopingCall(self.check_timers)
         self.cb.start(interval=60.0, now=True)
     @setting(5, returns='*(sv[s])') 
@@ -203,14 +216,14 @@ class CryoNotifier(LabradServer):
                     p.send_sms("Cryo Alert", "%s cryos need to be filled." % (expire_list,), self.users)
                     if False: # Don't send until this is working...
                         yield p.send() 
-                except:
+                except Exception:
                     print "Send to user %s failed!"
             try:
                 p = self.client.telecomm_server.packet()
                 print "sending email notifications to: ", self.email
                 p.send_mail(self.email, "Cryo Alert", "%s cryos need to be filled." % (expire_list,))
                 yield p.send()
-            except:
+            except Exception:
                 print "Sending email to users %s failed" % self.email
 __server__ = CryoNotifier()
 
