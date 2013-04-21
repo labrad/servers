@@ -30,6 +30,8 @@ timeout = 20
 ### END NODE INFO
 """
 
+
+
 from labrad.types import Value
 from labrad.devices import DeviceServer, DeviceWrapper
 from labrad.server import LabradServer, setting
@@ -79,6 +81,7 @@ class DcRackWrapper(DeviceWrapper):
     def write(self, code, index=0):
         """Write a data value to the dc rack."""
         yield self.packet().write(code).send()
+        print code
 
     @inlineCallbacks
     def InitDACs(self):
@@ -147,12 +150,12 @@ class DcRackWrapper(DeviceWrapper):
                 ((tupleCommand[1] & 7) << 18)| \
                 ((tupleCommand[2] & 1) << 17)| \
                 (tupleCommand[3] & 0xFFFF)
-        l = [(data >> 18) & 0x3f | 0x80,
+        L = [(data >> 18) & 0x3f | 0x80,
              (data >> 12) & 0x3f | 0x80,
              (data >>  6) & 0x3f | 0x80,
               data        & 0x3f | 0x80,
              (ID)]
-        yield self.write(l)
+        yield self.write(L)
         returnValue(data)
         
     @inlineCallbacks
@@ -195,6 +198,7 @@ class DcRackWrapper(DeviceWrapper):
             data = 224 + 4*data[0] + 2*data[1] + 1*data[2]
         else:
             data = 224 + (data & 7)
+        self.write([1L])
         yield self.write([data])
         returnValue(data & 7)
 
@@ -278,6 +282,70 @@ class DcRackWrapper(DeviceWrapper):
             card.D.offset = ans[3][3]
         else:
             print 'card is not a preamp'
+
+        
+    @inlineCallbacks
+    def triggerChannel(self, channel):
+        """Tells selected channel to pull data from registry and update DAC value"""
+        ChannelID = {'A':0, 'B':1, 'C':2, 'D':3}[channel]
+        
+        #Bitwise OR with 11000000
+        yield self.write([192|ChannelID])
+        
+    
+    @inlineCallbacks
+    def pushRegistryValue(self, dac, slow, num):
+        """Pushes 18 bits of data into 18 bit shift register. First bit is fine(0) or coarse(1) DAC, 
+        last bit is fast(0) or slow(1) slew rate, and middle 16 bits are voltage value"""
+        #Conversion of voltage value into 16-bit number, plus bits for DAC selection and slew rate
+        if num > 2.5:
+            num = 2.5
+        elif num < 0 and not dac:
+            num = 0
+        elif num < -2.5:
+            num = -2.5
+        if dac:
+            intNum = long(float(num+2.5)/5.0 * 65535)
+            intNum = (intNum << 1)|1
+            if slow:
+                intNum = intNum|131702
+        else:
+            intNum = long(float(num)/2.5 * 65535)
+            intNum = (intNum << 1)
+            if slow:
+                intNum = intNum|131702
+                
+        #Push bits to proper positions
+        Byte1 = long(intNum)
+        Byte2 = long(intNum>>6)
+        Byte3 = long(intNum>>12)  
+
+        #Write 8 bit sequences
+        yield self.write([128|(Byte3&63)])
+        yield self.write([128|(Byte2&63)])
+        yield self.write([128|(Byte1&63)])
+        
+    @inlineCallbacks
+    def setVoltage(self, card, channel, dac, slow, num):
+        """Executes sequence of commands to set a voltage value"""
+        yield self.selectCard(card)
+        yield self.pushRegistryValue(dac, slow, num)
+        yield self.triggerChannel(channel)
+
+        
+    @inlineCallbacks    
+    def streamChannel(self, channel):
+        """Command to set channel to take streaming data from GHz DAC"""
+        ChannelID = {'A':0, 'B':1, 'C':2, 'D':3}[channel]
+        #Bitwise OR with 11001000
+        long(ChannelID)
+        yield self.write([200|ChannelID])   
+
+    @inlineCallbacks
+    def setChannelStream(self, card, channel):
+        """Executes sequence of commands to set channel to streaming mode"""
+        yield self.selectCard(card)
+        yield self.streamChannel(channel)
         
 
 class DcRackServer(DeviceServer): 
@@ -410,7 +478,20 @@ class DcRackServer(DeviceServer):
         dev = self.selectedDevice(c)
         reg = self.client.registry()
         yield dev.loadFromRegistry(reg)
-
+      
+    @setting(874, 'channel_set_voltage')
+    def channel_set_voltage(self, c, card, channel, dac, slow, value):
+        """Executes sequence of commands to set a voltage value"""
+        dev = self.selectedDevice(c)
+        yield dev.setVoltage(card, channel, dac, slow, value)
+    
+        
+    @setting(875, 'channel_stream')
+    def channel_stream(self, c, card, channel):
+        """Executes sequence of commands to set a channel to streaming mode"""
+        dev = self.selectedDevice(c)
+        yield dev.setChannelStream(card, channel)
+        
 
 class Preamp:
     def __init__(self):
