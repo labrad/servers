@@ -82,7 +82,7 @@ class CryoNotifier(LabradServer):
 
         self.reg = self.client.registry
         self.path = ['', 'Servers', self.name]
-        yield start_server(self.client, 'node_vince', 'telecomm_server')
+        yield start_server(self.client, 'node_vince', 'Telecomm Server')
         self.cb = LoopingCall(self.check_timers)
         self.cb.start(interval=60.0, now=True)
     @setting(5, returns='*(sv[s])') 
