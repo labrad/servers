@@ -192,24 +192,58 @@ class AgilentDSO91304AServer(GPIBManagedServer):
             resp = yield dev.query('CHAN%d:OFFS?' %channel)
         position = float(resp)
         returnValue(position)
+        
+    @setting(118, mode =  ['s','i','b'], returns = ['s'])
+    def averagemode(self, c, mode = None):
+        """Get or set acquisition mode
+        """
+        dev = self.selectedDevice(c)
+        if mode is None:
+            resp = yield dev.query('ACQ:AVER?')
+        else:
+            if mode is not None:
+                if isinstance(mode, str):
+                    mode = {'ON':1,'OFF':0}[mode]
+                elif isinstance(mode, bool):
+                    mode = int(mode)
+                elif isinstance(mode, int):
+                    pass       
+            yield dev.write('ACQ:AVER '+str(mode))
+            resp = yield dev.query('ACQ:AVER?')
+        returnValue(resp) 
+        
+    @setting(119, navg = 'i', returns = ['i'])
+    def numavg(self, c, navg = None):
+        """Get or set number of averages
+        """
+        dev = self.selectedDevice(c)
+        if navg is None:
+            resp = yield dev.query('ACQ:COUN?')
+        else:    
+            yield dev.write('ACQ:COUN %d' %navg)
+            resp = yield dev.query('ACQ:COUN?')
+        navg_out = int(resp)
+        returnValue(navg_out)         
 
     @setting(131, channel = 'i', level = 'v', returns = 'v{level}')
     def trigger_at(self, c, channel, level = None):
-        """Get or set the trigger source and the trigger voltage.
+        """Get or set the trigger source and the trigger voltage for edge mode triggering.
         Channel must be one of 0 (AUX), 1, 2, 3, 4.
         """
         dev = self.selectedDevice(c)
         if channel==0:
             channel = 'AUX'
         elif isinstance(channel, int):
-            channel = 'CHAN%d' %channel
-        if channel not in ['AUX','CHAN1','CHAN2','CHAN3','CHAN4']:
+            #channel = 'CHAN%d' %channel
+            pass
+        if channel not in [0,1,2,3,4]:
             raise Exception('Select valid trigger channel')
         if level is None:
-            resp = yield dev.query('TRIG:LEV? %s' %channel)
+            resp = yield dev.query('TRIG:LEV? CHAN%s' %channel)
         else:
-            yield dev.write('TRIG:LEV %s, %f' %(channel,level))
-            resp = yield dev.query('TRIG:LEV? %s' %channel)
+            yield dev.write('TRIG:EDGE:SOUR CHAN%s' %channel) #set channel up for edge triggering  
+            yield dev.write('TRIG:LEV CHAN%s,%f' %(channel,level)) #set trigger level
+            resp = yield dev.query('TRIG:LEV? CHAN%s' %channel)
         level = float(resp)
         returnValue(level)
 
@@ -313,7 +347,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         """Get a trace from the scope.
         OUTPUT - (array voltage in volts, array time in seconds)
         """
-        raise Exception('Doesnt work yet. Please fix lines defining traceVolts and time.')
+        #raise Exception('Doesnt work yet. Please fix lines defining traceVolts and time.')
 ##        DATA ENCODINGS
 ##        RIB - signed, MSB first
 ##        RPB - unsigned, MSB first
@@ -341,10 +375,10 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         #Parse waveform preamble
         preambleDict = _parsePreamble(preamble)
         print preambleDict
-        voltUnitScaler = Value(1, preambleDict['yUnit'])['mV'] # converts the units out of the scope to mV
+        voltUnitScaler = Value(1, preambleDict['yUnit'])['V'] # converts the units out of the scope to V
         timeUnitScaler = Value(1e9, preambleDict['xUnit'])['ns']
         #Parse binary
-        trace = _parseBinaryData(binary,wordLength = wordLength)
+        trace = _parseBinaryData(binary,wordLength = wordLength) *1.0e3
         #Convert from binary to volts
         traceVolts = ((trace*float(preambleDict['yStep'])+float(preambleDict['yOrigin']))) #* (1/32768.0))# * VERT_DIVISIONS/2 - float(0)) * float(preambleDict['yStep']) * voltUnitScaler
         numPoints = int(preambleDict['numPoints'])
@@ -354,6 +388,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
 
 def _parsePreamble(preamble):
     preambleVals = preamble.split(',')
+    '''
     preambleKeys = [('byteFormat',True),
                     ('dataType',False),
                     ('numPoints',True),
@@ -378,7 +413,31 @@ def _parsePreamble(preamble):
                     ('yUnits',True),
                     ('maxBW',False),
                     ('minBW',False)]
-    
+    '''
+    preambleKeys = [('byteFormat',True),
+                ('dataType',True),
+                ('numPoints',True),
+                ('count',True),
+                ('xStep',True),
+                ('xFirst',True),
+                ('xRef',True),
+                ('yStep',True),
+                ('yOrigin',True),
+                ('yRef',True),
+                ('coupling',True),
+                ('xRange',True),
+                ('xLeftDisplay',True),
+                ('yRange',True),
+                ('yCenterDisplay',True),
+                ('date',True),
+                ('time',True),
+                ('model',True),
+                ('acquisitionMode',True),
+                ('percentTimeBucketsComplete',True),
+                ('xUnits',True),
+                ('yUnits',True),
+                ('maxBW',True),
+                ('minBW',True)]
     preambleDict = {}
     for key,val in zip(preambleKeys,preambleVals):
         if key[1]:
