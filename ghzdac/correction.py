@@ -15,7 +15,9 @@
 
 
 import numpy as np
-
+import matplotlib.pyplot as plt
+from matplotlib.mlab import find
+from scipy.interpolate import interp1d
 
 # CHANGELOG
 #
@@ -26,6 +28,41 @@ import numpy as np
 # self.decayRates is empty, the output will be an empty array and not
 # False, so the section to change self.decayRates is not entered.
 
+# CHANGELOG
+#
+# 2013 April/May - R. Barends
+#
+# Changes in Z board (Single) DAC calibration:
+#
+# Rewrote LoadCal to be more intelligible
+#
+# Introduced cutoff frequency. This is necessary because high frequency signals in the correction window have a bad S/N ratio. 
+# In addition, the way the impulse response is calculated suppresses 1 GHz noise, but amplifies 500 MHz. Default value is to cut off at 450 MHz. Keep it above 350 MHz.
+# Also, these high frequencies tend to give rise to long oscillations in the deconvolved timetrace, messing up dualblock.
+#
+# Truncation of large correction factors in the fourier domain: the correction window can have very large amplitudes (and low S/N), 
+# therefore the time domain signal can have large oscillations which will be truncated digitally, leading to deterioration of the waveform.
+# Now, a maximum value is enforced in the fourier domain. The value is truncated but the phase is kept.
+# This way we still have a partial correction, within the limits of the boards. Doing it this way also ensures that the waveforms are scalable.
+#
+# Cubic interpolation for the fourier transform. It visually reduced the ringing on the scope.
+#
+# The deconv now does NOT shift the timetrace. This arose from the rise being at t=10-20 ns, instead of t=0. 
+# However, this leads to the timetrace running out of its intendend memory block. In addition, the phase varies more slowly, easing interpolation.
+#
+# Fixed logical bug in setSettling
+#
+# Enforces borderValues at first and last 4 points. The deconvolved signal can be nonzero at the start and end of a sequence.
+# This nonzero value persists, even when running the board with an empty envelope. Hence, the Z bias is in a small-valued but arbitrary state after each run. To remove this, the last 4 (FOUR) values are set to 0.0.
+# For dualblock, there is a function 'set_border_values' to set the bordervalues. Be sure to set it for both the first and last block, in fpgaseqtransmon.
+#
+#
+# Changes to IQ board DAC calibration:
+#
+# Enforces zeros at first and last 4 points. The deconvolved signal can be nonzero at the start and end of a sequence.
+# This nonzero value persists, even when running the board with an empty envelope. To remove this, the last 4 (FOUR) values must be set.
+#
+# Removed a tab
 
 def cosinefilter(n, width=0.4):
     """cosinefilter(n,width) cosine lowpass filter
@@ -57,11 +94,46 @@ def gaussfilter(n, width=0.13):
     gauss /= (1.0 - x)
     return gauss
 
+def gaussfiltercutoff(n, width=0.13):
+    """lowpassfilter(n,width) gaussian lowpass filter.
+    n samples from 0 to 1 GHz
+    -3dB frequency at width GHz
+    RB+JK hackified this unit with happiness: a strict cutoff is enforced here for the Z lines. fc=0.25 GHz works best 
+    """
+    nr = n/2 + 1
+    x = 1.0 / width * np.sqrt(np.log(2.0)/2.0)
+    gauss = np.exp(-np.linspace(0, x*nr/n, nr, endpoint=False)**2)
+    x = np.exp(-(0.5*x)**2)
+    gauss -= x
+    gauss /= (1.0 - x)
+    ff = np.linspace(0.0,0.5,nr)
+    #gauss *= (1.0 * (ff<0.5))
+    #gauss = 1.0 * (ff<=0.1) + gauss * (ff>0.1)
+    #gauss = np.linspace(1.0,1.0,nr) #* (ff<0.5)
+    print 'happy'
+    return gauss       
+        
 
+def cutfilter(n, fc=0.8):
+    """cutoff filter.
+    n samples from 0 to 1 GHz
+    """
+    nr = n/2 + 1
+    fil = np.ones(nr)
+    ff = np.linspace(0,1,nr)    
+    fil *= (1.0 * (ff<=fc)) 
+    return fil       
+    
 def flatfilter(n, width=0):
+    nr = n/2 + 1
     return 1.0
+    #return np.ones(nr)
 
-
+def flatfilter2(n, width=0):
+    nr = n/2 + 1
+    #return 1.0
+    return np.ones(nr)
+    
 savedfftlens = np.zeros(8193,dtype=int)
     
 
@@ -91,9 +163,98 @@ def fastfftlen(n):
     else:
         return _fastfftlen(n)
     
+def moving_average(x,m):
+    """Moving average on x, with length m. Expects a numpy array for x. Elements are given by
+    y[i] = Sum_{k=0..m-1}   y[l] / m
+    with l=i-fix(m/2)+k between 0 and length(x)-1. Try to keep m odd. RB."""
+    n=np.alen(x)
+    before=-np.fix(int(m)/2.0)
+    y=[]
+    for i in np.arange(len(x)):
+        a=0.0
+        for tel in np.arange(int(m)):
+            idx=i+before+tel
+            if idx<0:
+                idx=0
+            elif idx>=n:
+                idx=n-1
+            a += x[idx]/np.float(m)
+        y.append(a)
+    return np.array(y)
 
+def derivative(x,y):
+    """Taking derivative, uses both adjacent points for estimate of derivative. Returns array with the same number of points (different than np.diff). RB."""
+    n=np.alen(x)
+    deriv=np.array(np.linspace(0.0,0.0,n),dtype=complex)
+    for k in np.arange(n):
+        if k==0:
+            deriv[k]=1.0*(y[k+1]-y[k])/(x[k+1]-x[k])
+        elif k==(n-1):
+            deriv[k]=1.0*(y[k]-y[k-1])/(x[k]-x[k-1])
+        else:
+            deriv[k]=1.0*(y[k+1]-y[k-1])/(x[k+1]-x[k-1])
+    return deriv
+            
+def interpol1d_cubic_S(h,x2):
+    """Fast cubic interpolator. Returns the values in in the same way interpol. Can deal with complex input.
+    Uses linear interpolation at the edges, and returns the values at the edges outside of the range. RB."""
 
+    n=np.alen(h)
+    x=np.arange(n)
+    def func(xdet):
+        dx=x[1]-x[0]
+        yout=[]
+        xmin=min(x)
+        xmax=max(x)
+        for j in np.arange(np.alen(xdet)):
+            xdetelement=xdet[j]          
+            if xdetelement>=xmax:
+                xdetelement=xmax
+                if dx>0:
+                    idx=np.alen(x)-1
+                else:
+                    idx=0
+                yout.append(h[idx])
+            elif xdetelement<=xmin:
+                xdetelement=xmin
+                if dx>0:
+                    idx=0
+                else:
+                    idx=np.alen(x)-1
+                yout.append(h[idx])
+            else:
+                xstart=x[0]
+                xend=x[-1]
+                idx = int(np.fix((xdetelement - xstart) / dx))
+                #idx=int(np.fix(xdetelement))
+                if idx>=1 and (idx+2)<np.alen(x):
+                    #cubic interpol                
+                    hp2=h[idx+2]
+                    hp1=h[idx+1]
+                    hp0=h[idx]
+                    hm1=h[idx-1]     
+                    d=hp0
+                    c=(hp1-hm1)/2
+                    b=(-hp2+4*hp1-5*hp0+2*hm1)/2
+                    a=(hp2-3*hp1+3*hp0-hm1)/2
+                    xi=(xdetelement-x[idx])/dx
+                    yout.append(a*xi**3 + b*xi**2 + c*xi+d)
+                else:
+                    #linear interpol
+                    if idx==(np.alen(x)-1):
+                        direction=-1
+                    else:
+                        direction=1
+                    x1=x[idx]
+                    x2=x[idx+direction]
+                    h1=h[idx]
+                    h2=h[idx+direction]
+                    yout.append((h2-h1)/(x2-x1)*(xdetelement-x1)+h1)
+        return np.array(yout)
+    return func(x2)
 
+ 
+       
 def interpol(signal, x, extrapolate=False):
     """
     Linear interpolation of array signal at floating point indices x
@@ -105,7 +266,7 @@ def interpol(signal, x, extrapolate=False):
     if n == 1:
         return signal[0]
     i = np.floor(x).astype(int)
-    i = np.clip(i, 0, n-2)
+    i = np.clip(i, 0, n-2) #assumes x is between 0 and n-1
     p = x - i
     if not extrapolate:
         p = np.clip(p,0.0,1.0)
@@ -305,8 +466,7 @@ class IQcorrection:
         #if the carrier frequecy doesn't fall on a frequecy sampling point
         #we lose some precision
         if np.floor(carrierfreqIndex) < np.ceil(carrierfreqIndex):
-            print """Warning: carrier frequency of calibration is not
-a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
+            print """Warning: carrier frequency of calibration is not a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
         carrierfreqIndex = int(np.round(carrierfreqIndex))
 
         #go to frequency space
@@ -649,12 +809,19 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
 
         i = np.round(i * fullscale + zeroI).astype(np.int32)
         q = np.round(q * fullscale + zeroQ).astype(np.int32)
-
+        
+        #due to deconvolution, the signal to put in the dacs can be nonzero at the end of a sequence with even a short pulse. 
+        #This nonzero value persists, even when running the board with an empty envelope. To remove this, the first and last 4 (FOUR) values must be set.
+        i[0:4]=zeroI
+        i[-4:]=zeroI
+        q[0:4]=zeroQ
+        q[-4:]=zeroQ
+        
         if not rescale:
             clippedI = np.clip(i,-0x2000,0x1FFF)
             clippedQ = np.clip(q,-0x2000,0x1FFF)
             if np.any((clippedI != i) | (clippedQ != q)):
-                print 'Corrected IQ signal beyond DAC range, clipping.'
+                print 'Corrected IQ signal beyond DAC range, clipping'
             i = clippedI
             q = clippedQ
             
@@ -666,10 +833,9 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
                 astype(np.uint32)
 
 
-    def recalibrate(self, carrierMin, carrierMax=None, zeroCarrierStep=0.02,
-                sidebandCarrierStep=0.05, sidebandMax=0.35, sidebandStep=0.05):
-	if carrierMax is None:
-            carrierMax = carrierMin
+    def recalibrate(self, carrierMin, carrierMax=None, zeroCarrierStep=0.02,sidebandCarrierStep=0.05, sidebandMax=0.35, sidebandStep=0.05):
+        if carrierMax is None:
+                carrierMax = carrierMin
         if self.recalibrationRoutine is None:
             print 'No calibration routine hooked in.'
             return self
@@ -690,7 +856,7 @@ a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
 class DACcorrection:
 
 
-    def __init__(self, board, channel, lowpass=gaussfilter, bandwidth=0.15):
+    def __init__(self, board, channel, lowpass=gaussfiltercutoff, bandwidth=0.15):
 
         """
         Returns a DACcorrection object for the given DAC board.
@@ -710,6 +876,8 @@ class DACcorrection:
                 
             bandwidth: bandwidth are arguments passed to the lowpass
                 filter function (see above)
+             
+            RB: This filter setting is controlled in the __init__.py, not here
 
         """
 
@@ -725,13 +893,13 @@ class DACcorrection:
 
 
         # Set the Lowpass, i.e. the transfer function we want after correction
-
+        #lowpass=gaussfiltercutoff
         if lowpass == False:
             lowpass = flatfilter
-
+        #lowpass=flatfilter2
         self.lowpass = lowpass
         self.bandwidth = bandwidth
-
+        print lowpass.__name__ , bandwidth
         self.correction = []
 
         self.zero = 0.0
@@ -741,6 +909,7 @@ class DACcorrection:
         self.decayRates = np.array([])
         self.decayAmplitudes = np.array([])
         self.precalc = np.array([])
+
 
 
     def loadCal(self, dataPoints, zero=0.0 , clicsPerVolt=None,
@@ -769,25 +938,58 @@ class DACcorrection:
         """
 
         #read pulse calibration from data server
-
-
         samplingfreq = int(np.round(1.0/(dataPoints[1,0]-dataPoints[0,0])))
-        dataPoints = dataPoints[:,1]
-        #calculate impulse response from step response
-        dataPoints = dataPoints[samplingfreq:]-dataPoints[:-samplingfreq]
-        self.dataPoints = dataPoints
-        #length for fft, long because we want good frequency resolution
-        finalLength = 10240
-        n = finalLength*samplingfreq
-        #go to frequency space
-        dataPoints = np.fft.rfft(dataPoints,n=n)
+        samplingtime = dataPoints[:,0]
+        stepResponse = dataPoints[:,1]
+        
+        #standard way of generating the impulse response function:
+        #apply moving average filter
+        #stepResponse = moving_average(stepResponse,np.round(samplingfreq/2.5)) #The moving average filter by Max is a bit too much, it leads to visible ringing for short (~20 ns) Z pulse
+        #get impulse response from step response
+        #Normally: h(t) = d/dt u(t), and:
+        #impulseResponse = derivative(samplingtime,stepResponse)
+        
+        #however, we have spurious 1 GHz, 2 GHz etc signals. We can suppress that by subtracting one point from the other which is 1 ns away. 
+        #This also averages over a ns. 
+        #If we don't do this, we end up with the amplitude after a Z pulse being dissimilar to the idle amplitude, because of aliasing.
+        #One issue is that this amplifies noise at 500 MHz, therefore we HAVE to cut it off later
+        distance=samplingfreq
+        impulseResponse = stepResponse[distance:]-stepResponse[:-distance]
+        samplingtime = samplingtime[0:np.alen(impulseResponse)-1] #+ distance/2.0/samplingfreq
+        
+        #get time shift from the impulse response
+        idx = impulseResponse.argmax()
+        tshift = samplingtime[idx]
+        
+        self.dataPoints = impulseResponse         #THIS CONTAINS THE TIME DOMAIN SIGNAL
+
+        #compute correction to apply in frequency domain
+        finalLength = 102400 #length for fft, long because we want good frequency resolution
+        n = finalLength*samplingfreq #this is done, so we can later take 0:finalLength/2+1, i.e. 0 to 500 MHz. The progam expects this frequency range, so DON'T change it.
+        
+        #go to frequency space, and calculate the frequency domain correction function ~1/H
+        impulseResponse_FD = np.fft.rfft(impulseResponse,n=n) #THIS CONTAINS THE FREQ DOMAIN SIGNAL    
+        freqs=samplingfreq/2.0*np.arange(np.alen(impulseResponse_FD))/np.alen(impulseResponse_FD)
+        
+        #Normally the deconv corrects for the measured impulse response not appearing at t=0.
+        #This is bad, because A) the phase will depend strongly on frequency, which is harder to interpolate and B) the time domain signal will run out of its memory block.
+        #Here we apply a timeshift tshift, so the deconv won't shift the pulse in time.        
+        impulseResponse_FD *= np.exp(2.0j*np.pi*freqs*tshift)
+        
+        #the correction window ~1/H(f)
+        correction = lowpass(finalLength,bandwidth) * abs(impulseResponse_FD[0]) / impulseResponse_FD[0:finalLength/2+1] #0:finalLength/2+1 = 0 to 500 MHz. The progam expects this frequency range in other functions, so DON'T change it.
+
+        #apply a cut off frequency, necessary to kick out 500 MHz signal which messes up dualblock scans with nonzero Z. Also, the 1 GHz suppression applied above amplifies noise at 500 MHz.
+        freqs=0.5*np.arange(np.alen(correction))/np.alen(correction)
+        fc=0.45 #0.45 is optimal
+        correction = correction * 1.0 * (abs(freqs)<=fc)
+        
+        self.correction += [correction]        
         self.zero = zero
         self.clicsPerVolt = clicsPerVolt
-        self.correction += [lowpass(finalLength,bandwidth) * \
-                            abs(dataPoints[0]) / dataPoints[0:finalLength/2+1]]
         self.precalc = np.array([])
-
-
+     
+        
     def setSettling(self, rates, amplitudes):
         """
         If a calibration can be characterized by time constants, i.e.
@@ -805,14 +1007,14 @@ class DACcorrection:
         s = np.size(rates)
         rates = np.reshape(np.asarray(rates),s)
         amplitudes = np.reshape(np.asarray(amplitudes),s)
-        if not (np.array_equal(self.decayRates,rates) or \
-           np.array_equal(self.decayAmplitudes,amplitudes)):
+        if (not np.array_equal(self.decayRates,rates)) or (not np.array_equal(self.decayAmplitudes,amplitudes)):
+            print 'emptying precalc'
             self.decayRates = rates
             self.decayAmplitudes = amplitudes
             self.precalc = np.array([])
         
 
-    def setFilter(self, lowpass=gaussfilter, bandwidth=0.15):
+    def setFilter(self, lowpass=None, bandwidth=0.15):
         """
         Set the lowpass filter used for deconvolution.
        
@@ -830,6 +1032,9 @@ class DACcorrection:
         bandwidth: bandwidth are arguments passed to the lowpass
             filter function (see above)
         """
+        if lowpass is None:
+            lowpass=self.lowpass
+            
         if (self.lowpass != lowpass) or (self.bandwidth != bandwidth):
             self.lowpass = lowpass
             self.bandwidth = bandwidth
@@ -840,7 +1045,7 @@ class DACcorrection:
         
         
     def DACify(self, signal, loop=False, rescale=False, fitRange=True,
-               zerocor=True, deconv=True, volts=True):
+               zerocor=True, deconv=True, volts=True,borderValues=[0.0,0.0]):
         """
         Computes a SRAM sequence for one DAC channel. If volts is
         True, the input is expected in volts. Otherwise inputs of -1
@@ -905,21 +1110,19 @@ class DACcorrection:
             nfft = n
         else:
             nfft = fastfftlen(n)
-
+            
         nrfft = nfft/2+1
         background = 0.5*(signal[0] + signal[-1])
-        
-        #FT the input
-        signal = np.fft.rfft(signal-background, n=nfft)
-        return self.DACifyFT(signal, t0=0, n=n, nfft=nfft, offset=background,
+        signal_FD = np.fft.rfft(signal-background, n=nfft) #FT the input
+        signal = self.DACifyFT(signal_FD, t0=0, n=n, nfft=nfft, offset=background,
                              loop=loop,
                              rescale=rescale, fitRange=fitRange, deconv=deconv,
-                             zerocor=zerocor, volts=volts)
-        
+                             zerocor=zerocor, volts=volts,borderValues=borderValues)
+        return signal
 
     def DACifyFT(self, signal, t0=0, n=8192, offset=0, nfft=None, loop=False,
                  rescale=False, fitRange=True, deconv=True, zerocor=True,
-                 volts=True):
+                 volts=True,borderValues=[0.0,0.0]):
         """
         Works like DACify but takes the Fourier transform of the
         signal as input instead of the signal. n gives the number of
@@ -970,24 +1173,34 @@ class DACcorrection:
         #do the actual deconvolution and transform back to time space
         if deconv:
             # check if the precalculated correction matches the
-            # length of the data, if not we have to recalculate
+            # length of the data, if not we have to recalculate        
             if np.alen(self.precalc) != nrfft:
                 # lowpass filter
                 precalc = self.lowpass(nfft, self.bandwidth).astype(complex)
+
                 freqs = np.linspace(0, nrfft * 1.0 / nfft,
                                            nrfft, endpoint=False)
                 # pulse correction
                 for correction in self.correction:
                     l = np.alen(correction)
-                    precalc *= interpol(correction, freqs*2.0*(l-1),
-                                        extrapolate=True)
-                # decay times
+                    precalc *= interpol(correction, freqs*2.0*(l-1),extrapolate=True) #orig
+                    #precalc *= interpol1d_cubic_S(correction, freqs*2.0*(l-1))
+                #decay times:
+                # add to qubit registry the following keys:
+                # settlingAmplitudes=[-0.05]  #relative amplitude
+                # settlingRates = [0.012]    #rate is in GHz, (1/ns)
                 if np.alen(self.decayRates):
                     freqs = 2j*np.pi*freqs
-                    precalc /= (1.0 +
-                        np.sum(self.decayAmplitudes[:,None] *
-                       freqs[None,:] /
-                       (freqs[None,:] + self.decayRates[:,None]), axis=0))
+                    precalc /= (1.0 + np.sum(self.decayAmplitudes[:,None] * freqs[None,:] / (freqs[None,:] + self.decayRates[:,None]), axis=0))
+                
+                
+                #the correction window can have very large amplitudes, therefore the time domain signal can have large oscillations which will be truncated digitally, 
+                #leading to deterioration of the waveform. The large amplitudes in the correction window have low S/N ratios.
+                #Here, we apply a maximum value, i.e. truncate the value, but keep the phase. This way we still have a partial correction, within the limits of the boards. 
+                #Doing it this way also helps a lot with the waveforms being scalable.
+                maxvalue=5.0 #3-5
+                precalc = precalc * (1.0 * (abs(precalc)<=maxvalue))   +  np.exp(1j*np.angle(precalc))*maxvalue * 1.0 * (abs(precalc)>maxvalue)           
+                
                 self.precalc = precalc
             signal *= self.precalc
         else:
@@ -996,8 +1209,15 @@ class DACcorrection:
         # transform to real space
         signal = np.fft.irfft(signal, n=nfft)
         signal = signal[0:n]
-
+        
+        #due to deconvolution, the signal to put in the dacs can be nonzero at the end of a sequence with even a short pulse. 
+        #This nonzero value persists, even when running the board with an empty envelope. To remove this, the first and last 4 (FOUR) values must be set.
+        if borderValues is not None:
+            signal[0:4]=borderValues[0]
+            signal[-4:]=borderValues[1]
+        
         if rescale:
+            print 'rescale in single DAC deconv'
             rescale = np.min([1.0,
                            ( 0x1FFF - zero) / fullscale / np.max(signal),
                            (-0x2000 - zero) / fullscale / np.min(signal)])
@@ -1011,14 +1231,15 @@ class DACcorrection:
                 self.min_rescale_factor = rescale
             fullscale *= rescale
 
-        signal = np.round(signal * fullscale + zero).astype(np.int32)
+        signal = np.round(1.0*signal * fullscale + zero).astype(np.int32)
+            
         if not fitRange:
-            return signal
+            return signal  #this returns the signal between -8192 .. + 8191
         if not rescale:
             if (np.max(signal) > 0x1FFF) or (np.min(signal) < -0x2000):
-                print 'Corrected signal beyond DAC range, clipping.'
+                print 'Corrected Z signal beyond DAC range, clipping'
                 signal = np.clip(signal,-0x2000,0x1FFF)
-        return (signal & 0x3FFF).astype(np.uint32)
+        return (signal & 0x3FFF).astype(np.uint32) #this returns the signal between 0 .. 16383.  -1 = 16382. It will lead to errors visible in fpgatest
 
 
 
