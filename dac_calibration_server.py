@@ -36,6 +36,16 @@ timeout = 5
 # 2012 April 12 - Jim Wenner
 #
 # See correction.py - changed logic string in setSettling.
+#
+#
+# 2013 April/May R. Barends
+#
+# added support for setting the border values:
+# The deconvolved signal can be nonzero at the start and end of a sequence.
+# This nonzero value persists, even when running the board with an empty envelope. To remove this, the last 4 (FOUR) values must be set.
+#
+# added support for disabling deconvolution on all IQ boards and/or all Z boards
+
 
 from twisted.internet.defer import inlineCallbacks, returnValue
 
@@ -45,6 +55,8 @@ from labrad.server import LabradServer, setting
 from ghzdac import IQcorrectorAsync, DACcorrectorAsync
 from ghzdac.correction import fastfftlen
 
+globdeconvIQ=True
+globdeconvZ=True
 
 class CalibrationNotFoundError(Error):
     code = 1
@@ -80,6 +92,9 @@ class CalibrationServer(LabradServer):
         c['t0'] = 0
         c['Settling'] = ([],[])
         c['Filter'] = 0.2
+        c['deconvIQ']=globdeconvIQ
+        c['deconvZ']=globdeconvZ
+        c['borderValues']=[0.0,0.0]
 
     @inlineCallbacks
     def getIQcalset(self, c):
@@ -119,6 +134,12 @@ class CalibrationServer(LabradServer):
         c['Board'] = board
         return board
 
+    @setting(2, 'borderValues', borderValues= ['*v'], returns=['*v'])
+    def set_border_values(self,c,borderValues):
+        """Sets the end value to be enforced on the deconvolved output. By default it is zero, for single block. For dual block this must be set"""
+        c['borderValues']=borderValues.asarray
+        return c['borderValues']
+        
     @setting(10, 'Frequency', frequency=['v[GHz]'], returns=['v[GHz]'])
     def frequency(self, c, frequency):
         """Sets the microwave driving frequency for which to correct the data.
@@ -138,6 +159,24 @@ class CalibrationServer(LabradServer):
     def set_time_offset(self, c, t0):
         c['t0'] = float(t0)
         return t0
+    
+    @setting(13, 'deconvIQ', deconvIQ=['b'], returns=['b'])
+    def set_deconvIQ(self, c, deconvIQ):
+        c['deconvIQ'] = deconvIQ
+        return deconvIQ    
+    
+    @setting(14, 'deconvZ', deconvZ=['b'], returns=['b'])
+    def set_deconvZ(self, c, deconvZ):
+        c['deconvZ'] = deconvZ
+        return deconvZ
+
+    @setting(15, 'getdeconvIQ', returns=['b'])
+    def get_deconvIQ(self, c):
+        return c['deconvIQ'] 
+        
+    @setting(16, 'getdeconvZ', returns=['b'])
+    def get_deconvZ(self, c):
+        return c['deconvZ']    
     
     @setting(20, 'DAC', dac=['w: DAC channel 0 or 1', 's: DAC channel'], returns=['w'])
     def dac(self, c, dac):
@@ -178,11 +217,17 @@ class CalibrationServer(LabradServer):
             if len(data.shape) == 2:
                 data = data[:,0] + 1j * data[:,1]
             calset = yield self.getIQcalset(c)
-            corrected = calset.DACify(c['Frequency'], data, loop=c['Loop'], zipSRAM=False)
+            deconv=c['deconvIQ']
+            corrected = calset.DACify(c['Frequency'], data, loop=c['Loop'], zipSRAM=False,deconv=deconv)
+            if deconv is False:
+                print 'No deconv on board ' + c['Board'] 
         else:
             # Single Channel Calibration
             calset = yield self.getDACcalset(c)
-            corrected = calset.DACify(data, loop=c['Loop'], fitRange=False)
+            deconv=c['deconvZ']
+            corrected = calset.DACify(data, loop=c['Loop'], fitRange=False,deconv=deconv,borderValues=c['borderValues'])
+            if deconv is False:
+                print 'No deconv on board ' + c['Board']          
         returnValue(corrected)
     
     @setting(31, 'Correct FT', data=['*v: Single channel data', '*(v, v): I/Q data', '*c: I/Q data'],
@@ -205,15 +250,21 @@ class CalibrationServer(LabradServer):
             if len(data.shape) == 2:
                 data = data[:,0] + 1.0j * data[:,1]
             calset = yield self.getIQcalset(c)
+            deconv=c['deconvIQ']            
             corrected = calset.DACifyFT(c['Frequency'], data, n=len(data),
-                                        t0=c['t0'], loop=c['Loop'], zipSRAM=False)
+                                        t0=c['t0'], loop=c['Loop'], zipSRAM=False,deconv=deconv)
+            if deconv is False:
+                print 'No deconv on board ' + c['Board']                                         
         else:
             # Single Channel Calibration
             calset = yield self.getDACcalset(c)
             calset.setSettling(*c['Settling'])
             calset.setFilter(bandwidth=c['Filter'])
+            deconv=c['deconvZ']            
             corrected = calset.DACifyFT(data, n=(len(data)-1)*2,
-                                        t0=c['t0'], loop=c['Loop'], fitRange=False)
+                                        t0=c['t0'], loop=c['Loop'], fitRange=False,deconv=deconv,borderValues=c['borderValues'])
+            if deconv is False:
+                print 'No deconv on board ' + c['Board']                                          
         returnValue(corrected)
     
     @setting(40, 'Set Settling', rates=['*v[GHz]: settling rates'], amplitudes=['*v: settling amplitudes'])
