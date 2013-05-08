@@ -93,46 +93,13 @@ def gaussfilter(n, width=0.13):
     gauss -= x
     gauss /= (1.0 - x)
     return gauss
-
-def gaussfiltercutoff(n, width=0.13):
-    """lowpassfilter(n,width) gaussian lowpass filter.
-    n samples from 0 to 1 GHz
-    -3dB frequency at width GHz
-    RB+JK hackified this unit with happiness: a strict cutoff is enforced here for the Z lines. fc=0.25 GHz works best 
-    """
-    nr = n/2 + 1
-    x = 1.0 / width * np.sqrt(np.log(2.0)/2.0)
-    gauss = np.exp(-np.linspace(0, x*nr/n, nr, endpoint=False)**2)
-    x = np.exp(-(0.5*x)**2)
-    gauss -= x
-    gauss /= (1.0 - x)
-    ff = np.linspace(0.0,0.5,nr)
-    #gauss *= (1.0 * (ff<0.5))
-    #gauss = 1.0 * (ff<=0.1) + gauss * (ff>0.1)
-    #gauss = np.linspace(1.0,1.0,nr) #* (ff<0.5)
-    print 'happy'
-    return gauss       
-        
-
-def cutfilter(n, fc=0.8):
-    """cutoff filter.
-    n samples from 0 to 1 GHz
-    """
-    nr = n/2 + 1
-    fil = np.ones(nr)
-    ff = np.linspace(0,1,nr)    
-    fil *= (1.0 * (ff<=fc)) 
-    return fil       
+    
     
 def flatfilter(n, width=0):
     nr = n/2 + 1
     return 1.0
     #return np.ones(nr)
 
-def flatfilter2(n, width=0):
-    nr = n/2 + 1
-    #return 1.0
-    return np.ones(nr)
     
 savedfftlens = np.zeros(8193,dtype=int)
     
@@ -856,7 +823,7 @@ class IQcorrection:
 class DACcorrection:
 
 
-    def __init__(self, board, channel, lowpass=gaussfiltercutoff, bandwidth=0.15):
+    def __init__(self, board, channel, lowpass=gaussfilter, bandwidth=0.15):
 
         """
         Returns a DACcorrection object for the given DAC board.
@@ -891,12 +858,9 @@ class DACcorrection:
         #Use this to see the smallest rescale factor DACify had to use
         self.min_rescale_factor = 1.0
 
-
         # Set the Lowpass, i.e. the transfer function we want after correction
-        #lowpass=gaussfiltercutoff
         if lowpass == False:
             lowpass = flatfilter
-        #lowpass=flatfilter2
         self.lowpass = lowpass
         self.bandwidth = bandwidth
         print lowpass.__name__ , bandwidth
@@ -1183,8 +1147,9 @@ class DACcorrection:
                 # pulse correction
                 for correction in self.correction:
                     l = np.alen(correction)
-                    precalc *= interpol(correction, freqs*2.0*(l-1),extrapolate=True) #orig
-                    #precalc *= interpol1d_cubic_S(correction, freqs*2.0*(l-1))
+                    precalc *= interpol(correction, freqs*2.0*(l-1),extrapolate=True) #orig. Fast
+                    #precalc *= interpol1d_cubic_S(correction, freqs*2.0*(l-1)) #cubic, slow
+                    
                 #decay times:
                 # add to qubit registry the following keys:
                 # settlingAmplitudes=[-0.05]  #relative amplitude
