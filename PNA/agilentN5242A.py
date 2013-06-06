@@ -79,7 +79,7 @@ def _parName(meas):
 
 class AgilentPNAServer(GPIBManagedServer):
     name = 'PNA_X'
-    deviceName = ['Agilent Technologies N5242A','Agilent Technologies N5230A']
+    deviceName = ['Agilent Technologies N5242A','Agilent Technologies N5230A','Agilent Technologies E8364B']
     deviceWrapper = PNAWrapper
 
     def initContext(self, c):
@@ -209,6 +209,18 @@ class AgilentPNAServer(GPIBManagedServer):
         elif isinstance(corr, T.Value):
             yield dev.write('CALC:CORR:EDEL:TIME %fNS' % corr)
         returnValue(corr)
+        
+    @setting(225, bw = ['w'], returns = ['s'])
+    def reset_measure(self, c, bw=None):
+        """Resets the PNA to trigger continuously with the power on."""
+        dev = self.selectedDevice(c)
+        if bw == None:
+            yield dev.write('SENS:BAND 1000')
+        else:
+            yield dev.write('SENS:BAND %f' % bw)
+        yield dev.write('OUTP 1')
+        yield dev.write('INIT:CONT ON')
+        returnValue('done')
     
     @setting(129, offs='w', returns='w')
     def phase_offset(self, c, offs = None):
