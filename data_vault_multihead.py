@@ -43,6 +43,26 @@ from twisted.internet.reactor import callLater
 from twisted.internet.defer import inlineCallbacks
 
 from ConfigParser import SafeConfigParser
+
+# ConfigParser is retarded and doesn't let you choose your newline separator,
+# so we overload it to make data vault files consistent across OSes.
+# In particular, Windows expects \r\n whereas Linux uses \n
+class DVSafeConfigParser(SafeConfigParser):
+    def write(self, fp, newline='\r\n'):
+        """Write an .ini-format representation of the configuration state."""
+        if self._defaults:
+            fp.write("[%s]" % DEFAULTSECT + newline)
+            for (key, value) in self._defaults.items():
+                fp.write(("%s = %s" + newline) % (key, str(value).replace('\n', '\n\t')))
+            fp.write(newline)
+        for section in self._sections:
+            fp.write("[%s]" % section + newline)
+            for (key, value) in self._sections[section].items():
+                if key != "__name__":
+                    fp.write(("%s = %s" + newline) %
+                             (key, str(value).replace('\n', '\n\t')))
+            fp.write(newline)
+
 import os, re
 import time
 from datetime import datetime
@@ -242,7 +262,7 @@ class Session(object):
         if os.path.exists(self.infofile):
             self.load()
         else:
-            self.counter = 1
+            self.counter = 0
             self.created = self.modified = datetime.now()
             self.session_tags = {}
             self.dataset_tags = {}
@@ -252,7 +272,7 @@ class Session(object):
             
     def load(self):
         """Load info from the session.ini file."""
-        S = SafeConfigParser()
+        S = DVSafeConfigParser()
         S.read(self.infofile)
 
         sec = 'File System'
@@ -273,7 +293,7 @@ class Session(object):
 
     def save(self):
         """Save info to the session.ini file."""
-        S = SafeConfigParser()
+        S = DVSafeConfigParser()
 
         sec = 'File System'
         S.add_section(sec)
@@ -301,6 +321,7 @@ class Session(object):
     def listContents(self, tagFilters):
         """Get a list of directory names in this directory."""
         files = os.listdir(self.dir)
+        files.sort()
         dirs = [dsDecode(s[:-4]) for s in files if s.endswith('.dir')]
         datasets = [dsDecode(s[:-4]) for s in files if s.endswith('.csv')]
         # apply tag filters
@@ -328,6 +349,7 @@ class Session(object):
     def listDatasets(self):
         """Get a list of dataset names in this directory."""
         files = os.listdir(self.dir)
+        files.sort()
         return [dsDecode(s[:-4]) for s in files if s.endswith('.csv')]
     
     def newDataset(self, title, independents, dependents):
@@ -446,7 +468,7 @@ class Dataset:
             self.access()
 
     def load(self):
-        S = SafeConfigParser()
+        S = DVSafeConfigParser()
         S.read(self.infofile)
 
         gen = 'General'
@@ -493,7 +515,7 @@ class Dataset:
             self.comments = []
         
     def save(self):
-        S = SafeConfigParser()
+        S = DVSafeConfigParser()
         
         sec = 'General'
         S.add_section(sec)
@@ -590,7 +612,8 @@ class Dataset:
     def _saveData(self, data):
         f = self.file
         for row in data:
-            f.write(', '.join(DATA_FORMAT % v for v in row) + '\n')
+            # always save with dos linebreaks
+            f.write(', '.join(DATA_FORMAT % v for v in row) + '\r\n')
         f.flush()
     
     def addIndependent(self, label):
@@ -742,7 +765,8 @@ class NumpyDataset(Dataset):
     
     def _saveData(self, data):
         f = self.file
-        np.savetxt(f, data, fmt=DATA_FORMAT, delimiter=',')
+	# always save with dos linebreaks (requires numpy 1.5.0 or greater)
+        np.savetxt(f, data, fmt=DATA_FORMAT, delimiter=',', newline='\r\n')
         f.flush()
     
     def _dataTimeout(self):
@@ -1036,12 +1060,6 @@ class DataVault(LabradServer):
         dataset = self.getDataset(c)
         dataset.addParameter(name, data)
 
-    @setting(124, 'add parameters', params='?{((s?)(s?)...)}', returns='')
-    def add_parameters(self, c, params):
-        """Add a new parameter to the current dataset."""
-        dataset = self.getDataset(c)
-        dataset.addParameters(params)
-        
     @setting(122, 'get parameter', name='s')
     def get_parameter(self, c, name, case_sensitive=True):
         """Get the value of a parameter."""
@@ -1063,6 +1081,11 @@ class DataVault(LabradServer):
         if len(params):
             return params
 
+    @setting(124, 'add parameters', params='?{((s?)(s?)...)}', returns='')
+    def add_parameters(self, c, params):
+        """Add a new parameter to the current dataset."""
+        dataset = self.getDataset(c)
+        dataset.addParameters(params)
 
     @inlineCallbacks
     def read_pars_int(self, c, ctx, dataset, curdirs, subdirs=None):
@@ -1123,7 +1146,13 @@ class DataVault(LabradServer):
             subdirs = -1
         yield self.read_pars_int(c, ctx, dataset, curdirs, subdirs)
         dataset.save() # make sure the new parameters get saved
-        
+ 
+    @setting(126, 'get name', returns='s')
+    def get_name(self, c):
+        """Get the name of the current dataset."""
+        dataset = self.getDataset(c)
+        name = dataset.name
+        return name
 
     @setting(200, 'add comment', comment='s', user='s', returns='')
     def add_comment(self, c, comment, user='anonymous'):
@@ -1313,7 +1342,9 @@ def main():
             host, sep, port = hostport.partition(':')
             if sep == '':
                 port = 0
-            managers.append(host, port, password)
+            else:
+                port = int(port)
+            managers.append((host, port, password))
     
     global DATADIR
     DATADIR = path
