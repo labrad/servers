@@ -155,7 +155,7 @@ def regRun(reps, page, slave, delay, blockDelay=None, sync=249):
     if blockDelay is not None:
         regs[19] = blockDelay # for boards running multi-block sequences
     regs[43] = int(slave)
-    regs[44],regs[51] = littleEndian(int(delay),2) #this is weird because we added the high byte for start delay after the rest of the registers had been defined.
+    regs[44],regs[51] = littleEndian(int(delay),2) #this looks weird because we added the high byte for start delay after the rest of the registers had been defined.
     regs[45] = sync
     return regs
 
