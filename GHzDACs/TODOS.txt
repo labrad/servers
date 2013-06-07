@@ -1,4 +1,4 @@
-Immediate:
+Immediate (yeah right):
 
 - Check SRAM start and end addresses via printout while running synchronized. Only two numbers should show up, one for each page
 - Find out how long the dual block delay is by putting triggers just before and after
@@ -25,3 +25,6 @@ Difficult but would be really nice:
 
 finally:
 - rewrite ghz_fpga_server in java.  Don't attempt this until we have a comprehensive and automatic test suite so we can maintain compatibility
+
+Notes:
+- dac regRun ALWAYS sets streaming mode on. This should only be the case if the board is actually in the timing order. However, having the streamer enabled doesn't actually mess anything up if you never run the timer clocks so there's no real need to modify this.
