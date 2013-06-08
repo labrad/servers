@@ -1079,8 +1079,6 @@ class DataVault(LabradServer):
         of the dataset.  By default, only new data that has not been seen
         in this context is returned.
         """
-        if limit is None:
-            raise Exception('
         dataset = self.getDataset(c)
         c['filepos'] = 0 if startOver else c['filepos']
         data, c['filepos'] = dataset.getData(limit, c['filepos'])
