@@ -47,6 +47,27 @@ from ConfigParser import SafeConfigParser
 # ConfigParser is retarded and doesn't let you choose your newline separator,
 # so we overload it to make data vault files consistent across OSes.
 # In particular, Windows expects \r\n whereas Linux uses \n
+class ExtendedContext(object):
+    '''
+    This is an extended context that contains server 
+    '''
+    def __init__(self, server, ctx):
+        self.__server = server
+        self.__ctx = ctx
+    @property
+    def server(self):
+        return self.__server
+    @property
+    def context(self):
+        return self.__ctx
+
+    def __eq__(self, other):
+        return (self.context == other.context) and (self.server == other.server)
+    def __ne__(self, other):
+        return not (self == other)
+    def __hash__(self):
+        return hash(self.context) ^ hash(self.server.host) ^ self.server.port
+
 class DVSafeConfigParser(SafeConfigParser):
     def write(self, fp, newline='\r\n'):
         """Write an .ini-format representation of the configuration state."""
@@ -443,7 +464,7 @@ class Session(object):
         dataTags = [(d, sorted(self.dataset_tags.get(d, []))) for d in datasets]
         return sessTags, dataTags
 
-class Dataset:
+class Dataset(object):
     def __init__(self, session, name, title=None, num=None, create=False):
         self.hub = session.hub
         self.name = name
@@ -698,7 +719,7 @@ class Dataset:
         if pos < len(self.data):
             if context in self.listeners:
                 self.listeners.remove(context)
-            self.hub.onDataAvailable(None, context)
+            self.hub.onDataAvailable(None, [context])
         else:
             self.listeners.add(context)
             
@@ -721,7 +742,7 @@ class Dataset:
         if pos < len(self.comments):
             if context in self.comment_listeners:
                 self.comment_listeners.remove(context)
-            self.hub.onCommentsAvailable(None, context)
+            self.hub.onCommentsAvailable(None, [context])
         else:
             self.comment_listeners.add(context)
         
@@ -818,7 +839,7 @@ class NumpyDataset(Dataset):
         if more:
             if context in self.listeners:
                 self.listeners.remove(context)
-            self.hub.onDataAvailable(None, context)
+            self.hub.onDataAvailable(None, [context])
         else:
             self.listeners.add(context)
         
@@ -836,6 +857,14 @@ class DataVault(LabradServer):
         self.password = password
         self.hub = hub
         self.path = path
+        self.onNewDir = Signal(543617, 'signal: new dir', 's')
+        self.onNewDataset = Signal(543618, 'signal: new dataset', 's')
+        self.onTagsUpdated = Signal(543622, 'signal: tags updated', '*(s*s)*(s*s)')
+
+    # dataset signals
+        self.onDataAvailable = Signal(543619, 'signal: data available', '')
+        self.onNewParameter = Signal(543620, 'signal: new parameter', '')
+        self.onCommentsAvailable = Signal(543621, 'signal: comments available', '')
     
     def initServer(self):
         # let the DataVaultHost know that we connected
@@ -848,13 +877,15 @@ class DataVault(LabradServer):
         c['path'] = ['']
         # start listening to the root session
         c['session'] = Session([''], self.hub)
-        c['session'].listeners.add(c.ID)
+        c['session'].listeners.add(ExtendedContext(self, c.ID))
+        #print "Adding %s to listeners for %s" % (c.ID, [''])
         
     def expireContext(self, c):
         """Stop sending any signals to this context."""
+        ctx = ExtendedContext(self, c.ID)
         def removeFromList(ls):
-            if c.ID in ls:
-                ls.remove(c.ID)
+            if ctx in ls:
+                ls.remove(ctx)
         for session in Session.getAll():
             removeFromList(session.listeners)
             for dataset in session.datasets.values():
@@ -876,14 +907,14 @@ class DataVault(LabradServer):
         #return session.datasets[c['dataset']]
 
     # session signals
-    onNewDir = Signal(543617, 'signal: new dir', 's')
-    onNewDataset = Signal(543618, 'signal: new dataset', 's')
-    onTagsUpdated = Signal(543622, 'signal: tags updated', '*(s*s)*(s*s)')
+    #onNewDir = Signal(543617, 'signal: new dir', 's')
+    #onNewDataset = Signal(543618, 'signal: new dataset', 's')
+    #onTagsUpdated = Signal(543622, 'signal: tags updated', '*(s*s)*(s*s)')
 
     # dataset signals
-    onDataAvailable = Signal(543619, 'signal: data available', '')
-    onNewParameter = Signal(543620, 'signal: new parameter', '')
-    onCommentsAvailable = Signal(543621, 'signal: comments available', '')
+    #onDataAvailable = Signal(543619, 'signal: data available', '')
+    #onNewParameter = Signal(543620, 'signal: new parameter', '')
+    #onCommentsAvailable = Signal(543621, 'signal: comments available', '')
     
     @setting(6, tagFilters=['s', '*s'], includeTags='b',
                 returns=['*s{subdirs}, *s{datasets}',
@@ -915,7 +946,7 @@ class DataVault(LabradServer):
         """
         if path is None:
             return c['path']
-        
+        #print "cd to path %s for %s %s" % (path, type(c), c.__dict__)
         temp = c['path'][:] # copy the current path
         if isinstance(path, (int, long)):
             if path > 0:
@@ -935,9 +966,12 @@ class DataVault(LabradServer):
                 session = Session(temp, self.hub) # touch the session
         if c['path'] != temp:
             # stop listening to old session and start listening to new session
-            Session(c['path'], self.hub).listeners.remove(c.ID)
+            ctx = ExtendedContext(self, c.ID)
+            #print "removing %s from session %s" % (ctx, c['path'])
+            Session(c['path'], self.hub).listeners.remove(ctx)
             session = Session(temp, self.hub)
-            session.listeners.add(c.ID)
+            #print "Adding %s to listeners for %s" % (ctx, temp)
+            session.listeners.add(ctx)
             c['session'] = session
             c['path'] = temp
         return c['path']
@@ -998,8 +1032,9 @@ class DataVault(LabradServer):
         c['filepos'] = 0
         c['commentpos'] = 0
         c['writing'] = False
-        dataset.keepStreaming(c.ID, 0)
-        dataset.keepStreamingComments(c.ID, 0)
+        ctx = ExtendedContext(self, c.ID)
+        dataset.keepStreaming(ctx, 0)
+        dataset.keepStreamingComments(ctx, 0)
         return c['path'], c['dataset']
     
     @setting(20, data=['*v: add one row of data',
@@ -1030,7 +1065,8 @@ class DataVault(LabradServer):
         dataset = self.getDataset(c)
         c['filepos'] = 0 if startOver else c['filepos']
         data, c['filepos'] = dataset.getData(limit, c['filepos'])
-        dataset.keepStreaming(c.ID, c['filepos'])
+        ctx = ExtendedContext(self, c.ID)
+        dataset.keepStreaming(ctx, c['filepos'])
         return data
     
     @setting(100, returns='(*(ss){independents}, *(sss){dependents})')
@@ -1051,7 +1087,8 @@ class DataVault(LabradServer):
     def parameters(self, c):
         """Get a list of parameter names."""
         dataset = self.getDataset(c)
-        dataset.param_listeners.add(c.ID) # send a message when new parameters are added
+        ctx = ExtendedContext(self, c)
+        dataset.param_listeners.add(ctx) # send a message when new parameters are added
         return [par['label'] for par in dataset.parameters]
 
     @setting(121, 'add parameter', name='s', returns='')
@@ -1077,7 +1114,8 @@ class DataVault(LabradServer):
         dataset = self.getDataset(c)
         names = [par['label'] for par in dataset.parameters]
         params = tuple((name, dataset.getParameter(name)) for name in names)
-        dataset.param_listeners.add(c.ID) # send a message when new parameters are added
+        ctx = ExtendedContext(self, c.ID)
+        dataset.param_listeners.add(ctx) # send a message when new parameters are added
         if len(params):
             return params
 
@@ -1167,7 +1205,8 @@ class DataVault(LabradServer):
         dataset = self.getDataset(c)
         c['commentpos'] = 0 if startOver else c['commentpos']
         comments, c['commentpos'] = dataset.getComments(limit, c['commentpos'])
-        dataset.keepStreamingComments(c.ID, c['commentpos'])
+        ctx = ExtendedContext(self, c.ID)
+        dataset.keepStreamingComments(ctx, c['commentpos'])
         return comments
 
     @setting(300, 'update tags', tags=['s', '*s'],
@@ -1282,7 +1321,7 @@ class DataVaultServiceHost(MultiService):
             self.addService(DataVaultConnector(host, port, password, self, self.path))
     
     def connect(self, server):
-        print 'server connected: %s:%d' % (server.host, server.port)
+        print 'server (%s) connected: %s:%d' % (type(server), server.host, server.port)
         self.servers.add(server)
     
     def disconnect(self, server):
@@ -1296,13 +1335,21 @@ class DataVaultServiceHost(MultiService):
     
     def wrapSignal(self, signal):
         print 'wrapping signal:', signal
-        def relay(*args, **kw):
-            print 'relaying signal:', signal
-            for server in self.servers:
+#        def relay(*args, **kw):
+        def relay(data, contexts=None, tag=None):
+            #print 'relaying signal:', signal
+            #print "data: %s tag: %s" % (data, tag)
+            #print "contexts", contexts
+            for c in contexts:
+                #print "relaying to server %s:%s %s" % (c.server.host, c.server.port, c.context)
                 try:
-                    getattr(server, signal)(*args, **kw)
-                except Exception, e:
-                    print 'error relaying signal %s to %s:%d: %s' % (attr, server.host, server.port, e)
+                    sig = getattr(c.server, signal)
+                    #print "signal object: ", sig, sig.parent, sig.parent._cxn
+                    sig(data, [c.context], tag)
+                    #print "signal relayed"
+#                    sig(*args, **kw)
+                except Exception as e:
+                    print 'error relaying signal %s to %s:%s: %s' % (signal, c.server.host, c.server.port, e)
         setattr(self, signal, relay)
 
 def load_settings():
