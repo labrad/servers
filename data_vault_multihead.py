@@ -16,7 +16,7 @@
 """
 ### BEGIN NODE INFO
 [info]
-name = Data Vault
+name = Data Vault Multihead
 version = 2.3.5-hydra
 description = Store and retrieve numeric data
 
@@ -283,7 +283,7 @@ class Session(object):
         if os.path.exists(self.infofile):
             self.load()
         else:
-            self.counter = 0
+            self.counter = 1
             self.created = self.modified = datetime.now()
             self.session_tags = {}
             self.dataset_tags = {}
