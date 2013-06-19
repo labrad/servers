@@ -44,6 +44,36 @@ from twisted.internet.defer import inlineCallbacks
 
 from ConfigParser import SafeConfigParser
 
+import os
+import warnings
+import time
+
+def lock_path(d):
+    '''
+    Lock a directory and return a file descriptor corresponding to the lockfile
+    
+    '''
+    if os.name != "posix":
+        warnings.warn('File locks only available on POSIX.  Be very careful not to run two copies of the data vault')
+        return
+    import fcntl
+    filename = os.path.join(d, 'lockfile')
+    fd = os.open(filename, os.O_CREAT|os.O_RDWR)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX|fcntl.LOCK_NB)
+    except IOError:
+        raise RuntimeError('Unable to acquire filesystem lock.  Data vault already running!')
+    if os.fstat(fd).st_size < 1:
+        os.write(fd, "If you delete this file without understanding it will cause you great pain\n")
+    return fd
+
+def unlock(fd):
+    if os.name != "posix":
+        warnings.warn('File locks only available on POSIX.  Be very careful not to run two copies of the data vault')
+        return
+    import fcntl
+    fcntl.flock(fd, fcntl.LOCK_UN)
+    
 # ConfigParser is retarded and doesn't let you choose your newline separator,
 # so we overload it to make data vault files consistent across OSes.
 # In particular, Windows expects \r\n whereas Linux uses \n
@@ -1244,6 +1274,29 @@ class DataVault(LabradServer):
         if isinstance(datasets, str):
             datasets = [datasets]
         return sess.getTags(dirs, datasets)
+
+    @setting(401, 'get servers', returns='*(swb)')
+    def get_servers(self, c):
+        """
+        Returns the list of running servers as tuples of (host, port, connected?)
+        """
+        rv = []
+        for s in self.hub:
+            host = s.host
+            port = s.port
+            running = hasattr(s, 'cxn') and bool(s.cxn)
+            print "host: %s port: %s running: %s" % (host, port, running)
+            rv.append((host, port, running))
+        return rv
+
+    @setting(402, 'add server', host=['s'], port=['w'], password=['s'])
+    def add_server(self, c, host, port=0, password=None):
+        """
+        Add new server to the list
+        """
+        port = port or self.port
+        password = password or self.password
+        self.hub.addService(DataVaultConnector(host, port, password, self.hub))
     
 class DataVaultConnector(MultiService):
     """Service that connects the Data Vault to a single LabRAD manager
@@ -1321,7 +1374,7 @@ class DataVaultServiceHost(MultiService):
             self.addService(DataVaultConnector(host, port, password, self, self.path))
     
     def connect(self, server):
-        print 'server (%s) connected: %s:%d' % (type(server), server.host, server.port)
+        print 'server connected: %s:%d' % (server.host, server.port)
         self.servers.add(server)
     
     def disconnect(self, server):
@@ -1335,19 +1388,11 @@ class DataVaultServiceHost(MultiService):
     
     def wrapSignal(self, signal):
         print 'wrapping signal:', signal
-#        def relay(*args, **kw):
         def relay(data, contexts=None, tag=None):
-            #print 'relaying signal:', signal
-            #print "data: %s tag: %s" % (data, tag)
-            #print "contexts", contexts
             for c in contexts:
-                #print "relaying to server %s:%s %s" % (c.server.host, c.server.port, c.context)
                 try:
                     sig = getattr(c.server, signal)
-                    #print "signal object: ", sig, sig.parent, sig.parent._cxn
                     sig(data, [c.context], tag)
-                    #print "signal relayed"
-#                    sig(*args, **kw)
                 except Exception as e:
                     print 'error relaying signal %s to %s:%s: %s' % (signal, c.server.host, c.server.port, e)
         setattr(self, signal, relay)
@@ -1361,21 +1406,24 @@ def load_settings():
     cxn = labrad.connect()
     reg = cxn.registry
     path = ['', 'Servers', 'Data Vault', 'Multihead']
-    nodename = util.getNodeName()
     reg = cxn.registry
     # try to load for this node
     p = reg.packet()
     p.cd(path)
     p.get("Repository", 's', key="repo")
     p.get("Managers", "*(sws)", key="managers")
+    p.get("Node", "s", False, "", key="node")
     ans = p.send(wait=True)
+    if ans.node and (ans.node != util.getNodeName()):
+        raise RuntimeError("Node name %s from registry does not match current host %s" % (ans.node, util.getNodeName()))
+    lock_path(ans.repo)
     cxn.disconnect()
     return ans.repo, ans.managers
         
 def main():
     import sys
 
-    if sys.argv[1] == '--auto':
+    if len(sys.argv) > 1 and sys.argv[1] == '--auto':
         path, managers = load_settings()
     else:
         if len(sys.argv) < 3:
@@ -1412,9 +1460,18 @@ def main():
     service = DataVaultServiceHost(path, managers)
     service.startService()
     if labrad.thread._reactorThread:
-        if labrad.__version__.split('.')[1] != '92':
-            raise RunTimeError("This only works with labrad 0.92.x.  It needs to be updated for 0.93 / asyncore")
-        labrad.thread._reactorThread.join() #This probably doesn't work in new versions of pylabrad
+        # If we created a client connection to get registry data, the reactor is already running
+        # in a separate thread.  We can't restart the reactor in the main thread, so we just wait.
+        # We don't use join() because it can't be interrupted by a keyboard event.
+        #
+        # For some reason, when the reactor is run in a separate thread, it takes ~10 seconds to
+        # make the initial server connections.
+        while(True):
+            try:
+                time.sleep(10)
+            except KeyboardInterrupt:
+                reactor.stop()
+                raise
     else:
         reactor.run()
 if __name__ == '__main__':
