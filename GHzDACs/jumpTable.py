@@ -1,10 +1,27 @@
+#Unit testing
+# Check that all idle values actually work, ie can we use all bits?
+
 from util import littleEndian
 
 class Jump(object):
-    def __init__(self, fromAddr, toAddr, opCode):
+    def __init__(self, fromAddr, toAddr, opCode, index):
         self.fromAddr = fromAddr
         self.toAddr = toAddr
         self.opCode = opCode
+        self.index = index
+
+class Operation(object):
+    def asBytes(self):
+        raise NotImplementedError
+
+class IDLE(Operation):
+    MAX_TIME = 
+
+    def __init__(self, time_ns):
+        self.time_ns = time_ns
+    
+    def asBytes():
+    
     
 class JumpTable(object):
     
