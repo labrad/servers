@@ -53,7 +53,8 @@ from scipy.interpolate import interp1d
 # Fixed logical bug in setSettling
 #
 # Enforces borderValues at first and last 4 points. The deconvolved signal can be nonzero at the start and end of a sequence.
-# This nonzero value persists, even when running the board with an empty envelope. Hence, the Z bias is in a small-valued but arbitrary state after each run. To remove this, the last 4 (FOUR) values are set to 0.0.
+# This nonzero value persists, even when running the board with an empty envelope. Hence, the Z bias is in a small-valued but arbitrary state after each run, 
+# possibly even oscillating, if the 4 last values are not identical. To remove this, the last 4 (FOUR) values are set to 0.0.
 # For dualblock, there is a function 'set_border_values' to set the bordervalues. Be sure to set it for both the first and last block, in fpgaseqtransmon.
 #
 #
@@ -61,6 +62,8 @@ from scipy.interpolate import interp1d
 #
 # Enforces zeros at first and last 4 points. The deconvolved signal can be nonzero at the start and end of a sequence.
 # This nonzero value persists, even when running the board with an empty envelope. To remove this, the last 4 (FOUR) values must be set.
+#
+# Cubic interpolation for zero value
 #
 # Removed a tab
 
@@ -163,7 +166,7 @@ def derivative(x,y):
     return deriv
             
 def interpol1d_cubic_S(h,x2):
-    """Fast cubic interpolator. Returns the values in in the same way interpol. Can deal with complex input.
+    """Cubic interpolator. Returns the values in in the same way interpol. Can deal with complex input.
     Uses linear interpolation at the edges, and returns the values at the edges outside of the range. RB."""
 
     n=np.alen(h)
@@ -173,8 +176,13 @@ def interpol1d_cubic_S(h,x2):
         yout=[]
         xmin=min(x)
         xmax=max(x)
-        for j in np.arange(np.alen(xdet)):
-            xdetelement=xdet[j]          
+        idxOld=None
+        xdetlen=np.alen(xdet)
+        for j in np.arange(xdetlen):
+            if xdetlen==1:
+                xdetelement=xdet
+            else:
+                xdetelement=xdet[j]          
             if xdetelement>=xmax:
                 xdetelement=xmax
                 if dx>0:
@@ -196,15 +204,17 @@ def interpol1d_cubic_S(h,x2):
                 #idx=int(np.fix(xdetelement))
                 if idx>=1 and (idx+2)<np.alen(x):
                     #cubic interpol                
-                    hp2=h[idx+2]
-                    hp1=h[idx+1]
-                    hp0=h[idx]
-                    hm1=h[idx-1]     
-                    d=hp0
-                    c=(hp1-hm1)/2
-                    b=(-hp2+4*hp1-5*hp0+2*hm1)/2
-                    a=(hp2-3*hp1+3*hp0-hm1)/2
-                    xi=(xdetelement-x[idx])/dx
+                    if idx != idxOld:
+                        hp2=h[idx+2]
+                        hp1=h[idx+1]
+                        hp0=h[idx]
+                        hm1=h[idx-1]     
+                        d=hp0
+                        c=(hp1-hm1)/2.
+                        b=(-hp2+4*hp1-5*hp0+2*hm1)/2.
+                        a=(hp2-3*hp1+3*hp0-hm1)/2.
+                        idxOld=idx
+                    xi=(xdetelement-x[idx])/dx                        
                     yout.append(a*xi**3 + b*xi**2 + c*xi+d)
                 else:
                     #linear interpol
@@ -430,7 +440,7 @@ class IQcorrection:
         #convert carrier frequency to index
         carrierfreqIndex = carrierfreq*n/samplingfreq
 
-        #if the carrier frequecy doesn't fall on a frequecy sampling point
+        #if the carrier frequency doesn't fall on a frequency sampling point
         #we lose some precision
         if np.floor(carrierfreqIndex) < np.ceil(carrierfreqIndex):
             print """Warning: carrier frequency of calibration is not a multiple of %g MHz, accuracy may suffer.""" % 1000.0*samplingfreq/n
@@ -454,7 +464,7 @@ class IQcorrection:
 
         low = q[carrierfreqIndex:carrierfreqIndex-finalLength/2-1:-1]
         high = q[carrierfreqIndex:carrierfreqIndex+finalLength/2+1:1]
-        #calcualte the phase of the carrier
+        #calculate the phase of the carrier
         phase = np.sqrt(np.sum(low*high))
         phase /= abs(phase)
         if (phase.conjugate()*low[0]).real < 0:
@@ -465,10 +475,10 @@ class IQcorrection:
         #If correction goes above 3 * dynamicReserve,
         #scale to 3 * dynamicReserve but preserve phase
         self.correctionI /= \
-            np.clip(abs(self.correctionI) / 3 / self.dynamicReserve,
+            np.clip(abs(self.correctionI) / 3. / self.dynamicReserve,
                        1.0, np.Inf)
         self.correctionQ /= \
-            np.clip(abs(self.correctionQ) / 3 /self.dynamicReserve,
+            np.clip(abs(self.correctionQ) / 3. /self.dynamicReserve,
                        1.0, np.Inf)
         self.pulseCalFile = calfile
 
@@ -529,26 +539,23 @@ class IQcorrection:
         print '  selecting calset %d' % \
               self.sidebandCalFiles[self.sidebandCalIndex]
 
-
     def DACzeros(self, carrierFreq):
         """
         Returns the DAC values for which, at the given carrier
         frequency, the IQmixer output power is smallest.
+        Uses cubic interpolation
         """
         if self.zeroTableI == []:
-            return [0,0]
+            return [0.0,0.0]
         i = self.zeroCalIndex
         if i is None:
             i = self.findCalset(carrierFreq, carrierFreq, self.zeroTableStart,
                                 self.zeroTableEnd, 'zero')
-        carrierFreq = (carrierFreq - self.zeroTableStart[i]) / \
-            self.zeroTableStep[i]
-        return [interpol(self.zeroTableI[i], carrierFreq), \
-                interpol(self.zeroTableQ[i], carrierFreq)]
-
-
+        carrierFreq = (carrierFreq - self.zeroTableStart[i]) / self.zeroTableStep[i]  #now it becomes and index
+        return [interpol1d_cubic_S(self.zeroTableI[i], carrierFreq), interpol1d_cubic_S(self.zeroTableQ[i], carrierFreq)]
+        #return [interpol(self.zeroTableI[i], carrierFreq), interpol(self.zeroTableQ[i], carrierFreq)] #old
+                
     def _IQcompensation(self, carrierFreq, n):
-
         """
         Returns the sideband correction at the given carrierFreq and for
         sideband frequencies
