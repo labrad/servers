@@ -52,6 +52,8 @@ def lock_path(d):
     '''
     Lock a directory and return a file descriptor corresponding to the lockfile
     
+    This lock is non-blocking and throws an exception if it can't get the lock.
+    The user is expected to fix this.
     '''
     if os.name != "posix":
         warnings.warn('File locks only available on POSIX.  Be very careful not to run two copies of the data vault')
@@ -68,6 +70,10 @@ def lock_path(d):
     return fd
 
 def unlock(fd):
+    '''
+    We don't actually use this, since we hold the lock until the datavault exits
+    and let the OS clean up.
+    '''
     if os.name != "posix":
         warnings.warn('File locks only available on POSIX.  Be very careful not to run two copies of the data vault')
         return
@@ -79,7 +85,9 @@ def unlock(fd):
 # In particular, Windows expects \r\n whereas Linux uses \n
 class ExtendedContext(object):
     '''
-    This is an extended context that contains server 
+    This is an extended context that contains the manager.  This prevents multiple
+    contexts with the same client ID from conflicting if they are connected
+    to different managers.
     '''
     def __init__(self, server, ctx):
         self.__server = server
@@ -961,7 +969,7 @@ class DataVault(LabradServer):
         #print dirs, datasets
         return dirs, datasets
     
-    @setting(7, path=[#'{get current directory}',
+    @setting(7, path=['{get current directory}',
                       's{change into this directory}',
                       '*s{change into each directory in sequence}',
                       'w{go up by this many directories}'],
@@ -1292,7 +1300,7 @@ class DataVault(LabradServer):
     @setting(402, 'add server', host=['s'], port=['w'], password=['s'])
     def add_server(self, c, host, port=0, password=None):
         """
-        Add new server to the list
+        Add new server to the list.
         """
         port = port or self.port
         password = password or self.password
@@ -1402,6 +1410,12 @@ def load_settings():
     Make a client connection to the labrad host specified in the
     environment (i.e., by the node server) and load the rest of the settings
     from there.
+
+    This file also takes care of locking the datavault storage directory.
+    The lock only works on the local host, so we also node lock the datavault:
+    if the registry has a 'Node' key, the datavault will refuse to start
+    on any other host.  This should prevent ever having two copies of the
+    datavault running.
     '''
     cxn = labrad.connect()
     reg = cxn.registry
@@ -1430,6 +1444,9 @@ def main():
             print 'usage: %s /path/to/vault/directory [password@]host[:port] [password2]@host2[:port2] ...' % (sys.argv[0])
             sys.exit(1)
         path = sys.argv[1]
+        # We lock the datavault path, but we can't check the node lock unless using
+        # --auto to get the data from the registry.
+        lock_path(ans.repo)
         manager_list = sys.argv[2:]
         managers = []
         for m in manager_list:
@@ -1465,7 +1482,9 @@ def main():
         # We don't use join() because it can't be interrupted by a keyboard event.
         #
         # For some reason, when the reactor is run in a separate thread, it takes ~10 seconds to
-        # make the initial server connections.
+        # make the initial server connections.  The right way to do this is to have the auto-load
+        # code be executed from the reactor, and then start up the servers, but I don't know how
+        # to do that.
         while(True):
             try:
                 time.sleep(10)
