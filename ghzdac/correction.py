@@ -17,7 +17,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.mlab import find
-from scipy.interpolate import interp1d
 
 # CHANGELOG
 #
@@ -45,7 +44,7 @@ from scipy.interpolate import interp1d
 # Now, a maximum value is enforced in the fourier domain. The value is truncated but the phase is kept.
 # This way we still have a partial correction, within the limits of the boards. Doing it this way also ensures that the waveforms are scalable.
 #
-# Cubic interpolation for the fourier transform. It visually reduced the ringing on the scope.
+# Cubic interpolation for the fourier transform. It visually reduced the ringing on the scope. Cubic interpolation algorithm is as fast as linear interpolation.
 #
 # The deconv now does NOT shift the timetrace. This arose from the rise being at t=10-20 ns, instead of t=0. 
 # However, this leads to the timetrace running out of its intendend memory block. In addition, the phase varies more slowly, easing interpolation.
@@ -164,7 +163,69 @@ def derivative(x,y):
         else:
             deriv[k]=1.0*(y[k+1]-y[k-1])/(x[k+1]-x[k-1])
     return deriv
+
+
+
+def interpol_cubic(h,x2,fill_value=None):
+    """Cubic interpolator. Returns the values in in the same way interpol. Can deal with complex input.
+    Uses linear interpolation at the edges, and returns the values at the edges outside of the range. RB."""
+    xlen=np.alen(h)
+    def func(xdet):
+        if type(xdet) is not list and type(xdet) is not np.ndarray:
+            xdet=np.array([xdet]) 
+        yout=np.zeros(np.alen(xdet)).astype(complex) #predefine
+        x2=xdet  #x2 = (xdet-xstart) #map xdet onto h index: x ->   (x-xstart)/dx = 0... length
+        #indices outside of the range
+        xdet_idx = x2<0 #maps which index in x2 it is
+        if xdet_idx.any():       
+            x2_idx = x2[ xdet_idx ] #maps x2 to x index
+            h_idx = np.array(x2_idx).astype(int) #maps which h,x to take
+            if fill_value is None:
+                yout[xdet_idx]=h[0]
+            else:
+                yout[xdet_idx]=fill_value
+        xdet_idx = x2>(xlen-1) #maps which index in x2 it is
+        if xdet_idx.any():       
+            x2_idx = x2[ xdet_idx ] #maps x2 to x index
+            h_idx = np.array(x2_idx).astype(int) #maps which h,x to take
+            if fill_value is None:            
+                yout[xdet_idx]=h[xlen-1]
+            else:
+                yout[xdet_idx]=fill_value                
             
+        #indices on the rim: linear interpolation
+        xdet_idx =  np.logical_and(x2>=0,x2<1) #maps which index in x2 it is
+        if xdet_idx.any():
+            x2_idx = x2[ xdet_idx ] #maps x2 to x index
+            h_idx = np.array(x2_idx).astype(int) #maps which h,x to take        
+            yout[xdet_idx]=(h[1]-h[0])*x2_idx  + h[0]
+        xdet_idx =  np.logical_and(x2>=(xlen-2),x2<=(xlen-1)) #maps which index in x2 it is
+        if xdet_idx.any():
+            x2_idx = x2[ xdet_idx ] #maps x2 to x index
+            h_idx = np.array(x2_idx).astype(int) #maps which h,x to take        
+            yout[xdet_idx]=(h[xlen-1]-h[xlen-2])*(x2_idx-h_idx[0])  + h[xlen-2]
+            
+        #indices inside the range: cubic interpolation        
+        xdet_idx = np.logical_and(x2>=1,x2<(xlen-2)) #maps which index in x2 it is
+        if xdet_idx.any():        
+            x2_idx = x2[ xdet_idx ] #maps x2 to x index
+            h_idx = np.array(x2_idx).astype(int) #maps which h,x to take
+            hp2=h[h_idx+2]
+            hp1=h[h_idx+1]
+            hp0=h[h_idx]
+            hm1=h[h_idx-1]     
+            d=hp0
+            c=(hp1-hm1)/2.
+            b=(-hp2+4*hp1-5*hp0+2*hm1)/2.
+            a=(hp2-3*hp1+3*hp0-hm1)/2.
+            xi=(x2_idx - h_idx)
+            yout[xdet_idx]=((a * xi + b) * xi + c) * xi + d
+            
+        return np.array(yout)          
+    return func(x2)
+
+
+    
 def interpol1d_cubic_S(h,x2):
     """Cubic interpolator. Returns the values in in the same way interpol. Can deal with complex input.
     Uses linear interpolation at the edges, and returns the values at the edges outside of the range. RB."""
@@ -552,7 +613,7 @@ class IQcorrection:
             i = self.findCalset(carrierFreq, carrierFreq, self.zeroTableStart,
                                 self.zeroTableEnd, 'zero')
         carrierFreq = (carrierFreq - self.zeroTableStart[i]) / self.zeroTableStep[i]  #now it becomes and index
-        return [interpol1d_cubic_S(self.zeroTableI[i], carrierFreq), interpol1d_cubic_S(self.zeroTableQ[i], carrierFreq)]
+        return [interpol_cubic(self.zeroTableI[i], carrierFreq), interpol_cubic(self.zeroTableQ[i], carrierFreq)]
         #return [interpol(self.zeroTableI[i], carrierFreq), interpol(self.zeroTableQ[i], carrierFreq)] #old
                 
     def _IQcompensation(self, carrierFreq, n):
@@ -738,10 +799,10 @@ class IQcorrection:
             if deconv and (self.correctionI != None):
                 l = np.alen(self.correctionI)
                 freqs = np.arange(0,nrfft) * 2.0 * (l - 1.0) / nfft
-                correctionI = interpol(self.correctionI, freqs,
-                                       extrapolate=True)
-                correctionQ = interpol(self.correctionQ, freqs,
-                                       extrapolate=True)
+                #correctionI = interpol(self.correctionI, freqs,extrapolate=True)
+                #correctionQ = interpol(self.correctionQ, freqs,extrapolate=True)
+                correctionI = interpol_cubic(self.correctionI, freqs)
+                correctionQ = interpol_cubic(self.correctionQ, freqs)                
                 lp = self.lowpass(nfft, self.bandwidth)
                 i *= correctionI * lp
                 q *= correctionQ * lp
@@ -1154,8 +1215,8 @@ class DACcorrection:
                 # pulse correction
                 for correction in self.correction:
                     l = np.alen(correction)
-                    precalc *= interpol(correction, freqs*2.0*(l-1),extrapolate=True) #orig. Fast
-                    #precalc *= interpol1d_cubic_S(correction, freqs*2.0*(l-1)) #cubic, slow
+                    #precalc *= interpol(correction, freqs*2.0*(l-1),extrapolate=True) #orig. Fast
+                    precalc *= interpol_cubic(correction, freqs*2.0*(l-1)) #cubic, as fast as linear interpol
                     
                 #decay times:
                 # add to qubit registry the following keys:
