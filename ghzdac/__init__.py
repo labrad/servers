@@ -26,6 +26,7 @@
 from __future__ import with_statement
 
 from numpy import shape, array, size
+import numpy as np
 from twisted.python import log
 from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -78,9 +79,8 @@ def IQcorrectorAsync(fpganame, connection,
         cxn = yield labrad.connectAsync()
         
     ds = cxn.data_vault
-    ctx = ds.context()
 
-    yield ds.cd(['', keys.SESSIONNAME, fpganame], True, context=ctx)
+    yield ds.cd(['', keys.SESSIONNAME, fpganame], True)
 
     corrector = IQcorrection(fpganame, lowpass, bandwidth)
 
@@ -88,42 +88,39 @@ def IQcorrectorAsync(fpganame, connection,
     if zerocor:
         datasets = yield getDataSets(cxn, fpganame, keys.ZERONAME, errorClass)
         for dataset in datasets:
-            filename = yield ds.open(dataset,context=ctx)
+            filename = yield ds.open(dataset)
             print 'Loading zero calibration from %s:' % filename[1]
-            datapoints = (yield ds.get(context=ctx)).asarray
+            datapoints = yield ds.get()
+            datapoints = np.array(datapoints)
             corrector.loadZeroCal(datapoints, dataset)
-            
-    
 
     #Load pulse response
     if pulsecor:
         dataset = yield getDataSets(cxn, fpganame, keys.PULSENAME, errorClass)
         if dataset != []:
             dataset = dataset[0]
-            filename = yield ds.open(dataset,context=ctx)
+            filename = yield ds.open(dataset)
             print 'Loading pulse calibration from %s:' % filename[1]
-            setupType = yield ds.get_parameter(keys.IQWIRING,context=ctx)
+            setupType = yield ds.get_parameter(keys.IQWIRING)
             print '  %s' % setupType
             IisB = (setupType == keys.SETUPTYPES[2])
-            datapoints = (yield ds.get(context=ctx)).asarray
-            carrierfreq = (yield ds.get_parameter(keys.PULSECARRIERFREQ,
-                                                  context=ctx))['GHz']
-            corrector.loadPulseCal(datapoints, carrierfreq, dataset, IisB)
- 
+            datapoints = yield ds.get()
+            datapoints = np.array(datapoints)
+            carrierfreq = (yield ds.get_parameter(keys.PULSECARRIERFREQ))['GHz']
+            corrector.loadPulseCal(datapoints, carrierfreq, dataset, IisB) 
 
     # Load Sideband Calibration
     if iqcor:
         datasets = yield getDataSets(cxn, fpganame, keys.IQNAME, errorClass)
         for dataset in datasets:
-            filename = yield ds.open(dataset,context=ctx)
+            filename = yield ds.open(dataset)
             print 'Loading sideband calibration from %s:' % filename[1]
             sidebandStep = \
-                (yield ds.get_parameter('Sideband frequency step',
-                                        context=ctx))['GHz']
+                (yield ds.get_parameter('Sideband frequency step'))['GHz']
             sidebandCount = \
-                yield ds.get_parameter('Number of sideband frequencies',
-                                        context=ctx)
-            datapoints = (yield ds.get(context=ctx)).asarray
+                yield ds.get_parameter('Number of sideband frequencies')
+            datapoints = yield ds.get()
+            datapoints = np.array(datapoints)
             corrector.loadSidebandCal(datapoints, sidebandStep, dataset)
 
     if not connection:
@@ -164,9 +161,8 @@ def DACcorrectorAsync(fpganame, channel, connection=None,
         cxn = yield labrad.connectAsync()
 
     ds = cxn.data_vault
-    ctx = ds.context()
 
-    yield ds.cd(['', keys.SESSIONNAME, fpganame], True, context=ctx)
+    yield ds.cd(['', keys.SESSIONNAME, fpganame], True)
 
     corrector = DACcorrection(fpganame, channel, lowpass, bandwidth)
 
@@ -177,8 +173,9 @@ def DACcorrectorAsync(fpganame, channel, connection=None,
     if dataset != []:
         dataset = dataset[0]
         print 'Loading pulse calibration from %s.' % dataset
-        yield ds.open(dataset, context=ctx)
-        datapoints = (yield ds.get(context=ctx)).asarray
+        yield ds.open(dataset)
+        datapoints = yield ds.get()
+        datapoints = np.array(datapoints)
         corrector.loadCal(datapoints)
     if not connection:
         yield cxn.disconnect()
