@@ -1304,7 +1304,7 @@ class DataVault(LabradServer):
         """
         port = port or self.port
         password = password or self.password
-        self.hub.addService(DataVaultConnector(host, port, password, self.hub))
+        self.hub.addService(DataVaultConnector(host, port, password, self.hub, self.path))
     
 class DataVaultConnector(MultiService):
     """Service that connects the Data Vault to a single LabRAD manager
