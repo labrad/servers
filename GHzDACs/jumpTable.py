@@ -3,26 +3,69 @@
 
 from util import littleEndian
 
-class Jump(object):
-    def __init__(self, fromAddr, toAddr, opCode, index):
+JUMP_INDEX_MIN = 1
+JUMP_INDEX_MAX = 15
+IDLE_MIN_CYCLES = 1
+IDLE_MAX_CYCLES = (2**15)-1
+DAISY_VALUE_MIN = 0
+DAISY_VALUE_MAX = 15
+
+class JumpEntry(object):
+    def __init__(self, fromAddr, toAddr, opCode):
         self.fromAddr = fromAddr
         self.toAddr = toAddr
-        self.opCode = opCode
-        self.index = index
+        self.operation = operation
 
 class Operation(object):
+    def getJumpIndex(self):
+        return self._jumpIndex
+    def setJumpIndex(self, idx):
+        if <idx<:
+            self._jumpIndex = idx
+        else:
+            raise RuntimeError("Must have %s<jump index<%s"%(JUMP_INDEX_MIN, JUMP_INDEX_MAX))
+    jumpIndex = property(getJumpIndex, setJumpIndex)
+    
     def asBytes(self):
         raise NotImplementedError
 
 class IDLE(Operation):
-    MAX_TIME = 
+    """Wraps the IDLE jump table op code"""
+    def __init__(self, cycles):
+        self._cycles = cycles
+    
+    def setJumpIndex(self, idx):
+        raise RuntimeError('IDLE does not support jump table indexing')
+    
+    def getIdleCycles(self):
+        return self._cycles
+    def setIdleCycles(self, cycles):
+        if cycles<IDLE_MAX_CYCLES and cycles > IDLE_MIN_CYCLES:
+            self._cycles = cycles
+        else:
+            raise RuntimeError('must have %s<IDLE cycles<%s'%(IDLE_MIN_CYCLES,IDLE_MAX_CYCLES))
+    cycles = property(getIdleCycles, setIdleCycles)
+    
+    def asBytes(self):
+        return self._cycles<<1
+        
+class CHECK(Operation):
+    def __init__(self, daisyValue, nextJumpIndex):
+        self._daisyValue = daisyValue
+        self._jumpIndex = nextJumpIndex
 
-    def __init__(self, time_ns):
-        self.time_ns = time_ns
+    def getCheckValue(self):
+        return self._daisyValue
+    def setCheckValue(self, value):
+        if value<DAISY_VALUE_MAX and value>DAISY_VALUE_MIN:
+            self._daisyValue = value
+        else:
+            raise RuntimeError('Must have %s<daisy check value<%s'%(DAISY_CHECK_MIN, DAISY_CHECK_MAX))
+    daisyValue = property(getCheckValue, setCheckValue)
     
-    def asBytes():
-    
-    
+    def asBytes(self):
+        pass
+   
 class JumpTable(object):
     
     PACKET_LEN = 144
