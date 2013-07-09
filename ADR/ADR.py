@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = ADR Server
-version = 0.31
+version = 0.32
 description =
 
 [startup]
@@ -667,8 +667,7 @@ class ADRWrapper(DeviceWrapper):
     # the voltage reading is from lakeshore channel 4 (i.e. index 3)
     def ruoxStatus(self):
         lsTemps = self.state('temperatures')
-        if lsTemps[1]['K'] > self.state('ruoxTempCutoff'):
-            return (lsTemps[1], 0.0 * labrad.units.Ohm)
+        
         lockin = self.state('lockinVoltage')
         if lockin is None:
             calib = self.state('voltToResCalibs')[self.state('switchPosition') - 1]
@@ -679,6 +678,8 @@ class ADRWrapper(DeviceWrapper):
                 resistance = lockin['Ohm']
             else:
                 resistance = lockin['V'] / float(self.state('lockinCurrent'))
+        if lsTemps[1]['K'] > self.state('ruoxTempCutoff'):
+            return (lsTemps[1], resistance)
         temp = 0.0
         if self.state('useRuoxInterpolation'):
             temp = self.state('ruoxInterpolation')(resistance)

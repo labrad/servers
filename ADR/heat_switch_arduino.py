@@ -88,7 +88,7 @@ class HeatSwitchDevice(DeviceWrapper):
         yield p.send()
         # now check to make sure we have a heat switch
         idn = yield self.query("*IDN?")
-        self.sketch_version = idn.split(',')[2]
+        #self.sketch_version = idn.split(',')[2]
         #print idn
         #idn = idn.split(',')
         #if idn[1] != 'HEATSWITCH':
@@ -191,7 +191,7 @@ class HeatSwitchServer(DeviceServer):
         returnValue(int(ans.split(',')[2]))
 
 
-TIMEOUT = 1 # serial read timeout
+TIMEOUT = 1.0 # serial read timeout
 
 #####
 # Create a server instance and run it
