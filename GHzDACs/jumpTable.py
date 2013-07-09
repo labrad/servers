@@ -1,9 +1,6 @@
 # Author: Daniel Sank
 # Created: July 2013
 
-#Unit testing
-# Check that all idle values actually work, ie can we use all bits?
-
 import numpy as np
 from util import littleEndian
 
@@ -19,7 +16,10 @@ NUM_COUNTERS = 4
 SRAM_ADDR_MIN = 0
 SRAM_ADDR_MAX = 8192 - 1 #XXX HACK ALERT! This should be imported from other module or registry!!!
 
+# A single entry in the jump table
+
 class JumpEntry(object):
+    """A single entry in the jump table"""
     def __init__(self, fromAddr, toAddr, operation=None):
         self.fromAddr = fromAddr
         self.toAddr = toAddr
@@ -49,9 +49,11 @@ class JumpEntry(object):
         data[3:6] = littleEndian(self.toAddr, 3)
         data[6:8] = littleEndian(self.operation.asBytes(), 2)
         return data
+
+# Operations (ie op codes)
         
 class Operation(object):
-    #Super class for all possible jump table operations
+    """A Super class for all possible jump table operations"""
     def getJumpIndex(self):
         return self._jumpIndex
     def setJumpIndex(self, idx):
@@ -138,9 +140,15 @@ class CYCLE(Operation):
 class END(object):
     def asBytes(self):
         return 7
+
+# The actual jump table
         
 class JumpTable(object):
+    """
+    The entire jump table.
     
+    This is a very low level wrapper around the actual FPGA data structure
+    """
     PACKET_LEN = 144
     COUNT_MAX = 2**32 - 1 #32 bit register for counters
     
