@@ -146,7 +146,7 @@ class TelecommServer(LabradServer):
     def send_sms(self, c, subject, msg, recipients):
         if not isinstance(recipients,list):
             recipients = [recipients]
-        recipients = [self.smsUsers[name.upper()] for name in recipients]
+        recipients = [self.smsUsers[name.upper()] for name in recipients if name.upper() in self.smsUsers]
         success, failures = textMessage(recipients, subject, msg, self.domain, self.smtpServer)
         return (success, failures)
 
