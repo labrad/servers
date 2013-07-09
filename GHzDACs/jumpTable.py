@@ -4,6 +4,7 @@
 #Unit testing
 # Check that all idle values actually work, ie can we use all bits?
 
+import numpy as np
 from util import littleEndian
 
 JUMP_INDEX_MIN = 1
@@ -13,23 +14,55 @@ IDLE_MAX_CYCLES = (2**15)-1
 DAISY_VALUE_MIN = 0
 DAISY_VALUE_MAX = 15
 
+NUM_COUNTERS = 4
+
+SRAM_ADDR_MIN = 0
+SRAM_ADDR_MAX = 8192 - 1 #XXX HACK ALERT! This should be imported from other module or registry!!!
+
 class JumpEntry(object):
-    def __init__(self, fromAddr, toAddr, operation):
+    def __init__(self, fromAddr, toAddr, operation=None):
         self.fromAddr = fromAddr
         self.toAddr = toAddr
         self.operation = operation
-
+    
+    def getToAddr(self):
+        return self._toAddr
+    def setToAddr(self, addr):
+        if SRAM_ADDR_MIN <= addr and addr <= SRAM_ADDR_MAX:
+            self._toAddr = addr
+        else:
+            raise RuntimeError("Must have %s <= toAddr <= %s"%(SRAM_ADDR_MIN, SRAM_ADDR_MAX))
+    toAddr = property(getToAddr, setToAddr)
+    
+    def getFromAddr(self):
+        return self._fromAddr
+    def setFromAddr(self, addr):
+        if SRAM_ADDR_MIN <= addr and addr <= SRAM_ADDR_MAX:
+            self._fromAddr = addr
+        else:
+            raise RuntimeError("Must have %s <= fromAddr <= %s"%(SRAM_ADDR_MIN, SRAM_ADDR_MAX))
+    fromAddr = property(getFromAddr, setFromAddr)
+    
+    def asBytes(self):
+        data = np.zeros(8,dtype=np.int8)
+        data[0:3] = littleEndian(self.fromAddr, 3)
+        data[3:6] = littleEndian(self.toAddr, 3)
+        data[6:8] = littleEndian(self.operation.asBytes(), 2)
+        return data
+        
 class Operation(object):
+    #Super class for all possible jump table operations
     def getJumpIndex(self):
         return self._jumpIndex
     def setJumpIndex(self, idx):
         if JUMP_IDX_MIN < idx and idx < JUMP_IDX_MAX:
             self._jumpIndex = idx
         else:
-            raise RuntimeError("Must have %s<jump index<%s"%(JUMP_INDEX_MIN, JUMP_INDEX_MAX))
+            raise RuntimeError("Must have %s < jump index < %s"%(JUMP_INDEX_MIN, JUMP_INDEX_MAX))
     jumpIndex = property(getJumpIndex, setJumpIndex)
     
     def asBytes(self):
+        """Override in subclass"""
         raise NotImplementedError
 
 class IDLE(Operation):
@@ -42,14 +75,14 @@ class IDLE(Operation):
     def setJumpIndex(self, idx):
         raise RuntimeError('IDLE does not support jump table indexing')
     
-    def getIdleCycles(self):
+    def getCycles(self):
         return self._cycles
-    def setIdleCycles(self, cycles):
+    def setCycles(self, cycles):
         if IDLE_MIN_CYCLES < cycles and cycles < IDLE_MAX_CYCLES:
             self._cycles = cycles
         else:
-            raise RuntimeError('must have %s<IDLE cycles<%s'%(IDLE_MIN_CYCLES,IDLE_MAX_CYCLES))
-    cycles = property(getIdleCycles, setIdleCycles)
+            raise RuntimeError('Number of idle cycles must satisfy: %s < cycles < %s'%(IDLE_MIN_CYCLES,IDLE_MAX_CYCLES))
+    cycles = property(getCycles, setCycles)
     
     def asBytes(self):
         return self._cycles<<1
@@ -62,11 +95,11 @@ class CHECK(Operation):
         
     def getWhichDaisyBit(self):
         return self._whichDaisyBit
-    def setCheckValue(self, whichBit):
+    def setWhichDaisyBit(self, whichBit):
         if DAISY_VALUE_MIN < whichBit and whichBit < DAISY_VALUE_MAX:
             self._whichDaisyBit = whichBit
         else:
-            raise RuntimeError('Must have %s<daisy whichDaisyBit<%s'%(DAISY_VALUE_MIN, DAISY_VALUE_MAX))
+            raise RuntimeError("Must have %s < daisy whichDaisyBit < %s"%(DAISY_VALUE_MIN, DAISY_VALUE_MAX))
     whichDaisyBit = property(getWhichDaisyBit, setWhichDaisyBit)
     
     def asBytes(self):
@@ -78,6 +111,7 @@ class JUMP(Operation):
         self.jumpIndex = nextJumpIndex
 
     def asBytes(self):
+        #Op code is 1101 = 13
         return self.jumpIndex<<8 + 13
     
 class NOP(Operation):
@@ -89,17 +123,17 @@ class CYCLE(Operation):
         self.count = count
         self.jumpIndex = nextJumpIndex
     
-    def getCount(self):
-        return self._count
-    def setCount(self, count):
-        if CYCLE_COUNT_MIN < count and count < CYCLE_COUNT_MAX:
-            self._count = count
+    def getWhichCounter(self):
+        return self._whichCounter
+    def setWhichCounter(self, whichCounter):
+        if 0 <= whichCounter and whichCount < NUM_COUNTERS:
+            self._whichCounter = whichCounter
         else:
-            raise RuntimeError("Must have %s < cycle count < %s"%(CYCLE_COUNT_MIN, CYCLE_COUNT_MAX))
-    count = property(getCount, setCount)
+            raise RuntimeError("Must have %s < whichCounter < %s"%(0, NUM_COUNTERS))
+    whichCounter = property(getWhichCounter, setWhichCounter)
     
     def asBytes(self):
-        return self.jumpIndex<<8 + self._count<<4 + 3
+        return self.jumpIndex<<8 + self.whichCounter<<4 + 3
     
 class END(object):
     def asBytes(self):
@@ -108,35 +142,70 @@ class END(object):
 class JumpTable(object):
     
     PACKET_LEN = 144
-    COUNTER_BYTES = 4
-    MAX_COUNT = 2**COUNTER_BYTES - 1
-    NUM_COUNTERS = 4
-    NUM_JUMPS = 15
+    COUNT_MAX = 2**32 - 1 #32 bit register for counters
     
-    def __init__(self):
-        self.counters = [0]*NUM_COUNTERS
-        
-    def setCounter(self, whichCounter, count):
-        assert count < self.MAX_COUNT
-        self.counters[whichCounter] = count
+    def __init__(self, startAddr=None, jumps=None):
+        self._counters = [0,0,0,0]        
+        self.startAddr = startAddr
+        self.jumps = jumps
     
-    def dumps(self):
+    def getStartAddr(self):
+        return self._startAddr
+    def setStartAddr(self, addr):
+        if SRAM_ADDR_MIN <= addr and addr <= SRAM_ADDR_MAX:
+            self._startAddr = addr
+        else:
+            raise RuntimeError("Must have %s <= start addr <= %s" %(SRAM_ADDR_MIN, SRAM_ADDR_MAX))
+    startAddr = property(getStartAddr, setStartAddr)
+    
+    #TODO: error check counter values
+    
+    def toString(self):
         """Write a byte string for the FPGA"""
-        data = np.zeros(self.PACKET_LEN)
-        for counter in range(self.NUM_COUNTERS):
-            data[counter*4:(counter+1)*4] = littleEndian(self.counters[counter],4)
+        data = np.zeros(self.PACKET_LEN, dtype=np.int8)
+        #Set counter maxima. Each one is 4 bytes
+        for i,c in enumerate(self._counters):
+            data[i*4:(i+1)*4] = littleEndian(c, 4)
+        
         #Set start address
         data[16:19] = littleEndian(self.startAddr,3)
-        data[20:23] = littleEndian(self.startAddr,3)
+        data[19:22] = littleEndian(self.startAddr,3)
         #Start op code
         data[22] = 5
         data[23] = 0
+        print("Data without jump entries: %s"%data.tostring())
         for i, jump in enumerate(self.jumps):
-            idx = i+24
-            data[idx:idx+3] = littleEndian(jump.fromAddr, 3)
-            idx += 3
-            data[idx:idx+3] = littleEndian(jump.toAddr, 3)
-            idx += 3
-            data[idx:idx+2] = littleEndian(jump.opCode, 2)
-        return data.toString()
+            print(jump.asBytes())
+            data[24+(i*8):24+((i+1)*8)] = jump.asBytes()
         
+        return data.tostring()
+        
+# Unit tests
+
+def testIdle():
+    """
+    Single high sample, followed by idle, followed by single high sample
+    """
+    #The SRAM block we use to store data
+    sramBlock = np.zeros(256)
+    sramBlock[11] = 1 #This is at the end of a 4 word block
+    sramBlock[32] = 1 #This is at the start of a 4 word block
+    
+    jumpEntries = []
+    
+    #Jump from first SRAM section to second one
+    #Run SRAM words 0..11, idle 25 cycles, run words 32..35
+    op = IDLE(25)
+    fromAddr = 11 - 1
+    toAddr = 32
+    jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
+    
+    #End execution
+    op = END()
+    fromAddr = 40
+    toAddr = 0 #Meaningless?
+    jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
+    
+    table = JumpTable(0)
+    table.jumps = jumpEntries
+    return table
