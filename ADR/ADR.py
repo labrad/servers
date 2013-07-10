@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = ADR Server
-version = 0.32
+version = 0.33
 description =
 
 [startup]
@@ -1164,7 +1164,12 @@ class ADRServer(DeviceServer):
         """ Returns whether recording or not. """
         dev = self.selectedDevice(c)
         return dev.state('recordTemp')
-
+        
+    @setting(63, "Mag Step", up='b')
+    def mag_step(self, c, up):
+        ''' mag step '''
+        dev = self.selectedDevice(c)
+        dev.adrMagStep(up)
     
 __server__ = ADRServer()
 
