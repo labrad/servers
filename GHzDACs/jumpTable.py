@@ -43,11 +43,18 @@ class JumpEntry(object):
             raise RuntimeError("Must have %s <= fromAddr <= %s"%(SRAM_ADDR_MIN, SRAM_ADDR_MAX))
     fromAddr = property(getFromAddr, setFromAddr)
     
+    def __str__(self):
+        fromAddrStr = "fromAddr: %d"%self.fromAddr
+        toAddrStr = "toAddr: %d"%self.toAddr
+        opStr = str(self.operation)
+        return '\n'.join([fromAddrStr, toAddrStr, opStr])
+    
     def asBytes(self):
         data = np.zeros(8,dtype=np.int8)
         data[0:3] = littleEndian(self.fromAddr, 3)
         data[3:6] = littleEndian(self.toAddr, 3)
-        data[6:8] = littleEndian(self.operation.asBytes(), 2)
+        data[6] = 0xFF & (self.operation.asBytes()>>8)
+        data[7] = 0xFF & self.operation.asBytes()
         return data
 
 # Operations (ie op codes)
@@ -63,12 +70,18 @@ class Operation(object):
             raise RuntimeError("Must have %s < jump index < %s"%(JUMP_INDEX_MIN, JUMP_INDEX_MAX))
     jumpIndex = property(getJumpIndex, setJumpIndex)
     
+    def __str__(self):
+        raise NotImplementedError
+    
     def asBytes(self):
         """Override in subclass"""
         raise NotImplementedError
 
 class IDLE(Operation):
     """Wraps the IDLE jump table op code"""
+    
+    NAME = "IDLE"
+    
     def __init__(self, cycles):
         self._cycles = cycles
     
@@ -86,11 +99,18 @@ class IDLE(Operation):
             raise RuntimeError('Number of idle cycles must satisfy: %s < cycles < %s'%(IDLE_MIN_CYCLES,IDLE_MAX_CYCLES))
     cycles = property(getCycles, setCycles)
     
+    def __str__(self):
+        return "%s %d cycles"%(self.NAME, self.cycles)
+    
     def asBytes(self):
         return self._cycles<<1
     
 class CHECK(Operation):
+
+    NAME = "CHECK"
+    
     def __init__(self, whichDaisyBit, bitOnOff, nextJumpIndex):
+        raise RuntimeError('CHECK is not yet understood')
         self.whichDaisyBit = whichDaisyBit
         self.jumpIndex = nextJumpIndex
         self.bitOnOff = bool(bitOnOff)
@@ -109,14 +129,26 @@ class CHECK(Operation):
         return self.jumpIndex<<8 + self.whichDaisyBit<<4 + int(self.bitOnOff)<<3 + 1
 
 class JUMP(Operation):
+
+    NAME = "JUMP"
+
     def __init__(self, nextJumpIndex):
         self.jumpIndex = nextJumpIndex
-
+    
+    def __str__(self):
+        return '\n'.join([self.NAME, "Next jump index: %d"%self.jumpIndex])
+        
     def asBytes(self):
         #Op code is 1101 = 13
         return self.jumpIndex<<8 + 13
     
 class NOP(Operation):
+
+    NAME = "NOP"
+    
+    def __str__(self):
+        return self.NAME
+    
     def asBytes(self):
         return 0x0005
     
@@ -138,6 +170,12 @@ class CYCLE(Operation):
         return self.jumpIndex<<8 + self.whichCounter<<4 + 3
     
 class END(object):
+
+    NAME = "END"
+    
+    def __str__(self):
+        return self.NAME
+    
     def asBytes(self):
         return 7
 
@@ -168,6 +206,12 @@ class JumpTable(object):
     
     #TODO: error check counter values
     
+    def __str__(self):
+        counterStr = '\n'.join("Counter %d: %d"%(i,c) for i,c in enumerate(self._counters))
+        startAddrStr = 'Start address: %d'%self.startAddr
+        jumpsStr = '\n'.join("-JUMP ENTRY %d-\n%s"%(i,str(jump)) for i,jump in enumerate(self.jumps))
+        return '\n'.join([counterStr, startAddrStr, jumpsStr])
+        
     def toString(self):
         """Write a byte string for the FPGA"""
         data = np.zeros(self.PACKET_LEN, dtype=np.int8)
@@ -181,9 +225,7 @@ class JumpTable(object):
         #Start op code
         data[22] = 5
         data[23] = 0
-        print("Data without jump entries: %s"%data.tostring())
         for i, jump in enumerate(self.jumps):
-            print(jump.asBytes())
             data[24+(i*8):24+((i+1)*8)] = jump.asBytes()
         
         return data.tostring()
@@ -195,6 +237,11 @@ def testIdle():
     Single high sample, followed by idle, followed by single high sample
     """
     #The SRAM block we use to store data
+    #0          10       20        30
+    #   |   |   |   |   |   |   |   |   |   |
+    #0123456789012345678901234567890123456789
+    #___________-____________________-_______
+    
     sramBlock = np.zeros(256)
     sramBlock[11] = 1 #This is at the end of a 4 word block
     sramBlock[32] = 1 #This is at the start of a 4 word block
@@ -204,8 +251,8 @@ def testIdle():
     #Jump from first SRAM section to second one
     #Run SRAM words 0..11, idle 25 cycles, run words 32..35
     op = IDLE(25)
-    fromAddr = 11 - 1
-    toAddr = 32
+    fromAddr = 11
+    toAddr = 0 #Meaningless?
     jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
     
     #End execution
@@ -216,4 +263,7 @@ def testIdle():
     
     table = JumpTable(0)
     table.jumps = jumpEntries
+    
+    
+    
     return table
