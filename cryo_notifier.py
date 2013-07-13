@@ -143,12 +143,15 @@ class CryoNotifier(LabradServer):
         Helper function to read timers.
         '''
         rv = []
-        p = self.client.lakeshore_diodes.packet()
-        p.select_device()
-        p.temperatures()
-        ans = yield p.send()
-        self.cold = ans['temperatures'][1]['K'] < 10.0
-
+        try:
+            p = self.client.lakeshore_diodes.packet()
+            p.select_device()
+            p.temperatures()
+            ans = yield p.send()
+            self.cold = ans['temperatures'][1]['K'] < 10.0
+        except Exception:
+            self.cold=False # Assume we are warm if we can't reach the lakeshore server
+            
         p = self.reg.packet()
         p.cd(self.path)
         p.get('timers', key='timers')
@@ -214,8 +217,7 @@ class CryoNotifier(LabradServer):
                 try: # We send each SMS individiually in case one address fails
                     p = self.client.telecomm_server.packet()
                     p.send_sms("Cryo Alert", "%s cryos need to be filled." % (expire_list,), self.users)
-                    if False: # Don't send until this is working...
-                        yield p.send() 
+                    yield p.send() 
                 except Exception:
                     print "Send to user %s failed!"
             try:
