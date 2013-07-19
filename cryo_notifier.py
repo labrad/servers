@@ -216,7 +216,7 @@ class CryoNotifier(LabradServer):
             for u in self.users:
                 try: # We send each SMS individiually in case one address fails
                     p = self.client.telecomm_server.packet()
-                    p.send_sms("Cryo Alert", "%s cryos need to be filled." % (expire_list,), self.users)
+                    p.send_sms("Cryo Alert", "%s cryos need to be filled." % (expire_list,), u)
                     yield p.send() 
                 except Exception:
                     print "Send to user %s failed!"
