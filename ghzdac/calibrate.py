@@ -312,7 +312,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     horizontal_scale = reg.get(keys.HORIZONTALSCALE)
     horizontal_position = reg.get(keys.HORIZONTALPOSITION)
     trigger_level = reg.get(keys.TRIGGERLEVEL)
-    numavg = reg.get(keys.AVERAGE)
+    numavg = reg.get(keys.AVERAGES)
     
     scope = cxn.tektronix_dsa_8300_sampling_scope
     scopeID = yield reg.get(keys.SCOPEID)
@@ -420,7 +420,7 @@ def calibrateDCPulse(cxn,boardname,channel):
     position = reg.get(keys.POSITION)
     horizontal_scale = reg.get(keys.HORIZONTALSCALE)
     trigger_level = reg.get(keys.TRIGGERLEVEL)
-    numavg = reg.get(keys.AVERAGE)
+    numavg = reg.get(keys.AVERAGES)
     
     scope = cxn.tektronix_dsa_8300_sampling_scope
     scopeID = yield reg.get(keys.SCOPEID)
