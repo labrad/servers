@@ -278,7 +278,8 @@ def measureImpulseResponse(fpga, scope, baseline, pulse, dacoffsettime=6, pulsel
 @inlineCallbacks
 def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     """Measures the impulse response of the DACs after the IQ mixer"""
-    pulseheight = 0x1800
+    #pulseheight = 0x1800
+    dac_pulse = yield reg.get(keys.DACACPULSE)
 
     reg = cxn.registry
     yield reg.cd(['', keys.SESSIONNAME, boardname])
@@ -299,7 +300,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     yield uwaveSource.amplitude(uwaveSourcePower)
     yield uwaveSource.output(True)
     
-    
+    '''
     vertical_scale = Value(0.01,'V')
     position = Value(0.0,'V')
     horizontal_scale = Value(5e-9,'s')
@@ -307,13 +308,14 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     trigger_level = Value(0.83,'V')
     numavg = 4096
     '''
-    vertical_scale = reg.get(keys.VERTICALSCALE)
-    position = reg.get(keys.POSITION)
-    horizontal_scale = reg.get(keys.HORIZONTALSCALE)
-    horizontal_position = reg.get(keys.HORIZONTALPOSITION)
-    trigger_level = reg.get(keys.TRIGGERLEVEL)
-    numavg = reg.get(keys.AVERAGES)
-    '''
+
+    vertical_scale = yield reg.get(keys.VERTICALSCALE)
+    position = yield reg.get(keys.POSITION)
+    horizontal_scale = yield reg.get(keys.HORIZONTALSCALE)
+    horizontal_position = yield reg.get(keys.HORIZONTALPOSITION)
+    trigger_level = yield reg.get(keys.TRIGGERLEVEL)
+    numavg = yield reg.get(keys.AVERAGES)
+    
     scope = cxn.tektronix_dsa_8300_sampling_scope
     scopeID = yield reg.get(keys.SCOPEID)
     
@@ -398,7 +400,8 @@ def calibrateDCPulse(cxn,boardname,channel):
     fpga.select_device(boardname)
 
     dac_baseline = 0x0000
-    dac_pulse = 0x1000 # 4096
+    #dac_pulse = 0x1000 # 4096
+    dac_pulse = yield reg.get(keys.DACDCPULSE)
     dac_neutral = 0x0000
     if channel:
         pulse = makeSample(dac_neutral,dac_pulse)
@@ -408,21 +411,21 @@ def calibrateDCPulse(cxn,boardname,channel):
         baseline = makeSample(dac_baseline, dac_neutral)
     #Set up the scope
     
-    
+    '''
     vertical_scale = Value(0.05,'V')
     position = Value(0.0,'V')
     horizontal_scale = Value(100e-9,'s')
     trigger_level = Value(0.83,'V')
     numavg = 4096
-    
     '''
-    vertical_scale = reg.get(keys.VERTICALSCALE)
-    position = reg.get(keys.POSITION)
-    horizontal_scale = reg.get(keys.HORIZONTALSCALE)
-    horizontal_scale = Value(100e-9,'s')
-    trigger_level = reg.get(keys.TRIGGERLEVEL)
-    numavg = reg.get(keys.AVERAGES)
-    '''
+
+    vertical_scale = yield reg.get(keys.VERTICALSCALE)
+    position = yield reg.get(keys.POSITION)
+    horizontal_scale = yield reg.get(keys.HORIZONTALSCALE)
+    trigger_level = yield reg.get(keys.TRIGGERLEVEL)
+    numavg = yield reg.get(keys.AVERAGES)
+    pulselength = yield reg.get(keys.PULSELENGTH)
+
     scope = cxn.tektronix_dsa_8300_sampling_scope
     scopeID = yield reg.get(keys.SCOPEID)
     
@@ -443,7 +446,7 @@ def calibrateDCPulse(cxn,boardname,channel):
 
     print 'Measuring step response...'
     t, trace = yield measureImpulseResponse(fpga, scope, baseline, pulse,
-        dacoffsettime=offsettime['ns'], pulselength=1000)
+        dacoffsettime=offsettime['ns'], pulselength=pulselength)
     data = np.transpose(np.vstack((t,trace)))
         
     # set the output to zero so that the fridge does not warm up when the
