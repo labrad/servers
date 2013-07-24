@@ -299,7 +299,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     yield uwaveSource.amplitude(uwaveSourcePower)
     yield uwaveSource.output(True)
     
-    '''
+    
     vertical_scale = Value(0.01,'V')
     position = Value(0.0,'V')
     horizontal_scale = Value(5e-9,'s')
@@ -313,7 +313,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     horizontal_position = reg.get(keys.HORIZONTALPOSITION)
     trigger_level = reg.get(keys.TRIGGERLEVEL)
     numavg = reg.get(keys.AVERAGES)
-    
+    '''
     scope = cxn.tektronix_dsa_8300_sampling_scope
     scopeID = yield reg.get(keys.SCOPEID)
     
@@ -408,20 +408,21 @@ def calibrateDCPulse(cxn,boardname,channel):
         baseline = makeSample(dac_baseline, dac_neutral)
     #Set up the scope
     
-    '''
+    
     vertical_scale = Value(0.05,'V')
     position = Value(0.0,'V')
     horizontal_scale = Value(100e-9,'s')
     trigger_level = Value(0.83,'V')
     numavg = 4096
-    '''
     
+    '''
     vertical_scale = reg.get(keys.VERTICALSCALE)
     position = reg.get(keys.POSITION)
     horizontal_scale = reg.get(keys.HORIZONTALSCALE)
+    horizontal_scale = Value(100e-9,'s')
     trigger_level = reg.get(keys.TRIGGERLEVEL)
     numavg = reg.get(keys.AVERAGES)
-    
+    '''
     scope = cxn.tektronix_dsa_8300_sampling_scope
     scopeID = yield reg.get(keys.SCOPEID)
     
