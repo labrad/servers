@@ -87,7 +87,6 @@ def signalPower(spec):
     dBs=dBs.split(';')[1]
     returnValue(10.0**(0.1*float(dBs)))
 
-
 def makeSample(a,b):
     """computes sram sample from dac A and B values"""
     if (np.max(a) > 0x1FFF) or (np.max(b) > 0x1FFF) or \
@@ -136,10 +135,10 @@ def minPos(l, c, r):
 
   
 @inlineCallbacks 
-def zero(anr, spec, fpga, freq):
+def zero(anr, spec, fpga, freq, harmonic):
     """Calibrates the zeros for DAC A and B using the spectrum analyzer"""
-   
-    yield anr.frequency(Value(freq,'GHz'))
+    print("Setting to frequency %s * %s"%(freq,harmonic))
+    yield anr.frequency(Value(freq,'GHz')*harmonic)
     yield spectFreq(spec,freq)
     a = 0
     b = 0
@@ -186,13 +185,15 @@ def zeroFixedCarrier(cxn, boardname):
     
     uwavePower = yield reg.get(keys.ANRITSUPOWER)
     frequency = (yield reg.get(keys.PULSECARRIERFREQ))['GHz']
+    harmonic = yield reg.get(keys.HARMONIC)
+    print("Using harmonic %s"%harmonic)
     yield uwaveSource.select_device(uwaveSourceID)
     yield uwaveSource.amplitude(uwavePower)
     yield uwaveSource.output(True)
 
     print 'Zero calibration...'
 
-    daczeros = yield zero(uwaveSource,spec,fpga,frequency)
+    daczeros = yield zero(uwaveSource,spec,fpga,frequency,harmonic)
 
     yield uwaveSource.output(False)
     yield spectDeInit(spec)
@@ -202,7 +203,7 @@ def zeroFixedCarrier(cxn, boardname):
 
 @inlineCallbacks
 def zeroScanCarrier(cxn, scanparams, boardname):
-    """Measures the DAC zeros in function of the carrier frequency."""
+    """Measures the DAC zeros as a function of the carrier frequency."""
     reg = cxn.registry
     yield reg.cd(['',keys.SESSIONNAME,boardname])
 
@@ -220,6 +221,7 @@ def zeroScanCarrier(cxn, scanparams, boardname):
     uwaveSourceID = yield reg.get(keys.ANRITSUID)
     uwaveSource = yield microwaveSourceServer(cxn, uwaveSourceID)
     uwavePower = yield reg.get(keys.ANRITSUPOWER)
+    harmonic = yield reg.get(keys.HARMONIC)
     yield uwaveSource.select_device(uwaveSourceID)
     yield uwaveSource.amplitude(uwavePower)
     yield uwaveSource.output(True)
@@ -236,7 +238,7 @@ def zeroScanCarrier(cxn, scanparams, boardname):
 
     freq = scanparams['carrierMin']
     while freq < scanparams['carrierMax']+0.001*scanparams['carrierStep']:
-        yield ds.add([freq]+(yield zero(uwaveSource, spec, fpga, freq)))
+        yield ds.add([freq]+(yield zero(uwaveSource, spec, fpga, freq, harmonic)))
         freq += scanparams['carrierStep']
     yield uwaveSource.output(False)
     yield spectDeInit(spec)
@@ -288,6 +290,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     uwaveSource = yield microwaveSourceServer(cxn,uwaveSourceID)
     uwaveSourcePower = yield reg.get(keys.ANRITSUPOWER)
     carrierFreq = yield reg.get(keys.PULSECARRIERFREQ)
+    harmonic = yield reg.get(keys.HARMONIC)
     yield switch.switch(boardname) #Hack to select the correct microwave switch
     yield switch.switch(0)
     yield uwaveSource.select_device(uwaveSourceID)
@@ -480,7 +483,7 @@ def measureOppositeSideband(spec, fpga, corrector,
     returnValue((yield signalPower(spec)) / corrector.last_rescale_factor)
 
 @inlineCallbacks 
-def sideband(anr, spect, fpga, corrector, carrierfreq, sidebandfreq):
+def sideband(anr, spect, fpga, corrector, carrierfreq, harmonic, sidebandfreq):
     """When the IQ mixer is used for sideband mixing, imperfections in the
     IQ mixer and the DACs give rise to a signal not only at
     carrierfreq+sidebandfreq but also at carrierfreq-sidebandfreq.
@@ -492,7 +495,7 @@ def sideband(anr, spect, fpga, corrector, carrierfreq, sidebandfreq):
 
     if abs(sidebandfreq) < 3e-5:
         returnValue(0.0j)
-    yield anr.frequency(Value(carrierfreq,'GHz'))
+    yield anr.frequency(Value(carrierfreq,'GHz')*harmonic)
     comp = 0.0j
     precision = 1.0
     yield spectFreq(spect,carrierfreq-sidebandfreq)
@@ -544,6 +547,7 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
     yield assertSpecAnalLock(spec, spectID)
     
     uwaveSourcePower = yield reg.get(keys.ANRITSUPOWER)
+    harmonic = yield reg.get(keys.HARMONIC)
     yield cxn.microwave_switch.switch(boardname)
     yield uwaveSource.select_device(uwaveSourceID)
     yield uwaveSource.amplitude(uwaveSourcePower)
@@ -576,7 +580,7 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
         datapoint = [freq]
         for sidebandfreq in sidebandfreqs:
             print '    sideband frequency: %g GHz' % sidebandfreq
-            comp = yield sideband(uwaveSource, spec, fpga, corrector, freq, sidebandfreq)
+            comp = yield sideband(uwaveSource, spec, fpga, corrector, freq, harmonic, sidebandfreq)
             datapoint += [np.real(comp), np.imag(comp)]
         yield ds.add(datapoint)
         freq += scanparams['sidebandCarrierStep']
