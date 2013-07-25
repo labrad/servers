@@ -278,21 +278,16 @@ def measureImpulseResponse(fpga, scope, baseline, pulse, dacoffsettime=6, pulsel
 @inlineCallbacks
 def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     """Measures the impulse response of the DACs after the IQ mixer"""
-    #pulseheight = 0x1800
-    dac_pulse = yield reg.get(keys.DACACPULSE)
-
     reg = cxn.registry
     yield reg.cd(['', keys.SESSIONNAME, boardname])
 
     switch = cxn.microwave_switch
 
+    pulseheight = yield reg.get(keys.DACACPULSE)
     uwaveSourceID = yield reg.get(keys.ANRITSUID)    
     uwaveSource = yield microwaveSourceServer(cxn,uwaveSourceID)
     uwaveSourcePower = yield reg.get(keys.ANRITSUPOWER)
     carrierFreq = yield reg.get(keys.PULSECARRIERFREQ)
-    sens = yield reg.get(keys.SCOPESENSITIVITY)
-    try:offs = yield reg.get(keys.SCOPEOFFSET)
-    except: print "this is a new registry key to correct for SS DC offset, please add 'Sampling Scope DC offset' key at 0.0 mV if you don't have it"
     yield switch.switch(boardname) #Hack to select the correct microwave switch
     yield switch.switch(0)
     yield uwaveSource.select_device(uwaveSourceID)
@@ -541,7 +536,7 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
     uwaveSource = yield microwaveSourceServer(cxn, uwaveSourceID)
 
     spec = cxn.spectrum_analyzer_server
-    scope = cxn.sampling_scope
+    scope = cxn.tektronix_dsa_8300_sampling_scope
     ds = cxn.data_vault
     spectID = yield reg.get(keys.SPECTID)
     spec.select_device(spectID)
