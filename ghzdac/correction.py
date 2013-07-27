@@ -167,14 +167,19 @@ def derivative(x,y):
 
 
 def interpol_cubic(h,x2,fill_value=None):
-    """Cubic interpolator. Returns the values in in the same way interpol. Can deal with complex input.
+    """Fast cubic interpolator (slightly faster than linear version of scipy interp1d; much, much faster than cubic version of scipy interp1d).
+    Returns the values in in the same way interpol. Can deal with complex input.
     Uses linear interpolation at the edges, and returns the values at the edges outside of the range. RB."""
     xlen=np.alen(h)
+    if type(h) is not np.ndarray:
+        #we need a numpy array
+        h=1.0*np.array(h)
     def func(xdet):
         if type(xdet) is not list and type(xdet) is not np.ndarray:
             xdet=np.array([xdet]) 
-        yout=np.zeros(np.alen(xdet)).astype(complex) #predefine
+        yout=np.zeros(np.alen(xdet)).astype(h.dtype) #predefine
         x2=xdet  #x2 = (xdet-xstart) #map xdet onto h index: x ->   (x-xstart)/dx = 0... length
+        
         #indices outside of the range
         xdet_idx = x2<0 #maps which index in x2 it is
         if xdet_idx.any():       
@@ -576,8 +581,8 @@ class IQcorrection:
                              rangeEnd-calEnds], axis=0)
         i = np.size(badness) - np.argmin(badness[::-1]) - 1
         if badness[i] > self.exceedCalLimits:
-            print '\n  closest calset only covers %g GHz to %g GHz' \
-                  % (calStarts[i], calEnds[i])
+            print '\n  closest calset: %g, only covers %g GHz to %g GHz' \
+                  % (i,calStarts[i], calEnds[i])
         return i
 
 
@@ -612,7 +617,11 @@ class IQcorrection:
         if i is None:
             i = self.findCalset(carrierFreq, carrierFreq, self.zeroTableStart,
                                 self.zeroTableEnd, 'zero')
+        carrierFreqFreq=carrierFreq
         carrierFreq = (carrierFreq - self.zeroTableStart[i]) / self.zeroTableStep[i]  #now it becomes and index
+        #zeroI=interpol_cubic(self.zeroTableI[i], carrierFreq)
+        #zeroQ=interpol_cubic(self.zeroTableQ[i], carrierFreq)
+        #print 'board:',self.board,'  freq:',carrierFreqFreq,'  zeroI,Q:',zeroI,zeroQ
         return [interpol_cubic(self.zeroTableI[i], carrierFreq), interpol_cubic(self.zeroTableQ[i], carrierFreq)]
         #return [interpol(self.zeroTableI[i], carrierFreq), interpol(self.zeroTableQ[i], carrierFreq)] #old
                 
@@ -801,8 +810,8 @@ class IQcorrection:
                 freqs = np.arange(0,nrfft) * 2.0 * (l - 1.0) / nfft
                 #correctionI = interpol(self.correctionI, freqs,extrapolate=True)
                 #correctionQ = interpol(self.correctionQ, freqs,extrapolate=True)
-                correctionI = interpol_cubic(self.correctionI, freqs)
-                correctionQ = interpol_cubic(self.correctionQ, freqs)                
+                correctionI = interpol_cubic(self.correctionI, freqs, fill_value=0.0)
+                correctionQ = interpol_cubic(self.correctionQ, freqs, fill_value=0.0)                
                 lp = self.lowpass(nfft, self.bandwidth)
                 i *= correctionI * lp
                 q *= correctionQ * lp
@@ -1216,7 +1225,7 @@ class DACcorrection:
                 for correction in self.correction:
                     l = np.alen(correction)
                     #precalc *= interpol(correction, freqs*2.0*(l-1),extrapolate=True) #orig. Fast
-                    precalc *= interpol_cubic(correction, freqs*2.0*(l-1)) #cubic, as fast as linear interpol
+                    precalc *= interpol_cubic(correction, freqs*2.0*(l-1), fill_value=0.0) #cubic, as fast as linear interpol
                     
                 #decay times:
                 # add to qubit registry the following keys:
