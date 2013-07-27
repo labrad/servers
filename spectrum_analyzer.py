@@ -249,8 +249,8 @@ class SpectrumAnalyzer(GPIBManagedServer):
     def check_extref(self, c):
         """Checks whether EXT 10 MHz ref is used. Returns 'EXT' or 'INT'."""
         dev = self.selectedDevice(c)
-        #idn = yield dev.query(':SENS:ROSC:SOUR?') # agilent n9010a
-        idn = yield dev.query(':CAL:FREQ:REF?') # agilent e4407b
+        idn = yield dev.query(':SENS:ROSC:SOUR?') # agilent n9010a
+        #idn = yield dev.query(':CAL:FREQ:REF?') # agilent e4407b
         returnValue(idn)        
         
 
