@@ -68,7 +68,8 @@ class GPIBDeviceManager(LabradServer):
     def initServer(self):
         """Initialize the server after connecting to LabRAD."""
         self.knownDevices = {} # maps (server, channel) to (name, idn)
-        self.deviceServers = {} # maps device name to list of interested servers
+        self.deviceServers = {} # maps device name to list of interested servers.
+                                # each interested server is {'target':<>,'context':<>,'messageID':<>}
         self.identFunctions = {} # maps server to (setting, ctx) for ident
         self.identLock = DeferredLock()
         
@@ -103,18 +104,18 @@ class GPIBDeviceManager(LabradServer):
                     self.gpib_device_connect(name, addr)
 
     @inlineCallbacks
-    def gpib_device_connect(self, server, channel):
+    def gpib_device_connect(self, gpibBusServer, channel):
         """Handle messages when devices connect."""
-        print 'Device Connect:', server, channel
-        if (server, channel) in self.knownDevices:
+        print 'Device Connect:', gpibBusServer, channel
+        if (gpibBusServer, channel) in self.knownDevices:
             return
-        device, idnResult = yield self.lookupDeviceName(server, channel)
+        device, idnResult = yield self.lookupDeviceName(gpibBusServer, channel)
         if device == UNKNOWN:
-            device = yield self.identifyDevice(server, channel, idnResult)
-        self.knownDevices[server, channel] = (device, idnResult)
+            device = yield self.identifyDevice(gpibBusServer, channel, idnResult)
+        self.knownDevices[gpibBusServer, channel] = (device, idnResult)
         # forward message if someone cares about this device
         if device in self.deviceServers:
-            self.notifyServers(device, server, channel, True)
+            self.notifyServers(device, gpibBusServer, channel, True)
     
     def gpib_device_disconnect(self, server, channel):
         """Handle messages when devices connect."""
@@ -209,19 +210,21 @@ class GPIBDeviceManager(LabradServer):
         """Register as a server that handles a particular GPIB device(s).
 
         Returns a list with information about all matching devices that
-        have been connected up to this point.  After registering,
-        messages will be sent to the registered message ID whenever
-        a matching device connects or disconnects.  The clusters sent
-        in response to this setting and those sent as messages have the same
-        format.  For messages, the final boolean indicates whether the
-        device has been connected or disconnected, while in response to
-        this function call, the final boolean is always true, since we
-        only send info about connected devices.
+        have been connected up to this point:
+        [(device name, gpib server name, gpib channel, bool)]
+        After registering, messages will be sent to the registered
+        message ID whenever a matching device connects or disconnects.
+        The clusters sent in response to this setting and those sent as
+        messages have the same format.  For messages, the final boolean
+        indicates whether the device has been connected or disconnected,
+        while in response to this function call, the final boolean is
+        always true, since we only send info about connected devices.
 
         The device name is determined by parsing the response to a *IDN?
         query.  To handle devices that don't support *IDN? correctly, use
         the 'Register Ident Function' in addition.
         """
+        #Managed device servers can specify device names as string or a list of strings
         if isinstance(devices, str):
             devices = [devices]
         found = []
@@ -275,7 +278,7 @@ class GPIBDeviceManager(LabradServer):
             self.client._sendMessage(s['target'], [rec], context=s['context'])
 
     def serverConnected(self, ID, name):
-        """New GPIBManagedServer's will register directly with us, before they
+        """New GPIBManagedServers will register directly with us, before they
         have even completed their registration with the LabRAD manager as a server.
         We will get this signal once they are accessible through the LabRAD client
         so that we can probe them for devices. This ordering matters mainly if
