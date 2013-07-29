@@ -856,10 +856,7 @@ class IQcorrection:
         
         #due to deconvolution, the signal to put in the dacs can be nonzero at the end of a sequence with even a short pulse. 
         #This nonzero value persists, even when running the board with an empty envelope. To remove this, the first and last 4 (FOUR) values must be set.
-        i[0:4]=zeroI
-        i[-4:]=zeroI
-        q[0:4]=zeroQ
-        q[-4:]=zeroQ
+
         
         if not rescale:
             clippedI = np.clip(i,-0x2000,0x1FFF)
