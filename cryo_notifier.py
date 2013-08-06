@@ -98,16 +98,46 @@ class CryoNotifier(LabradServer):
             rv = [(t, 0) for t in self.timers]
         returnValue(rv)
 
-    @setting(10, timer_name='s', returns='v[s]')
-    def reset_timer(self, c, timer_name):
+    @setting(10, timer_name='s', message='s', returns='v[s]')
+    def reset_timer(self, c, timer_name, message=''):
         if timer_name not in self.timers:
             raise KeyError("Timer %s unknown" % name)
         else:
+            dt = datetime.datetime.now()
             p = self.reg.packet()
-            p.set("%s_reset" % timer_name, datetime.datetime.now())
-            yield p.send()
+            p.set("%s_reset" % timer_name, dt)
+            p.get("%s_count" % timer_name, False, -1)
+            p.cd('log')
+            p.set(dt.isoformat(), (timer_name, message))
+            p.cd(self.path)
+            rv = yield p.send()
+            counter_val = rv['get']
+            if counter_val > -1:
+                print('Incrementing counter %s to %d' % (timer_name, counter_val+1))
+                p = self.reg.packet()
+                p.set('%s_count' % timer_name, rv['get'] +1 )
+                yield p.send()
             returnValue(self.timers[timer_name][0])
 
+
+    @setting(11, name='s', val='w', returns='w')
+    def counter(self, c, name, val=None):
+        if name not in self.timers:
+            raise KeyError("Counter %s unknown" % name)
+        p = self.reg.packet()
+        if val is not None:
+            p.set('%s_count' % name, val)
+        p.get('%s_count' % name, False, 0)
+        rv = yield p.send()
+        returnValue(rv['get'])
+
+    @setting(12, returns='*(s,w)')
+    def query_counters(self, c):
+        if self.enabled:
+             yield self.update_timers()
+        rv = self.counters.items()
+        returnValue(rv)
+        
     @setting(15, username='s', returns='b')
     def validate_user(self, c, username):
         '''
@@ -150,7 +180,7 @@ class CryoNotifier(LabradServer):
             ans = yield p.send()
             self.cold = ans['temperatures'][1]['K'] < 10.0
         except Exception:
-            self.cold=False # Assume we are warm if we can't reach the lakeshore server
+            self.cold=True # Assume we are warm if we can't reach the lakeshore server
             
         p = self.reg.packet()
         p.cd(self.path)
@@ -170,12 +200,15 @@ class CryoNotifier(LabradServer):
         p = self.reg.packet()
         for timer_name in timer_settings:
             p.get('%s_reset' % timer_name, True, now, key=timer_name)
+            p.get('%s_count' % timer_name, False, -1, key=timer_name+"-count")
         ans= yield p.send()
 
         self.timers = {}
+        self.counters = {}
         for timer_name in timer_settings:
             #print "updating timer %s with value (%s, %s)" % (timer_name, timer_settings[timer_name], ans[timer_name])
             self.timers[timer_name] = (timer_settings[timer_name].inUnitsOf('s'), ans[timer_name])
+            self.counters[timer_name] = ans[timer_name+"-count"]
         remaining_time = [ (name, (x[0] - td_to_seconds(now-x[1])*s )) for name, x in self.timers.iteritems() ]
         #print "remaining time:"
         #print remaining_time
