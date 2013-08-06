@@ -50,11 +50,10 @@ class JumpEntry(object):
         return '\n'.join([fromAddrStr, toAddrStr, opStr])
     
     def asBytes(self):
-        data = np.zeros(8,dtype=np.int8)
+        data = np.zeros(8,dtype='<u1')
         data[0:3] = littleEndian(self.fromAddr, 3)
         data[3:6] = littleEndian(self.toAddr, 3)
-        data[6] = 0xFF & (self.operation.asBytes()>>8)
-        data[7] = 0xFF & self.operation.asBytes()
+        data[6:8] = littleEndian(self.operation.asBytes(), 2)
         return data
 
 # Operations (ie op codes)
@@ -186,8 +185,10 @@ class JumpTable(object):
     The entire jump table.
     
     This is a very low level wrapper around the actual FPGA data structure
+    
+    TODO: make self.jumps a property with some checking on type and number
     """
-    PACKET_LEN = 144
+    PACKET_LEN = 528
     COUNT_MAX = 2**32 - 1 #32 bit register for counters
     
     def __init__(self, startAddr=None, jumps=None):
@@ -214,7 +215,7 @@ class JumpTable(object):
         
     def toString(self):
         """Write a byte string for the FPGA"""
-        data = np.zeros(self.PACKET_LEN, dtype=np.int8)
+        data = np.zeros(self.PACKET_LEN, dtype='<u1')
         #Set counter maxima. Each one is 4 bytes
         for i,c in enumerate(self._counters):
             data[i*4:(i+1)*4] = littleEndian(c, 4)
@@ -232,9 +233,32 @@ class JumpTable(object):
         
 # Unit tests
 
-def testIdle():
+def testNormal(stopAddr):
+    #SRAM steps from 0 to 1020 over 256 ns.
+    #Verticle step size is 4 DAC clicks per sample
+    waveform = np.zeros(256)*1.0
+    waveform = ([0]*8 + [1]*8)*16
+    
+    jumpEntries = []
+    
+    #End execution
+    op = END()
+    fromAddr = stopAddr
+    toAddr = 0 #Meaningless?
+    jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
+    
+    table = JumpTable(0)
+    table.jumps = jumpEntries
+    
+    return waveform, table
+
+def testIdle(cycles):
     """
     Single high sample, followed by idle, followed by single high sample
+    
+    RETURNS - (sramBlock, table)
+     sramBlock - ndarray: numerical SRAM data, not packed as bytes
+     table - JumpTable: jump table object
     """
     #The SRAM block we use to store data
     #0          10       20        30
@@ -242,16 +266,16 @@ def testIdle():
     #0123456789012345678901234567890123456789
     #___________-____________________-_______
     
-    sramBlock = np.zeros(256)
-    sramBlock[11] = 1 #This is at the end of a 4 word block
-    sramBlock[32] = 1 #This is at the start of a 4 word block
+    waveform = np.zeros(256)
+    waveform[11] = 1    #This is at the end of a 4 word block
+    waveform[32] = 1    #This is at the start of a 4 word block
     
     jumpEntries = []
     
     #Jump from first SRAM section to second one
     #Run SRAM words 0..11, idle 25 cycles, run words 32..35
-    op = IDLE(25)
-    fromAddr = 11
+    op = IDLE(cycles)
+    fromAddr = 5
     toAddr = 0 #Meaningless?
     jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
     
@@ -264,6 +288,4 @@ def testIdle():
     table = JumpTable(0)
     table.jumps = jumpEntries
     
-    
-    
-    return table
+    return waveform, table
