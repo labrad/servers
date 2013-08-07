@@ -81,15 +81,37 @@ class CryoStatusPage(Element):
             return tag(self.cryo_name)
         else:
             return tag("<all>")
+
     @render_safe
+    @inlineCallbacks
     def Diode(self, request, tag):
-        tag.clear()
-        return tag('Diode not implemented yet')
+        '''
+        This function has to be different than RuOx because lakeshore_dioes and lakeshore_ruox
+        return data in different formats.  ruox returns a timestamp along with the temperature,
+        diodes does not.
+        '''
+        server = self._cxn.lakeshore_diodes 
+        p  = server.packet()
+        p.select_device()
+        p.temperatures()
+        result = yield p.send()
+        rv = []
+        for idx, temp in enumerate(result['temperatures']):
+            val = temp['K']
+            if val<1:
+                val = val*1000
+                unit_str = 'mK'
+            else:
+                unit_str = 'K'
+            rv.append(tag.clone().fillSlots(channel="%d: " % idx, temp="%.3f %s" % (val, unit_str)))
+        returnValue(rv)
+       
 
     @render_safe
     @inlineCallbacks
     def RuOx(self, request, tag):
-        p  = self._cxn.lakeshore_ruox.packet()
+        server = self._cxn.lakeshore_ruox
+        p  = server.packet()
         p.select_device()
         p.temperatures()
         result = yield p.send()
@@ -144,9 +166,13 @@ class CryoStatusPage(Element):
         for entry in logdata:
             timestamp = entry[0]
             cryo_name = entry[1]
+            if self.cryo_name.lower() not in cryo_name.lower():
+                continue
             comments = entry[2]
-            if isinstance(timestamp, datetime.datetime):
-                timestamp = timestamp.ctime()
+            try: # convert to human readable date
+                timestamp = datetime.datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%S.%f').ctime()
+            except ValueError:
+                pass
             rv.append(tag.clone().fillSlots(timestamp=timestamp, cryo_name=cryo_name, comments=tags.pre(comments)))
         returnValue(rv)
 
@@ -187,6 +213,11 @@ class StatusResource(Resource):
         return NOT_DONE_YET
 
 root = StatusResource(CryoStatusPage)
+
+# The next bit here implements authentication  Uncomment it and set the username
+# and password as you see fit to password protect the page.  However, a better
+# approach is to us an Apache reverse-proxy and do authentication there.
+'''
 class LabRADHTMLRealm(object):
     implements(IRealm)
     def requestAvatar(self, avatarID, mind, *interfaces):
@@ -194,11 +225,13 @@ class LabRADHTMLRealm(object):
             return (IResource, root, lambda: None)
         raise NotImplementedError()
 
-portal = Portal(LabRADHTMLRealm(), [pwdb(labradweb='arnie-labradweb')])
+portal = Portal(LabRADHTMLRealm(), [pwdb(user='password')])
 credentialFactory = DigestCredentialFactory("md5", "Labrad status pages")
 authroot = HTTPAuthSessionWrapper(portal, [credentialFactory])
 
-factory=Site(authroot)
+factory=Site(authroot)  
+'''
+factory = Site(root)
 
 d = labrad.wrappers.connectAsync()
 d.addCallback(root.set_cxn)
