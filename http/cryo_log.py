@@ -162,7 +162,10 @@ class CryoStatusPage(Element):
     def logentries(self, request, tag):
         logdata = yield self.get_log()
         logdata = sorted(logdata, reverse=True)
-        rv = []
+        rv = [tag.clone().fillSlots(
+                timestamp=tags.b("Fill Time"), 
+                cryo_name=tags.b("Cryo"), 
+                comments=tags.b("Comments"))]
         for entry in logdata:
             timestamp = entry[0]
             cryo_name = entry[1]

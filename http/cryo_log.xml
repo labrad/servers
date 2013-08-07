@@ -35,7 +35,7 @@
     </table>
   </td></tr></table>
   <h4> Cryogen fill log </h4>
-  <table>
+  <table border="1">
     <tr t:render='logentries'>
       <td><t:slot name='timestamp'/></td>
       <td><t:slot name='cryo_name'/></td>
