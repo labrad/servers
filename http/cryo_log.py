@@ -139,15 +139,15 @@ class CryoStatusPage(Element):
     @inlineCallbacks
     def logentries(self, request, tag):
         logdata = yield self.get_log()
-        logdata = sorted(logdata, key=lambda x: int(x[0]), reverse=True)
+        logdata = sorted(logdata, reverse=True)
         rv = []
         for entry in logdata:
             timestamp = entry[0]
             cryo_name = entry[1]
             comments = entry[2]
             if isinstance(timestamp, datetime.datetime):
-                timestamp = timestamp.isoformat()
-            rv.append(tag.clone().fillSlots(timestamp=timestamp, cryo_name=cryo_name, comments=comments))
+                timestamp = timestamp.ctime()
+            rv.append(tag.clone().fillSlots(timestamp=timestamp, cryo_name=cryo_name, comments=tags.pre(comments)))
         returnValue(rv)
 
 
