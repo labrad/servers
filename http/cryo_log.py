@@ -7,6 +7,7 @@ from twisted.web.resource import Resource, IResource
 from twisted.internet.defer import inlineCallbacks, returnValue, Deferred
 from twisted.web.template import flattenString, Element, renderer, XMLFile, tags
 from twisted.python.filepath import FilePath
+from labrad.server import LabradServer, setting
 import functools
 import inspect
 import labrad
@@ -17,6 +18,23 @@ from twisted.cred.portal import IRealm, Portal
 from twisted.cred.checkers import InMemoryUsernamePasswordDatabaseDontUse as pwdb
 from twisted.web.static import File
 from twisted.web.guard import DigestCredentialFactory, HTTPAuthSessionWrapper
+
+"""
+### BEGIN NODE INFO
+[info]
+name = HTTP Server
+version = 1.0
+description = Cryo status information over HTTP
+
+[startup]
+cmdline = %PYTHON% %FILE%
+timeout = 20
+
+[shutdown]
+message = 987654321
+timeout = 5
+### END NODE INFO
+"""
 
 def render_safe(render_method):
     '''
@@ -103,7 +121,7 @@ class CryoStatusPage(Element):
                 unit_str = 'mK'
             else:
                 unit_str = 'K'
-            rv.append(tag.clone().fillSlots(channel="%d: " % idx, temp="%.3f %s" % (val, unit_str)))
+            rv.append(tag.clone().fillSlots(channel="%d: " % (idx+1,), temp="%.3f %s" % (val, unit_str)))
         returnValue(rv)
        
 
@@ -123,7 +141,7 @@ class CryoStatusPage(Element):
                 unit_str = 'mK'
             else:
                 unit_str = 'K'
-            rv.append(tag.clone().fillSlots(channel="%d: " % idx, temp="%.3f %s" % (val, unit_str)))
+            rv.append(tag.clone().fillSlots(channel="%d: " % (idx+1,), temp="%.3f %s" % (val, unit_str)))
         returnValue(rv)
 
     @render_safe
@@ -142,6 +160,8 @@ class CryoStatusPage(Element):
             minutes = (t - hours*3600)//60
             seconds = (t - hours*3600 - minutes*60)
             time_str = "%02d:%02d:%02d" % (hours, minutes, seconds)
+            if hours < 1:
+                time_str = tags.font(time_str, color="#FF0000")
             rv.append(tag.clone().fillSlots(name=name, time=time_str))
         returnValue(rv)
 
@@ -200,9 +220,9 @@ class RootStatusResource(Resource):
 
 class StatusResource(Resource):
     isLeaf=True
-    def __init__(self, page_factory):
+    def __init__(self, page_factory, cxn=None):
         self.factory = page_factory
-        self.cxn = None
+        self.cxn = cxn
     def _delayedRender(self, request, data):
         request.write(data)
         request.finish()
@@ -215,7 +235,7 @@ class StatusResource(Resource):
         d.addCallback(lambda data: self._delayedRender(request, data))
         return NOT_DONE_YET
 
-root = StatusResource(CryoStatusPage)
+#root = StatusResource(CryoStatusPage, cxn)
 
 # The next bit here implements authentication  Uncomment it and set the username
 # and password as you see fit to password protect the page.  However, a better
@@ -234,6 +254,9 @@ authroot = HTTPAuthSessionWrapper(portal, [credentialFactory])
 
 factory=Site(authroot)  
 '''
+
+# The code below is for starting not as a labrad server
+'''
 factory = Site(root)
 
 d = labrad.wrappers.connectAsync()
@@ -244,3 +267,25 @@ d.addErrback(cxn_failed)
 
 reactor.listenTCP(8880, factory)
 reactor.run()
+'''
+
+class HTTPServer(LabradServer):
+    """
+    HTTP server to provide cryo status information
+
+    Currently there are no exported labrad settings.  This is only a server to allow it to
+    be easily started and stopped by the node.  
+    """
+    name = 'HTTP Server'
+
+    #@inlineCallbacks
+    def initServer(self):
+        root = StatusResource(CryoStatusPage, self.client)
+        factory = Site(root)
+        reactor.listenTCP(8880, factory)
+
+__server__ = HTTPServer()
+
+if __name__ == '__main__':
+    from labrad import util
+    util.runServer(__server__)
