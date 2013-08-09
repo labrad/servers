@@ -116,7 +116,7 @@ class TelecommServer(LabradServer):
         yield self._refreshConnectionData()
         print 'initialization complete.'
     
-    @inlineCallbacks
+    #@inlineCallbacks # Don't use inlinecallbacks without yield -- ERJ
     def stopServer(self):
         pass
         
@@ -158,7 +158,10 @@ class TelecommServer(LabradServer):
     @setting(20, returns='')
     def refresh_connection_data(self, c):
         yield self._refreshConnectionData()
-        
+    @setting(25, returns='*s')
+    def userlist(self, c):
+        return self.smsUsers.keys()
+
 __server__ = TelecommServer()
 
 if __name__ == '__main__':
