@@ -1,0 +1,87 @@
+This is copied from U:\John\ProtelDesigns\GHzDAC_R3_1
+
+PLL programming via serial port
+MSB sent first
+1GHz to 1 MHz, R = 1, N = 12*8 + 4, 125 MHz prescale output
+
+	1FC093 ; 00 0 111111 1000 00 0 1 001 0 0 11 ; Initial Latch ; P=8, I full scale, Lock Detect
+	1FC092 ; 00 0 111111 1000 00 0 1 001 0 0 10 ; Function Latch; Same as above 
+	100004 ; 000 1 00 00 00000000000001 00      ; Ref Cnt Latch ; 5 cycle to lock, 2.9 ns backlash, R=1
+        000C11 ; 00 0 0000000001100 000100 01       ; AB Cnt Latch  ; B=12, A=4	
+
+
+
+
+DAC programing via serial port
+Set to signed data: 1000=min, 0=mid, 1FFF=max (As unsigned but NOT to MSbit)
+Commands in Hex / Binary
+Two bytes for Command, Data; W=write, R=read
+By using single byte commands, ensures delays for proper operation
+
+(1) Initialization
+	00 24 ; W MODE      0010 0100 ; RESET, input only, MSB first, short word, 1x, En FIFO, signed data, En LVDS)
+	00 04 ; W MODE	    0000 0100 ; Release RESET, the rest same as above
+	16 03 ; W CCLK_DIV  0000 0011 ; Control clock=DACCLK/128 (8 MHz < 10 MHz for 1 GHz main clock)
+
+(2) LVDS Calibration
+	05 00 ; W LVDS_CNT2 0000 0000 ; SD[3..0]=0 cleared
+	Loop for i=0 to F
+	04 i0 ; W LVDS_CNT1 iiii 0000 ; MHD[3..0]=0, MSD changed (sweep delay time, 80 ps/pt)
+	85 xx ; R LVDS_CNT2 rrrr rssy ; r=don't care, s nonzero is LVDS error, y is check data; read 5 times for average
+	04 0i ; W LVDS_CNT1 0000 iiii ; MSD[3..0]=0, MHD changed
+	85 xx ; R LVDS_CNT2 rrrr rssz ; Z is check data
+	End Loop
+	Plot y,z vs i; 
+	Find first 0 after negative edge; setting for SD is t=(MHD-MSD)/2
+	05 t0 ; W LVDS_CNT2 tttt 0000 ; Set SD[3..0] to t value found above
+
+(3) LVDS check
+	Do Loop for i=0 to F as above, and plot
+        Check if MHD and MSD negative edge is same within one delay unit
+	Difference in 2 or 3 indicates noise on LVDS line
+
+(4) FIFO (SYNC) Calibration
+	87 00 ; R SYNC_CNT1 yzzz vrxx ; Reads FIFO condition; y=1 is error, v=0 not valid, xx= offset, zzz= FIFO counter
+	If zzz is even, toggle DataClk (1010 to 0101) to make odd.  Read again and check if odd
+	07 0j ; W SYNC_CNT1 0000 00jj ; Replace xx offset by jj to get zzz = 3. Increasing xx by 1 decreases zzz by 2
+
+(5) BIST (Built in self test) - checks for proper LVDS data transfer
+	00 24 ; W MODE      0010 0100 ; RESET
+	Set input (LVDS) data = 0x0000
+	00 24 ; W MODE      0000 0100 ; Release RESET
+	Run initialization procedure (clears BIST memory)
+	11 07 ; W BIST_CNT  0000 0111 ; LVDS_En=1, SYNC_EN=1, CLEAR=1
+	11 06 ; W BIST_CNT  0000 0110 ; CLEAR=0
+	Read all registers:
+	11 26 ; W BIST_CNT  0010 0110 ; Enable SIG_READ, readback LVDS Phase 1
+	92 00 ; R BIST7:0   zzzz zzzz ; Reads BIST[7..0] of self-test register
+	93 00 ; R BIST15:8  zzzz zzzz ; Reads BIST[15..8]
+	94 00 ; R BIST23:16 zzzz zzzz ; Reads BIST[23..16]
+	95 00 ; R BIST31:24 zzzz zzzz ; Reads BIST[31..24]
+	11 66 ; W BIST_CNT  0110 0110 ; readback LVDS Phase 2,
+	92 00 ; R BIST7:0   zzzz zzzz ; Reads BIST[7..0]
+	93 00 ; R BIST15:8  zzzz zzzz ; Reads BIST[15..8]
+	94 00 ; R BIST23:16 zzzz zzzz ; Reads BIST[23..16]
+	95 00 ; R BIST31:24 zzzz zzzz ; Reads BIST[31..24]
+	11 A6 ; W BIST_CNT  1010 0110 ; readback SYNC Phase 1,
+	92 00 ; R BIST7:0   zzzz zzzz ; Reads BIST[7..0]
+	93 00 ; R BIST15:8  zzzz zzzz ; Reads BIST[15..8]
+	94 00 ; R BIST23:16 zzzz zzzz ; Reads BIST[23..16]
+	95 00 ; R BIST31:24 zzzz zzzz ; Reads BIST[31..24]
+	11 E6 ; W BIST_CNT  1110 0110 ; readback SYNC Phase 2,
+	92 00 ; R BIST7:0   zzzz zzzz ; Reads BIST[7..0]
+	93 00 ; R BIST15:8  zzzz zzzz ; Reads BIST[15..8]
+	94 00 ; R BIST23:16 zzzz zzzz ; Reads BIST[23..16]
+	95 00 ; R BIST31:24 zzzz zzzz ; Reads BIST[31..24]
+	Check to make sure all BIST values = 0
+	Clock BIST vectors (computed in Matlab) into DAC once, leading and trailing values = 0000
+	Read all registers (as given above); check for expected signatures given by matlab code
+	To run BIST again, run initialization procedure (with CLEAR=1) above before testing
+	Need BIST vectors to test one bit at a time, and all bits; see MATLAB code in datasheet (page 46)
+
+
+
+
+
+
+
