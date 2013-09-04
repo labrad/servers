@@ -39,12 +39,13 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad.types import Value
 from struct import unpack
 
+import time
 import numpy, re
 
 COUPLINGS = ['AC', 'DC']
 TRIG_CHANNELS = ['EXT','CHAN1','CHAN2','CHAN3','CHAN4','LINE']
 VERT_DIVISIONS = 8.0
-HORZ_DIVISIONS = 20.0
+HORZ_DIVISIONS = 10.0
 SCALES = []
 
 class Agilent7104BWrapper(GPIBDeviceWrapper):
@@ -211,8 +212,8 @@ class Agilent7104BServer(GPIBManagedServer):
         if position is None:
             resp = yield dev.query(':CHAN%d:OFFS?' %channel)
         else:
-            pos=position*scale
-            yield dev.write((':CHAN%d:OFFS %f V') %(channel,pos))
+            pos=-position*scale
+            yield dev.write((':CHAN%d:OFFS %g V') %(channel,pos))
             resp = yield dev.query(':CHAN%d:OFFS?' %channel)
         position = float(resp)/float(scale)
         returnValue(position)
@@ -287,7 +288,7 @@ class Agilent7104BServer(GPIBManagedServer):
         else:
             raise Exception('Select valid trigger channel')
         returnValue(resp)
-
+    '''
     @setting(151, position = 'v', returns = ['v'])
     def horiz_position(self, c, position = None):
         """Get or set the horizontal trigger position in seconds from the trigger
@@ -300,7 +301,24 @@ class Agilent7104BServer(GPIBManagedServer):
             resp = yield dev.query(':TIM:POS?')
         position = float(resp)
         returnValue(position)
-
+    '''
+    @setting(151, position = 'v', returns = ['v'])
+    def horiz_position(self, c, position = None):
+        """Get or set the horizontal trigger position (as a percentage from the left edge of the screen) - for compatibility with tek-oriented code
+        """
+        #get horiz_scale       
+        dev = self.selectedDevice(c)
+        if position is None:
+            resp = yield dev.query(':TIM:POS?')
+        else:
+            resp = yield dev.query(':TIM:SCAL?')
+            scale = float(resp)
+            pos= scale*HORZ_DIVISIONS* -(position/100. -0.5)
+            yield dev.write((':TIM:POS %g') %pos)
+            resp = yield dev.query(':TIM:POS?')
+        position = float(resp)
+        returnValue(position)    
+    
     @setting(152, scale = 'v', returns = ['v'])
     def horiz_scale(self, c, scale = None):
         """Get or set the horizontal scale value in s per div
@@ -324,7 +342,7 @@ class Agilent7104BServer(GPIBManagedServer):
         removed start and stop: start = 'i', stop = 'i' (,start=1, stop=10000)
         """
         wordLength = 2 #Hardcoding to set data transer word length to 2 bytes
-        recordLength = stop-start+1
+        #recordLength = stop-start+1
         
         dev = self.selectedDevice(c)
 
@@ -345,16 +363,18 @@ class Agilent7104BServer(GPIBManagedServer):
         #Parse waveform preamble
         points,xincrement,xorigin,xreference,yincrement,yorigin,yreference,vsteps = _parsePreamble(preamble)
         
-        voltUnitScaler = 1 #Value(1, voltUnits)['V'] # converts the units out of the scope to V
-        timeUnitScaler = 1 #Value(1, timeUnits)['s']
+        #voltUnitScaler = 1 #Value(1, voltUnits)['V'] # converts the units out of the scope to V
+        #timeUnitScaler = 1 #Value(1, timeUnits)['s']
+        voltUnitScaler = 1000.0 #in mV
+        timeUnitScaler = 1.0e9  #in ns
         #Parse binary
         trace = _parseBinaryData(binary,wordLength = wordLength)
         trace = trace[-points:]
 
         #Convert from binary to volts
         traceVolts = (trace - yreference) * yincrement * voltUnitScaler
-        time = (numpy.arange(points)*xincrement + xorigin) * timeUnitScaler
-        returnValue((time, traceVolts))
+        timeAxis = (numpy.arange(points)*xincrement + xorigin) * timeUnitScaler
+        returnValue((timeAxis, traceVolts))
 
 def _parsePreamble(preamble):
     '''
@@ -372,14 +392,14 @@ def _parsePreamble(preamble):
     '''
     #fields=unpack( '>IILLddLffL' ,  preamble)
     fields=preamble.split(',')
-    vsteps=65536.0
     points=int(fields[2])
+    xincrement=float(fields[4])
+    xorigin=float(fields[5])
+    xreference=int(fields[6])    
     yincrement=float(fields[7])
     yorigin=float(fields[8])
     yreference=int(fields[9])  
-    xincrement=float(fields[4])
-    xorigin=float(fields[5])
-    xreference=int(fields[6])
+    vsteps=65536.0    
     return (points,xincrement,xorigin,xreference,yincrement,yorigin,yreference,vsteps)
 
 def _parseBinaryData(data, wordLength):
