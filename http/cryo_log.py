@@ -156,11 +156,14 @@ class CryoStatusPage(Element):
                 continue
 
             t = int(t['s'])
+            warning = t < 3600
+            sign = '' if t > 0 else '-'
+            t = abs(t)
             hours = t//3600
             minutes = (t - hours*3600)//60
             seconds = (t - hours*3600 - minutes*60)
-            time_str = "%02d:%02d:%02d" % (hours, minutes, seconds)
-            if hours < 1:
+            time_str = "%s%02d:%02d:%02d" % (sign, hours, minutes, seconds)
+            if warning:
                 time_str = tags.font(time_str, color="#FF0000")
             rv.append(tag.clone().fillSlots(name=name, time=time_str))
         returnValue(rv)
