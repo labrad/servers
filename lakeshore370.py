@@ -13,48 +13,59 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# Version 2.1	pomalley	7/23/2010	Added reading of calibrations from LabRAD registry.
-# Version 2.2	pomalley	8/17/2010	Fixed some issues with above, added reading of Read Order from registry.
+# Version 2.1	pomalley	7/23/2010	Added reading of calibrations from
+# LabRAD registry.
+# Version 2.2	pomalley	8/17/2010	Fixed some issues with above, added
+# reading of Read Order from registry.
 # Version 2.3   pomalley    4/01/2010   Added r and auto_sensitivity settings
 
 # How to set your Lakeshore 370's Resistance vs. Temperature Curve:
-# Previously, conversion of a resistance to a temperature happened with a hard coded function.
-# Now that we have two DRs, and thus (at least) two different kinds of Ruox thermometers,
-# a single hard coded function will not be sufficient.
-# Information for the calibration curves will be stored in the registry; there can be different
-# curves for each Lakeshore device, as well as different curves for each channel on a given device.
-# The registry entries for a given device are stored in the following path:
+# Previously, conversion of a resistance to a temperature happened with a hard
+# coded function. Now that we have two DRs, and thus (at least) two different
+# kinds of Ruox thermometers, a single hard coded function will not be
+# sufficient. Information for the calibration curves will be stored in the
+# registry; there can be different curves for each Lakeshore device, as well as
+# different curves for each channel on a given device. The registry entries for
+# a given device are stored in the following path:
 # >> Servers >> Lakeshore 370 >> [node name]
-# where [node name] is usually Vince or DR (but at some point we may change it to Jules)
-# (note that the node name is actually taken from the first word of the device wrapper's self.name)
-# A given calibration consists of three keys:
+# where [node name] is usually Vince or DR (but at some point we may change it
+# to Jules) (note that the node name is actually taken from the first word of
+# the device wrapper's self.name) A given calibration consists of three keys:
 # "Calibration Type" must either be "Interpolation" or "Function"
 # 	For an interpolation, there must be two more keys:
 #		"Resistances", an array of resistance values, and
 #		"Temperatures", an array of corresponding temperatures.
-#		In this case, the server will do a log-log interpolation of the given data to convert a
-#		resistance to a temperature.
+#		In this case, the server will do a log-log interpolation of the given
+#       data to convert a resistance to a temperature.
 #	For a function, there must be one more key:
-#		"Function", which is a string of a Python expression for converting a res to a temp, and
-#		"Inverse", which is also a Python expression, but inverted (for converting a temp to a res).
-#		In the Function, the resistance variable is r; in the Inverse, the temperature variable is t.
-#		In both cases, math functions are imported in the namespace	math (e.g. use math.log(r) to take the log).
-#		The server will run the Function code to convert a resistance to a temperature. For example, the
-# 		function that is used for Jules' resistors is: '((math.log(r) - 6.02) / 1.76) ** (-1/.345)'
-#		The Inverse code is used for temperature regulation. (Note that for interpolation calibrations
-#		the server can simply reverse the arguments of the interpolation to convert a temp to a res).
-# The best way to understand these is by example. Look in >> Servers >> Lakeshore 370 >> Jules for
-# an example of a function, and >> Servers >> Lakeshore 370 >> Vince for an interpolation example.
-# Finally, if you need to have different calibrations for different resistors on the same device,
-# this can easily be accomplished by creating another folder called "Channel X" where X is one of
-# 1 - N, and then put the appropriate keys in that folder. That calibration will be used for that channel,
-# and the calibration for the device will only be used if there is no calibration for a given channel.
-# In this way, you can have an interpolation for channel 1, a different interpolation for channel 2,
-# and a function for the device, which would be used for channels 3, 4, and 5, for example.
-# For an example of this, see >> Servers >> Lakeshore 370 >> Vince.
+#		"Function", which is a string of a Python expression for converting a
+#       res to a temp, and "Inverse", which is also a Python expression, but
+#       inverted (for converting a temp to a res). In the Function, the
+#       resistance variable is r; in the Inverse, the temperature variable is
+#       t. In both cases, math functions are imported in the namespace	math
+#       (e.g. use math.log(r) to take the log). The server will run the
+#       Function code to convert a resistance to a temperature. For example,
+#       the function that is used for Jules' resistors is:
+#       '((math.log(r) - 6.02) / 1.76) ** (-1/.345)'
+#		The Inverse code is used for temperature regulation. (Note that for
+#       interpolation calibrations the server can simply reverse the arguments
+#       of the interpolation to convert a temp to a res).
+#
+# The best way to understand these is by example. Look in >> Servers >>
+# Lakeshore 370 >> Jules for an example of a function, and >> Servers >>
+# Lakeshore 370 >> Vince for an interpolation example. Finally, if you need to
+# have different calibrations for different resistors on the same device, this
+# can easily be accomplished by creating another folder called "Channel X"
+# where X is one of 1 - N, and then put the appropriate keys in that folder.
+# That calibration will be used for that channel, and the calibration for the
+# device will only be used if there is no calibration for a given channel. In
+# this way, you can have an interpolation for channel 1, a different
+# interpolation for channel 2, and a function for the device, which would be
+# used for channels 3, 4, and 5, for example. For an example of this, see >>
+# Servers >> Lakeshore 370 >> Vince.
 
-# Also note that the read order for a given device now can be stored in the registry as well.
-# If not, it defaults to [1, 2, 1, 3, 1, 4, 1, 5]
+# Also note that the read order for a given device now can be stored in the
+# registry as well. If not, it defaults to [1, 2, 1, 3, 1, 4, 1, 5]
 
 """
 ### BEGIN NODE INFO
