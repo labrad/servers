@@ -59,6 +59,10 @@ Registry keys:
 '''
 @inlineCallbacks
 def start_server(cxn, node_name, server_name):
+    """Start an external server
+    
+    Use this to make sure dependencies are running, ie the telecom server.
+    """
     if server_name in cxn.servers:
         returnValue(True)
     if node_name in cxn.servers:
@@ -85,6 +89,7 @@ class CryoNotifier(LabradServer):
         yield start_server(self.client, 'node_vince', 'Telecomm Server')
         self.cb = LoopingCall(self.check_timers)
         self.cb.start(interval=60.0, now=True)
+    
     @setting(5, returns='*(sv[s])') 
     def query_timers(self, c):
         '''
@@ -97,7 +102,7 @@ class CryoNotifier(LabradServer):
         else:
             rv = [(t, 0) for t in self.timers]
         returnValue(rv)
-
+    
     @setting(10, timer_name='s', message='s', returns='v[s]')
     def reset_timer(self, c, timer_name, message=''):
         if timer_name not in self.timers:
@@ -118,7 +123,7 @@ class CryoNotifier(LabradServer):
                 p.set('%s_count' % timer_name, rv['get'] +1 )
                 yield p.send()
             returnValue(self.timers[timer_name][0])
-
+    
 
     @setting(11, name='s', val='w', returns='w')
     def counter(self, c, name, val=None):
@@ -151,6 +156,7 @@ class CryoNotifier(LabradServer):
             return True
         else:
             return False
+    
     @setting(20, enable='b')
     def enable_timers(self,c,enable):
         '''
@@ -160,13 +166,13 @@ class CryoNotifier(LabradServer):
         p.set("timers_enabled", enable)
         yield p.send()
         self.enabled = enable
-        
+    
     @setting(25, returns='*s')
     def allowed_users(self, c):
         '''Return list of users currently enabled for notification.
         Only these users should be able to use qubit sequencer.'''
         return self.users
-
+    
     @inlineCallbacks
     def update_timers(self):
         '''
@@ -213,7 +219,7 @@ class CryoNotifier(LabradServer):
         #print "remaining time:"
         #print remaining_time
         returnValue(remaining_time)
-                           
+    
     @inlineCallbacks
     def check_timers(self):
         '''
