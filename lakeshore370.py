@@ -151,53 +151,56 @@ class RuOxWrapper(GPIBDeviceWrapper):
         except Exception, e:
             print e
             returnValue([DEFAULT])
-
+    
     def printCalibration(self, channel):
         str = ''
         try:
             if self.calibrations[channel][0] == INTERPOLATION:
-                str = "INTERPOLATION --  Resistances: %s -- Temperatures: %s" % (self.calibrations[channel][1], self.calibrations[channel][2])
+                str = "INTERPOLATION --  Resistances: %s -- Temperatures: %s"%\
+                (self.calibrations[channel][1], self.calibrations[channel][2])
             elif self.calibrations[channel][0] == FUNCTION:
-                str = "FUNCTION: %s -- Inverse: %s" % (self.calibrations[channel][1], self.calibrations[channel][2])
+                str = "FUNCTION: %s -- Inverse: %s" %\
+                (self.calibrations[channel][1], self.calibrations[channel][2])
             elif self.calibrations[channel][0] == DEFAULT:
                 str = "DEFAULT"
             else:
-                raise Exception('Invalid calibration for channel %s: "%s"' % (channel, str))
+                raise Exception('Invalid calibration for channel %s: "%s"' %\
+                                   (channel, str))
         except Exception, e:
             str += e.__str__()
             
         return str
-            
+    
     @inlineCallbacks
     def initialize(self):
         self.alive = False
         self.onlyChannel = 0
-        
         print "Initializing %s" % self.name
-        
         # see function def below
         self.reloadCalibrations()
-        
         # also we should set the box settings here
         yield self.write('RDGRNG 0,0,04,15,1,0')
         self.alive = True
         self.readLoop().addErrback(log.err)	
-
+    
     @inlineCallbacks
     def reloadCalibrations(self):
         # load read order and resistance->temperature function from registry
         # there are actually multiple functions--one for each channel,
         # and a device default in case any of the channels' are missing
-        # self.calibrations[0] = device default calibration, self.calibrations[1-N] for channels 1-N
-        # see comment above loadSingleCalibration 
+        # self.calibrations[0] = device default calibration,
+        #self.calibrations[1-N] for channels 1-N. see comment above
+        #loadSingleCalibration 
         self.calibrations = []
         self.readOrder = []
         reg = self.gpib._cxn.registry
-        # determine if we're jules or vince based on the beginning of the name string
-        # name string is usually "Vince GPIB Bus - GPIB0::12" or "DR GPIB Bus - GPIB0::12"
+        # determine if we're jules or vince based on the beginning of the name
+        # string name string is usually
+        # "Vince GPIB Bus - GPIB0::12" or "DR GPIB Bus - GPIB0::12"
         if self.name.lower().startswith("vince"):
             name = 'Vince'
-        elif self.name.lower().startswith("dr") or self.name.lower().startswith("jules"):
+        elif self.name.lower().startswith("dr") or \
+                        self.name.lower().startswith("jules"):
             name = 'Jules'
         else:
             name = self.name.partition(' ')[0]
@@ -242,22 +245,19 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 print "%s -- found FUNCTION calibration for channel %d." % (self.addr, i+1)
             else:
                 raise Exception("Calibration loader messed up. This shouldn't have happened.")
-        
-
-
-            
+    
     def shutdown(self):
         self.alive = False
-
+    
     @inlineCallbacks
     def selectChannel(self, channel):
         yield self.write('SCAN %d,0' % channel)
-
+    
     @inlineCallbacks
     def getHeaterOutput(self):
         ans = yield self.query('HTR?')
         returnValue(float(ans))
-
+    
     @inlineCallbacks
     def setHeaterRange(self, value):
         if value is None:
@@ -271,17 +271,17 @@ class RuOxWrapper(GPIBDeviceWrapper):
                     val -= 1
             yield self.write('HTRRNG %d' % val)
             returnValue([0.0316, 0.1, 0.316, 1.0, 3.16, 10.0, 31.6, 100.0][val-1])
-
+    
     @inlineCallbacks
     def controlTemperature(self, channel, resistance, loadresistor):
         yield self.write('HTRRNG 0')
         yield self.write('CSET %d,0,2,1,1,8,%f' % (channel, loadresistor))
         yield self.write('SETP %f' % resistance)
-
+    
     @inlineCallbacks
     def setPID(self, P, I, D):
         yield self.write('PID %f, %f, %f' % (P, I, D))
-
+    
     @inlineCallbacks
     def readLoop(self, idx=0):
         while self.alive:
@@ -304,14 +304,16 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 self.readings[chan-1] = float(r), datetime.now()
                 idx = (idx + 1) % len(self.readOrder)
     
-    # get a single temperature for a given channel
-    # use that channel's calibration, or if it's default, the device calibration
-    # (and if that's zero, the default function)
-    # the first argument is the channel
-    # the second argument is the channel to use for the calibration, where 0 means use device default calibration
-    # if we don't find a calibration on the given channel, we try again with 0
-    # if that doesn't work, we use the old-fashioned res2temp
     def getSingleTemp(self, channel, calIndex=-1):
+        """Get a single temperature for a given channel
+        
+        Use that channel's calibration, or if it's default, the device
+        calibration (and if that's zero, the default function) the first
+        argument is the channel the second argument is the channel to use for
+        the calibration, where 0 means use device default calibration if we
+        don't find a calibration on the given channel, we try again with 0 if
+        that doesn't work, we use the old-fashioned res2temp.
+        """
         if calIndex == -1:
             calIndex = channel
         try:
@@ -343,11 +345,14 @@ class RuOxWrapper(GPIBDeviceWrapper):
         for i in range(max(self.readOrder)):
             result.append((self.getSingleTemp(i+1), self.readings[i][1]))
         return result
-        
-    # get the resistance that corresponds to a temperature
-    # you need to provide the channel because different channels can have different calibrations
-    # this function is essentially the inverse of getSingleTemp above
+    
     def singleTempToRes (self, temp, channel, calIndex=-1):
+        """Get the resistance that corresponds to a temperature
+        
+        You need to provide the channel because different channels can have
+        different calibrations this function is essentially the inverse of
+        getSingleTemp.
+        """
         if calIndex == -1:
             calIndex = channel
         try:
