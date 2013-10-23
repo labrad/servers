@@ -18,7 +18,10 @@
 # Version 2.2	pomalley	8/17/2010	Fixed some issues with above, added
 # reading of Read Order from registry.
 # Version 2.3   pomalley    4/01/2010   Added r and auto_sensitivity settings
-
+# Version 2.4   Daniel Sank 2013/10/23  Support multiple devices on a single
+#                                       node(gpib bus).
+#                                       Added named_temperatures
+#
 # How to set your Lakeshore 370's Resistance vs. Temperature Curve:
 # Previously, conversion of a resistance to a temperature happened with a hard
 # coded function. Now that we have two DRs, and thus (at least) two different
@@ -27,11 +30,11 @@
 # registry; there can be different curves for each Lakeshore device, as well as
 # different curves for each channel on a given device. The registry entries for
 # a given device are stored in the following path:
-# >> Servers >> Lakeshore 370 >> [node name]
-# where [node name] is usually Vince or DR (but at some point we may change it
-# to Jules) (note that the node name is actually taken from the first word of
-# the device wrapper's self.name) A given calibration consists of three keys:
-# "Calibration Type" must either be "Interpolation" or "Function"
+# >> Servers >> Lakeshore 370 >> [node name] >> [GPIB address]
+# where [node name] is something like "Vince" or "DR"
+# (note that the node name is actually taken from the first word of the device
+# wrapper's self.name) A given calibration consists of three keys:
+#   Calibration Type: must either be "Interpolation" or "Function"
 # 	For an interpolation, there must be two more keys:
 #		"Resistances", an array of resistance values, and
 #		"Temperatures", an array of corresponding temperatures.
@@ -53,16 +56,16 @@
 #
 # The best way to understand these is by example. Look in >> Servers >>
 # Lakeshore 370 >> Jules for an example of a function, and >> Servers >>
-# Lakeshore 370 >> Vince for an interpolation example. Finally, if you need to
-# have different calibrations for different resistors on the same device, this
-# can easily be accomplished by creating another folder called "Channel X"
-# where X is one of 1 - N, and then put the appropriate keys in that folder.
-# That calibration will be used for that channel, and the calibration for the
-# device will only be used if there is no calibration for a given channel. In
-# this way, you can have an interpolation for channel 1, a different
-# interpolation for channel 2, and a function for the device, which would be
-# used for channels 3, 4, and 5, for example. For an example of this, see >>
-# Servers >> Lakeshore 370 >> Vince.
+# Lakeshore 370 >> Vince >> <gpib addr> for an interpolation example. Finally,
+# if you need to have different calibrations for different resistors on the
+# same device, this can easily be accomplished by creating another folder
+# called "Channel X" where X is one of 1 - N, and then put the appropriate keys
+# in that folder. That calibration will be used for that channel, and the
+# calibration for the device will only be used if there is no calibration for a
+# given channel. In this way, you can have an interpolation for channel 1, a
+# different interpolation for channel 2, and a function for the device, which
+# would be used for channels 3, 4, and 5, for example. For an example of this,
+# see >> Servers >> Lakeshore 370 >> Vince >> <gpib addr>.
 
 # Also note that the read order for a given device now can be stored in the
 # registry as well. If not, it defaults to [1, 2, 1, 3, 1, 4, 1, 5]
@@ -71,7 +74,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Lakeshore RuOx
-version = 2.3
+version = 2.4
 description = 
 
 [startup]
@@ -114,19 +117,66 @@ def temp2res(t):
         return 0.0
 
 class RuOxWrapper(GPIBDeviceWrapper):
-
-    # load a single calibration
-    # reg = registry object
-    # path = directory where registry keys are (e.g. ["", "Servers", "Lakeshore 370", "GPIB1::12", "Channel 1"])
-    # returns a list: [regType, parameters...]
-    # for regType == DEFAULT, then there are no parameters (len(returnValue) = 1)
-    # for regType == FUNCTION, then the returnValue [1] is a string of python code to be eval'd
-    #							in a place where r (float) is a resistance, in ohms,
-    #							and returnValue[2] is the inverse of the function, where t (float) is a temp, in kelvin
-    # for regType == INTERPOLATION, then returnValue[1] is a list of resistances for interpolation,
-    #								and returnValue[2] is a list of temperatures
+    
+    @inlineCallbacks
+    def initialize(self):
+        """Set up initial state for this wrapper"""
+        self.alive = False
+        self.onlyChannel = 0
+        print "Initializing %s" % self.name
+        yield self.loadDeviceInformation()
+        # also we should set the box settings here
+        yield self.write('RDGRNG 0,0,04,15,1,0')
+        self.alive = True
+        self.readLoop().addErrback(log.err)	
+    
+    @inlineCallbacks
+    def loadDeviceInformation(self):
+        """Get a wrapper around this device's registry data"""
+        path = self.getRegistryPath()
+        #Load calibration data
+        yield self.reloadCalibrations(path)
+        yield self.reloadChannelNames(path)
+    
+    def getRegistryPath(self):
+        """Get a registry path suitable for registry.cd
+        
+        Warning - the registry is controlled by the same program as the manager
+        which runs in Windoze. This means that paths are case insensitive.
+        """
+        path = ['', 'Servers', 'Lakeshore 370']
+        gpibServerName, addr = self.name.split(' - ')
+        nodeName = gpibServerName.split(' ')[0].lower()
+        path.extend([nodeName, addr])
+        return path
+    
+    @inlineCallbacks
+    def reloadChannelNames(self, path):
+        reg = self.gpib._cxn.registry
+        p = reg.packet()
+        p.cd(path)
+        p.get('channelNames', key='channels')
+        ans = yield p.send()
+        self.channelNames = ans['channels']
+    
     @inlineCallbacks
     def loadSingleCalibration(self, reg, path):
+        """Load a single calibration
+        
+        reg = registry object
+        path = directory where registry keys are. For example:
+        ["", "Servers", "Lakeshore 370", "GPIB1::12", "Channel 1"]
+        
+        Returns a list: [regType, parameters...]
+        
+        For regType == DEFAULT there are no parameters and len(returnValue) = 1
+        For regType == FUNCTION, the returnValue [1] is a string of python code
+        to be eval'd in a place where r (float) is a resistance, in ohms, and
+        returnValue[2] is the inverse of the function, where t (float) is a
+        temp, in kelvin for regType == INTERPOLATION, then returnValue[1] is a
+        list of resistances for interpolation, and returnValue[2] is a list of
+        temperatures.
+        """
         try:
             p = reg.packet()
             p.cd(path)
@@ -172,42 +222,19 @@ class RuOxWrapper(GPIBDeviceWrapper):
         return str
     
     @inlineCallbacks
-    def initialize(self):
-        self.alive = False
-        self.onlyChannel = 0
-        print "Initializing %s" % self.name
-        # see function def below
-        self.reloadCalibrations()
-        # also we should set the box settings here
-        yield self.write('RDGRNG 0,0,04,15,1,0')
-        self.alive = True
-        self.readLoop().addErrback(log.err)	
-    
-    @inlineCallbacks
-    def reloadCalibrations(self):
-        # load read order and resistance->temperature function from registry
-        # there are actually multiple functions--one for each channel,
-        # and a device default in case any of the channels' are missing
-        # self.calibrations[0] = device default calibration,
-        #self.calibrations[1-N] for channels 1-N. see comment above
-        #loadSingleCalibration 
+    def reloadCalibrations(self, dir):
+        """Load read order and resistance->temperature function from registry
+        
+        There are actually multiple functions--one for each channel, and a
+        device default in case any of the channels' are missing
+        self.calibrations[0] = device default calibration,
+        self.calibrations[1-N] for channels 1-N. See docstring for
+        loadSingleCalibration
+        """
         self.calibrations = []
         self.readOrder = []
         reg = self.gpib._cxn.registry
-        # determine if we're jules or vince based on the beginning of the name
-        # string name string is usually
-        # "Vince GPIB Bus - GPIB0::12" or "DR GPIB Bus - GPIB0::12"
-        if self.name.lower().startswith("vince"):
-            name = 'Vince'
-        elif self.name.lower().startswith("dr") or \
-                        self.name.lower().startswith("jules"):
-            name = 'Jules'
-        else:
-            name = self.name.partition(' ')[0]
-        # where in the registry are we looking?
-        dir = ["", "Servers", "Lakeshore 370", name]
-        
-        # now get the read order from the registry
+        # Get the read order from the registry
         try:
             p = reg.packet()
             p.cd(dir)
@@ -317,24 +344,31 @@ class RuOxWrapper(GPIBDeviceWrapper):
         if calIndex == -1:
             calIndex = channel
         try:
+            print("lakeshore370: Computing temperature for channel %d"%channel)
+            print("Resistance is %f"%self.readings[channel-1][0])
             if self.calibrations[calIndex][0] == INTERPOLATION:
                 # log-log interpolation
                 return (np.exp(np.interp(np.log(self.readings[channel-1][0]),
-                                            np.log(np.array(self.calibrations[calIndex][1])),
-                                            np.log(np.array(self.calibrations[calIndex][2]))
-                                            )))
+                              np.log(np.array(self.calibrations[calIndex][1])),
+                              np.log(np.array(self.calibrations[calIndex][2]))
+                              )))
             elif self.calibrations[calIndex][0] == FUNCTION:
                 # hack alert--using eval is bad:
-                # (1) this depends on the function string being good python code
-                # (2) also depends on it having "r" as the variable for resistance, in ohms
-                # (3) very unsafe, if anyone ever hacks our registry. of course, then we have bigger problems
+                # (1) This depends on the function string being good python
+                #     code.
+                # (2) It also depends on it having "r" as the variable for 
+                #     resistance, in ohms.
+                # (3) very unsafe if anyone ever hacks the registry. of course,
+                #     then we have bigger problems
                 r = self.readings[channel-1][0]
                 return eval(self.calibrations[calIndex][1])
             elif self.calibrations[calIndex][0] == DEFAULT:
                 if calIndex > 0:
-                    return self.getSingleTemp(channel, 0) # use calibration 0--the device calibration
+                    # use calibration 0--the device calibration
+                    return self.getSingleTemp(channel, 0) 
                 else:
-                    return res2temp(self.readings[channel-1][0]) # if there is no calibration at all, use old-fashioned res2temp
+                    #If there is no calibration at all use res2temp
+                    return res2temp(self.readings[channel-1][0])
         except Exception, e:
             print e
             return 0.0
@@ -379,7 +413,17 @@ class LakeshoreRuOxServer(GPIBManagedServer):
     name = 'Lakeshore RuOx'
     deviceName = 'LSCI MODEL370'
     deviceWrapper = RuOxWrapper
-
+    
+    @setting(111, "r", returns='v[Ohm]')
+    def r(self, c):
+        ''' return the resistance '''
+        r = self.resistances(c)
+        return r[0][0]
+    
+    @setting(112, 'auto_sensitivity')
+    def auto_sensitivity(self, c):
+        pass
+    
     @setting(10, 'Temperatures', returns='*(v[K], t)')
     def temperatures(self, c):
         """Read channel temperatures.
@@ -388,27 +432,15 @@ class LakeshoreRuOxServer(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         return dev.getTemperatures()
-
-    @setting(13, "Single Temperature", channel='w', returns='(v[K], t)')
-    def single_temperature(self, c, channel):
-        """Read a single temperature. Argument must be a valid channel.
-
-        Returns temperature in Kelvin, and time of measurement.
-        """
+    
+    @setting(11, 'Named Temperatures', returns='*(s, (v[K], t))')
+    def named_temperatures(self, c):
+        temps = self.temperatures(c)
         dev = self.selectedDevice(c)
-        return (dev.getSingleTemp(channel), dev.readings[channel-1][1])
-        
-    @setting(111, "r", returns='v[Ohm]')
-    def r(self, c):
-        ''' return the resistance '''
-        r = self.resistances(c)
-        return r[0][0]
-        
-    @setting(112, 'auto_sensitivity')
-    def auto_sensitivity(self, c):
-        pass
-
-    @setting(11, 'Resistances', returns='*(v[Ohm], t)')
+        names = dev.channelNames
+        return [(name, (tData[0], tData[1])) for name,tData in zip(names, temps)]
+    
+    @setting(12, 'Resistances', returns='*(v[Ohm], t)')
     def resistances(self, c):
         """Read channel resistances.
 
@@ -416,8 +448,8 @@ class LakeshoreRuOxServer(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         return dev.readings
-
-    @setting(12, 'Select channel', channel='w', returns='w')
+    
+    @setting(13, 'Select channel', channel='w', returns='w')
     def selectchannel(self, c, channel):
         """Select channel to be read. If argument is 0,
         scan over channels.
@@ -429,29 +461,45 @@ class LakeshoreRuOxServer(GPIBManagedServer):
         if channel > 0:
             dev.selectChannel(channel)
         return channel
-        
-    @setting(14, 'Reload Calibrations')
+    
+    @setting(14, "Single Temperature", channel='w', returns='(v[K], t)')
+    def single_temperature(self, c, channel):
+        """Read a single temperature. Argument must be a valid channel.
+
+        Returns temperature in Kelvin, and time of measurement.
+        """
+        dev = self.selectedDevice(c)
+        return (dev.getSingleTemp(channel), dev.readings[channel-1][1])
+    
+    @setting(15, 'Reload Calibrations')
     def reload(self, c):
-        """Reloads the parameters that are stored in the registry. This includes:
-        * Calibration curves/interpolation tables for all channels and the device default
+        """Reloads the parameters that are stored in the registry.
+        
+        This includes:
+        * Calibration curves/interpolation tables for all channels and the
+          device default
         * Channel read order
-        Call this after you change something in the registry and want to reload it.
+        Call this after you change something in the registry and want to reload
+        it.
         """
         dev = self.selectedDevice(c)
         dev.reloadCalibrations()
-        
-    @setting(15, 'Print Settings', returns='s')
+    
+    @setting(16, 'Print Settings', returns='s')
     def print_settings(self, c):
         """Prints the settings loaded from the registry for this device."""
         dev = self.selectedDevice(c)
         string = ''
         string += "Read order: %s  \n  " % dev.readOrder.__str__()
-        string += "Device default calibration: %s  \n  " % dev.printCalibration(0)
+        string += "Device default calibration: %s  \n  " %\
+            dev.printCalibration(0)
         for i in range(1, 6):
-            string += "Channel %s calibration: %s  \n  " % (i, dev.printCalibration(i))
+            string += "Channel %s calibration: %s  \n  " %\
+                (i, dev.printCalibration(i))
         return string
-
-    @setting(50, 'Regulate Temperature', channel='w', temperature='v[K]', loadresistor='v[Ohm]', returns='v[Ohm]: Target resistance')
+    
+    @setting(50, 'Regulate Temperature', channel='w', temperature='v[K]',
+                 loadresistor='v[Ohm]', returns='v[Ohm]: Target resistance')
     def regulate(self, c, channel, temperature, loadresistor=30000):
         """Initializes temperature regulation
 
@@ -467,12 +515,13 @@ class LakeshoreRuOxServer(GPIBManagedServer):
             raise Exception('Invalid temperature')
         loadresistor = float(loadresistor)
         if (loadresistor < 1) or (loadresistor > 100000):
-            raise Exception('Load resistor value must be between 1 Ohm and 100kOhm')
+            msg = 'Load resistor value must be between 1 Ohm and 100kOhm'
+            raise Exception(msg)
         dev.onlyChannel = channel
         dev.selectChannel(channel)
         yield dev.controlTemperature(channel, res, loadresistor)
         returnValue(res)
-
+    
     @setting(52, 'PID', P='v', I='v[s]', D='v[s]')
     def setPID(self, c, P, I, D=0):
         P = float(P)
@@ -486,23 +535,21 @@ class LakeshoreRuOxServer(GPIBManagedServer):
             raise Exception('D value must be between 0s and 2500s')
         dev = self.selectedDevice(c)
         yield dev.setPID(P, I, D)
-
+    
     @setting(55, 'Heater Range', limit=['v[mA]: Set to this current', ' : Turn heater off'], returns=['v[mA]', ''])
     def heaterrange(self, c, limit=None):
         """Sets the Heater Range"""
         dev = self.selectedDevice(c)
         ans = yield dev.setHeaterRange(limit)
         returnValue(ans)
-
+    
     @setting(56, 'Heater Output', returns='v[%]')
     def heateroutput(self, c):
         """Queries the current Heater Output"""
         dev = self.selectedDevice(c)
         ans = yield dev.getHeaterOutput()
         returnValue(ans)
-
-
-
+    
 __server__ = LakeshoreRuOxServer()
 
 if __name__ == '__main__':
