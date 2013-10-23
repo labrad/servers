@@ -124,7 +124,6 @@ class CryoNotifier(LabradServer):
                 yield p.send()
             returnValue(self.timers[timer_name][0])
     
-
     @setting(11, name='s', val='w', returns='w')
     def counter(self, c, name, val=None):
         if name not in self.timers:
@@ -135,7 +134,7 @@ class CryoNotifier(LabradServer):
         p.get('%s_count' % name, False, 0)
         rv = yield p.send()
         returnValue(rv['get'])
-
+    
     @setting(12, returns='*(s,w)')
     def query_counters(self, c):
         if self.enabled:
@@ -179,6 +178,7 @@ class CryoNotifier(LabradServer):
         Helper function to read timers.
         '''
         rv = []
+        #Check to see if we're still cold
         try:
             p = self.client.lakeshore_diodes.packet()
             p.select_device()
@@ -186,36 +186,38 @@ class CryoNotifier(LabradServer):
             ans = yield p.send()
             self.cold = ans['temperatures'][1]['K'] < 10.0
         except Exception:
-            self.cold=True # Assume we are warm if we can't reach the lakeshore server
-            
+            #Assume we are warm if we can't reach the lakeshore server
+            self.cold = True
+        #Read information from registry
         p = self.reg.packet()
         p.cd(self.path)
-        p.get('timers', key='timers')
-        p.get('timers_enabled', key='enabled')
-        p.get('notify_users', key='users')
-        p.get('notify_email', False, [], key='email')
+        p.get('timers', key='timers') #List of timers for all fridges
+        p.get('timers_enabled', key='enabled') #global bool
+        p.get('notify_users', key='users') #List of who receives notifications
+        p.get('notify_email', False, [], key='email') #...and their emails.
         ans = yield p.send()
-
+        
         self.users = ans['users']
         self.email = ans['email']
         self.enabled = ans['enabled']
         timer_settings = dict(ans['timers'])
-
+        
         now = datetime.datetime.now()
-
+        
         p = self.reg.packet()
         for timer_name in timer_settings:
             p.get('%s_reset' % timer_name, True, now, key=timer_name)
             p.get('%s_count' % timer_name, False, -1, key=timer_name+"-count")
-        ans= yield p.send()
-
+        ans = yield p.send()
+        
         self.timers = {}
         self.counters = {}
         for timer_name in timer_settings:
             #print "updating timer %s with value (%s, %s)" % (timer_name, timer_settings[timer_name], ans[timer_name])
             self.timers[timer_name] = (timer_settings[timer_name].inUnitsOf('s'), ans[timer_name])
             self.counters[timer_name] = ans[timer_name+"-count"]
-        remaining_time = [ (name, (x[0] - td_to_seconds(now-x[1])*s )) for name, x in self.timers.iteritems() ]
+        remaining_time = [(name, (x[0] - td_to_seconds(now-x[1])*s )) \
+                              for name, x in self.timers.iteritems()]
         #print "remaining time:"
         #print remaining_time
         returnValue(remaining_time)
