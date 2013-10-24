@@ -40,7 +40,7 @@ from twisted.internet import defer, reactor
 from twisted.internet.task import LoopingCall
 from twisted.internet.defer import inlineCallbacks, returnValue
 
-DEBUG = True
+DEBUG = False
 
 def td_to_seconds(td):
     '''
