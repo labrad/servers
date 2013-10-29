@@ -34,7 +34,7 @@ timeout = 5
 from labrad        import util, types as T
 from labrad.server import LabradServer, setting
 from labrad.units  import Unit, mV, ns, deg, MHz, V, GHz, rad, s
-import datetime
+import datetime, time
 from twisted.python import log
 from twisted.internet import defer, reactor
 from twisted.internet.task import LoopingCall
@@ -95,6 +95,25 @@ class CryoNotifier(LabradServer):
         except KeyError:
             print("Channel %s has no bound, unable to check"%channel)
             return False
+            
+    def sleepyTimerCheckFunc(self, channel, timeLeft):
+        ''' check if the time will run out tonight, i.e. if it's currently
+         after 10PM and cryos will run out before 8 AM. '''
+        now = time.localtime()        
+        now = datetime.time(now.tm_hour, now.tm_min)
+        night, morn = datetime.time(*self.sleepyTime[0]), datetime.time(self.sleepyTime[1])
+        nightTime = (night > morn and (now >= night or now <= morn)) or \
+                    (night < morn and (now >= night and now <= morn))
+        if not nightTime:
+            return False
+        # now check if we have enough time left
+        if now < morn:
+            minsLeft = (morn.hour - now.hour) * 60 + morn.min - now.min
+        else:
+            minsLeft = (morn.hour - now.hour - 24) * 60 + morn.min - now.min
+        
+        return timeLeft < minsLeft*60
+        
     
     @inlineCallbacks
     def initServer(self):
@@ -109,7 +128,11 @@ class CryoNotifier(LabradServer):
                                   "func": lambda channel, x: x<0},
                               "temperatures":
                                  {"data": None,
-                                  "func": self.temperatureCheckFunc}}
+                                  "func": self.temperatureCheckFunc}
+                              "sleepyTimers":
+                                 {"data": None,
+                                  "func": self.sleepyTimerCheckFunc}
+                             }
         self.path = ['', 'Servers', self.name]
         yield start_server(self.client, 'node_vince', 'Telecomm Server')
         self.cb = LoopingCall(self.checkForAndSendAlerts)
@@ -209,11 +232,13 @@ class CryoNotifier(LabradServer):
         p.get('timers_enabled', key='enabled') #global bool
         p.get('notify_users', key='users') #List of who receives notifications
         p.get('notify_email', False, [], key='email') #...and their emails.
+        p.get('sleepyTime', key='sleepyTime') # night time: ((HH, MM), (HH, MM))
         ans = yield p.send()
         
         self.users = ans['users']
         self.email = ans['email']
         self.enabled = ans['enabled']
+        self.sleepyTime = ans['sleepyTime']
         self.timerSettings = dict(ans['timers'])
         self.temperatureBounds = dict(ans['temperatures'])
     
@@ -271,6 +296,7 @@ class CryoNotifier(LabradServer):
         remaining_time = [(name, (x[0] - td_to_seconds(now-x[1])*s )) \
                               for name, x in self.timers.iteritems()]
         self.thingsToCheck['timers']['data'] = remaining_time
+        self.thingsToCheck['sleepyTimers']['data'] = remaining_time
     
     @inlineCallbacks
     def checkForAndSendAlerts(self):
