@@ -72,6 +72,7 @@ class CryoStatusPage(Element):
         super(CryoStatusPage, self).__init__()
         self._cxn = cxn
         self.cryo_name = request.args.get('cryo', [''])[-1]
+        self.max_entries = int(request.args.get('maxentries', ['25'])[-1])
         self.log_path = ['', 'Servers', 'Cryo Notifier', 'Log' ]
 
     @inlineCallbacks
@@ -82,6 +83,7 @@ class CryoStatusPage(Element):
         p.cd([''])
         rv = yield p.send()
         subdirs, keys = rv['dir']
+        keys = sorted(keys, reverse=True)[:self.max_entries]
         p = self._cxn.registry.packet()
         p.cd(self.log_path)
         for k in keys:
@@ -99,6 +101,13 @@ class CryoStatusPage(Element):
             return tag(self.cryo_name)
         else:
             return tag("<all>")
+
+    @render_safe
+    def maxentries(self, request, tag):
+        if self.max_entries:
+            return tag(str(self.max_entries))
+        else:
+            return tag("Unknown")
 
     @render_safe
     @inlineCallbacks
@@ -131,17 +140,17 @@ class CryoStatusPage(Element):
         server = self._cxn.lakeshore_ruox
         p  = server.packet()
         p.select_device()
-        p.temperatures()
+        p.named_temperatures()
         result = yield p.send()
         rv = []
-        for idx, (temp, dt) in enumerate(result['temperatures']):
+        for idx, (name, (temp, dt)) in enumerate(result['named_temperatures']):
             val = temp['K']
             if val<1:
                 val = val*1000
                 unit_str = 'mK'
             else:
                 unit_str = 'K'
-            rv.append(tag.clone().fillSlots(channel="%d: " % (idx+1,), temp="%.3f %s" % (val, unit_str)))
+            rv.append(tag.clone().fillSlots(channel="%s: " % (name,), temp="%.3f %s" % (val, unit_str)))
         returnValue(rv)
 
     @render_safe
@@ -184,7 +193,6 @@ class CryoStatusPage(Element):
     @inlineCallbacks
     def logentries(self, request, tag):
         logdata = yield self.get_log()
-        logdata = sorted(logdata, reverse=True)
         rv = [tag.clone().fillSlots(
                 timestamp=tags.b("Fill Time"), 
                 cryo_name=tags.b("Cryo"), 
