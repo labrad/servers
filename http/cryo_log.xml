@@ -35,6 +35,7 @@
     </table>
   </td></tr></table>
   <h4> Cryogen fill log </h4>
+  Most recent <span t:render='maxentries'/> entries
   <table border="1">
     <tr t:render='logentries'>
       <td><t:slot name='timestamp'/></td>
