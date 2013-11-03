@@ -114,6 +114,29 @@ class CryoNotifier(LabradServer):
         
         return timeLeft < minsLeft*60
         
+    @inlineCallbacks
+    def matchNode(self):
+        ''' Try to determine what fridge we're on by matching a node name to a
+        folder in the registry. '''
+        # pull out node names
+        nodes = [x for x in self.client.servers if x.lower().startswith('node')]
+        nodes = [x.partition('_')[2].lower()]
+        p = self.reg.packet()
+        p.cd(self.path)
+        p.dir()
+        ans = yield p.send()
+        dirs = ans['dir'][0]
+        matches = [x for x in nodes if x in dirs]
+        if not matches:
+            print "No node <--> registry directory matches found. Using %s" % self.path
+        elif len(matches) > 1:
+            print "Multiple node matches found! %s Sticking with %s" % (str(matches), self.path)
+        else:
+            print "Found node: %s" % matches[0]
+            self.cd(matches[0])
+            self.path.append(matches[0])
+            
+        
     
     @inlineCallbacks
     def initServer(self):
