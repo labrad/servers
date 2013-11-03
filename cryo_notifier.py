@@ -101,18 +101,20 @@ class CryoNotifier(LabradServer):
          after 10PM and cryos will run out before 8 AM. '''
         now = time.localtime()        
         now = datetime.time(now.tm_hour, now.tm_min)
-        night, morn = datetime.time(*self.sleepyTime[0]), datetime.time(self.sleepyTime[1])
+        night, morn = datetime.time(*self.sleepyTime[0]), datetime.time(*self.sleepyTime[1])
         nightTime = (night > morn and (now >= night or now <= morn)) or \
                     (night < morn and (now >= night and now <= morn))
         if not nightTime:
             return False
         # now check if we have enough time left
         if now < morn:
-            minsLeft = (morn.hour - now.hour) * 60 + morn.min - now.min
+            minsTillMorn = (morn.hour - now.hour) * 60 + morn.minute - now.minute
         else:
-            minsLeft = (morn.hour - now.hour - 24) * 60 + morn.min - now.min
+            minsTillMorn = (morn.hour - now.hour + 24) * 60 + morn.minute - now.minute
         
-        return timeLeft < minsLeft*60
+        if timeLeft < minsTillMorn*60:
+            print "%.1f hours until morning, %.1f hours remaining!" % (minsTillMorn/60.0, timeLeft/3600.0)
+        return timeLeft < minsTillMorn*60
         
     @inlineCallbacks
     def matchNode(self):
@@ -120,12 +122,12 @@ class CryoNotifier(LabradServer):
         folder in the registry. '''
         # pull out node names
         nodes = [x for x in self.client.servers if x.lower().startswith('node')]
-        nodes = [x.partition('_')[2].lower()]
+        nodes = [x.partition(' ')[2].lower() for x in nodes]
         p = self.reg.packet()
         p.cd(self.path)
         p.dir()
         ans = yield p.send()
-        dirs = ans['dir'][0]
+        dirs = [x.lower() for x in ans['dir'][0]]
         matches = [x for x in nodes if x in dirs]
         if not matches:
             print "No node <--> registry directory matches found. Using %s" % self.path
@@ -133,10 +135,8 @@ class CryoNotifier(LabradServer):
             print "Multiple node matches found! %s Sticking with %s" % (str(matches), self.path)
         else:
             print "Found node: %s" % matches[0]
-            self.cd(matches[0])
+            yield self.reg.cd(matches[0])
             self.path.append(matches[0])
-            
-        
     
     @inlineCallbacks
     def initServer(self):
@@ -151,12 +151,13 @@ class CryoNotifier(LabradServer):
                                   "func": lambda channel, x: x<0},
                               "temperatures":
                                  {"data": None,
-                                  "func": self.temperatureCheckFunc}
+                                  "func": self.temperatureCheckFunc},
                               "sleepyTimers":
                                  {"data": None,
                                   "func": self.sleepyTimerCheckFunc}
                              }
         self.path = ['', 'Servers', self.name]
+        self.matchNode()
         yield start_server(self.client, 'node_vince', 'Telecomm Server')
         self.cb = LoopingCall(self.checkForAndSendAlerts)
         self.cb.start(interval=10.0, now=True)
@@ -279,9 +280,16 @@ class CryoNotifier(LabradServer):
             self.cold = True
         p = self.ruox.packet()
         p.select_device(key='device') #This is BAD. We should actually pick a device
-        p.named_temperatures(key='temps')
-        resp = yield p.send()
-        data = dict([(x[0],x[1][0]) for x in resp['temps']])
+        try:
+            p.named_temperatures(key='temps')
+            resp = yield p.send()
+            data = dict([(x[0],x[1][0]) for x in resp['temps']])
+        except AttributeError:
+            p.temperatures(key='temps')
+            resp = yield p.send()
+            data = dict(zip(['Mix1', 'Mix2', 'Still', 'Pot', 'Xchg'],
+                            [x[0] for x in resp['temps']]))
+
         nodeName = resp['device'].split(' ')[0]
         #Now we do something really ugly. We need to be able to handle the fact
         #that the temperature bound data in the registry comes with cryostat
@@ -319,7 +327,8 @@ class CryoNotifier(LabradServer):
         remaining_time = [(name, (x[0] - td_to_seconds(now-x[1])*s )) \
                               for name, x in self.timers.iteritems()]
         self.thingsToCheck['timers']['data'] = remaining_time
-        self.thingsToCheck['sleepyTimers']['data'] = remaining_time
+        rt_sleepy = [(name + ' Overnight', x) for name, x in remaining_time]
+        self.thingsToCheck['sleepyTimers']['data'] = rt_sleepy
     
     @inlineCallbacks
     def checkForAndSendAlerts(self):
@@ -333,10 +342,10 @@ class CryoNotifier(LabradServer):
         if not (self.enabled and self.cold):
             return
         
+        alerts = []
         for thingToCheck in self.thingsToCheck:
             data = dict(self.thingsToCheck[thingToCheck]['data'])
             thereIsProblem = self.thingsToCheck[thingToCheck]['func']
-            alerts = []
             for t in data:
                 if thereIsProblem(t, data[t]):
                     if t not in self.sent_notifications:
