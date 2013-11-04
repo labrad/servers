@@ -102,8 +102,8 @@ class CryoNotifier(LabradServer):
         now = time.localtime()        
         now = datetime.time(now.tm_hour, now.tm_min)
         night, morn = datetime.time(*self.sleepyTime[0]), datetime.time(*self.sleepyTime[1])
-        nightTime = (night > morn and (now >= night or now <= morn)) or \
-                    (night < morn and (now >= night and now <= morn))
+        nightTime = (night > morn and (now >= night or now < morn)) or \
+                    (night < morn and (now >= night and now < morn))
         if not nightTime:
             return False
         # now check if we have enough time left
