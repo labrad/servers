@@ -16,7 +16,7 @@
 """
 ### BEGIN NODE INFO
 [info]
-name = Data Vault Multihead
+name = Data Vault
 version = 2.3.5-hydra
 description = Store and retrieve numeric data
 
