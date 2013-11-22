@@ -1431,7 +1431,7 @@ def load_settings_registry(cxn):
     p.get("Node", "s", False, "", key="node")
     ans = yield p.send()
     if ans.node and (ans.node != util.getNodeName()):
-        raise RuntimeError("Node name %s from registry does not match current host %s" % (ans.node, util.getNodeName()))
+        raise RuntimeError('Node name "%s" from registry does not match current host "%s"' % (ans.node, util.getNodeName()))
     cxn.disconnect()
     returnValue((ans.repo, ans.managers))
 
