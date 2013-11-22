@@ -32,21 +32,24 @@ timeout = 5
 
 from __future__ import with_statement
 
+import sys
+import os
+import warnings
+import time
+
 import labrad
 from labrad import constants, types as T, util
 from labrad.server import LabradServer, Signal, setting
+import labrad.wrappers
 
 from twisted.application.service import MultiService
 from twisted.application.internet import TCPClient
 from twisted.internet import reactor
 from twisted.internet.reactor import callLater
-from twisted.internet.defer import inlineCallbacks
+from twisted.internet.defer import inlineCallbacks, returnValue, maybeDeferred
 
 from ConfigParser import SafeConfigParser
 
-import os
-import warnings
-import time
 
 def lock_path(d):
     '''
@@ -129,7 +132,6 @@ import weakref
 
 try:
     import numpy as np
-    print "Numpy imported."
     useNumpy = True
 except ImportError, e:
     print e
@@ -1405,7 +1407,8 @@ class DataVaultServiceHost(MultiService):
                     print 'error relaying signal %s to %s:%s: %s' % (signal, c.server.host, c.server.port, e)
         setattr(self, signal, relay)
 
-def load_settings():
+@inlineCallbacks
+def load_settings_registry(cxn):
     '''
     Make a client connection to the labrad host specified in the
     environment (i.e., by the node server) and load the rest of the settings
@@ -1417,7 +1420,6 @@ def load_settings():
     on any other host.  This should prevent ever having two copies of the
     datavault running.
     '''
-    cxn = labrad.connect()
     reg = cxn.registry
     path = ['', 'Servers', 'Data Vault', 'Multihead']
     reg = cxn.registry
@@ -1427,44 +1429,38 @@ def load_settings():
     p.get("Repository", 's', key="repo")
     p.get("Managers", "*(sws)", key="managers")
     p.get("Node", "s", False, "", key="node")
-    ans = p.send(wait=True)
+    ans = yield p.send()
     if ans.node and (ans.node != util.getNodeName()):
         raise RuntimeError("Node name %s from registry does not match current host %s" % (ans.node, util.getNodeName()))
-    lock_path(ans.repo)
     cxn.disconnect()
-    return ans.repo, ans.managers
-        
-def main():
-    import sys
+    returnValue((ans.repo, ans.managers))
 
-    if len(sys.argv) > 1 and sys.argv[1] == '--auto':
-        path, managers = load_settings()
-    else:
-        if len(sys.argv) < 3:
-            print 'usage: %s /path/to/vault/directory [password@]host[:port] [password2]@host2[:port2] ...' % (sys.argv[0])
-            sys.exit(1)
-        path = sys.argv[1]
-        # We lock the datavault path, but we can't check the node lock unless using
-        # --auto to get the data from the registry.
-        lock_path(ans.repo)
-        manager_list = sys.argv[2:]
-        managers = []
-        for m in manager_list:
-            password, sep, hostport = m.rpartition('@')
-            host, sep, port = hostport.partition(':')
-            if sep == '':
-                port = 0
-            else:
-                port = int(port)
-            managers.append((host, port, password))
-    
+def load_settings_cmdline(argv):
+    if len(argv) < 3:
+        raise RuntimeError('Incorrect command line')
+    path = argv[1]
+    # We lock the datavault path, but we can't check the node lock unless using
+    # --auto to get the data from the registry.
+    manager_list = argv[2:]
+    managers = []
+    for m in manager_list:
+        password, sep, hostport = m.rpartition('@')
+        host, sep, port = hostport.partition(':')
+        if sep == '':
+            port = 0
+        else:
+            port = int(port)
+        managers.append((host, port, password))
+    return path, managers
+
+def start_server(args):
+    path, managers = args
     global DATADIR
     DATADIR = path
     if not os.path.exists(path):
         raise Exception('data path %s does not exist' % path)
     if not os.path.isdir(path):
         raise Exception('data path %s is not a directory' % path)
-        sys.exit()
 
     def parseManagerInfo(manager):
         host, port, password = manager
@@ -1473,25 +1469,26 @@ def main():
         if not port:
             port = constants.MANAGER_PORT
         return (host, port, password)
+
+    lock_path(path)
     managers = [parseManagerInfo(m) for m in managers]
     service = DataVaultServiceHost(path, managers)
     service.startService()
-    if labrad.thread._reactorThread:
-        # If we created a client connection to get registry data, the reactor is already running
-        # in a separate thread.  We can't restart the reactor in the main thread, so we just wait.
-        # We don't use join() because it can't be interrupted by a keyboard event.
-        #
-        # For some reason, when the reactor is run in a separate thread, it takes ~10 seconds to
-        # make the initial server connections.  The right way to do this is to have the auto-load
-        # code be executed from the reactor, and then start up the servers, but I don't know how
-        # to do that.
-        while(True):
-            try:
-                time.sleep(10)
-            except KeyboardInterrupt:
-                reactor.stop()
-                raise
+    
+def main(argv=sys.argv):
+    if len(argv) > 1 and argv[1] == '--auto':
+        d = labrad.wrappers.connectAsync()
+        d.addCallback(load_settings_registry)
     else:
-        reactor.run()
+        d = maybeDeferred(load_settings_cmdline, argv)
+    def usage(err):
+        print err.getErrorMessage()
+        print 'usage: %s /path/to/vault/directory [password@]host[:port] [password2]@host2[:port2] ...' % (argv[0])
+        reactor.callWhenRunning(reactor.stop)
+
+    d.addCallback(start_server)
+    d.addErrback(usage)
+    reactor.run()
+
 if __name__ == '__main__':
     main()
