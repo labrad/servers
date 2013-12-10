@@ -38,13 +38,10 @@ timeout = 5
 # See correction.py - changed logic string in setSettling.
 #
 #
-# 2013 April/May R. Barends
-#
-# added support for setting the border values:
-# The deconvolved signal can be nonzero at the start and end of a sequence.
-# This nonzero value persists, even when running the board with an empty envelope. To remove this, the last 4 (FOUR) values must be set.
-#
-# added support for disabling deconvolution on all IQ boards and/or all Z boards
+# 2013 Dec R. Barends
+# - loads values from registry
+# - added support for setting the border values - necessary for dualblock
+# - added support for disabling deconvolution on all IQ boards and/or all Z boards
 
 
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -52,11 +49,9 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad.types import Error
 from labrad.server import LabradServer, setting
 
-from ghzdac import IQcorrectorAsync, DACcorrectorAsync
+from ghzdac import IQcorrectorAsync, DACcorrectorAsync, keys #,loadServerSettings
 from ghzdac.correction import fastfftlen
 
-globdeconvIQ=True
-globdeconvZ=True
 
 class CalibrationNotFoundError(Error):
     code = 1
@@ -83,17 +78,49 @@ class DACrequiresRealError(Error):
 class CalibrationServer(LabradServer):
     name = 'DAC Calibration'
 
+    @inlineCallbacks
     def initServer(self):
         self.IQcalsets = {}
-        self.DACcalsets = {}
+        self.DACcalsets = {}  
+        print 'loading server settings...',
+        yield self.loadServerSettings()
+        print 'done.'
+        yield LabradServer.initServer(self)
 
+    @inlineCallbacks
+    def loadServerSettings(self):
+        """Load configuration information from the registry."""   
+        reg = self.client.registry()
+        yield reg.cd(['', 'Servers', 'DAC Calibration', keys.SERVERSETTINGS ], True)
+        dict={}
+        for key in keys.SERVERSETTINGVALUES:
+            default=None
+            if key == 'deconvIQ': default=True
+            if key == 'deconvZ' : default=True
+            if key == 'bandwidthIQ' : default=0.4 #original default: 0.4
+            if key == 'bandwidthZ'  : default=0.13 #original default: 0.13
+            if key == 'maxfreqZ' : default=0.45 #optimal parameter: 10% below Nyquist frequency of dac, 0.45
+            if key == 'maxvalueZ' : default = 5.0 #optimal parameter: 5.0, from the jitter in 1/H fourier amplitudes
+            if key == 'zeroIQ' : default=False
+            if key == 'zeroZ': default=True              
+            keyval = yield reg.get(key,False,default)
+            if not isinstance(keyval,bool):
+                #keyval is a number, in labrad units
+                keyval=keyval.value
+            print key,':', keyval
+            dict[key]=keyval         
+        self.serverSettings=dict
+    
+    #@inlineCallbacks        
     def initContext(self, c):
         c['Loop'] = False
         c['t0'] = 0
         c['Settling'] = ([],[])
         c['Filter'] = 0.2
-        c['deconvIQ']=globdeconvIQ
-        c['deconvZ']=globdeconvZ
+        c['zeroIQ']=self.serverSettings['zeroIQ']
+        c['zeroZ']=self.serverSettings['zeroZ']
+        c['deconvIQ']=self.serverSettings['deconvIQ']
+        c['deconvZ']=self.serverSettings['deconvZ']
         c['borderValues']=[0.0,0.0]
 
     @inlineCallbacks
@@ -105,7 +132,7 @@ class CalibrationServer(LabradServer):
         
         if board not in self.IQcalsets:
             calset = yield IQcorrectorAsync(board, self.client,
-                                            errorClass=CalibrationNotFoundError)
+                                            errorClass=CalibrationNotFoundError,bandwidth=self.serverSettings['bandwidthIQ'])
             self.IQcalsets[board] = calset
         returnValue(self.IQcalsets[board])
     
@@ -124,7 +151,7 @@ class CalibrationServer(LabradServer):
             self.DACcalsets[board] = {}
         if dac not in self.DACcalsets[board]:
             calset = yield DACcorrectorAsync(board, dac, self.client,
-                                             errorClass=CalibrationNotFoundError)
+                                             errorClass=CalibrationNotFoundError,bandwidth=self.serverSettings['bandwidthZ'],maxfreqZ=self.serverSettings['maxfreqZ'])
             self.DACcalsets[board][dac] = calset
         returnValue(self.DACcalsets[board][dac])
 
@@ -218,14 +245,14 @@ class CalibrationServer(LabradServer):
                 data = data[:,0] + 1j * data[:,1]
             calset = yield self.getIQcalset(c)
             deconv=c['deconvIQ']
-            corrected = calset.DACify(c['Frequency'], data, loop=c['Loop'], zipSRAM=False,deconv=deconv)
+            corrected = calset.DACify(c['Frequency'], data, loop=c['Loop'], zipSRAM=False,deconv=deconv,zeroBoards=c['zeroIQ'])
             if deconv is False:
                 print 'No deconv on board ' + c['Board'] 
         else:
             # Single Channel Calibration
             calset = yield self.getDACcalset(c)
             deconv=c['deconvZ']
-            corrected = calset.DACify(data, loop=c['Loop'], fitRange=False,deconv=deconv,borderValues=c['borderValues'])
+            corrected = calset.DACify(data, loop=c['Loop'], fitRange=False,deconv=deconv,borderValues=c['borderValues'],zeroBoards=c['zeroZ'])
             if deconv is False:
                 print 'No deconv on board ' + c['Board']          
         returnValue(corrected)
@@ -252,7 +279,7 @@ class CalibrationServer(LabradServer):
             calset = yield self.getIQcalset(c)
             deconv=c['deconvIQ']            
             corrected = calset.DACifyFT(c['Frequency'], data, n=len(data),
-                                        t0=c['t0'], loop=c['Loop'], zipSRAM=False,deconv=deconv)
+                                        t0=c['t0'], loop=c['Loop'], zipSRAM=False,deconv=deconv,zeroBoards=c['zeroIQ'])
             if deconv is False:
                 print 'No deconv on board ' + c['Board']                                         
         else:
@@ -262,7 +289,7 @@ class CalibrationServer(LabradServer):
             calset.setFilter(bandwidth=c['Filter'])
             deconv=c['deconvZ']            
             corrected = calset.DACifyFT(data, n=(len(data)-1)*2,
-                                        t0=c['t0'], loop=c['Loop'], fitRange=False,deconv=deconv,borderValues=c['borderValues'])
+                                        t0=c['t0'], loop=c['Loop'], fitRange=False,deconv=deconv,zeroBoards=c['zeroZ'],borderValues=c['borderValues'],maxvalueZ=self.serverSettings['maxvalueZ'])
             if deconv is False:
                 print 'No deconv on board ' + c['Board']                                          
         returnValue(corrected)
@@ -295,6 +322,10 @@ class CalibrationServer(LabradServer):
         """Given a sequence length n, get a new length nfft >= n which is efficient for calculating fft."""
         return fastfftlen(n)
 
+
+         
+
+      
 __server__ = CalibrationServer()
 
 if __name__ == '__main__':
