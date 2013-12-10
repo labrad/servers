@@ -148,7 +148,7 @@ def IQcorrector(fpganame, cxn=None,
 
 @inlineCallbacks
 def DACcorrectorAsync(fpganame, channel, connection=None,
-                      lowpass=gaussfilter, bandwidth=0.13, errorClass='quiet'):
+                      lowpass=gaussfilter, bandwidth=0.13, errorClass='quiet',maxfreqZ=0.45):
 
     """
     Returns a DACcorrection object for the given DAC board.
@@ -176,7 +176,7 @@ def DACcorrectorAsync(fpganame, channel, connection=None,
         yield ds.open(dataset)
         datapoints = yield ds.get()
         datapoints = np.array(datapoints)
-        corrector.loadCal(datapoints)
+        corrector.loadCal(datapoints,maxfreqZ=maxfreqZ)
     if not connection:
         yield cxn.disconnect()
         
