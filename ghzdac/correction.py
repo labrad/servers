@@ -657,7 +657,7 @@ class IQcorrection:
 
 
     def DACify(self, carrierFreq, i, q=None, loop=False, rescale=False,
-               zerocor=True, deconv=True, iqcor=True, zipSRAM=True):
+               zerocor=True, deconv=True, iqcor=True, zipSRAM=True,zeroBoards=False):
         """
         Computes a SRAM sequence from I and Q values in the range from
         -1 to 1.  If Q is omitted, the imaginary part of I sets the Q
@@ -736,12 +736,12 @@ class IQcorrection:
             i = np.fft.fft(i-background,n=nfft)
             i[0] += background * nfft
         return self.DACifyFT(carrierFreq, i, n=n, loop=loop, rescale=rescale,
-               zerocor=zerocor, deconv=deconv, iqcor=iqcor, zipSRAM=zipSRAM)
+               zerocor=zerocor, deconv=deconv, iqcor=iqcor, zipSRAM=zipSRAM,zeroBoards=zeroBoards)
 
     
     def DACifyFT(self, carrierFreq, signal, t0=0, n=8192, loop=False,
                  rescale=False, zerocor=True, deconv=True, iqcor=True,
-                 zipSRAM=True):
+                 zipSRAM=True,zeroBoards=False):
         """
         Works like DACify but takes the Fourier transform of the
         signal as input instead of the signal itself. Because of that
@@ -749,7 +749,7 @@ class IQcorrection:
         have to lowpass filter the signal before sampling it.
         n gives the number of points (or the length in ns),
         t0 the start time.  Signal can either be a function which will
-        be evalutated between -0.5 and 0.5 GHz, or an array of length
+        be evaluated between -0.5 and 0.5 GHz, or an array of length
         nfft with complex samples at frequencies in GHz of
            np.linspace(0.5, 1.5, nfft, endpoint=False) % 1 - 0.5
         If you want DACifyFT to be fast nfft should factorize in 2 3 and 5.
@@ -856,7 +856,9 @@ class IQcorrection:
         
         #due to deconvolution, the signal to put in the dacs can be nonzero at the end of a sequence with even a short pulse. 
         #This nonzero value persists, even when running the board with an empty envelope. To remove this, the first and last 4 (FOUR) values must be set.
-
+        if zeroBoards:
+            i[-4:]=zeroI
+            q[-4:]=zeroQ
         
         if not rescale:
             clippedI = np.clip(i,-0x2000,0x1FFF)
@@ -951,7 +953,7 @@ class DACcorrection:
 
 
     def loadCal(self, dataPoints, zero=0.0 , clicsPerVolt=None,
-                lowpass=flatfilter, bandwidth=0.15, replace=False):
+                lowpass=flatfilter, bandwidth=0.15, replace=False,maxfreqZ=0.45):
         """
         Adds a response function to the list of internal
         calibrations. dataPoints contains a step response. It is a n x
@@ -973,6 +975,8 @@ class DACcorrection:
 
         The optional 'zero' argument gives the DAC value, giving 0 output,
         defaults to 0.
+        
+        maxfreqZ=0.45 is optimal (10% below Nyquist frequency)
         """
 
         #read pulse calibration from data server
@@ -1018,9 +1022,9 @@ class DACcorrection:
         correction = lowpass(finalLength,bandwidth) * abs(impulseResponse_FD[0]) / impulseResponse_FD[0:finalLength/2+1] #0:finalLength/2+1 = 0 to 500 MHz. The progam expects this frequency range in other functions, so DON'T change it.
 
         #apply a cut off frequency, necessary to kick out 500 MHz signal which messes up dualblock scans with nonzero Z. Also, the 1 GHz suppression applied above amplifies noise at 500 MHz.
-        freqs=0.5*np.arange(np.alen(correction))/np.alen(correction)
-        fc=0.45 #0.45 is optimal
-        correction = correction * 1.0 * (abs(freqs)<=fc)
+        if maxfreqZ:
+            freqs=0.5*np.arange(np.alen(correction))/np.alen(correction)        
+            correction = correction * 1.0 * (abs(freqs)<=maxfreqZ)
         
         self.correction += [correction]        
         self.zero = zero
@@ -1082,8 +1086,8 @@ class DACcorrection:
         
         
         
-    def DACify(self, signal, loop=False, rescale=False, fitRange=True,
-               zerocor=True, deconv=True, volts=True,borderValues=[0.0,0.0]):
+    def DACify(self, signal, loop=False, rescale=False, fitRange=True,zeroBoards=False,
+               zerocor=True, deconv=True, volts=True,borderValues=None):
         """
         Computes a SRAM sequence for one DAC channel. If volts is
         True, the input is expected in volts. Otherwise inputs of -1
@@ -1154,13 +1158,13 @@ class DACcorrection:
         signal_FD = np.fft.rfft(signal-background, n=nfft) #FT the input
         signal = self.DACifyFT(signal_FD, t0=0, n=n, nfft=nfft, offset=background,
                              loop=loop,
-                             rescale=rescale, fitRange=fitRange, deconv=deconv,
+                             rescale=rescale, fitRange=fitRange, deconv=deconv,zeroBoards=zeroBoards,
                              zerocor=zerocor, volts=volts,borderValues=borderValues)
         return signal
 
     def DACifyFT(self, signal, t0=0, n=8192, offset=0, nfft=None, loop=False,
-                 rescale=False, fitRange=True, deconv=True, zerocor=True,
-                 volts=True,borderValues=[0.0,0.0]):
+                 rescale=False, fitRange=True, deconv=True, zerocor=True,zeroBoards=False,
+                 volts=True,borderValues=None,maxvalueZ=5.0):
         """
         Works like DACify but takes the Fourier transform of the
         signal as input instead of the signal. n gives the number of
@@ -1222,7 +1226,7 @@ class DACcorrection:
                 for correction in self.correction:
                     l = np.alen(correction)
                     #precalc *= interpol(correction, freqs*2.0*(l-1),extrapolate=True) #orig. Fast
-                    precalc *= interpol_cubic(correction, freqs*2.0*(l-1), fill_value=0.0) #cubic, as fast as linear interpol
+                    precalc *= interpol_cubic(correction, freqs*2.0*(l-1)) #cubic, as fast as linear interpol
                     
                 #decay times:
                 # add to qubit registry the following keys:
@@ -1237,8 +1241,8 @@ class DACcorrection:
                 #leading to deterioration of the waveform. The large amplitudes in the correction window have low S/N ratios.
                 #Here, we apply a maximum value, i.e. truncate the value, but keep the phase. This way we still have a partial correction, within the limits of the boards. 
                 #Doing it this way also helps a lot with the waveforms being scalable.
-                maxvalue=5.0 #3-5
-                precalc = precalc * (1.0 * (abs(precalc)<=maxvalue))   +  np.exp(1j*np.angle(precalc))*maxvalue * 1.0 * (abs(precalc)>maxvalue)           
+                if maxvalueZ:
+                    precalc = precalc * (1.0 * (abs(precalc)<=maxvalueZ))   +  np.exp(1j*np.angle(precalc))*maxvalueZ * 1.0 * (abs(precalc)>maxvalueZ)           
                 
                 self.precalc = precalc
             signal *= self.precalc
@@ -1251,9 +1255,10 @@ class DACcorrection:
         
         #due to deconvolution, the signal to put in the dacs can be nonzero at the end of a sequence with even a short pulse. 
         #This nonzero value persists, even when running the board with an empty envelope. To remove this, the first and last 4 (FOUR) values must be set.
-        if borderValues is not None:
-            signal[0:4]=borderValues[0]
-            signal[-4:]=borderValues[1]
+        if zeroBoards:
+            if borderValues is not None:
+                signal[0:4]=borderValues[0]
+                signal[-4:]=borderValues[1]
         
         if rescale:
             print 'rescale in single DAC deconv'
@@ -1270,14 +1275,22 @@ class DACcorrection:
                 self.min_rescale_factor = rescale
             fullscale *= rescale
 
-        signal = np.round(1.0*signal * fullscale + zero).astype(np.int32)
-            
-        if not fitRange:
-            return signal  #this returns the signal between -8192 .. + 8191
+        ditheringspan = 2. #a dithering span of 3 goes from -1.5.. 1.5, i.e. 0..3 = 0,1,2,3 = 4 numbers = 2 bits exactly
+        dithering = ditheringspan * (np.random.rand( len(signal ) )-0.5)
+        dithering[0:4]=0.0
+        dithering[-4:]=0.0
+        
+        signal = np.round(1.0*signal * fullscale + zero + dithering).astype(np.int32)        
+        
+   
         if not rescale:
             if (np.max(signal) > 0x1FFF) or (np.min(signal) < -0x2000):
                 print 'Corrected Z signal beyond DAC range, clipping'
+                print 'max: ', np.max(signal)  ,'   min: ', np.min(signal)
                 signal = np.clip(signal,-0x2000,0x1FFF)
+        if not fitRange:
+            return signal  #this returns the signal between -8192 .. + 8191
+            
         return (signal & 0x3FFF).astype(np.uint32) #this returns the signal between 0 .. 16383.  -1 = 16382. It will lead to errors visible in fpgatest
 
 
