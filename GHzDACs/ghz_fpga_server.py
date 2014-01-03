@@ -1733,7 +1733,9 @@ class FPGAServer(DeviceServer):
         returnValue(ans)
         
         
-    @setting(1300, 'DAC Bringup', lvdsOptimize='b', lvdsSD='w', signed='b', targetFifo='w', returns='*((ss)(sb)(sw)(sw)(sw)(s(*w*b*b))(sw)(sb)(sb)(si)(sw)(sw)(sb)(s(ww))(s(ww))(s(ww)))')
+    @setting(1300, 'DAC Bringup', lvdsOptimize='b', lvdsSD='w', signed='b',
+             targetFifo='w',
+             returns='*((ss)(sb)(sw)(sw)(sw)(s(*w*b*b))(sw)(sb)(sb)(si)(sw)(sw)(sb)(s(ww))(s(ww))(s(ww)))')
     def dac_bringup(self, c, lvdsOptimize=False, lvdsSD=None, signed=True, targetFifo=None):
         """Runs the bringup procedure.
                 
@@ -1744,12 +1746,14 @@ class FPGAServer(DeviceServer):
         """
         dev = self.selectedDAC(c)
         ans = []
-        yield dev.resetPLL()
-        time.sleep(0.100)
         yield dev.initPLL()
+        time.sleep(0.100)
+        yield dev.resetPLL()
         for dac in ['A','B']:
             ansDAC = [('dac',dac)]
             cmd, shift = {'A': (2, 0), 'B': (3, 14)}[dac]
+            #Initialize DAC
+            #See HardRegProgram.txt for byte sequence definition
             pkt = [0x0024, 0x0004, 0x1603, 0x0500] if signed else \
                   [0x0026, 0x0006, 0x1603, 0x0500]
             yield dev.runSerial(cmd, pkt)
