@@ -140,15 +140,15 @@ def processReadback(resp):
         'executionCounter': (a[3]<<8) + a[2]
     }
 
-def pktWriteSram(device, derp, data):
+def regWriteSram(device, derp, data):
     """Get a numpy array of bytes to write one derp of SRAM to the board"""
     assert 0 <= derp < device.buildParams['SRAM_WRITE_DERPS'], \
         'SRAM derp out of range: %d' % derp 
     data = np.asarray(data)
-    pkt = np.zeros(1026, dtype='<u1')
-    pkt[0:2] = littleEndian(derp, 2)
-    pkt[2:2+len(data)] = data
-    return pkt
+    reg = np.zeros(1026, dtype='<u1')
+    reg[0:2] = littleEndian(derp, 2)
+    reg[2:2+len(data)] = data
+    return reg
 
 
 # wrapper that actually talks to the device
@@ -233,7 +233,7 @@ class AdcDevice(DeviceWrapper):
         for page in range(4):
             start = self.buildParams['SRAM_WRITE_PKT_LEN'] * page
             end = start + self.buildParams['SRAM_WRITE_PKT_LEN']
-            pkt = pktWriteSram(self, page, data[start:end])
+            pkt = regWriteSram(self, page, data[start:end])
             p.write(pkt.tostring())
     
     def makeTrigLookups(self, demods, p):
@@ -255,7 +255,7 @@ class AdcDevice(DeviceWrapper):
                                 dtype='<u1')
                     data.append(d)
             data = np.hstack(data)
-            pkt = pktWriteSram(self, page, data)
+            pkt = regWriteSram(self, page, data)
             p.write(pkt.tostring())            
             channel += 2 # two channels per sram packet
             page += 1 # each sram packet writes one page
