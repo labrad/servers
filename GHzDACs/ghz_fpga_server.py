@@ -515,7 +515,7 @@ class BoardGroup(object):
                 if isinstance(dev, dac.DacDevice):
                     regs = dac.regIdle(delay)
                     boards.append((dev, regs))
-                elif isinstance(dev, adc.AdcDevice):
+                elif isinstance(dev, adc.ADC):
                     # ADC boards always pass through signals, so no need for Idle mode
                     pass
         boards = boards[1:] + boards[:1] # move master to the end
@@ -941,7 +941,7 @@ class FPGAServer(DeviceServer):
     def deviceWrapper(self, guid, name):
         """Build a DAC or ADC device wrapper, depending on the device name"""
         if 'ADC' in name:
-            return adc.AdcDevice(guid, name)
+            return adc.ADC(guid, name)
         elif 'DAC' in name:
             return dac.DacDevice(guid, name)
         else:
@@ -967,7 +967,7 @@ class FPGAServer(DeviceServer):
         
     def selectedADC(self, context):
         dev = self.selectedDevice(context)
-        if not isinstance(dev, adc.AdcDevice):
+        if not isinstance(dev, adc.ADC):
             raise Exception("selected device is not an ADC board")
         return dev
 
@@ -1303,7 +1303,7 @@ class FPGAServer(DeviceServer):
                 startDelay = info.get('startDelay',0)
                 sram = info.get('sram', None)
                 runner = DacRunner(dev, reps, startDelay, mem, sram)
-            elif isinstance(dev, adc.AdcDevice):
+            elif isinstance(dev, adc.ADC):
                 info = c.get(dev, {})
                 try:
                     runMode = info['runMode']

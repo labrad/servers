@@ -13,7 +13,7 @@ from util import littleEndian, TimedLock
 # 2012 October 2 - Daniel Sank
 # Version 2 (build2) now has an execution counter. This counts the
 # number of times the board executes since the last start command.
-# The externally available function AdcDevice.executionCount pings
+# The externally available function ADC.executionCount pings
 # the board register and retrieves this counter.
 # We have also added a packet preparation function regPingPacket
 # for pipelined use of the register.
@@ -25,7 +25,7 @@ from util import littleEndian, TimedLock
 # 2011 February 9 - Daniel Sank
 # Removed almost all references to hardcoded hardware parameters, for example
 # the number of demod channels. These values are now board specific and loaded
-# by AdcDevice.connect().
+# by ADC.connect().
 
 
 # +DOCUMENTATION
@@ -153,7 +153,7 @@ def regWriteSram(device, derp, data):
 
 # wrapper that actually talks to the device
 
-class AdcDevice(DeviceWrapper):
+class ADC(DeviceWrapper):
     """Manages communication with a single GHz ADC board.
     
     All communication happens through the direct ehternet server,
