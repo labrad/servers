@@ -237,7 +237,10 @@ class AdcDevice(DeviceWrapper):
             p.write(pkt.tostring())
     
     def makeTrigLookups(self, demods, p):
-        """Update a packet for the ethernet server with SRAM commands to upload Trig lookup tables."""
+        """
+        Update a packet for the ethernet server with SRAM commands to upload
+        Trig lookup tables.
+        """
         page = 4
         channel = 0
         while channel < self.buildParams['DEMOD_CHANNELS']:
@@ -248,7 +251,8 @@ class AdcDevice(DeviceWrapper):
                     if ch in demods:
                         d = demods[ch][func]
                     else:
-                        d = np.zeros(self.buildParams['LOOKUP_TABLE_LEN'], dtype='<u1')
+                        d = np.zeros(self.buildParams['LOOKUP_TABLE_LEN'],
+                                dtype='<u1')
                     data.append(d)
             data = np.hstack(data)
             pkt = pktWriteSram(self, page, data)
@@ -291,7 +295,8 @@ class AdcDevice(DeviceWrapper):
             else:
                 cosineAmp = sineAmp = 0
             amps += '%s,%s;' % (cosineAmp, sineAmp) 
-        setupState = '%s: filter=%s, trigAmps=%s' % (self.devName, filterFunc.tostring(), amps)
+        setupState = '%s: filter=%s, trigAmps=%s' % (self.devName, \
+            filterFunc.tostring(), amps)
         return p, setupState
 
     def clear(self, triggerCtx=None):
@@ -321,7 +326,8 @@ class AdcDevice(DeviceWrapper):
     def _sendRegisters(self, regs, readback=True, timeout=T.Value(10, 's')):
         """Send a register packet and optionally readback the result.
 
-        If readback is True, the result packet is returned as a string of bytes.
+        If readback is True, the result packet is returned as a string of
+        bytes.
         """
         if not isinstance(regs, np.ndarray):
             regs = np.asarray(regs, dtype='<u1')
@@ -386,19 +392,21 @@ class AdcDevice(DeviceWrapper):
             returnValue(processReadback(r)['executionCounter'])
         return self.testMode(func)
     
-    def runAverage(self, filterFunc, filterStretchLen, filterStretchAt, demods):
+    def runAverage(self, filterFunc, filterStretchLen, filterStretchAt,
+                   demods):
         @inlineCallbacks
         def func():
             # build registry packet
-            regs = regAdcRun(self, RUN_MODE_AVERAGE_AUTO, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
+            regs = regAdcRun(self, RUN_MODE_AVERAGE_AUTO, 1, filterFunc, \
+                filterStretchLen, filterStretchAt, demods)
             
-            p = self.makePacket()           # create packet for the ethernet server
-            #self.makeFilter(filterFunc, p)  # upload filter function, adds a p.write()
-            #self.makeTrigLookups(demods, p) # upload trig lookup tables adds a p.write()
-            p.write(regs.tostring())        # send register packet
-            p.timeout(T.Value(10, 's'))     # set a conservative timeout
-            p.read(self.buildParams['AVERAGE_PACKETS'])         # read back all packets from average buffer
-            ans = yield p.send() #Send the packet to the direct ethernet server
+            p = self.makePacket()
+            #self.makeFilter(filterFunc, p)
+            #self.makeTrigLookups(demods, p)
+            p.write(regs.tostring())
+            p.timeout(T.Value(10, 's'))
+            p.read(self.buildParams['AVERAGE_PACKETS'])
+            ans = yield p.send()
                     
             # parse the packets out and return data
             packets = [data for src, dst, eth, data in ans.read]
@@ -410,19 +418,23 @@ class AdcDevice(DeviceWrapper):
         @inlineCallbacks
         def func():
             # build register packet
-            regs = regAdcRun(self, RUN_MODE_DEMOD_AUTO, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
+            regs = regAdcRun(self, RUN_MODE_DEMOD_AUTO, 1, filterFunc,
+                filterStretchLen, filterStretchAt, demods)
     
             # create packet for the ethernet server
             p = self.makePacket()
             self.makeFilter(filterFunc, p) # upload filter function
-            self.makeTrigLookups(demods, p) # upload trig lookup tables, cosine and sine for each demod channel
+            # upload trig lookup tables, cosine and sine for each demod channel
+            self.makeTrigLookups(demods, p)
             p.write(regs.tostring()) # send registry packet
             p.timeout(T.Value(10, 's')) # set a conservative timeout
             p.read(1) # read back one demodulation packet
             ans = yield p.send() #Send the packet to the direct ethernet server
-            # parse the packets out and return data
-            packets = [data for src, dst, eth, data in ans.read] #list of 48-byte strings
-            returnValue(extractDemod(packets, self.buildParams['DEMOD_CHANNELS_PER_PACKET']))
+            # parse the packets out and return data. packets is a list of
+            # 48-byte strings
+            packets = [data for src, dst, eth, data in ans.read]
+            returnValue(extractDemod(packets,
+                self.buildParams['DEMOD_CHANNELS_PER_PACKET']))
             
         return self.testMode(func)
 
@@ -434,7 +446,8 @@ class AdcDevice(DeviceWrapper):
             filterStretchLen=0
             filterStretchAt=0
             demods={}
-            regs = regAdcRun(self, RUN_MODE_CALIBRATE, 1, filterFunc, filterStretchLen, filterStretchAt, demods)
+            regs = regAdcRun(self, RUN_MODE_CALIBRATE, 1, filterFunc,
+                filterStretchLen, filterStretchAt, demods)
     
             # create packet for the ethernet server
             p = self.makePacket()
@@ -446,17 +459,24 @@ class AdcDevice(DeviceWrapper):
 def extractAverage(packets):
     """Extract Average waveform from a list of packets (byte strings)."""
     
-    data = ''.join(packets) #Join all byte strings together into one long string
+    data = ''.join(packets)
     Is, Qs = np.fromstring(data, dtype='<i2').reshape(-1, 2).astype(int).T
     return (Is, Qs)
 
 def extractDemod(packets, nDemod):
     """Extract Demodulation data from a list of packets (byte strings)."""
-    data = ''.join(data[:44] for data in packets)   #stick all data strings in packets together, chopping out last 4 bytes from each string
-    vals = np.fromstring(data, dtype='<i2')         #Convert string of bytes into numpy array of 16bit integers. <i2 means little endian 2 byte
-    Is, Qs = vals.reshape(-1, 2).astype(int).T      #Is,Qs are numpy arrays like   [I0,I1,...,I_numChannels,    I0,I1,...,I_numChannels]
-                                                    #                               1st data run                2nd data run    
-    #Parse the IQ data into [(Is ch0, Qs ch0), (Is ch1, Qs ch1),...,(Is chnDemod, Qs chnDemod)]
+    #stick all data strings in packets together, chopping out last 4 bytes from
+    #each string
+    data = ''.join(data[:44] for data in packets)
+    #Convert string of bytes into numpy array of 16bit integers. <i2 means
+    #little endian 2 byte
+    vals = np.fromstring(data, dtype='<i2')
+    #Is,Qs are numpy arrays with the following format
+    #[I0,I1,...,I_numChannels,    I0,I1,...,I_numChannels]
+    #           1st data run                2nd data run    
+    Is, Qs = vals.reshape(-1, 2).astype(int).T
+    #Parse the IQ data into the following format
+    #[(Is ch0, Qs ch0), (Is ch1, Qs ch1),...,(Is chnDemod, Qs chnDemod)]
     data = [(Is[i::nDemod], Qs[i::nDemod]) for i in xrange(nDemod)]
     #data_saved = data
     # compute overall max and min for I and Q
