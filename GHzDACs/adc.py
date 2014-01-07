@@ -35,18 +35,22 @@ from util import littleEndian, TimedLock
 # Each build of the FPGA code has a build number. We use this build number to
 # determine the hardware parameters for each board. Hardware parameters are:
 #   DEMOD_CHANNELS - Number of active demod channels
-#   DEMOD_CHANNELS_PER_PACKET - Total number of demod channels for which data is returned.
-#   DEMOD_PACKET_LEN - Length, in bytes, of demod data packets NOT including length bytes.
-#   DEMOD_TIME_STEP - Period, in nanoseconds, of the clock used in demodulation.
+#   DEMOD_CHANNELS_PER_PACKET - Total number of demod channels for which data
+#                               is returned.
+#   DEMOD_PACKET_LEN - Length, in bytes, of demod data packets NOT including
+#                      length bytes.
+#   DEMOD_TIME_STEP - Period, in nanoseconds, of the clock used in
+#                     demodulation.
 #   AVERAGE_PACKETS - Number of packets send back for average mode.
-#   AVERAGE_PACKET_LEN - Length, in bytes, of average mode packets NOT including length bytes.
+#   AVERAGE_PACKET_LEN - Length, in bytes, of average mode packets NOT
+#                        including length bytes.
 #   TRIG_AMP - Maximum value allowed in trig tables (255)
 #   LOOKUP_TABLE_LEN - Number of physical addresses in trig the lookup table.
 #   FILTER_LEN - length of filter function
-#   SRAM_WRITE_DERPS - Total number of writable derps in SRAM, ie filter and trig tables
-#   SRAM_WRITE_PKT_LEN - Number of words written per SRAM write packet, ie. words per derp.
-
-
+#   SRAM_WRITE_DERPS - Total number of writable derps in SRAM, ie filter and
+#                      trig tables
+#   SRAM_WRITE_PKT_LEN - Number of words written per SRAM write packet, ie.
+#                        words per derp.
 
 #Constant values accross all boards
 REG_PACKET_LEN = 59
@@ -63,33 +67,40 @@ def macFor(board):
     return '00:01:CA:AA:01:' + ('0'+hex(int(board))[2:])[-2:].upper()
 
 def isMac(mac):
+    """Return True if this mac is for an ADC, otherwise False"""
     return mac.startswith('00:01:CA:AA:01:')
 
 
 # functions to register packets for ADC boards
 
 def regPing():
+    """Returns a numpy array of register bytes to ping ADC register"""
     regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = 1
     return regs
 
 def regAdcPllQuery():
+    """Returns a numpy array of register bytes to query PLL status"""
     regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = 1
     return regs
 
 def regAdcSerial(bits):
+    """Returns a numpy array of register bytes to write to PLL"""
     regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = 6
     regs[3:6] = littleEndian(bits, 3)
     return regs
 
 def regAdcRecalibrate():
+    """Returns a numpy array of register bytes to recalibrate ADC chips"""
     regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = 7
     return regs
 
-def regAdcRun(device, mode, reps, filterFunc, filterStretchAt, filterStretchLen, demods, startDelay=0):
+def regAdcRun(device, mode, reps, filterFunc, filterStretchAt,
+              filterStretchLen, demods, startDelay=0):
+    """Returns a numpy array of register bytes to run the board"""
     regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = mode
     regs[1:3] = littleEndian(startDelay, 2) #Daisychain delay
@@ -97,19 +108,31 @@ def regAdcRun(device, mode, reps, filterFunc, filterStretchAt, filterStretchLen,
     
     if len(filterFunc)<=1:
         raise Exception('Filter function must be at least 2')
-    regs[9:11] = littleEndian(len(filterFunc)-1, 2)   #Filter function end address. -1 because of zero indexing!
-    regs[11:13] = littleEndian(filterStretchAt, 2)  #Stretch address for filter
-    regs[13:15] = littleEndian(filterStretchLen, 2) #Filter function stretch length
+    #Filter function end address. -1 comes from 0 indexing.
+    regs[9:11] = littleEndian(len(filterFunc)-1, 2)
+    #Stretch address for filter
+    regs[11:13] = littleEndian(filterStretchAt, 2)
+    #Filter function stretch length
+    regs[13:15] = littleEndian(filterStretchLen, 2)
     
     for i in range(device.buildParams['DEMOD_CHANNELS']):
         if i not in demods:
             continue
         addr = 15 + 4*i
-        regs[addr:addr+2] = littleEndian(demods[i]['dPhi'], 2)      #Lookup table step per sample
-        regs[addr+2:addr+4] = littleEndian(demods[i]['phi0'], 2)    #Lookup table start address
+        #Lookup table step per sample
+        regs[addr:addr+2] = littleEndian(demods[i]['dPhi'], 2)
+        #Lookup table start address
+        regs[addr+2:addr+4] = littleEndian(demods[i]['phi0'], 2)
     return regs
 
 def processReadback(resp):
+    """Process byte string returned by ADC register readback
+    
+    Returns a dict with following keys
+        build - int: the build number of the board firmware
+        noPllLatch - bool: True is unlatch, False is latch (I think)
+        executionCounter - int: Number of executions since last start
+    """
     a = np.fromstring(resp, dtype='<u1')
     return {
         'build': a[0],
@@ -118,7 +141,9 @@ def processReadback(resp):
     }
 
 def pktWriteSram(device, derp, data):
-    assert 0 <= derp < device.buildParams['SRAM_WRITE_DERPS'], 'SRAM derp out of range: %d' % derp 
+    """Get a numpy array of bytes to write one derp of SRAM to the board"""
+    assert 0 <= derp < device.buildParams['SRAM_WRITE_DERPS'], \
+        'SRAM derp out of range: %d' % derp 
     data = np.asarray(data)
     pkt = np.zeros(1026, dtype='<u1')
     pkt[0:2] = littleEndian(derp, 2)
@@ -140,7 +165,8 @@ class AdcDevice(DeviceWrapper):
     @inlineCallbacks
     def connect(self, name, group, de, port, board, build):
         """Establish a connection to the board."""
-        print 'connecting to ADC board: %s (build #%d)' % (macFor(board), build)
+        print('connecting to ADC board: %s (build #%d)'\
+            % (macFor(board), build))
 
         self.boardGroup = group
         self.server = de
@@ -170,7 +196,8 @@ class AdcDevice(DeviceWrapper):
         yield p.send()
         
         #Get build specific information about this device
-        #We talk to the labrad system using a new context and close it when done
+        #We talk to the labrad system using a new context and close it when
+        #done
         reg = self.cxn.registry
         ctxt = reg.context()
         p = reg.packet()
@@ -192,11 +219,17 @@ class AdcDevice(DeviceWrapper):
     # packet creation functions
     
     def makePacket(self):
-        """Create a new packet to be sent to the ethernet server for this device."""
+        """
+        Create a new packet to be sent to the ethernet server for this
+        device.
+        """
         return self.server.packet(context=self.ctx)
     
     def makeFilter(self, data, p):
-        """Update a packet for the ethernet server with SRAM commands to upload the filter function."""
+        """
+        Update a packet for the ethernet server with SRAM commands to upload
+        the filter function.
+        """
         for page in range(4):
             start = self.buildParams['SRAM_WRITE_PKT_LEN'] * page
             end = start + self.buildParams['SRAM_WRITE_PKT_LEN']
