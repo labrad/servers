@@ -79,14 +79,16 @@
 # As an example of how this is implemented, we used to have something like
 # this:
 # def adc_filter_func(self, c, bytes, stretchLen=0, stretchAt=0):
-    # assert len(bytes) <= FILTER_LEN, 'Filter function max length is %d' % FILTER_LEN
-    # dev = self.selectedADC(c)
-    # ...
+#     assert len(bytes) <= FILTER_LEN, 'Filter function max length is %d' \
+#                                       % FILTER_LEN
+#     dev = self.selectedADC(c)
+#     ...
 # where FILTER_LEN was a global constant. We now instead have this:
 # def adc_filter_func(self, c, bytes, stretchLen=0, stretchAt=0):
-    # dev = self.selectedADC(c)
-    # assert len(bytes) <= dev.buildParams['FILTER_LEN'], 'Filter function max length is %d' % dev.buildParams['FILTER_LEN']
-    # ...    
+#     dev = self.selectedADC(c)
+#     assert len(bytes) <= dev.buildParams['FILTER_LEN'], 'Filter function max\
+#                          length is %d' % dev.buildParams['FILTER_LEN']
+#     ...    
 # so that the filter length is board specific. These board specific parameters
 # are loaded by the board objects when they are created, See dac.py and adc.py
 # for details on how these parameters are loaded.
@@ -104,9 +106,12 @@
 # until you tell them to turn using one of the following commands:
 # DAC Run SRAM      - Runs SRAM on one board without waiting for a daisychain
 #                     pulse.
-# ADC Run Demod     - Runs ADC demod mode on one board without waiting for a daisychain pulse.
-# ADC Run Average   - Runs ADC average mode on one board without waiting for a daisychain pulse.
-# Run Sequence      - Runs multiple boards synchronously using the daisychain (DACs and ADCs).
+# ADC Run Demod     - Runs ADC demod mode on one board without waiting for a
+#                     daisychain pulse.
+# ADC Run Average   - Runs ADC average mode on one board without waiting for a
+#                     daisychain pulse.
+# Run Sequence      - Runs multiple boards synchronously using the daisychain
+#                     (DACs and ADCs).
 # When one of the one-off (no daisychain) commands is sent, whichever DAC
 # or ADC you have selected in your context will run and return data as
 # appropriate. The use of Run Sequence is slightly more complicated. See below.
@@ -134,7 +139,8 @@
 # there are a couple of registry entries that need to be set up. Registry keys
 # for this server live in ['','Servers','GHz FPGAs']
 #
-# boardGroups: *(ssw*(sw)), [(groupName,directEthernetServername,portNumber,[(boardName,daisychainDelay),...]),...]
+# boardGroups: *(ssw*(sw)), [(groupName,directEthernetServername,portNumber,
+#                               [(boardName,daisychainDelay),...]),...]
 # This key tells the server what boards groups should exist, what direct
 # ethernet server controlls that group, which ethernet port is connected to the
 # boards (via an ethernet switch) and what boards exist on each group. Board
