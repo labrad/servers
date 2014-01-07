@@ -25,8 +25,8 @@
 #
 # 2011 November 29 - Jim Wenner
 #
-# Removed adc_recalibrate from adc_bringup since this may randomize order of I,Q
-# outputs.
+# Removed adc_recalibrate from adc_bringup since this may randomize order of
+# I,Q outputs.
 #
 # 2011 November 16 - Dan Sank/Jim Wenner
 #
@@ -49,7 +49,7 @@
 #
 # 2011 November 4 - Daniel Sank
 #
-# The code around line 1172 which read "c[runner.dev]['ranges'] = runner.ranges"
+# The code around line 1172 which read "c[runner.dev]['ranges']=runner.ranges"
 # didn't work because I had never assigned runner.ranges. This is now assigned
 # near line 601.
 #
@@ -61,21 +61,23 @@
 # DAC bringup now has signed data as default. Added
 # functions to return list of DACs or of ADCs.
 #
-# In setFIFO, removed reset of LVDS sample delay. Changed how check FIFO counter
-# to ensure final value same as what thought setting to. In both setFIFO and
-# setLVDS, added success/ failure checks and modified return parameters. Changed
-# default FIFO counter from 3 to value in registry provided for each board.
-# Changed default setLVDS behavior from optimizing LVDS SD to getting SD from
-# board-specific registry key while adding option to use optimal SD instead.
-# setLVDS returns MSD, MHD even if sample delay specified.
+# In setFIFO, removed reset of LVDS sample delay. Changed how check FIFO
+# counter to ensure final value same as what thought setting to. In both
+# setFIFO and setLVDS, added success/ failure checks and modified return
+# parameters. Changed default FIFO counter from 3 to value in registry provided 
+# for each board. Changed default setLVDS behavior from optimizing LVDS SD to
+# getting SD from board-specific registry key while adding option to use
+# optimal SD instead. setLVDS returns MSD, MHD even if sample delay specified.
 #
-# Board specific registry keys are located in ['Servers','GHz FPGAs'] and are of form:
+# Board specific registry keys are located in ['Servers','GHz FPGAs'] and are
+# of form:
 # dacN=[('fifoCounter', 3), ('lvdsSD', 3), ('lvdsPhase', 180)]
 #
 # 2011 February 9 - Daniel Sank
 # Removed almost all references to hardcoded hardware parameters, for example
 # the various SRAM lengths. These values are now board specific.
-# As an example of how this is implemented, we used to have something like this:
+# As an example of how this is implemented, we used to have something like
+# this:
 # def adc_filter_func(self, c, bytes, stretchLen=0, stretchAt=0):
     # assert len(bytes) <= FILTER_LEN, 'Filter function max length is %d' % FILTER_LEN
     # dev = self.selectedADC(c)
@@ -100,13 +102,14 @@
 # will build the appropriate packets for the board you've selected and the
 # memory sequence you want to send. No packets are actually sent to the boards
 # until you tell them to turn using one of the following commands:
-# DAC Run SRAM      - Runs SRAM on one board without waiting for a daisychain pulse.
+# DAC Run SRAM      - Runs SRAM on one board without waiting for a daisychain
+#                     pulse.
 # ADC Run Demod     - Runs ADC demod mode on one board without waiting for a daisychain pulse.
 # ADC Run Average   - Runs ADC average mode on one board without waiting for a daisychain pulse.
 # Run Sequence      - Runs multiple boards synchronously using the daisychain (DACs and ADCs).
 # When one of the one-off (no daisychain) commands is sent, whichever DAC
-# or ADC you have selected in your context will run and return data as appropriate.
-# The use of Run Sequence is slightly more complicated. See below.
+# or ADC you have selected in your context will run and return data as
+# appropriate. The use of Run Sequence is slightly more complicated. See below.
 #
 # ++ USING RUN SEQUENCE
 # The Run Sequence command is used to run multiple boards synchronously using
@@ -132,21 +135,21 @@
 # for this server live in ['','Servers','GHz FPGAs']
 #
 # boardGroups: *(ssw*(sw)), [(groupName,directEthernetServername,portNumber,[(boardName,daisychainDelay),...]),...]
-# This key tells the server what boards groups should exist, what direct ethernet
-# server controlls that group, which ethernet port is connected to the boards
-# (via an ethernet switch) and what boards exist on each group. Board names
-# should be of the form "DAC N" or "ADC N" where N is the number determined by
-# the DIP switches on the board. The number after each board name is the number
-# of clock cycles that board should wait after receiving a daisychain pulse
-# before starting to run its SRAM.
+# This key tells the server what boards groups should exist, what direct
+# ethernet server controlls that group, which ethernet port is connected to the
+# boards (via an ethernet switch) and what boards exist on each group. Board
+# names should be of the form "DAC N" or "ADC N" where N is the number
+# determined by the DIP switches on the board. The number after each board name
+# is the number of clock cycles that board should wait after receiving a
+# daisychain pulse before starting to run its SRAM.
 #
 # dacBuildX: *(s?), [(parameterName,value),(parameterName,value),...]
 # adcBuildX: *(s?), [(parameterName,value),(parameterName,value),...]
 # When FPGA board objects are created they read the registry to find hardware
 # parameter values. For example, the DAC board objects need to know how long
 # their SRAM memory is, and each board may have a different value depending on
-# its specific FPGA chip. Details, lists of necessary parameters and example values
-# for each board type are given in dac.py and adc.py
+# its specific FPGA chip. Details, lists of necessary parameters and example
+# values for each board type are given in dac.py and adc.py
 #
 # dacN: *(s?), [(parameterName,value),(parameterName,value),...] Parameters
 # which are specific to individual boards. This is used for the default FIFO
