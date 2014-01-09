@@ -78,8 +78,8 @@ class EthernetSpoofer(object):
             # process this packet
             pystr = wp.string_at(data, header.contents.len)
             # parse the header
-            dest = ':'.join(['%02X' % ord(x) for x in pystr[0:6]])
-            src = ':'.join(['%02X' % ord(x) for x in pystr[6:12]])
+            dest = self._macToString(pystr[0:6])
+            src = self._macToString(pystr[6:12])
             length = ord(pystr[12]) + ord(pystr[13])
             return { "dest": dest, "src": src, "length": length, "data": pystr[14:] }
         elif r == 0:
@@ -87,5 +87,42 @@ class EthernetSpoofer(object):
         else:
             return r if returnErrors else None
             
+    def sendPacket(self, destMac, data):
+        ''' send a packet to destMat with given data.
+        source mac is self.mac.
+        returns 0 for success, otherwise returns error'''
+        packet = self._macToData(destMac)   # bytes 0-5: destination address
+        packet += self._macToData()         # 6-11: source address
+        packet += chr(len(data) / 256)      # 12, 13 are packet length (big endian?)
+        packet += chr(len(data) % 256)
+        packet += data
+        packet_c = (wp.c_ubyte*len(packet))()
+        for i in range(len(packet)):
+            packet_c[i] = ord(packet[i])
+        if wp.pcap_sendpacket(self.adhandle, packet_c, len(packet)) != 0:
+            return wp.pcap_geterr(self.adhandle)
+        else:
+            return 0
+
+    def _macToData(self, mac=None):
+        ''' Take a MAC address in form "11:22:33:44:55:66"
+        and read each byte as hex numbers, return as 6-byte string.
+        if mac=None, use self.mac '''
+        if mac is None:
+            mac = self.mac
+        bytes = ''.join([chr(int(x, 16)) for x in mac.split(':')])
+        if len(bytes) != 6:
+            raise ValueError("MAC address is not 6 bytes: %s" % mac)
+        return bytes
+        
+    def _macToString(self, bytes):
+        ''' inverse of _macToData: take a 6-byte string (of numbers)
+        and return string of form "11:22:33:44:55:66. '''
+        if len(bytes) != 6:
+            raise ValueError("MAC address is not 6 bytes: %s" % bytes)
+        return ':'.join(['%02X' % ord(x) for x in bytes])
+        
     def __del__ (self):
+        ''' closes the device handle. __del__ is a bit untrustworthy,
+        should probably come up with a better way to do this. '''
         wp.pcap_close(self.adhandle)
