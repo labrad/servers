@@ -78,18 +78,23 @@ def macFor(board):
     return '00:01:CA:AA:00:' + ('0'+hex(int(board))[2:])[-2:].upper()
 
 def isMac(mac):
+    """Return True if this mac is for a DAC, otherwise False"""
     return mac.startswith('00:01:CA:AA:00:')
 
 
 # functions to register packets for DAC boards
+# These functions generate numpy arrays of bytes which will be converted
+# to raw byte strings prior to being sent to the direct ethernet server.
 
 def regPing():
+    """Returns a numpy array of register bytes to ping DAC register"""
     regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = 0 #No sequence start
     regs[1] = 1 #Readback after 2us
     return regs    
 
 def regDebug(word1, word2, word3, word4):
+    """Returns as numpy arrya of register bytes to set DAC into debug mode"""
     regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = 2
     regs[1] = 1
@@ -104,7 +109,8 @@ def regRunSram(dev, startAddr, endAddr, loop=True, blockDelay=0, sync=249):
     regs[0] = (3 if loop else 4) #3: continuous, 4: single run
     regs[1] = 0 #No register readback
     regs[13:16] = littleEndian(startAddr, 3) #SRAM start address
-    regs[16:19] = littleEndian(endAddr-1 + dev.buildParams['SRAM_DELAY_LEN'] * blockDelay, 3) #SRAM end
+    regs[16:19] = littleEndian(endAddr-1 + dev.buildParams['SRAM_DELAY_LEN'] \
+        * blockDelay, 3) #SRAM end
     regs[19] = blockDelay
     regs[45] = sync
     return regs
@@ -195,10 +201,13 @@ def pktWriteSram(device, derp, data, errorCheck=True):
            populated with zeros.
     """
     if errorCheck:
-        assert 0 <= derp < device.buildParams['SRAM_WRITE_DERPS'], "SRAM derp out of range: %d" % derp
-        assert 0< len(data) <= device.buildParams['SRAM_WRITE_PKT_LEN'], "Tried to write %d words to SRAM derp"%len(data)
+        assert 0 <= derp < device.buildParams['SRAM_WRITE_DERPS'], \
+            "SRAM derp out of range: %d" % derp
+        assert 0< len(data) <= device.buildParams['SRAM_WRITE_PKT_LEN'], \
+            "Tried to write %d words to SRAM derp"%len(data)
     data = np.asarray(data)
-    pkt = np.zeros(1026, dtype='<u1') #data length plus two bytes for write address (derp)
+    #packet length is data length plus two bytes for write address (derp)
+    pkt = np.zeros(1026, dtype='<u1')
     #DAC firmware assumes SRAM write address lowest 8 bits = 0, so here
     #we're only setting the middle and high byte. This is good, because
     #it means that each time we increment derp by 1, we increment our
@@ -251,7 +260,8 @@ class DacDevice(DeviceWrapper):
     @inlineCallbacks
     def connect(self, name, group, de, port, board, build):
         """Establish a connection to the board."""
-        print 'connecting to DAC board: %s (build #%d)' % (macFor(board), build)
+        print('connecting to DAC board: %s (build #%d)'\
+            % (macFor(board), build))
 
         self.boardGroup = group
         self.server = de
@@ -360,7 +370,7 @@ class DacDevice(DeviceWrapper):
         # is discarded, so that the trigger command will not be sent.
         #This really reall REALLY bad programming but I don't want to
         #learn Delphi to fix the direct ethernet server. Just be happy
-        #that I put this note here so you know what the hell is going on.
+        #that I put this note here so you know what's going on.
         if triggerCtx is not None:
             p.send_trigger(triggerCtx)
         return p
