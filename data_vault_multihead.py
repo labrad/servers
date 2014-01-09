@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Data Vault
-version = 2.3.5-hydra
+version = 2.3.6-hydra
 description = Store and retrieve numeric data
 
 [startup]
@@ -47,9 +47,8 @@ from twisted.application.internet import TCPClient
 from twisted.internet import reactor
 from twisted.internet.reactor import callLater
 from twisted.internet.defer import inlineCallbacks, returnValue, maybeDeferred
-
+import twisted.internet.task
 from ConfigParser import SafeConfigParser
-
 
 def lock_path(d):
     '''
@@ -886,7 +885,7 @@ class NumpyDataset(Dataset):
 if useNumpy:
     Dataset = NumpyDataset
 
-
+# One instance per manager.  Not persistant, recreated when connection is lost/regained
 class DataVault(LabradServer):
     name = 'Data Vault'
     
@@ -911,6 +910,24 @@ class DataVault(LabradServer):
         self.hub.connect(self)
         # create root session
         root = Session([''], self.hub)
+        self.keepalive_timer = twisted.internet.task.LoopingCall(self.keepalive)
+        self.onShutdown().addBoth(self.end_keepalive)
+        self.keepalive_timer.start(120)
+        
+    def end_keepalive(self, *ignored):
+        # stopServer is only called when the whole application shuts down.
+        # We need to manually use the onShutdown() callback
+        self.keepalive_timer.stop()
+    
+    def keepalive(self):
+        print "sending keepalive to %s:%d" % (self.host, self.port)
+        p = self.client.manager.packet()
+        p.echo('123')
+        d = p.send()
+        def finished(result):
+            return 0
+        d.addBoth(finished) # We don't care about the result, dropped connections will be recognized automatically
+        return d
 
     def initContext(self, c):
         # start in the root session
@@ -1308,6 +1325,7 @@ class DataVault(LabradServer):
         password = password or self.password
         self.hub.addService(DataVaultConnector(host, port, password, self.hub, self.path))
     
+# One instance per manager, persistant (not recreated when connections are dropped)
 class DataVaultConnector(MultiService):
     """Service that connects the Data Vault to a single LabRAD manager
     
@@ -1361,6 +1379,7 @@ class DataVaultConnector(MultiService):
         reactor.callLater(self.reconnectDelay, self.startConnection)
         print 'Will try to reconnect to %s:%d in %d seconds...' % (self.host, self.port, self.reconnectDelay)
     
+# Hub object: one instance total
 class DataVaultServiceHost(MultiService):
     """Parent Service that manages multiple child DataVaultConnector's"""
     
