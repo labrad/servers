@@ -1954,6 +1954,7 @@ class FPGAServer(DeviceServer):
     def adc_run_calibrate(self, c):
         """Recalibrate the ADC chips
         """
+        raise Exception("Depricated. Use ADC Recalibrate instead")
         dev = self.selectedADC(c)
         info = c.setdefault(dev, {})
         filterFunc = info.get('filterFunc', np.array([255], dtype='<u1'))
