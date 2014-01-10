@@ -1148,8 +1148,8 @@ class FPGAServer(DeviceServer):
         #Block delays come in chunks of 1024ns. Thus we need to package
         #the desired delay into an integral number of delay blocks, with
         #the difference made up by adding data to block1
-        delayPad = delay % dev.buildParams['SRAM_DELAY_LEN']
-        delayBlocks = delay / dev.buildParams['SRAM_DELAY_LEN']
+        delayPad = delay % dev.SRAM_DELAY_LEN
+        delayBlocks = delay / dev.SRAM_DELAY_LEN
         # add padding to beginning of block1 to get delay right
         block1 = block0[-4:] * delayPad + block1
         # add padding to end of block1 to ensure that its length is a
@@ -1191,8 +1191,8 @@ class FPGAServer(DeviceServer):
         the filter for the specified length (in 4ns intervals).
         """
         dev = self.selectedADC(c)
-        assert len(bytes) <= dev.buildParams['FILTER_LEN'], \
-            'Filter function max length is %d' % dev.buildParams['FILTER_LEN']
+        assert len(bytes) <= dev.FILTER_LEN, \
+            'Filter function max length is %d' % dev.FILTER_LEN
         bytes = np.fromstring(bytes, dtype='<u1')
         d = c.setdefault(dev, {})
         d['filterFunc'] = bytes
@@ -1215,11 +1215,11 @@ class FPGAServer(DeviceServer):
         # Get the ADC selected in this context. Raise an exception if selected
         # device is not an ADC
         dev = self.selectedADC(c)
-        assert 0 <= channel < dev.buildParams['DEMOD_CHANNELS'], \
+        assert 0 <= channel < dev.DEMOD_CHANNELS, \
             'channel out of range: %d' % channel
-        assert 0 <= sineAmp <= dev.buildParams['TRIG_AMP'], \
+        assert 0 <= sineAmp <= dev.TRIG_AMP, \
             'sine amplitude out of range: %d' % sineAmp
-        assert 0 <= cosineAmp <= dev.buildParams['TRIG_AMP'], \
+        assert 0 <= cosineAmp <= dev.TRIG_AMP, \
             'cosine amplitude out of range: %d' % cosineAmp
         # d=c[dev] if c[dev] exists, otherwise makes c[dev]={} and returns
         # c[dev]. Gives c its own representation of dev
@@ -1227,7 +1227,7 @@ class FPGAServer(DeviceServer):
         ch = d.setdefault(channel, {})
         ch['sineAmp'] = sineAmp
         ch['cosineAmp'] = cosineAmp
-        N = dev.buildParams['LOOKUP_TABLE_LEN']
+        N = dev.LOOKUP_TABLE_LEN
         phi = np.pi/2 * (np.arange(N) + 0.5) / N
         # Sine waveform for this channel
         ch['sine'] = np.floor(sineAmp * np.sin(phi) + 0.5).astype('uint8')
@@ -1424,7 +1424,7 @@ class FPGAServer(DeviceServer):
                 except KeyError:
                     raise Exception("No filter function specified for ADC board '%s'" % dev.devName)
                 channels = dict((i, info[i]) for i in \
-                    range(dev.buildParams['DEMOD_CHANNELS']) if i in info)
+                    range(dev.DEMOD_CHANNELS) if i in info)
                 #for key,value in channels.items():
                 #    print key,value
                 runner = AdcRunner(dev, reps, runMode, startDelay, filter,
@@ -1945,7 +1945,7 @@ class FPGAServer(DeviceServer):
         # Default to stretch at 0
         filterStretchAt = info.get('filterStretchAt', 0)
         demods = dict((i, info[i]) for i in \
-            range(dev.buildParams['DEMOD_CHANNELS']) if i in info)
+            range(dev.DEMOD_CHANNELS) if i in info)
         ans = yield dev.runAverage(filterFunc, filterStretchLen,
                                    filterStretchAt, demods)
         returnValue(ans)
@@ -1962,7 +1962,7 @@ class FPGAServer(DeviceServer):
         # Default to stretch at 0
         filterStretchAt = info.get('filterStretchAt', 0)
         demods = dict((i, info[i]) for i in \
-            range(dev.buildParams['DEMOD_CHANNELS']) if i in info)
+            range(dev.DEMOD_CHANNELS) if i in info)
         yield dev.runCalibrate()
 
         
@@ -1974,11 +1974,11 @@ class FPGAServer(DeviceServer):
         info = c.setdefault(dev, {})
         # Default to full length filter with half full scale amplitude
         filterFunc = info.get('filterFunc',
-            np.array(dev.buildParams['FILTER_LEN']*[128], dtype='<u1'))
+            np.array(dev.FILTER_LEN * [128], dtype='<u1'))
         filterStretchLen = info.get('filterStretchLen', 0)
         filterStretchAt = info.get('filterStretchAt', 0)
         demods = dict((i, info[i]) for i in \
-            range(dev.buildParams['DEMOD_CHANNELS']) if i in info)
+            range(dev.DEMOD_CHANNELS) if i in info)
         ans = yield dev.runDemod(filterFunc, filterStretchLen,
                                  filterStretchAt, demods)
         returnValue(ans)
@@ -2023,7 +2023,7 @@ class DacRunner(object):
             # shorten our sram data so that it fits in one page
             # Why is there a factor of 4 here? Is this because each SRAM
             # word is 4 bytes? Check John's documentation
-            self.sram = self.sram[:self.dev.buildParams['SRAM_PAGE_LEN']*4]
+            self.sram = self.sram[:self.dev.SRAM_PAGE_LEN * 4]
         
         # calculate expected number of packets
         self.nTimers = timerCount(self.mem)
@@ -2038,7 +2038,7 @@ class DacRunner(object):
         Check whether sequence fits in one page, based on SRAM addresses
         called by mem commands.
         """
-        return maxSRAM(self.mem) <= self.dev.buildParams['SRAM_PAGE_LEN']
+        return maxSRAM(self.mem) <= self.dev.SRAM_PAGE_LEN
     
     def _fixDualBlockSram(self):
         """
@@ -2080,7 +2080,7 @@ class DacRunner(object):
             #Prepend bloock0 with \x00's so that the actual signal data
             #exactly fills the first physical SRAM block
             #Note block0 length in bytes = 4*block0 length in words
-            data = '\x00' * (self.dev.buildParams['SRAM_BLOCK0_LEN']*4 - \
+            data = '\x00' * (self.dev.SRAM_BLOCK0_LEN * 4 - \
                 len(block0)) + block0 + block1
             self.sram = data
             self.blockDelay = delayBlocks
@@ -2144,7 +2144,7 @@ class AdcRunner(object):
         
         if self.runMode == 'average':
             self.mode = adc.RUN_MODE_AVERAGE_DAISY
-            self.nPackets = self.dev.buildParams['AVERAGE_PACKETS']
+            self.nPackets = self.dev.AVERAGE_PACKETS
         elif self.runMode == 'demodulate':
             self.mode = adc.RUN_MODE_DEMOD_DAISY
             self.nPackets = reps
@@ -2213,7 +2213,7 @@ class AdcRunner(object):
             return adc.extractAverage(packets)
         elif self.runMode == 'demodulate':
             return adc.extractDemod(packets,
-                self.dev.buildParams['DEMOD_CHANNELS_PER_PACKET'])
+                self.dev.DEMOD_CHANNELS_PER_PACKET)
 
 # some helper methods
     
@@ -2352,12 +2352,12 @@ def fixSRAMaddresses(mem, sram, device):
         opcode, address = getOpcode(cmd), getAddress(cmd)
         if opcode == 0x8:
             # SRAM start address
-            address = device.buildParams['SRAM_BLOCK0_LEN'] - block0Len_words
+            address = device.SRAM_BLOCK0_LEN - block0Len_words
             return (opcode << 20) + address
         elif opcode == 0xA:
             # SRAM end address
-            address = device.buildParams['SRAM_BLOCK0_LEN'] + block1Len_words \
-                + device.buildParams['SRAM_DELAY_LEN'] * delayBlocks - 1
+            address = device.SRAM_BLOCK0_LEN + block1Len_words \
+                + device.SRAM_DELAY_LEN * delayBlocks - 1
             return (opcode << 20) + address
         else:
             return cmd
