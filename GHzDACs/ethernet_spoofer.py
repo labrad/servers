@@ -30,7 +30,7 @@ class EthernetSpoofer(object):
         errbuf = wp.create_string_buffer(wp.PCAP_ERRBUF_SIZE)
         # get all devices
         if (wp.pcap_findalldevs(wp.byref(alldevs), errbuf) == -1):
-            raise RunTimeError("Error in pcap_findalldevs: %s\n" % errbuf.value)
+            raise RuntimeError("Error in pcap_findalldevs: %s\n" % errbuf.value)
         # find our device
         d=alldevs
         for i in range(device):
@@ -50,9 +50,9 @@ class EthernetSpoofer(object):
         # no idea what optimize should be, couldn't find doc, saw 1 in example code
         # netmask: 0xffffff ??
         if wp.pcap_compile(self.adhandle, wp.byref(program), filter, 1, 0xffffff) < 0:
-            raise RunTimeError("Failed to compile filter: %s" % filter)
+            raise RuntimeError("Failed to compile filter: %s" % filter)
         if wp.pcap_setfilter(self.adhandle, wp.byref(program)) < 0:
-            raise RunTimeError("Failed to set filter: %s" % filter)
+            raise RuntimeError("Failed to set filter: %s" % filter)
         wp.pcap_freecode(wp.byref(program))
         
     def setAddress(self, address):
@@ -80,7 +80,7 @@ class EthernetSpoofer(object):
             # parse the header
             dest = self._macToString(pystr[0:6])
             src = self._macToString(pystr[6:12])
-            length = ord(pystr[12]) + ord(pystr[13])
+            length = ord(pystr[12])*256 + ord(pystr[13])
             return { "dest": dest, "src": src, "length": length, "data": pystr[14:] }
         elif r == 0:
             return None
