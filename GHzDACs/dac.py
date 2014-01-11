@@ -416,7 +416,8 @@ class DacDevice(DeviceWrapper):
     def _sendRegisters(self, regs, readback=True, timeout=T.Value(10, 's')):
         """Send a register packet and optionally readback the result.
 
-        If readback is True, the result packet is returned as a string of bytes.
+        If readback is True, the result packet is returned as a string of
+        bytes.
         """
         if not isinstance(regs, np.ndarray):
             regs = np.asarray(regs, dtype='<u1')
