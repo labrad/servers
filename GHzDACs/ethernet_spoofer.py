@@ -1,6 +1,8 @@
-''' ethernet_spoofer.py
+"""
+ethernet_spoofer.py
 
-set of functions for listening and replying to ethernet packets, by MAC address.
+set of functions for listening and replying to ethernet packets, by MAC
+address.
 
 usage: 
 
@@ -10,13 +12,15 @@ while packet is None:
     packet = spoofer.getPacket()
 print "From %s: %s" % (packet['src'], packet['data'])
 
-'''
+"""
 
 import winpcapy as wp
 
 class EthernetSpoofer(object):
     def __init__(self, address, device=0):
-        ''' create a new spoofer.
+        '''
+        Create a new spoofer.
+        
         required: MAC address, in form 11:22:33:44:55:66
         optional: device number (i.e. NIC index), default=0
         '''
@@ -24,20 +28,28 @@ class EthernetSpoofer(object):
         self.setAddress(address)
         
     def openDevice(self, device):
-        ''' open our ethernet device for listening '''
+        '''Open our ethernet device for listening'''
         # set up variables
-        alldevs=wp.POINTER(wp.pcap_if_t)()
+        alldevs = wp.POINTER(wp.pcap_if_t)()
         errbuf = wp.create_string_buffer(wp.PCAP_ERRBUF_SIZE)
         # get all devices
         if (wp.pcap_findalldevs(wp.byref(alldevs), errbuf) == -1):
-            raise RuntimeError("Error in pcap_findalldevs: %s\n" % errbuf.value)
+            raise RuntimeError("Error in pcap_findalldevs: %s\n" \
+                               % errbuf.value)
         # find our device
-        d=alldevs
+        d = alldevs
+        # d is a linked list, but not wrapped as a python list. Therefore, to
+        # get element number device we can't do d[device]. Instead we just do
+        # .next as many times as need to arrive at the device^th element.
+        # These elements are all pointers, so to finally get the actual object
+        # we call d.contents.
         for i in range(device):
             d = d.contents.next
         d = d.contents
         # open our device
-        adhandle = wp.pcap_open_live(d.name,65536,wp.PCAP_OPENFLAG_PROMISCUOUS,1000,errbuf)
+        adhandle = wp.pcap_open_live(d.name, 65536,
+                                     wp.PCAP_OPENFLAG_PROMISCUOUS, 1000,
+                                     errbuf)
         wp.pcap_freealldevs(alldevs)
         if (adhandle == None):
             raise RuntimeError("Unable to open adapter %s" % d.contents.name)
