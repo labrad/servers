@@ -93,12 +93,14 @@ class DacEmulator (DeviceWrapper):
             return
         if packet['length'] == 1026:
             # we have an SRAM write packet
-            adrstart = 256*ord(packet['data'][0]) + 256*256*ord(packet['data'][1])
+            adrstart = 256*ord(packet['data'][0]) + \
+                           256*256*ord(packet['data'][1])
             if adrstart > self.sram_length - 256:
                 print "Bad SRAM packet: adrstart too big: %s" % adrstart
                 return
             print "Writing SRAM at derp %s" % (adrstart / 256)
-            self.sram[adrstart:adrstart+256] = np.fromstring(packet['data'][2:], '<u4')
+            self.sram[adrstart:adrstart+256] = \
+                np.fromstring(packet['data'][2:], '<u4')
         elif packet['length'] == 56:
             # register packet
             self.register = np.fromstring(packet['data'], '<u1')
@@ -112,7 +114,8 @@ class DacEmulator (DeviceWrapper):
         packet[0:51] = self.register[0:51]
         packet[51] = self.build
         
-        print "Register readback send: %s" % str(self.send(dest, packet.tostring()))
+        print "Register readback send: %s" \
+            % str(self.send(dest, packet.tostring()))
 
     def initRegister(self):
         self.register = np.zeros(56, '<u1')
@@ -123,7 +126,8 @@ class DacEmulator (DeviceWrapper):
     def plotSRAM(self):
         dacA = self.sram & 0x3FFF # first 14 bits
         dacB = self.sram >> 14 & 0x3FFF # second 14 bits
-        dacA, dacB = _convertTwosComplement(dacA), _convertTwosComplement(dacB)
+        dacA, dacB = _convertTwosComplement(dacA),
+                     _convertTwosComplement(dacB)
         ax = plt.figure().add_subplot(111)
         ax.plot(dacA, 'b.')
         ax.plot(dacB, 'r.')
@@ -141,7 +145,7 @@ class DacEmulatorServer(DeviceServer):
         
     @inlineCallbacks
     def findDevices(self):
-        '''' Create DAC emulators. '''
+        '''Create DAC emulators.'''
         reg = self.client.registry
         yield reg.cd(REGISTRY_PATH)
         resp = yield reg.dir()
@@ -155,13 +159,13 @@ class DacEmulatorServer(DeviceServer):
             for k in keys:
                 p.get(k, key=k)
             a = yield p.send()
-            devs.append((n, [], {k:a[k] for k in keys}))
+            devs.append((n, [], dict([(k, a[k]) for k in keys])))
             reg.cd(1)
         returnValue(devs)
         
     @setting(10, 'Address', mac='s', returns='s')
     def address(self, c, mac=''):
-        ''' get/set the MAC address '''
+        '''get/set the MAC address'''
         dev = self.selectedDevice(c)
         if mac:
             dev.spoof.setAddress(mac)
@@ -169,9 +173,10 @@ class DacEmulatorServer(DeviceServer):
         
     @setting(11, 'Send', dest='s', data='s', returns='?')
     def send(self, c, dest, data):
-        ''' send a packet, to destination mac "dest",
-        with data "data". returns 0 for success, error
-        message otherwise '''
+        '''
+        Send a packet, to destination mac "dest", with data "data". returns 0
+        for success, error message otherwise
+        '''
         return self.selectedDevice(c).send(dest, data)
         
     @setting(20, 'Plotting', on='b', returns='b')
@@ -184,8 +189,7 @@ class DacEmulatorServer(DeviceServer):
         
     @setting(21, "SRAM Length", len='w', returns='w')
     def sram_length(self, c, len=None):
-        ''' get or set(!) the SRAM length.
-        note that this clears the SRAM. '''
+        '''Get or set(!) the SRAM length. Note that this clears the SRAM.'''
         dev = self.selectedDevice(c)
         if len:
             dev.sram_length = len
@@ -194,7 +198,7 @@ class DacEmulatorServer(DeviceServer):
         
     @setting(22, "Plot SRAM")
     def plot_sram(self, c):
-        ''' plots the SRAM. '''
+        '''Plots the SRAM.'''
         self.selectedDevice(c).plotSRAM()
 
 __server__ = DacEmulatorServer()
