@@ -1,1 +1,8 @@
-Get rid of references to .buildParams and .boardParams
+dac.py
+ Remove buildParams
+ Remove boardParams
+ Refactor to FPGA class
+
+fpga server
+ check invocations of dac.<method name>
+ check invocations of adc.<method name>
