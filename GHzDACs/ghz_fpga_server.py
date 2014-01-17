@@ -218,8 +218,11 @@ from labrad import types as T
 from labrad.devices import DeviceServer
 from labrad.server import setting
 
-import adc
-import dac
+# import adc
+import Cleanup.dac as dac
+import Cleanup.adc as adc
+# import dac
+import Cleanup.fpga as fpga
 from util import TimedLock
 
 from matplotlib import pyplot as plt
@@ -355,28 +358,25 @@ class BoardGroup(object):
         """Try to detect DAC boards on this board group."""
         def callback(src, data):
             board = int(src[-2:], 16)
-            info = dac.processReadback(data)
-            build = info['build']
+            build = fpga.DAC.readback2BuildNumber(data)
             devName = '%s DAC %d' % (self.name, board)
             args = devName, self, self.server, self.port, board, build
             return (devName, args)
-        macs = [dac.macFor(board) for board in range(256)]
-        return self._doDetection(macs, dac.regPing(), dac.READBACK_LEN,
-                                     callback)
+        macs = [fpga.DAC.macFor(board) for board in range(256)]
+        return self._doDetection(macs, fpga.DAC.regPing(),
+                                 fpga.DAC.READBACK_LEN, callback)
     
     def detectADCs(self, timeout=1.0):
         """Try to detect ADC boards on this board group."""
         def callback(src, data):
-            #16 indicates number base for conversion from string to integer
             board = int(src[-2:], 16)
-            info = adc.processReadback(data)
-            build = info['build']
+            build = fpga.ADC.readback2BuildNumber(data)
             devName = '%s ADC %d' % (self.name, board)
             args = devName, self, self.server, self.port, board, build
             return (devName, args)
-        macs = [adc.macFor(board) for board in range(256)]
-        return self._doDetection(macs, adc.regPing(), adc.READBACK_LEN,
-                                     callback)
+        macs = [fpga.ADC.macFor(board) for board in range(256)]
+        return self._doDetection(macs, fpga.ADC.regPing(),
+                                 fpga.ADC.READBACK_LEN, callback)
 
     @inlineCallbacks
     def _doDetection(self, macs, packet, respLength, callback, timeout=1.0):
@@ -532,10 +532,10 @@ class BoardGroup(object):
                 # This board is after the master, but will not itself run, so
                 # we put it in idle mode
                 dev = self.fpgaServer.devices[board] # Look up device wrapper
-                if isinstance(dev, dac.DacDevice):
-                    regs = dac.regIdle(delay)
+                if isinstance(dev, fpga.DAC):
+                    regs = dev.regIdle(delay)
                     boards.append((dev, regs))
-                elif isinstance(dev, adc.ADC):
+                elif isinstance(dev, fpga.ADC):
                     # ADC boards always pass through signals, so no need for
                     # Idle mode
                     pass
@@ -643,6 +643,7 @@ class BoardGroup(object):
                     # a subset of the actual one, we need to set up.
                     needSetup = (not setupState) or (not self.setupState) or \
                                     (not (setupState <= self.setupState))
+                    raise RuntimError("setup state does not seem to check trig lookup tables on ADC")
                     if needSetup:
                         # we require changes to the setup state so first, wait
                         # for triggers indicating that the previous run has
@@ -835,7 +836,8 @@ class BoardGroup(object):
                 # processReadback as a module level function in dac.py,
                 # whereas in adc.py it's a staticmethod of the ADC class.
                 if isinstance(runner, DacRunner):
-                    count = dac.processReadback(ans[0][3])['executionCounter']
+                    count = runner.dev.\
+                            processReadback(ans[0][3])['executionCounter']
                 elif isinstance(runner, AdcRunner):
                     count = runner.dev.processReadback(ans[0][3])\
                                 ['executionCounter']
@@ -866,6 +868,8 @@ class FPGAServer(DeviceServer):
     """
     name = 'GHz FPGAs'
     retries = 5
+    
+    RICH_DEVICE_CREATION = True
     
     @inlineCallbacks
     def initServer(self):
@@ -970,7 +974,6 @@ class FPGAServer(DeviceServer):
             boardGroup = BoardGroup(self, de, port) #Sets attributes
             yield boardGroup.init() #Gets context with direct ethernet
             self.boardGroups[server, port] = boardGroup
-        print self.boardGroups
         
         # update configuration of all board groups and detect devices
         detections = []
@@ -996,14 +999,23 @@ class FPGAServer(DeviceServer):
                 result.printBriefTraceback(elideFrameworkCode=1)
         returnValue(found)
 
-    def deviceWrapper(self, guid, name):
-        """Build a DAC or ADC device wrapper, depending on the device name"""
-        if 'ADC' in name:
-            return adc.ADC(guid, name)
-        elif 'DAC' in name:
-            return dac.DacDevice(guid, name)
-        else:
-            raise Exception('Device name does not correspond to a known device type')
+    def deviceWrapper(self, guid, name, *arg, **kw):
+        _, boardGroup, ethernetServer, port, boardNumber, build = arg
+        _, boardType, _ = name.split(' ')
+        return fpga.REGISTRY[(boardType, build)](guid, name)
+    
+#    def deviceWrapper(self, guid, name):
+#        """Build a DAC or ADC device wrapper, depending on the device name"""
+#        if 'ADC' in name:
+#            print('ghz_fpga_server making instance of adc.ADC_B2')
+#            print('This is probably not the right subclass')
+#            return adc.ADC_B2(guid, name)
+#        elif 'DAC' in name:
+#            print('ghz_fpga_server making instance of dac.DAC_BSomething')
+#            print('This is probably not the right subclass')
+#            return dac.DAC_BSomething(guid, name)
+#        else:
+#            raise Exception('Device name does not correspond to a known device type')
 
 
     ## Trigger refreshes if a direct ethernet server connects or disconnects
@@ -1019,13 +1031,13 @@ class FPGAServer(DeviceServer):
     ## allow selecting different kinds of devices in each context
     def selectedDAC(self, context):
         dev = self.selectedDevice(context)
-        if not isinstance(dev, dac.DacDevice):
+        if not isinstance(dev, fpga.DAC):
             raise Exception("selected device is not a DAC board")
         return dev
         
     def selectedADC(self, context):
         dev = self.selectedDevice(context)
-        if not isinstance(dev, adc.ADC):
+        if not isinstance(dev, fpga.ADC):
             raise Exception("selected device is not an ADC board")
         return dev
 
@@ -1381,8 +1393,8 @@ class FPGAServer(DeviceServer):
         for chan in timingOrder:
             if 'DAC' in chan:
                 # Round stats up to multiple of the timing packet length
-                reps += dac.TIMING_PACKET_LEN - 1
-                reps -= reps % dac.TIMING_PACKET_LEN
+                reps += fpga.DAC.TIMING_PACKET_LEN - 1
+                reps -= reps % fpga.DAC.TIMING_PACKET_LEN
                 break
         
         if len(c['daisy_chain']):
@@ -1401,13 +1413,13 @@ class FPGAServer(DeviceServer):
         # for each board
         runners = []
         for dev in devs:
-            if isinstance(dev, dac.DacDevice):
+            if isinstance(dev, fpga.DAC):
                 info = c.get(dev, {})
                 mem = info.get('mem', None)
                 startDelay = info.get('startDelay',0)
                 sram = info.get('sram', None)
                 runner = DacRunner(dev, reps, startDelay, mem, sram)
-            elif isinstance(dev, adc.ADC):
+            elif isinstance(dev, fpga.ADC):
                 info = c.get(dev, {})
                 try:
                     runMode = info['runMode']
@@ -2028,7 +2040,7 @@ class DacRunner(object):
         
         # calculate expected number of packets
         self.nTimers = timerCount(self.mem)
-        self.nPackets = self.reps * self.nTimers / dac.TIMING_PACKET_LEN
+        self.nPackets = self.reps * self.nTimers / fpga.DAC.TIMING_PACKET_LEN
         # calculate sequence time
         self.memTime = sequenceTime_sec(self.mem)
         # Why is this +1 here?
@@ -2105,8 +2117,8 @@ class DacRunner(object):
     def runPacket(self, page, slave, delay, sync):
         """Create run packet."""
         startDelay = self.startDelay + delay
-        regs = dac.regRun(self.reps, page, slave, startDelay,
-                          blockDelay=self.blockDelay, sync=sync)
+        regs = self.dev.regRun(self.reps, page, slave, startDelay,
+                               blockDelay=self.blockDelay, sync=sync)
         return regs
     
     def collectPacket(self, seqTime, ctx):
@@ -2144,10 +2156,10 @@ class AdcRunner(object):
         self.channels = channels
         
         if self.runMode == 'average':
-            self.mode = adc.RUN_MODE_AVERAGE_DAISY
+            self.mode = self.dev.RUN_MODE_AVERAGE_DAISY
             self.nPackets = self.dev.AVERAGE_PACKETS
         elif self.runMode == 'demodulate':
-            self.mode = adc.RUN_MODE_DEMOD_DAISY
+            self.mode = self.dev.RUN_MODE_DEMOD_DAISY
             self.nPackets = reps
         else:
             raise Exception("Unknown run mode '%s' for board '%s'" \
@@ -2184,8 +2196,9 @@ class AdcRunner(object):
         
         filterFunc, filterStretchLen, filterStretchAt = self.filter
         startDelay = self.startDelay + delay
-        regs = adc.regRun(self.mode, self.reps, filterFunc, filterStretchLen,
-            filterStretchAt, self.channels, startDelay)
+        regs = self.dev.regRun(self.mode, self.reps, filterFunc,
+                               filterStretchLen, filterStretchAt,
+                               self.channels, startDelay)
         return regs
     
     def collectPacket(self, seqTime, ctx):
@@ -2211,9 +2224,9 @@ class AdcRunner(object):
     def extract(self, packets):
         """Extract timing data coming back from a readPacket."""
         if self.runMode == 'average':
-            return adc.extractAverage(packets)
+            return self.dev.extractAverage(packets)
         elif self.runMode == 'demodulate':
-            return adc.extractDemod(packets,
+            return self.dev.extractDemod(packets,
                 self.dev.DEMOD_CHANNELS_PER_PACKET)
 
 # some helper methods
