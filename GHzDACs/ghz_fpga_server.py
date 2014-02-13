@@ -1219,10 +1219,24 @@ class FPGAServer(DeviceServer):
         Set the magnitude of sine and cosine functions for a demodulation
         channel. (ADC only)
         
+        
         The channel indicates which demodulation channel to use, in the range
         0 to N-1 where N is the number of channels (currently 4).
         sineAmp and cosineAmp are the magnitudes of the respective sine and
         cosine functions, ranging from 0 to 255.
+        
+        Data is stored in c[dev][channel], which is a dictionary. The following
+        keys are set:
+            'sineAmp' - int: Amplitude of sine lookup table
+            'cosineAmp' - int: Amplitude of cosine lookup table
+            'sine' - ndarray (uint8): sine table data
+            'cosine' - ndarray (uint8): cosine table data
+        
+        Why do we store both eg. 'sineAmp' and 'sine'? The 'sine' key stores a
+        numpy array of the actual data for the sine lookup table. The
+        amplitudes are stored so that we can detect changes. If the trig table
+        amplitudes change, then we need to re-upload the data to the board in
+        a setup packet.
         """
         # Get the ADC selected in this context. Raise an exception if selected
         # device is not an ADC
@@ -1233,8 +1247,6 @@ class FPGAServer(DeviceServer):
             'sine amplitude out of range: %d' % sineAmp
         assert 0 <= cosineAmp <= dev.TRIG_AMP, \
             'cosine amplitude out of range: %d' % cosineAmp
-        # d=c[dev] if c[dev] exists, otherwise makes c[dev]={} and returns
-        # c[dev]. Gives c its own representation of dev
         d = c.setdefault(dev, {})
         ch = d.setdefault(channel, {})
         ch['sineAmp'] = sineAmp
