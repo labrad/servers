@@ -36,7 +36,7 @@ class ADC_B2(fpga.ADC):
     def regRun(cls, mode, reps, filterFunc, filterStretchAt,
                   filterStretchLen, demods, startDelay=0):
         """Returns a numpy array of register bytes to run the board"""
-        regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
+        regs = np.zeros(self.REG_PACKET_LEN, dtype='<u1')
         regs[0] = mode
         regs[1:3] = littleEndian(startDelay, 2) #Daisychain delay
         regs[7:9] = littleEndian(reps, 2)       #Number of repetitions
@@ -99,7 +99,7 @@ class ADC_B2(fpga.ADC):
         Update a packet for the ethernet server with SRAM commands to upload
         Trig lookup tables.
         """
-        derp = 4
+        derp = 4 # First 4 derps used for filter function
         channel = 0
         while channel < cls.DEMOD_CHANNELS:
             data = []
@@ -122,6 +122,8 @@ class ADC_B2(fpga.ADC):
     @inlineCallbacks
     def _sendSRAM(self, filter, demods={}):
         """Write filter and sine table SRAM to the FPGA."""
+        #Raise exception to see what's calling this method
+        raise RuntimeError("_sendSRAM was called")
         p = self.makePacket()
         self.makeFilter(filter, p)
         self.makeTrigLookups(demods, p)
@@ -143,13 +145,13 @@ class ADC_B2(fpga.ADC):
             regs = self.regAdcRecalibrate()
             yield self._sendRegisters(regs, readback=False)
         return self.testMode(func)
-
+    
     def initPLL(self):
         @inlineCallbacks
         def func():
             yield self._runSerial([0x1FC093, 0x1FC092, 0x100004, 0x000C11])
         return self.testMode(func)
-
+    
     def runAverage(self, filterFunc, filterStretchLen, filterStretchAt,
                    demods):
         @inlineCallbacks
@@ -169,7 +171,7 @@ class ADC_B2(fpga.ADC):
             returnValue(self.extractAverage(packets))
             
         return self.testMode(func)
-
+    
     def runDemod(self, filterFunc, filterStretchLen, filterStretchAt, demods):
         @inlineCallbacks
         def func():
@@ -194,7 +196,7 @@ class ADC_B2(fpga.ADC):
                 self.DEMOD_CHANNELS_PER_PACKET))
             
         return self.testMode(func)
-
+    
     def runCalibrate(self):
         raise Exception("Depricated. Use recalibrate instead")
         @inlineCallbacks
@@ -226,9 +228,10 @@ class ADC_B2(fpga.ADC):
             executionCounter - int: Number of executions since last start
         """
         a = np.fromstring(resp, dtype='<u1')
+        raise RuntimeError("check parity of pll latch bits")
         return {
             'build': a[0],
-            'noPllLatch': bool(a[1] > 0),
+            'noPllLatch': a[1]&1 == 1,
             'executionCounter': (a[3]<<8) + a[2]
         }
     
@@ -274,10 +277,11 @@ class ADC_B2(fpga.ADC):
         Qmin = int(min(ranges[3]))
         return (data, (Imax, Imin, Qmax, Qmin))
 
+
 fpga.REGISTRY[('ADC', 2)] = ADC_B2
 
 
-class ADC_B4(fpga.ADC):
+class ADC_B4(ADC_B4):
     
     # Build-specific constants
     DEMOD_CHANNELS = 4
@@ -294,16 +298,122 @@ class ADC_B4(fpga.ADC):
     SRAM_WRITE_PKT_LEN = 1024 # Length of the data portion, not address bytes
     LOOKUP_ACCUMULATOR_BITS = 16
     
+    TRIGGER_TABLE_ENTRIES = 64
+    TRIGGER_TABLE_DERP = 9
+    
     # Methods to get bytes to be written to register
     
     @classmethod
-    def regRun(cls, ...):
-        stuff
-    
+    def regRun(cls, mode, reps, filterLen, demods, monA, monB, startDelay=0,
+               bitmask=0):
+        """Returns a numpy array of register bytes to run the board"""
+        regs = np.zeros(self.REG_PACKET_LEN, dtype='<u1')
+        regs[0] = mode
+        regs[1:3] = littleEndian(startDelay, 2)
+        regs[7:9] = littleEndian(reps, 2)
+        
+        if filterLen <= 1:
+            raise Exception("Filter func length must be >= 2")
+        regs[9:11] = littleEndian(filterLen - 1, 2)
+        regs[11] = len(demods)
+        regs[12] = bitmask
+        regs[13], regs[14] = monA, monB
+        for i in range(cls.DEMOD_CHANNELS):
+            if not in demods:
+                continue
+            addr = 15 + 4*i
+            regs[addr:addr+2] = littleEndian(demods[i]['dPhi'], 2)
+            regs[addr+2:addr+4] = littleEndian(demods[i]['phi0'], 2)
+        return regs
+
     # Direct ethernet server packet creation methods
     
-    def setup(self, ...):
-        stuff
+    def setup(self, filter, demods):
+        p = self.makePacket()
+        self.makeFilter(filter, p)
+        self.makeTrigLookups(demods, p)
+        amps = ''
+        for ch in xrange(self.DEMOD_CHANNELS):
+            if ch in demods:
+                cosineAmp = demods[ch]['cosineAmp']
+                sineAmp = demods[ch]['sineAmp']
+            else:
+                cosineAmp = sineAmp = 0
+            amps += '%s,%s;' % (cosineAmp, sineAmp)
+        setupState = "%s: filter=%s, trigAmps=%s" % (self.devName, \
+            filterFunc.tostring(), amps)
+        return p, setupState
+    
+    def load(self, triggerData):
+        """
+        Create a direct ethernet packet to load sequence data.
+        
+        Sequence data is just the trigger table.
+        """
+        p = self.makePacket()
+        self.makeTriggerTable(triggerData, p)
+        return p
+    
+    # Direct ethernet server packet update methods
     
     @classmethod
-    def makeDemodTriggers(cls, )
+    def makeTriggerTable(cls, data, p):
+        """
+        Add trigger table write to packet
+        
+        data - list of (count, delay) tuples
+        p: packet to update
+        """
+        #Convert to little endian numpy array
+        data = np.array(data, dtype='<i2').flatten()
+        pkt = cls.pktWriteSram(cls.TRIGGER_TABLE_DERP, data)
+        p.write(pkt.tostring())
+    
+    # board communication (can be called from within test mode)
+    
+    @inlineCallbacks
+    def _sendSRAM(self, filter, demods={}):
+        """
+        Write SRAM to the FPGA
+        
+        SRAM includes trig lookups, filter function, and trigger table
+        """
+        #Raise exception to see what's calling this method
+        raise RuntimeError("_sendSRAM was called")
+        p = self.makePacket()
+        self.makeFilter(filter, p)
+        self.makeTrigLookups(demods, p)
+        self.makeTriggerTable(data, p)
+        yield p.send()
+    
+    # Extrenally available board communication methods
+    # These run in test mode
+    
+    def runDemod(self, filterFunc, demods, triggerTable, monA, monB,
+                 bitmask=0):
+        @inlineCallbacks
+        def func():
+            regs = self.regRun(self.RUN_MODE_DEMOD_AUTO, 1, len(filterFunc),
+                               demods, monA, monB, bitmask=bitmask)
+            p = self.makePacket()
+            self.makeFilter(filterFunc, p)
+            self.makeTrigLookups(demods, p)
+            self.makeTriggerTable(triggerTable, p)
+            p.write(regs.tostring())
+            p.timeout(T.Value(10, 's'))
+            p.read(1)
+            ans =  yield p.send()
+            packets = [data for src, dst, eth, data in ans.read]
+            returnValue(self.extractDemod(packets, \
+                self.DEMOD_CHANNELS_PER_PACKET))
+        
+        return self.testMode(func)
+    
+    # Utility
+    
+    @staticmethod
+    def extractDemod(packets, nDemod):
+        raise NotImplementedError
+
+
+fpga.REGISTRY[('ADC', 4)] = ADC_B4
