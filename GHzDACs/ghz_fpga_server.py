@@ -1016,46 +1016,44 @@ class FPGAServer(DeviceServer):
 #            return dac.DAC_BSomething(guid, name)
 #        else:
 #            raise Exception('Device name does not correspond to a known device type')
-
-
+    
     ## Trigger refreshes if a direct ethernet server connects or disconnects
     def serverConnected(self, ID, name):
         if "Direct Ethernet" in name:
             self.refreshDeviceList()
-
+    
     def serverDisconnected(self, ID, name):
         if "Direct Ethernet" in name:
             self.refreshDeviceList()
-
-
+    
     ## allow selecting different kinds of devices in each context
     def selectedDAC(self, context):
         dev = self.selectedDevice(context)
         if not isinstance(dev, fpga.DAC):
             raise Exception("selected device is not a DAC board")
         return dev
-        
+    
     def selectedADC(self, context):
         dev = self.selectedDevice(context)
         if not isinstance(dev, fpga.ADC):
             raise Exception("selected device is not an ADC board")
         return dev
-
+    
     def getBoardGroup(self, name):
         """Find a board group by name."""
         for boardGroup in self.boardGroups.values():
             if boardGroup.name == name:
                 return boardGroup
         raise Exception("Board group '%s' not found." % name)
-
+    
     def initContext(self, c):
         """Initialize a new context."""
         c['daisy_chain'] = []
         c['timing_order'] = None
         c['master_sync'] = 249
-
+    
     ## remote settings
-
+    
     @setting(1, 'List Devices', boardGroup='s', returns='*(ws)')
     def list_devices(self, c, boardGroup=None):
         """List available devices.
@@ -1072,12 +1070,11 @@ class FPGAServer(DeviceServer):
                            name.startswith(boardGroup)]
         return devices
     
-
     @setting(10, 'List Board Groups', returns='*s')
     def list_board_groups(self, c):
         """Get a list of existing board groups."""
         return sorted(bg.name for bg in self.boardGroups.values())
-
+    
     @setting(11, 'List DACs', boardGroup='s', returns='*s')
     def list_dacs(self, c, boardGroup=None):
         """List available DACs.
@@ -1094,7 +1091,7 @@ class FPGAServer(DeviceServer):
             bg = self.getBoardGroup(boardGroup)
             devices = [name for name in devices if name.startswith(boardGroup)]
         return devices
-
+    
     @setting(12, 'List ADCs', boardGroup='s', returns='*s')
     def list_adcs(self, c, boardGroup=None):
         """List available ADCs.
@@ -1111,8 +1108,7 @@ class FPGAServer(DeviceServer):
             bg = self.getBoardGroup(boardGroup)
             devices = [name for name in devices if name.startswith(boardGroup)]
         return devices
-
-
+    
     ## Memory and SRAM upload
 
     @setting(20, 'SRAM', data='*w: SRAM Words to be written', returns='')
@@ -1187,10 +1183,9 @@ class FPGAServer(DeviceServer):
         dev = self.selectedDAC(c)
         d = c.setdefault(dev, {})
         d['mem'] = data
-
-
+    
     # ADC configuration
-
+    
     @setting(40, 'ADC Filter Func', bytes='s', stretchLen='w', stretchAt='w',
                                     returns='')
     def adc_filter_func(self, c, bytes, stretchLen=0, stretchAt=0):
@@ -1210,7 +1205,6 @@ class FPGAServer(DeviceServer):
         d['filterFunc'] = bytes
         d['filterStretchLen'] = stretchLen
         d['filterStretchAt'] = stretchAt
-    
     
     @setting(41, 'ADC Trig Magnitude', channel='w', sineAmp='w',
                                        cosineAmp='w', returns='')
@@ -1258,8 +1252,7 @@ class FPGAServer(DeviceServer):
         # Cosine waveform for this channel, note that the function is still a
         # SINE function!
         ch['cosine'] = np.floor(cosineAmp * np.sin(phi) + 0.5).astype('uint8')
-
-        
+    
     @setting(42, 'ADC Demod Phase', channel='w', dPhi='i', phi0='i',
              returns='')
     def adc_demod_frequency(self, c, channel, dPhi, phi0=0):
@@ -1301,8 +1294,18 @@ class FPGAServer(DeviceServer):
         ch = d.setdefault(channel, {})
         ch['dPhi'] = dPhi
         ch['phi0'] = phi0
+    
+    @setting(43, 'ADC Trigger Table', data='*(i,i)', returns='')
+    def adc_trigger_table(self, c, data):
+        """
+        Set the ADC trigger table
         
-
+        data: A list of (count, delay) tuples.
+        """
+        dev = self.selectedADC(c)
+        d = c.setdefault(dev, {})
+        d['triggerTable'] = data
+    
     @setting(44, 'ADC Run Mode', mode='s', returns='')
     def adc_run_mode(self, c, mode):
         """
@@ -1317,17 +1320,6 @@ class FPGAServer(DeviceServer):
         # d points to the same object as c[dev], which is MUTABLE. Mutating d
         # mutates c[dev]!!!
         d['runMode'] = mode
-
-    # @setting(45, 'ADC Start Delay', delay='w', returns='')
-    # def adc_start_delay(self, c, delay):
-        # """Specify the time to delay before starting ADC acquisition.  (ADC only)
-        
-        # The delay is specified in nanoseconds from the start of SRAM.  Note that
-        # just as for DAC boards, the daisy-chain delays are compensated automatically,
-        # so this delay should be relative to the start of the programmed SRAM sequence.
-        # """
-        # dev = self.selectedADC(c)
-        # c.setdefault(dev, {})['startDelay'] = delay
 
     @setting(45, 'Start Delay', delay='w', returns='')
     def start_delay(self, c, delay):
@@ -1344,7 +1336,6 @@ class FPGAServer(DeviceServer):
         """
         dev = self.selectedADC(c)
         return c[dev]['ranges']
-
 
     # multiboard sequence execution
 
@@ -1423,41 +1414,8 @@ class FPGAServer(DeviceServer):
         
         # build a list of runners which have necessary sequence information
         # for each board
-        runners = []
-        for dev in devs:
-            if isinstance(dev, fpga.DAC):
-                info = c.get(dev, {})
-                mem = info.get('mem', None)
-                startDelay = info.get('startDelay',0)
-                sram = info.get('sram', None)
-                runner = DacRunner(dev, reps, startDelay, mem, sram)
-            elif isinstance(dev, fpga.ADC):
-                info = c.get(dev, {})
-                try:
-                    runMode = info['runMode']
-                except KeyError:
-                    raise Exception("No runmode specified for ADC board '%s'"\
-                                        % dev.devName)
-                try:
-                    startDelay = info['startDelay']
-                except KeyError:
-                    raise Exception("No start delay specified for ADC board '%s'" % dev.devName)
-                try:
-                    filter = (info['filterFunc'], info['filterStretchLen'],
-                                  info['filterStretchAt'])
-                except KeyError:
-                    raise Exception("No filter function specified for ADC board '%s'" % dev.devName)
-                channels = dict((i, info[i]) for i in \
-                    range(dev.DEMOD_CHANNELS) if i in info)
-                #for key,value in channels.items():
-                #    print key,value
-                runner = AdcRunner(dev, reps, runMode, startDelay, filter,
-                                   channels)
-            else:
-                raise Exception("Unknown device type: %s" % dev) 
-            runners.append(runner)
-
-
+        runners = [dev.buildRunner(reps, c.get(dev,{})) for dev in devs]
+        
         # build setup requests
         setupReqs = processSetupPackets(self.client, setupPkts)
 
@@ -1494,7 +1452,6 @@ class FPGAServer(DeviceServer):
                         print 'retrying...'
                         print >>logfile, 'retrying...'
                         attempt += 1
-    
     
     @setting(52, 'Daisy Chain', boards='*s', returns='*s')
     def sequence_boards(self, c, boards=None):
@@ -1593,25 +1550,22 @@ class FPGAServer(DeviceServer):
             ans.append(((server, port), (pageTimes[0], pageTimes[1], runTime,
                                          runWaitTime, readTime)))
         return ans
-
-
+    
     @setting(200, 'PLL Init', returns='')
     def pll_init(self, c, data):
         """Sends the initialization sequence to the PLL. (DAC and ADC)
-
+    
         The sequence is [0x1FC093, 0x1FC092, 0x100004, 0x000C11].
         """
         dev = self.selectedDevice(c)
         yield dev.initPLL()
-
-
+    
     @setting(201, 'PLL Reset', returns='')
     def pll_reset(self, c):
         """Resets the FPGA internal GHz serializer PLLs. (DAC only)"""
         dev = self.selectedDAC(c)
         yield dev.resetPLL()
-
-
+    
     @setting(202, 'PLL Query', returns='b')
     def pll_query(self, c):
         """
@@ -1637,19 +1591,18 @@ class FPGAServer(DeviceServer):
         dev = self.selectedDevice(c)
         count = yield dev.executionCount()
         returnValue(int(count))
-
+    
     @setting(1080, 'DAC Debug Output', data='wwww', returns='')
     def dac_debug_output(self, c, data):
         """Outputs data directly to the output bus. (DAC only)"""
         dev = self.selectedDAC(c)
         yield dev.debugOutput(*data)
-
-
+    
     @setting(1081, 'DAC Run SRAM', data='*w', loop='b', blockDelay='w',
                                    returns='')
     def dac_run_sram(self, c, data, loop=False, blockDelay=0):
         """Loads data into the SRAM and executes as master. (DAC only)
-
+        
         If loop is True, the sequence will be repeated forever,
         otherwise it will be executed just once.  Sending
         an empty list of data will clear the SRAM.  The blockDelay
@@ -1658,22 +1611,21 @@ class FPGAServer(DeviceServer):
         """
         if not len(data):
             return
-
+        
         if loop:
             # make sure data is at least 20 words long by repeating it
             data *= (20-1)/len(data) + 1
         else:
             # Set data at least 20 words long by repeating first value
             data += [data[0]] * (20-len(data))
-
+        
         dev = self.selectedDAC(c)
         yield dev.runSram(data, loop, blockDelay)
-
-
+    
     @setting(1100, 'DAC I2C', data='*w', returns='*w')
     def dac_i2c(self, c, data):
         """Runs an I2C Sequence (DAC only)
-
+        
         The entries in the WordList to be sent have the following meaning:
           0..255 : send this byte
           256:     read back one byte without acknowledging it
@@ -1704,22 +1656,20 @@ class FPGAServer(DeviceServer):
         pkts = partition(data, I2C_END)
         
         return dev.runI2C(pkts)
-
-
+    
     @setting(1110, 'DAC LEDs', data=['w', 'bbbbbbbb'], returns='w')
     def dac_leds(self, c, data):
         """Sets the status of the 8 I2C LEDs. (DAC only)"""
         dev = self.selectedDAC(c)
-
+        
         if isinstance(data, tuple):
             # convert to a list of digits, and interpret as binary int
             data = long(''.join(str(int(b)) for b in data), 2)
-
+        
         pkts = [[200, 68, data & 0xFF]] # 192 for build 1
         yield dev.runI2C(pkts)  
         returnValue(data)
-
-
+    
     @setting(1120, 'DAC Reset Phasor', returns='b: phase detector output')
     def dac_reset_phasor(self, c):
         """Resets the clock phasor. (DAC only)"""
@@ -1735,7 +1685,6 @@ class FPGAServer(DeviceServer):
 
         r = yield dev.runI2C(pkts)
         returnValue((r[0] & 1) > 0)
-
 
     @setting(1121, 'DAC Set Phasor',
                   data=[': poll phase detector only',
@@ -1774,7 +1723,6 @@ class FPGAServer(DeviceServer):
         pkts = [[154, cmd, (val >> 8) & 0xFF, val & 0xFF]]
         yield dev.runI2C(pkts)
         returnValue(val)
-        
 
     @setting(1135, 'DAC Ain', returns='v[V]')
     def dac_ain(self, c):
@@ -1784,7 +1732,6 @@ class FPGAServer(DeviceServer):
                 [145, I2C_RB_ACK, I2C_RB]]
         r = yield dev.runI2C(pkts)
         returnValue(T.Value(((r[0] << 8) + r[1]) / 819.0, 'V'))
-
 
     @setting(1200, 'DAC PLL', data='*w', returns='*w')
     def dac_pll(self, c, data):
@@ -1808,14 +1755,12 @@ class FPGAServer(DeviceServer):
         dev = self.selectedDAC(c)
         return dev.runSerial(cmd, data)
 
-
     @setting(1206, 'DAC Clock Polarity', chan='s', invert='b', returns='b')
     def dac_pol(self, c, chan, invert):
         """Sets the clock polarity for either DAC. (DAC only)"""
         dev = self.selectedDAC(c)
         yield dev.setPolarity(chan, invert)
         returnValue(invert)
-
 
     @setting(1220, 'DAC Init', chan='s', signed='b', returns='b')
     def dac_init(self, c, chan, signed=False):
@@ -1830,7 +1775,6 @@ class FPGAServer(DeviceServer):
               [0x0026, 0x0006, 0x1603, 0x0500]
         yield dev.runSerial(cmd, pkt)
         returnValue(signed)
-
 
     @setting(1221, 'DAC LVDS', chan='s', optimizeSD='b', data='w',
                                returns='bwww(*w*b*b)w')
@@ -1849,7 +1793,6 @@ class FPGAServer(DeviceServer):
         ans = yield dev.setLVDS(cmd, data, optimizeSD)
         returnValue(ans)
 
-
     @setting(1222, 'DAC FIFO', chan='s', targetFifo='w', returns='bbiww')
     def dac_fifo(self, c, chan, targetFifo=None):
         """Adjust FIFO buffer. (DAC only)
@@ -1867,7 +1810,6 @@ class FPGAServer(DeviceServer):
         ans = yield dev.setFIFO(chan, op, targetFifo)
         returnValue(ans)
 
-
     @setting(1223, 'DAC Cross Controller', chan='s', delay='i', returns='i')
     def dac_xctrl(self, c, chan, delay=0):
         """Sets the cross controller delay on either DAC. (DAC only)
@@ -1884,7 +1826,6 @@ class FPGAServer(DeviceServer):
         yield dev.runSerial(cmd, seq)
         returnValue(delay)
 
-
     @setting(1225, 'DAC BIST', chan='s', data='*w', returns='b(ww)(ww)(ww)')
     def dac_bist(self, c, chan, data):
         """Run a BIST on the given SRAM sequence. (DAC only)
@@ -1895,8 +1836,7 @@ class FPGAServer(DeviceServer):
         dev = self.selectedDAC(c)
         ans = yield dev.runBIST(cmd, shift, data)
         returnValue(ans)
-        
-        
+    
     @setting(1300, 'DAC Bringup', lvdsOptimize='b', lvdsSD='w', signed='b',
              targetFifo='w',
              returns='*((ss)(sb)(sw)(sw)(sw)(s(*w*b*b))(sw)(sb)(sb)(si)(sw)(sw)(sb)(s(ww))(s(ww))(s(ww)))')
@@ -1904,7 +1844,7 @@ class FPGAServer(DeviceServer):
                              targetFifo=None):
         """
         Runs the bringup procedure.
-                
+        
         This code initializes the PLL, initializes the DAC, sets the LVDS SD,
         sets the FIFO, and runs the BIST test on each DAC channel. The output
         is (in tuple format) a list of two (one for each DAC) pairs of
@@ -1940,14 +1880,12 @@ class FPGAServer(DeviceServer):
                 ansDAC.append((key,val))
             ans.append(tuple(ansDAC))
         returnValue(ans)
-            
-
+    
     @setting(2500, 'ADC Recalibrate', returns='')
     def adc_recalibrate(self, c):
         """Recalibrate the analog-to-digital converters. (ADC only)"""
         dev = self.selectedADC(c)
         yield dev.recalibrate()
-    
     
     @setting(2600, 'ADC Run Average', returns='*i{I}, *i{Q}')
     def adc_run_average(self, c):
@@ -1973,7 +1911,7 @@ class FPGAServer(DeviceServer):
         ans = yield dev.runAverage(filterFunc, filterStretchLen,
                                    filterStretchAt, demods)
         returnValue(ans)
-
+    
     @setting(2601, 'ADC Run Calibrate', returns='')
     def adc_run_calibrate(self, c):
         """Recalibrate the ADC chips
@@ -1989,8 +1927,7 @@ class FPGAServer(DeviceServer):
         demods = dict((i, info[i]) for i in \
             range(dev.DEMOD_CHANNELS) if i in info)
         yield dev.runCalibrate()
-
-        
+    
     @setting(2602, 'ADC Run Demod',
              returns='((*i{I}, *i{Q}), (i{Imax} i{Imin} i{Qmax} i{Qmin}))')
     #@setting(2602, 'ADC Run Demod', returns='*i')
@@ -2007,8 +1944,7 @@ class FPGAServer(DeviceServer):
         ans = yield dev.runDemod(filterFunc, filterStretchLen,
                                  filterStretchAt, demods)
         returnValue(ans)
-        
-        
+    
     @setting(2700, 'ADC Bringup', returns='')
     def adc_bringup(self, c):
         """Runs the bringup procedure.
@@ -2017,14 +1953,13 @@ class FPGAServer(DeviceServer):
         """
         dev = self.selectedADC(c)
         yield dev.initPLL()
-    
+
     # TODO: new settings
     # - set up ADC options for data readout, to be used with the next
     #   daisy-chain run
     #   - DAC boards: one number (timing result) per repetition
     #   - ADC boards: either one waveform (averaged) for whole run
     #                 or one demodulation packet for each repetition
-
 
 # Runners contain information for running a sequence on a particular board
 #
@@ -2034,215 +1969,8 @@ class FPGAServer(DeviceServer):
 # - how many packets to expect, based on repetitions
 # - whether discard is possible
 
-class DacRunner(object):
-    def __init__(self, dev, reps, startDelay, mem, sram):
-        self.dev = dev
-        self.reps = reps
-        self.startDelay = startDelay
-        self.mem = mem
-        self.sram = sram
-        self.blockDelay = None
-        self._fixDualBlockSram()
-        
-        if self.pageable():
-            # shorten our sram data so that it fits in one page
-            # Why is there a factor of 4 here? Is this because each SRAM
-            # word is 4 bytes? Check John's documentation
-            self.sram = self.sram[:self.dev.SRAM_PAGE_LEN * 4]
-        
-        # calculate expected number of packets
-        self.nTimers = timerCount(self.mem)
-        self.nPackets = self.reps * self.nTimers / fpga.DAC.TIMING_PACKET_LEN
-        # calculate sequence time
-        self.memTime = sequenceTime_sec(self.mem)
-        # Why is this +1 here?
-        self.seqTime = TIMEOUT_FACTOR * (self.memTime * self.reps) + 1
-    
-    def pageable(self):
-        """
-        Check whether sequence fits in one page, based on SRAM addresses
-        called by mem commands.
-        """
-        return maxSRAM(self.mem) <= self.dev.SRAM_PAGE_LEN
-    
-    def _fixDualBlockSram(self):
-        """
-        If this sequence is for dual-block sram, fix memory addresses and
-        build sram.
-        
-        When this function completes
-          1. self.sram will be a byte string to be written to the
-             physical memory block
-          2. self.blockDelay will be an integer, the number of times
-             to repeate the delay block
-          3. The memory sequence is adjusted so that SRAM start addr
-             and SRAM end addr are set to properly execute the dual
-             blocks of SRAM.
-        
-        Input:
-              Block0            Block1
-              aaaaaaaaaaaaaDELAYbbbbbb
-        Output:
-        |00000aaaaaaaaaaaaa|bbbbbb
-        
-        The sram byte string is prepended with zeros to make sure that
-        our desired block0, represented by a's, lies with its end
-        exactly at the end of the physical memory block0. The two blocks
-        are concatened forming a single byte string.
-        
-        Note that because the sram sequence will be padded to take up the
-        entire first block of SRAM (before the delay section), this
-        disables paging.
-        """
-        #Note that as this function executes self.sram should be a tuple of
-        #(block0,block1,delay) where block0 and block1 are strings
-        if isinstance(self.sram, tuple):
-            # update addresses in memory commands that call into SRAM
-            self.mem = fixSRAMaddresses(self.mem, self.sram, self.dev)
-            
-            # combine blocks into one sram sequence to be uploaded
-            block0, block1, delayBlocks = self.sram
-            #Prepend bloock0 with \x00's so that the actual signal data
-            #exactly fills the first physical SRAM block
-            #Note block0 length in bytes = 4*block0 length in words
-            data = '\x00' * (self.dev.SRAM_BLOCK0_LEN * 4 - \
-                len(block0)) + block0 + block1
-            self.sram = data
-            self.blockDelay = delayBlocks
-    
-    def loadPacket(self, page, isMaster):
-        """Create pipelined load packet.  For DAC, upload mem and SRAM."""
-        if isMaster:
-            # this will be the master, so add delays before SRAM
-            self.mem = addMasterDelay(self.mem)
-            # Recompute sequence time
-            # Recalculate sequence time
-            self.memTime = sequenceTime_sec(self.mem)
-            # Following line added Oct 2 2012 - DTS
-            self.seqTime = TIMEOUT_FACTOR * (self.memTime * self.reps) + 1
-        return self.dev.load(self.mem, self.sram, page)
-    
-    def setupPacket(self):
-        """Create non-pipelined setup packet.  For DAC, does nothing."""
-        return None
-    
-    def runPacket(self, page, slave, delay, sync):
-        """Create run packet."""
-        startDelay = self.startDelay + delay
-        regs = self.dev.regRun(self.reps, page, slave, startDelay,
-                               blockDelay=self.blockDelay, sync=sync)
-        return regs
-    
-    def collectPacket(self, seqTime, ctx):
-        """
-        Collect appropriate number of ethernet packets for this sequence, then
-        trigger the run context.
-        """
-        return self.dev.collect(self.nPackets, seqTime, ctx)
-    
-    def triggerPacket(self, ctx):
-        """Send a trigger to the master context"""
-        return self.dev.trigger(ctx)
-    
-    def readPacket(self, timingOrder):
-        """
-        Read (or discard) appropriate number of ethernet packets, depending
-        on whether timing results are wanted.
-        """
-        keep = any(s.startswith(self.dev.devName) for s in timingOrder)
-        return self.dev.read(self.nPackets) if keep else \
-            self.dev.discard(self.nPackets)
-    
-    def extract(self, packets):
-        """Extract timing data coming back from a readPacket."""
-        data = ''.join(data[3:63] for data in packets)
-        return np.fromstring(data, dtype='<u2').astype('u4')
-
-class AdcRunner(object):
-    def __init__(self, dev, reps, runMode, startDelay, filter, channels):
-        self.dev = dev
-        self.reps = reps
-        self.runMode = runMode
-        self.startDelay = startDelay
-        self.filter = filter
-        self.channels = channels
-        
-        if self.runMode == 'average':
-            self.mode = self.dev.RUN_MODE_AVERAGE_DAISY
-            self.nPackets = self.dev.AVERAGE_PACKETS
-        elif self.runMode == 'demodulate':
-            self.mode = self.dev.RUN_MODE_DEMOD_DAISY
-            self.nPackets = reps
-        else:
-            raise Exception("Unknown run mode '%s' for board '%s'" \
-                % (self.runMode, self.dev.devName))
-        # 16us acquisition time + 10us packet transmit.
-        # Not sure why the extra +1 is here
-        self.seqTime = TIMEOUT_FACTOR * (26E-6 * self.reps) + 1
-        
-    def pageable(self):
-        """ADC sequence alone will never disable paging"""
-        return True
-    
-    def loadPacket(self, page, isMaster):
-        """Create pipelined load packet.  For ADC, nothing to do."""
-        if isMaster:
-            raise Exception("Cannot use ADC board '%s' as master." \
-                % self.dev.devName)
-        return None
-
-    def setupPacket(self):
-        """
-        Create non-pipelined setup packet.
-        For ADC, upload filter func and trig lookup tables.
-        """
-        return self.dev.setup(self.filter, self.channels)
-    
-    def runPacket(self, page, slave, delay, sync):
-        """Create run packet.
-        
-        The unused arguments page, slave, and sync, in the call signature
-        are there so that we could use the same call for DACs and ADCs.
-        This is cheesey and ought to be fixed.
-        """
-        
-        filterFunc, filterStretchLen, filterStretchAt = self.filter
-        startDelay = self.startDelay + delay
-        regs = self.dev.regRun(self.mode, self.reps, filterFunc,
-                               filterStretchLen, filterStretchAt,
-                               self.channels, startDelay)
-        return regs
-    
-    def collectPacket(self, seqTime, ctx):
-        """
-        Collect appropriate number of ethernet packets for this sequence, then
-        trigger run context.
-        """
-        return self.dev.collect(self.nPackets, seqTime, ctx)
-    
-    def triggerPacket(self, ctx):
-        """Send a trigger to the master context"""
-        return self.dev.trigger(ctx)
-
-    def readPacket(self, timingOrder):
-        """
-        Read (or discard) appropriate number of ethernet packets, depending on
-        whether timing results are wanted.
-        """
-        keep = any(s.startswith(self.dev.devName) for s in timingOrder)
-        return self.dev.read(self.nPackets) if keep else \
-            self.dev.discard(self.nPackets)
-
-    def extract(self, packets):
-        """Extract timing data coming back from a readPacket."""
-        if self.runMode == 'average':
-            return self.dev.extractAverage(packets)
-        elif self.runMode == 'demodulate':
-            return self.dev.extractDemod(packets,
-                self.dev.DEMOD_CHANNELS_PER_PACKET)
-
 # some helper methods
-    
+
 def getCommand(cmds, chan):
     """Get a command from a dictionary of commands.
 
@@ -2252,7 +1980,7 @@ def getCommand(cmds, chan):
         return cmds[chan]
     except:
         raise Exception("Allowed channels are %s." % sorted(cmds.keys()))
-    
+
 def processSetupPackets(cxn, setupPkts):
     """
     Process packets sent in flattened form into actual labrad packets on the
@@ -2274,10 +2002,9 @@ def processSetupPackets(cxn, setupPkts):
                 raise Exception('Malformed setup packet: ctx=%s, server=%s, settings=%s' % (ctxt, server, settings))
         pkts.append(p)
     return pkts
-    
-    
+
 # commands for analyzing and manipulating FPGA memory sequences
-    
+
 def sequenceTime_sec(cmds):
     """Conservative estimate of the length of a sequence in seconds.
     
@@ -2285,13 +2012,13 @@ def sequenceTime_sec(cmds):
     """
     cycles = sum(cmdTime_cycles(c) for c in cmds)
     return cycles * 40e-9 # assume 25 MHz clock -> 40 ns per cycle
-    
+
 def getOpcode(cmd):
     return (cmd & 0xF00000) >> 20
-    
+
 def getAddress(cmd):
     return (cmd & 0x0FFFFF)
-    
+
 def cmdTime_cycles(cmd):
     """A conservative estimate of the number of cycles a given command takes.
     
@@ -2313,7 +2040,7 @@ def cmdTime_cycles(cmd):
         # TODO: Incorporate SRAMoffset when calculating sequence time.
         #       This gives a max of up to 12 + 255 us
         return 25*12 # maximum SRAM length is 12us, with 25 cycles per us
-    
+
 def addMasterDelay(cmds, delay_us=MASTER_SRAM_DELAY):
     """Add delays to master board before SRAM calls.
     
@@ -2333,7 +2060,7 @@ def addMasterDelay(cmds, delay_us=MASTER_SRAM_DELAY):
             newCmds.append(delayCmd) # add delay
         newCmds.append(cmd)
     return newCmds
-    
+
 def fixSRAMaddresses(mem, sram, device):
     """Set the addresses of SRAM calls for multiblock sequences.
     
@@ -2388,7 +2115,7 @@ def fixSRAMaddresses(mem, sram, device):
         else:
             return cmd
     return [fixAddr(cmd) for cmd in mem]
-    
+
 def maxSRAM(cmds):
     """Determines the maximum SRAM address used in a memory sequence.
 
@@ -2398,7 +2125,7 @@ def maxSRAM(cmds):
     def addr(cmd):
         return getAddress(cmd) if getOpcode(cmd) in [0x8, 0xA] else 0
     return max(addr(cmd) for cmd in cmds)
-    
+
 def timerCount(cmds):
     """Return the number of timer stops in a memory sequence.
 
@@ -2411,7 +2138,6 @@ def timerCount(cmds):
     """
     return int(sum(np.asarray(cmds) == 0x400001)) # numpy version
     #return cmds.count(0x400001) # python list version
-    
 
 __server__ = FPGAServer()
 
