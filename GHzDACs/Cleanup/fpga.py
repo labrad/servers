@@ -324,9 +324,17 @@ class ADC(FPGA):
     
     @classmethod
     def pktWriteSram(cls, derp, data):
-        """Get a numpy array of bytes to write one derp of SRAM"""
+        """
+        Get a numpy array of bytes to write one derp of SRAM
+        
+        data - ndarray: numeric data to be written. This must be formatted such
+               that .tostring will yield the proper byte string for the direct
+               ethernet packet.
+        """
         assert 0 <= derp < cls.SRAM_WRITE_DERPS, \
             'SRAM derp out of range: %d' % derp 
+        # Ensure data is a numpy array.
+        # This should not be needed, as it should have happened already
         data = np.asarray(data)
         pkt = np.zeros(cls.SRAM_WRITE_PKT_LEN, dtype='<u1')
         pkt[0:2] = littleEndian(derp, 2)
