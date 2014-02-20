@@ -66,3 +66,17 @@ class TimedLock(object):
             self.addTime(dt)
             d.callback(dt)
 
+
+class LoggingPacketWrapper(object):
+    def __init__(self, packet, outFile=None):
+        self._packet = packet
+        self.outFile = outFile
+    
+    def __getattr__(self, name):
+        return getattr(self._packet, name)
+
+    def send(self):
+        if self.outFile:
+            self.outFile.write(str(self._packet))
+            self.outFile.flush()
+            return self._packet.send()
