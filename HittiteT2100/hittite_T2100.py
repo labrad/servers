@@ -35,93 +35,93 @@ from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 class HittiteWrapper(GPIBDeviceWrapper):
-	@inlineCallbacks
-	def initialize(self):
-		self.frequency = yield self.getFrequency()
-		self.amplitude = yield self.getAmplitude()
-		self.output = yield self.getOutput()
-		self.status = yield self.getStatus()
+    @inlineCallbacks
+    def initialize(self):
+        self.frequency = yield self.getFrequency()
+        self.amplitude = yield self.getAmplitude()
+        self.output = yield self.getOutput()
+        self.status = yield self.getStatus()
 
-	@inlineCallbacks
-	def getOutput(self):
-		self.output  = yield self.query('OUTP:STAT?')#.addCallback(bool)
-		returnValue(self.output)
-	 
-	@inlineCallbacks 
-	def getFrequency(self):
-		self.frequency = yield self.query('SOUR:FREQ?')#.addCallback(float)
-		returnValue(self.frequency)
+    @inlineCallbacks
+    def getOutput(self):
+        self.output  = yield self.query('OUTP:STAT?')#.addCallback(bool)
+        returnValue(self.output)
+     
+    @inlineCallbacks 
+    def getFrequency(self):
+        self.frequency = yield self.query('SOUR:FREQ?')#.addCallback(float)
+        returnValue(self.frequency)
 
-	@inlineCallbacks
-	def getAmplitude(self):
-		self.amplitude = yield self.query('SOUR:POW:LEV:AMPL?')#.addCallback(float)
-		returnValue(self.amplitude)
+    @inlineCallbacks
+    def getAmplitude(self):
+        self.amplitude = yield self.query('SOUR:POW:LEV:AMPL?')#.addCallback(float)
+        returnValue(self.amplitude)
 
-	@inlineCallbacks
-	def getStatus(self):
-		self.status = yield self.query('*STB?')#.addCallback(float)
-		returnValue(self.status)
+    @inlineCallbacks
+    def getStatus(self):
+        self.status = yield self.query('*STB?')#.addCallback(float)
+        returnValue(self.status)
         
-	@inlineCallbacks
-	def setFrequency(self, f):
-		f = f['Hz']
-		if self.frequency != f:
-			yield self.write('SOUR:FREQ:FIX %f' % f)
-			self.frequency = f
-	
-	@inlineCallbacks
-	def setAmplitude(self, a):
-		a = a['dBm']
-		if self.amplitude != a:
-			yield self.write('SOUR:POW:LEV:IMM:AMPL %f' % a)
-			self.amplitude = a
+    @inlineCallbacks
+    def setFrequency(self, f):
+        f = f['Hz']
+        if self.frequency != f:
+            yield self.write('SOUR:FREQ:FIX %f' % f)
+            self.frequency = f
+    
+    @inlineCallbacks
+    def setAmplitude(self, a):
+        a = a['dBm']
+        if self.amplitude != a:
+            yield self.write('SOUR:POW:LEV:IMM:AMPL %f' % a)
+            self.amplitude = a
 
-	@inlineCallbacks
-	def setOutput(self, out):
-		if self.output != out:
-			yield self.write('OUTP:STAT %d' % int(out))
-			self.output = out
-			
+    @inlineCallbacks
+    def setOutput(self, out):
+        if self.output != out:
+            yield self.write('OUTP:STAT %d' % int(out))
+            self.output = out
+            
 
 class HittiteServer(GPIBManagedServer):
-	"""ADD DOCUMENT STRING"""
-	name = 'Hittite T2100 Server'
-	deviceName = 'Hittite HMC-T2100'
-	deviceWrapper = HittiteWrapper
+    """ADD DOCUMENT STRING"""
+    name = 'Hittite T2100 Server'
+    deviceName = 'Hittite HMC-T2100'
+    deviceWrapper = HittiteWrapper
 
-	@setting(10, 'Frequency', f=['v[Hz]'], returns=['v[Hz]'])
-	def frequency(self, c, f=None):
-		"""Get or set the CW frequency."""
-		dev = self.selectedDevice(c)
-		if f is not None:
-			yield dev.setFrequency(f)
-		returnValue(dev.frequency)
+    @setting(10, 'Frequency', f=['v[Hz]'], returns=['v[Hz]'])
+    def frequency(self, c, f=None):
+        """Get or set the CW frequency."""
+        dev = self.selectedDevice(c)
+        if f is not None:
+            yield dev.setFrequency(f)
+        returnValue(dev.frequency)
 
-	@setting(11, 'Amplitude', a=['v[dBm]'], returns=['v[dBm]'])
-	def amplitude(self, c, a=None):
-		"""Get or set the CW amplitude."""
-		dev = self.selectedDevice(c)
-		if a is not None:
-			yield dev.setAmplitude(a)
-		returnValue(dev.amplitude)
+    @setting(11, 'Amplitude', a=['v[dBm]'], returns=['v[dBm]'])
+    def amplitude(self, c, a=None):
+        """Get or set the CW amplitude."""
+        dev = self.selectedDevice(c)
+        if a is not None:
+            yield dev.setAmplitude(a)
+        returnValue(dev.amplitude)
 
-	@setting(12, 'Output', os=['b'], returns=['b'])
-	def output_state(self, c, os=None):
-		"""Get or set the output status."""
-		dev = self.selectedDevice(c)
-		if os is not None:
-			yield dev.setOutput(os)
-		returnValue(dev.output == 1)
+    @setting(12, 'Output', os=['b'], returns=['b'])
+    def output_state(self, c, os=None):
+        """Get or set the output status."""
+        dev = self.selectedDevice(c)
+        if os is not None:
+            yield dev.setOutput(os)
+        returnValue(dev.output == 1)
         
-	@setting(13, 'Status', returns=['i'])
-	def status(self, c):
-		"""Get the status byte."""
-		dev = self.selectedDevice(c)
-		byte = yield dev.status
-		returnValue(int(byte))
+    @setting(13, 'Status', returns=['i'])
+    def status(self, c):
+        """Get the status byte."""
+        dev = self.selectedDevice(c)
+        byte = yield dev.status
+        returnValue(int(byte))
         
 __server__ = HittiteServer()
 
 if __name__ == '__main__':
-	from labrad import util
-	util.runServer(__server__)
+    from labrad import util
+    util.runServer(__server__)
