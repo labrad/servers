@@ -77,6 +77,15 @@ class LoggingPacketWrapper(object):
 
     def send(self):
         if self.outFile:
-            self.outFile.write(str(self._packet))
+            self.outFile.write(self._packet._packet.__repr__()+',')
             self.outFile.flush()
             return self._packet.send()
+        else:
+            print(self._packet._packet)
+            return self._packet.send()
+
+def getPacketInfo(filename="packetLog.txt"):
+    with open(filename) as f:
+        data = f.readlines()[0]
+        data = data.replace('][', '],[')
+        return data
