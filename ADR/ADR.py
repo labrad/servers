@@ -759,8 +759,8 @@ class ADRWrapper(DeviceWrapper):
             cpMotor = self.state('compressorMotorCurrent')
             # save the data
             dv.add([t, temps[0], temps[1], temps[2], volts[3], ruox[1], ruox[0],
-                   V, I, temps[4]] + cpTemps + [cpMotor, cpCPU] + cpPress, +
-                   [temps[3]] + temps[4:] + volts[0:3] + volts[4:]
+                   V, I, temps[4]] + cpTemps + [cpMotor, cpCPU] + cpPress +
+                   [temps[3]] + temps[5:] + volts[0:3] + volts[4:],
                 context=self.ctxt)
             # log!
             #self.log("Temperature log recorded: %s" % time.strftime("%Y-%m-%d %H:%M", time.localtime(t)))
