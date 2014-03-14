@@ -714,23 +714,36 @@ class ADRWrapper(DeviceWrapper):
                 # we need to create a new dataset
                 dv.cd(self.state('datavaultPath'), context=self.ctxt)
                 indeps = [('time', 's')]
-                deps = [('temperature', 'ch1: 50K', 'K'),
+                deps = [
+                        ('temperature', 'ch1: 50K', 'K'),
                         ('temperature', 'ch2: 4K', 'K'),
                         ('temperature', 'ch3: mag', 'K'),
-                        ('voltage', 'ruox', 'V'),
+                        ('voltage', 'ch4: ruox', 'V'),
                         ('resistance', 'ruox', 'Ohm'),
                         ('temperature', 'ruox', 'K'),
                         ('voltage', 'magnet', 'V'),
                         ('current', 'magnet', 'Amp'),
-                                            ('temperature', 'ch5: aux', 'K'),
-                                            ('temperature', 'CP Water In', 'K'),
-                                            ('temperature', 'CP Water Out', 'K'),
-                                            ('temperature', 'CP Helium', 'K'),
-                                            ('temperature', 'CP Oil', 'K'),
-                                            ('current', 'CP Motor', 'A'),
-                                            ('temperature', 'CP CPU', 'K'),
-                                            ('pressure', 'CP High Side', 'torr'), 
-                                            ('pressure', 'CP Low Side', 'torr')]
+                        ('temperature', 'ch5: aux', 'K'),
+                        ('temperature', 'CP Water In', 'K'),
+                        ('temperature', 'CP Water Out', 'K'),
+                        ('temperature', 'CP Helium', 'K'),
+                        ('temperature', 'CP Oil', 'K'),
+                        ('current', 'CP Motor', 'A'),
+                        ('temperature', 'CP CPU', 'K'),
+                        ('pressure', 'CP High Side', 'torr'), 
+                        ('pressure', 'CP Low Side', 'torr'),
+                        ('temperature', 'ch4: ruox (N/A)', 'K'),
+                        ('temperature', 'ch6: (N/A)', 'K'),
+                        ('temperature', 'ch7: V- (N/A)', 'K'),
+                        ('temperature', 'ch8: V+ (N/A)', 'K'),
+                        ('voltage', 'ch1: 50K', 'V'),
+                        ('voltage', 'ch2: 4K', 'V'),
+                        ('voltage', 'ch3: mag', 'V'),
+                        ('voltage', 'ch5', 'V'),
+                        ('voltage', 'ch6', 'V'),
+                        ('voltage', 'ch7: V-', 'V'),
+                        ('voltage', 'ch8: V+', 'V'),
+                        ]
                 name = "ADR Log - %s" % time.strftime("%Y-%m-%d %H:%M")
                 dv.new(name, indeps, deps, context=self.ctxt)
                 self.state('tempDatasetName', name)
@@ -745,7 +758,9 @@ class ADRWrapper(DeviceWrapper):
             cpCPU = self.state('compressorCPUTemperature')
             cpMotor = self.state('compressorMotorCurrent')
             # save the data
-            dv.add([t, temps[0], temps[1], temps[2], volts[3], ruox[1], ruox[0], V, I, temps[4]] + cpTemps + [cpMotor, cpCPU] + cpPress,
+            dv.add([t, temps[0], temps[1], temps[2], volts[3], ruox[1], ruox[0],
+                   V, I, temps[4]] + cpTemps + [cpMotor, cpCPU] + cpPress, +
+                   [temps[3]] + temps[4:] + volts[0:3] + volts[4:]
                 context=self.ctxt)
             # log!
             #self.log("Temperature log recorded: %s" % time.strftime("%Y-%m-%d %H:%M", time.localtime(t)))
