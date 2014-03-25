@@ -21,6 +21,8 @@
 # Version 2.4   Daniel Sank 2013/10/23  Support multiple devices on a single
 #                                       node(gpib bus).
 #                                       Added named_temperatures
+# Version 2.5   Jim Wenner  2014/03/24  No longer needing to scan consecutive
+#                                       channels
 #
 # How to set your Lakeshore 370's Resistance vs. Temperature Curve:
 # Previously, conversion of a resistance to a temperature happened with a hard
@@ -74,7 +76,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Lakeshore RuOx
-version = 2.4
+version = 2.5
 description = 
 
 [startup]
@@ -246,7 +248,9 @@ class RuOxWrapper(GPIBDeviceWrapper):
         
         # initialize the readings variable.
         # len(set(x)) gets the number of unique elements in x
-        self.readings = [(0, datetime.now())] * len(set(self.readOrder))
+        self.readings = {}
+        for channel in self.readOrder:
+            self.readings[channel] = (0, datetime.now())
         
         # now start with the calibrations
         # first get the default one
@@ -317,7 +321,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 chan = self.onlyChannel
                 yield util.wakeupCall(SETTLE_TIME)
                 r = yield self.query('RDGR? %d' % chan)
-                self.readings[chan-1] = float(r), datetime.now()
+                self.readings[chan] = float(r), datetime.now()
             # scan over channels
             else:
                 if len(self.readOrder) > 0:
@@ -328,7 +332,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 yield self.selectChannel(chan)
                 yield util.wakeupCall(SETTLE_TIME)
                 r = yield self.query('RDGR? %d' % chan)
-                self.readings[chan-1] = float(r), datetime.now()
+                self.readings[chan] = float(r), datetime.now()
                 idx = (idx + 1) % len(self.readOrder)
     
     def getSingleTemp(self, channel, calIndex=-1):
@@ -345,10 +349,10 @@ class RuOxWrapper(GPIBDeviceWrapper):
             calIndex = channel
         try:
             print("lakeshore370: Computing temperature for channel %d"%channel)
-            print("Resistance is %f"%self.readings[channel-1][0])
+            print("Resistance is %f"%self.readings[channel][0])
             if self.calibrations[calIndex][0] == INTERPOLATION:
                 # log-log interpolation
-                return (np.exp(np.interp(np.log(self.readings[channel-1][0]),
+                return (np.exp(np.interp(np.log(self.readings[channel][0]),
                               np.log(np.array(self.calibrations[calIndex][1])),
                               np.log(np.array(self.calibrations[calIndex][2]))
                               )))
@@ -360,7 +364,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 #     resistance, in ohms.
                 # (3) very unsafe if anyone ever hacks the registry. of course,
                 #     then we have bigger problems
-                r = self.readings[channel-1][0]
+                r = self.readings[channel][0]
                 return eval(self.calibrations[calIndex][1])
             elif self.calibrations[calIndex][0] == DEFAULT:
                 if calIndex > 0:
@@ -368,7 +372,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
                     return self.getSingleTemp(channel, 0) 
                 else:
                     #If there is no calibration at all use res2temp
-                    return res2temp(self.readings[channel-1][0])
+                    return res2temp(self.readings[channel][0])
         except Exception, e:
             print e
             return 0.0
@@ -376,8 +380,27 @@ class RuOxWrapper(GPIBDeviceWrapper):
     def getTemperatures(self):
         # we now do this channel by channel. oh yeah.
         result = []
-        for i in range(max(self.readOrder)):
-            result.append((self.getSingleTemp(i+1), self.readings[i][1]))
+        for channel in sorted(self.readings.keys()):
+            result.append((self.getSingleTemp(channel), self.readings[channel][1]))
+        return result
+    
+    def getNamedTemperatures(self):
+        # we now do this channel by channel. oh yeah.
+        result = []
+        for channel in sorted(self.readings.keys()):
+            result.append((self.channelNames[channel-1],(self.getSingleTemp(channel), self.readings[channel][1])))
+        return result
+    
+    def getResistances(self):
+        result = []
+        for channel in sorted(self.readings.keys()):
+            result.append(self.readings[channel])
+        return result
+    
+    def getNamedResistances(self):
+        result = []
+        for channel in sorted(self.readings.keys()):
+            result.append((self.channelNames[channel-1],self.readings[channel]))
         return result
     
     def singleTempToRes (self, temp, channel, calIndex=-1):
@@ -435,10 +458,8 @@ class LakeshoreRuOxServer(GPIBManagedServer):
     
     @setting(11, 'Named Temperatures', returns='*(s, (v[K], t))')
     def named_temperatures(self, c):
-        temps = self.temperatures(c)
         dev = self.selectedDevice(c)
-        names = dev.channelNames
-        return [(name, (tData[0], tData[1])) for name,tData in zip(names, temps)]
+        return dev.getNamedTemperatures()
     
     @setting(12, 'Resistances', returns='*(v[Ohm], t)')
     def resistances(self, c):
@@ -447,9 +468,14 @@ class LakeshoreRuOxServer(GPIBManagedServer):
         Returns a ValueList of the channel resistances in Ohms.
         """
         dev = self.selectedDevice(c)
-        return dev.readings
+        return dev.getResistances()
     
-    @setting(13, 'Select channel', channel='w', returns='w')
+    @setting(13, 'Named Resistances', returns='*(s, (v[Ohm], t))')
+    def named_resistances(self, c):
+        dev = self.selectedDevice(c)
+        return dev.getNamedResistances()
+    
+    @setting(20, 'Select channel', channel='w', returns='w')
     def selectchannel(self, c, channel):
         """Select channel to be read. If argument is 0,
         scan over channels.
@@ -462,7 +488,7 @@ class LakeshoreRuOxServer(GPIBManagedServer):
             dev.selectChannel(channel)
         return channel
     
-    @setting(14, "Single Temperature", channel='w', returns='(v[K], t)')
+    @setting(21, "Single Temperature", channel='w', returns='(v[K], t)')
     def single_temperature(self, c, channel):
         """Read a single temperature. Argument must be a valid channel.
 
@@ -471,7 +497,7 @@ class LakeshoreRuOxServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         return (dev.getSingleTemp(channel), dev.readings[channel-1][1])
     
-    @setting(15, 'Reload Calibrations')
+    @setting(22, 'Reload Calibrations')
     def reload(self, c):
         """Reloads the parameters that are stored in the registry.
         
@@ -485,7 +511,7 @@ class LakeshoreRuOxServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         dev.reloadCalibrations()
     
-    @setting(16, 'Print Settings', returns='s')
+    @setting(23, 'Print Settings', returns='s')
     def print_settings(self, c):
         """Prints the settings loaded from the registry for this device."""
         dev = self.selectedDevice(c)
