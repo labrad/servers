@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = MKS Gauge Server
-version = 1.1
+version = 2.0
 description = 
 
 [startup]
@@ -30,33 +30,60 @@ timeout = 20
 ### END NODE INFO
 """
 
+import labrad 
+
 from labrad import types as T, util
 from labrad.server import LabradServer, setting
 
 from twisted.python import log
 from twisted.internet import defer
 from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet import reactor
 
 from datetime import datetime
 
 CHANNELS = ['ch1', 'ch2']
 
+
 class MKSServer(LabradServer):
     name = 'MKS Gauge Server'
-
-    gaugeServers = [{
-        'server': 'DR Serial Server',
-        'ID': None,
-        'gauges': [dict(port='COM6', ch1='Pot Low', ch2='Pot High'),
-                   dict(port='COM3', ch1='',   ch2='Still'),
-                   dict(port='COM5', ch1='Keg 1',   ch2='He Flow'),
-                   dict(port='COM4', ch1='Return',  ch2='')]
-        }]
-
+    
     @inlineCallbacks
     def initServer(self):
+        cxn = yield self.client
+        self.name = 'mks_server_2'
+        self.fridge = self.fridgeAutoDetect()
+
+        reg = cxn.registry
+        reg.cd(['','Servers','MKS_Gauge_Server',self.fridge])
+        gauge_list = reg.get('gauge_list')
+        serial_server = yield reg.get('serial_server')
+        yield reg.cd('gauges')
+        gauges = []
+        
+        loopvar = yield reg.dir()
+        for key in loopvar[1]:
+            gaugeentry = yield reg.get(key)
+            dictentry = {gaugeentry[0][0]:gaugeentry[0][1],gaugeentry[1][0]:gaugeentry[1][1],gaugeentry[2][0]:gaugeentry[2][1]}
+            gauges.append(dictentry)
+        self.gaugeServers = [{'server' : serial_server, 'ID':None, 'gauges':gauges}]
+        
         self.gauges = []
         yield self.findGauges()
+
+        
+    def fridgeAutoDetect(self):
+        cxn = self.client
+        attributeList = cxn.__dict__
+        if attributeList.has_key('node_vince'):
+            myFridge = 'Vince'
+            return myFridge
+        elif attributeList.has_key('node_dr'):
+            myFridge = 'Jules'
+            return myFridge
+        elif attributeList.has_key('node_trench'):
+            myFridge = 'DryDR'
+            return myFridge
 
     def serverConnected(self, ID, name):
         """Try to connect to gauges when a server connects."""
@@ -77,6 +104,8 @@ class MKSServer(LabradServer):
         """Look for gauges and servers."""
         cxn = self.client
         yield cxn.refresh()
+        log.msg('findGauges')
+        log.msg(self.gaugeServers)
         for S in self.gaugeServers:
             if S['ID'] is not None:
                 continue
@@ -165,10 +194,8 @@ class MKSServer(LabradServer):
                     except:
                         readings += [T.Value(0, 'Torr')]
         returnValue(readings)
-
-
+        
 __server__ = MKSServer()
 
 if __name__ == '__main__':
-    from labrad import util
-    util.runServer(__server__)    
+    util.runServer(__server__)
