@@ -23,6 +23,8 @@
 #                                       Added named_temperatures
 # Version 2.5   Jim Wenner  2014/03/24  No longer needing to scan consecutive
 #                                       channels
+# Version 2.5.1 Jim Wenner  2014/04/09  If using interpolation, resistances no
+#                                       longer must be monotonically increasing
 #
 # How to set your Lakeshore 370's Resistance vs. Temperature Curve:
 # Previously, conversion of a resistance to a temperature happened with a hard
@@ -76,7 +78,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Lakeshore RuOx
-version = 2.5
+version = 2.5.1
 description = 
 
 [startup]
@@ -190,7 +192,8 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 p.get("Resistances", key="res")
                 p.get("Temperatures", key="temp")
                 ans = yield p.send()
-                returnValue([INTERPOLATION, ans.res.asarray, ans.temp.asarray])
+                calOrder = np.argsort(ans.res)
+                returnValue([INTERPOLATION, np.array(ans.res)[calOrder], np.array(ans.temp)[calOrder]])
             elif ans.type.upper() == "FUNCTION":
                 p = reg.packet()
                 p.cd(path)
