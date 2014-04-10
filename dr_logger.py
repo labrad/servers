@@ -147,6 +147,7 @@ class DRLogger(DeviceWrapper):
         self.dvPath = kwargs.pop('dvPath', ['', 'DR', self.name])
         self.datasetName = kwargs.pop('datasetName', '%s log - [t]' % self.name)
         self.timeInterval = kwargs.pop('timeInterval', 1.0)
+        self.currentDay = time.strftime("%d")
         # now make our watchers
         for k, v in kwargs.iteritems():
             server_name = v[0]
@@ -177,8 +178,11 @@ class DRLogger(DeviceWrapper):
             print 'loop started'
         elif self.isLogging and not start:
             # stop the loop
-            self.loop.stop()
-            yield self.loopDone
+            try:
+                self.loop.stop()
+                yield self.loopDone
+            except AssertionError:
+                pass
             print 'loop stopped'
             self.isLogging = False
             
@@ -191,6 +195,7 @@ class DRLogger(DeviceWrapper):
         self.data_vault = self.cxn['data_vault']
         self.data_vault.cd(self.dvPath, True, context=self.ctx)
         name = self.datasetName.replace('[t]', time.strftime("%Y-%m-%d %H:%M"))
+        self.currentDay = time.strftime("%d")
         indeps = ['time [s]']
         deps = []
         for w in self.watchers:
@@ -200,14 +205,17 @@ class DRLogger(DeviceWrapper):
         
     @inlineCallbacks
     def take_point(self):
-        # gather data
-        data = [time.time()*T.U.s]
-        for w in self.watchers:
-            r = yield w.take_point()
-            data.extend(r)
-        # strip units
-        data = [x.value for x in data]
         try:
+            # gather data
+            data = [time.time()*T.U.s]
+            for w in self.watchers:
+                r = yield w.take_point()
+                data.extend(r)
+            # strip units
+            data = [x.value for x in data]
+            # did the day roll over?
+            if self.currentDay != time.strftime("%d"):
+                self.new_dataset()
             # make dataset if first time
             if not self.data_vault:
                 yield self.make_dataset()
@@ -218,7 +226,11 @@ class DRLogger(DeviceWrapper):
                 yield self.make_dataset()
                 yield self.data_vault.add(data, context=self.ctx)
             else:
-                raise err
+                print "ERROR in take_point:"
+                print err
+                
+    def new_dataset(self):
+        self.data_vault = None
 
 class DRLoggerServer(DeviceServer):
     name = 'DR Logger'
@@ -263,15 +275,15 @@ class DRLoggerServer(DeviceServer):
     @setting(11, "New Dataset")
     def new_dataset(self, c):
         ''' Start a new dataset. '''
-        self.selectedDevice(c).data_vault = None
+        self.selectedDevice(c).newDataset()
         
     @setting(12, 'Logging', start='b', returns='b')
     def logging(self, c, start=None):
         ''' Get/set whether we are currently logging. '''
         dev = self.selectedDevice(c)
         if start is not None:
-            dev.logging(start)
-        return dev.isLogging
+            yield dev.logging(start)
+        returnValue(dev.isLogging)
         
     @setting(13, 'Time Interval', ti='v[s]', returns='v[s]')
     def time_interval(self, c, ti=None):
@@ -280,9 +292,9 @@ class DRLoggerServer(DeviceServer):
         if ti is not None:
             dev.timeInterval = ti
             if dev.isLogging:
-                dev.logging(False)
-                dev.logging(True)
-        return dev.timeInterval*T.U.s
+                yield dev.logging(False)
+                yield dev.logging(True)
+        returnValue(dev.timeInterval*T.U.s)
 
 __server__ = DRLoggerServer()
 
