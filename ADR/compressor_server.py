@@ -89,7 +89,7 @@ class CompressorDevice(DeviceWrapper):
         """Write a data value to the compressor."""
         if key not in WRITEABLE:
             raise Exception('Cannot write to key "%s".' % (key,))
-        pkt = write(key, int(value), index=index)
+        pkt = write(HASHCODES[key], int(value), index=index)
         yield self.packet().write(pkt).read_line('\r').send()
 
     @inlineCallbacks
@@ -98,7 +98,15 @@ class CompressorDevice(DeviceWrapper):
         if key not in READABLE:
             raise Exception('Cannot read key "%s".' % (key,))
         p = self.packet()
-        p.write(read(key, index=index))
+        p.write(read(HASHCODES[key], index=index))
+        p.read_line('\r')
+        ans = yield p.send()
+        returnValue(getValue(ans.read_line))
+
+    @inlineCallbacks
+    def read_raw(self, hashcode, index=0):
+        p = self.packet()
+        p.write(read(hashcode, index=index))
         p.read_line('\r')
         ans = yield p.send()
         returnValue(getValue(ans.read_line))
@@ -123,7 +131,7 @@ class CompressorDevice(DeviceWrapper):
         p = self.packet()
         for i in range(length):
             for key in keys:
-                p.write(read(key, i))
+                p.write(read(HASHCODES[key], i))
                 p.read_line('\r', key=(i, key))
         ans = yield p.send()
         vals = [[processFunc(getValue(ans[i, key]))
@@ -136,9 +144,10 @@ class CompressorDevice(DeviceWrapper):
         if time.time() - self._temperatures_time > CACHE_TIME:
             keys = 'TEMP_TNTH_DEG', 'TEMP_TNTH_DEG_MINS', 'TEMP_TNTH_DEG_MAXES'
             ts = yield self.readArrays(keys, 4, toTemp)
-            if [t for t in ts if t[0]['K'] >= ALLOWED_TEMPERATURE_RANGE[0] and t[0]['K'] <= ALLOWED_TEMPERATURE_RANGE[1]]:
-                self._temperatures = ts
-                self._temperatures_time = time.time()
+            #if [t for t in ts if t[0]['K'] >= ALLOWED_TEMPERATURE_RANGE[0] and t[0]['K'] <= ALLOWED_TEMPERATURE_RANGE[1]]:
+            #if all([t[0]['K'] >= ALLOWED_TEMPERATURE_RANGE[0] and t[0]['K'] <= ALLOWED_TEMPERATURE_RANGE[1] for t in ts]):
+            self._temperatures = ts
+            self._temperatures_time = time.time()
         returnValue(self._temperatures)
 
     @inlineCallbacks
@@ -269,6 +278,11 @@ class CompressorServer(DeviceServer):
                 dev.motor_current_time = time.time()
         returnValue(dev.motor_current)
     
+    @setting(2300, 'Read Raw', hashcode='w', index='w', returns='i')
+    def read_raw(self, c, hashcode, index=0):
+        dev = self.selectedDevice(c)
+        ans = yield dev.read_raw(hashcode, index)
+        returnValue(ans)
 
 # compressor control protocol
 STX = 0x02
@@ -368,7 +382,7 @@ def unstuff(data):
             out.append(XLATE[c])
             escape = False
         elif c == ESC:
-            escape == True
+            escape = True
         else:
             out.append(c)
     return out
@@ -396,13 +410,13 @@ def unpack(response):
 #####
 # Data Dictionary for CP2800 Compressor
     
-def read(key, index=0):
+def read(hashcode, index=0):
     """Make a packet to read a variable."""
-    return pack([0x63] + toBytes(HASHCODES[key], count=2) + [index])
+    return pack([0x63] + toBytes(hashcode, count=2) + [index])
 
-def write(key, value, index=0):
+def write(hashcode, value, index=0):
     """Make a packet to write a variable."""
-    return pack([0x61] + toBytes(HASHCODES[key], count=2) + [index] + toBytes(value))
+    return pack([0x61] + toBytes(hashcode, count=2) + [index] + toBytes(value))
 
 def getValue(resp):
     """Get an integer value from a response packet."""
