@@ -38,11 +38,13 @@ from labrad.server import LabradServer, setting
 from twisted.python import log
 from twisted.internet import defer, reactor, threads
 from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.task import deferLater
 
 from serial import Serial
 from serial.serialutil import SerialException
 
 from time import sleep
+import time
 
 class NoPortSelectedError(Error):
     """Please open a port first."""
@@ -250,6 +252,25 @@ class SerialServer(LabradServer):
         ser.write(data + '\r\n')
         return long(len(data)+2)
 
+    
+    @setting(42, 'Pause', duration='v[s]: Time to pause', returns=[])
+    def pause(self, c, duration):
+        _ = yield deferLater(reactor, duration['s'], lambda: None)
+        return
+
+    @inlineCallbacks
+    def _deferredRead(self, ser, timeout, count=1):
+        stop_time = time.time()+timeout
+        def doRead(count):
+            while True:
+                d = ser.read(count)
+                if d:
+                    return d
+                sleep(0.01)
+                if time.time() > stop_time:
+                    return ''
+        data = yield threads.deferToThread(doRead, count)
+        returnValue(data)
 
     @inlineCallbacks
     def deferredRead(self, ser, timeout, count=1):
@@ -263,9 +284,14 @@ class SerialServer(LabradServer):
                 sleep(0.010)
             return d
         data = threads.deferToThread(doRead, count)
-        r = yield util.maybeTimeout(data, min(timeout, 300), '')
+        timeout_object = []
+        start_time = time.time()
+        r = yield util.maybeTimeout(data, min(timeout, 300), timeout_object)
         killit = True
 
+        if r == timeout_object:
+            print "deferredRead timed out after %f seconds" % (time.time()-start_time,)
+            r = ''
         if r == '':
             r = ser.read(count)
 

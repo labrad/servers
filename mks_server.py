@@ -144,7 +144,7 @@ class MKSServer(LabradServer):
 
             # check units
             p = ser.packet()\
-                   .write_line('u')\
+                   .write_line('u').pause(T.Value(0.02, 's'))\
                    .read_line(key='units')
             res = yield p.send(context=ctx)
             if 'units' in res.settings:
@@ -154,8 +154,8 @@ class MKSServer(LabradServer):
 
             # create a packet to read the pressure
             p = ser.packet(context=ctx)\
-                   .write_line('p')\
-                   .read_line(key='pressure')
+                   .write_line('p').pause(T.Value(0.02, 's'))\
+                   .read_line(key='pressure').pause(T.Value(0.01, 's'))
             G['packet'] = p
 
             G['server'] = ser
@@ -180,18 +180,20 @@ class MKSServer(LabradServer):
         """Request current readings."""
         deferreds = [G['packet'].send() for G in self.gauges]
         res = yield defer.DeferredList(deferreds, fireOnOneErrback=True)
-        
         readings = []
         strs = []
+        idx = 0
         for rslt, G in zip(res, self.gauges):
             s = rslt[1].pressure
             strs.append(s)
             r = rslt[1].pressure.split()
+            idx = idx+1
             for ch, rdg in zip(CHANNELS, r):
                 if G[ch]:
                     try:
                         readings += [T.Value(float(rdg), 'Torr')]
                     except:
+                        print "reading failed for %s:%s with result %s, using zero" % (G[ch], ch, rdg)
                         readings += [T.Value(0, 'Torr')]
         returnValue(readings)
         
