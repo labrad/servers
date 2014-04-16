@@ -195,7 +195,9 @@ class MKSServer(LabradServer):
                     except:
                         print "reading failed for %s:%s with result %s, using zero" % (G[ch], ch, rdg)
                         readings += [T.Value(0, 'Torr')]
-        returnValue(readings)
+        
+        packagedreadings = zip(gauge_list,readings)#@#
+        returnValue(packagedreadings)#@#
         
 __server__ = MKSServer()
 
