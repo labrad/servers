@@ -1,6 +1,5 @@
 package org.labrad.qubits;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -867,7 +866,10 @@ public class QubitContext extends AbstractServerContext {
 		DeconvolutionProxy deconvolver = new DeconvolutionProxy(getConnection());
 		List<Future<Void>> deconvolutions = Lists.newArrayList();
 		for (FpgaModelDac fpga : expt.getDacFpgas()) {
-			deconvolutions.add(fpga.deconvolveSram(deconvolver));
+			// pomalley 4/22/14 added this check, as we now handle the case of boards not having defined channels a bit differently
+			if (fpga.hasSramChannel()) {
+				deconvolutions.add(fpga.deconvolveSram(deconvolver));
+			}
 		}
 		Futures.waitForAll(deconvolutions).get();
 

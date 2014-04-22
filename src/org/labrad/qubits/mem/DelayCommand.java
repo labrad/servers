@@ -19,7 +19,7 @@ public class DelayCommand implements MemoryCommand {
 	  return this.cycles;
   }
   public double getTime_us(FpgaModelDac dac) {
-	  return dac.clocksToMicroseconds(this.cycles);
+	  return FpgaModelDac.clocksToMicroseconds(this.cycles);
   }
   
   public long[] getBits() {

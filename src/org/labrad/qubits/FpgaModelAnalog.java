@@ -24,13 +24,14 @@ public class FpgaModelAnalog extends FpgaModelDac {
     super(dacBoard, expt);
     analogBoard = dacBoard;
     // create dummy channels for this board
+    /* pomalley 4/22/14 we no longer use dummy channels.
     for (DacAnalogId id : DacAnalogId.values()) {
       AnalogChannel dummy = new AnalogChannel("dummy_" + id.toString());
       dummy.setExperiment(expt);
       dummy.setDacBoard(dacBoard);
       dummy.setDacId(id);
       dummy.setFpgaModel(this);
-    }
+    }*/
   }
   
   public AnalogBoard getAnalogBoard() {
@@ -75,4 +76,12 @@ public class FpgaModelAnalog extends FpgaModelDac {
     }
     return sram;
   }
+
+	/**
+	 * See comments on parent's abstract method.
+	 */
+    @Override
+	protected boolean hasSramChannel() {
+		return !dacs.isEmpty();
+	}
 }

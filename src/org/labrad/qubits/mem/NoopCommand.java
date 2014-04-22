@@ -15,6 +15,6 @@ public class NoopCommand implements MemoryCommand {
     return new long[] {0x000000};
   }
   public double getTime_us(FpgaModelDac dac) {
-	  return dac.clocksToMicroseconds(1);
+	  return FpgaModelDac.clocksToMicroseconds(1);
   } 
 }

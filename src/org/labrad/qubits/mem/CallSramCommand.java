@@ -29,6 +29,6 @@ public class CallSramCommand implements MemoryCommand {
   }
   public double getTime_us(FpgaModelDac dac) {
 	  // Call Sram memory command includes 3 memory commands plus the SRAM sequence
-	  return dac.samplesToMicroseconds(endAddr-startAddr) + dac.clocksToMicroseconds(3);
+	  return dac.samplesToMicroseconds(endAddr-startAddr) + FpgaModelDac.clocksToMicroseconds(3);
   } 
 }

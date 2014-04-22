@@ -22,12 +22,14 @@ public class FpgaModelMicrowave extends FpgaModelDac {
     super(dacBoard, expt);
     microwaveBoard = dacBoard;
     // create a dummy channel for this board
+    /* pomalley 4/22/14 no longer use dummy channels
     IqChannel dummy = new IqChannel("dummy_iq");
     dummy.setExperiment(expt);
     dummy.setDacBoard(dacBoard);
     dummy.setMicrowaveSource(dacBoard.getMicrowaveSource());
     dummy.configMicrowavesOn(6.0, -10); // TODO reuse microwave config from another board that has same source
     dummy.setFpgaModel(this);
+    */
   }
 
   public void setIqChannel(IqChannel iq) {
@@ -71,4 +73,12 @@ public class FpgaModelMicrowave extends FpgaModelDac {
     }
     return sram;
   }
+
+  	/**
+  	 * See comment on parent's abstract method.
+  	 */
+	@Override
+	protected boolean hasSramChannel() {
+		return iq != null;
+	}
 }

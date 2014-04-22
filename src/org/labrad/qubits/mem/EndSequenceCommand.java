@@ -15,6 +15,6 @@ public class EndSequenceCommand implements MemoryCommand {
     return new long[] {0xF00000};
   }
   public double getTime_us(FpgaModelDac dac) {
-	  return dac.clocksToMicroseconds(1);
+	  return FpgaModelDac.clocksToMicroseconds(1);
   }
 }

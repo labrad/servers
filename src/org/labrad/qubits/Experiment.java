@@ -8,7 +8,6 @@ import java.util.Set;
 import org.labrad.data.Data;
 import org.labrad.qubits.channels.AdcChannel;
 import org.labrad.qubits.channels.Channel;
-import org.labrad.qubits.channels.FastBiasChannel;
 import org.labrad.qubits.channels.PreampChannel;
 import org.labrad.qubits.channels.TimingChannel;
 import org.labrad.qubits.enums.DacTriggerId;

@@ -4,7 +4,6 @@ import java.util.List;
 
 import org.labrad.data.Request;
 import org.labrad.qubits.channels.AdcChannel;
-import org.labrad.qubits.mem.MemoryCommand;
 import org.labrad.qubits.resources.AdcBoard;
 import org.labrad.qubits.resources.DacBoard;
 

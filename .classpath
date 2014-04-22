@@ -3,8 +3,12 @@
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/JLabrad"/>
-	<classpathentry kind="lib" path="/JLabrad/lib/guava-gwt-11.0.1.jar"/>
-	<classpathentry kind="lib" path="/JLabrad/lib/netty-3.2.7.Final.jar"/>
-	<classpathentry kind="lib" path="/JLabrad/lib/guava-11.0.1.jar"/>
+	<classpathentry kind="lib" path="/JLabrad/lib/guava-r06.jar" sourcepath="/JLabrad/lib/guava-r06/guava-src-r06.zip">
+		<attributes>
+			<attribute name="javadoc_location" value="file:/G:/Documents/code/otherSVN/JLabrad/lib/guava-r06/javadoc/"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="/JLabrad/lib/netty-3.1.5.GA.jar"/>
+	<classpathentry kind="lib" path="/JLabrad/lib/netty-3.2.1.Final.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

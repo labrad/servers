@@ -310,29 +310,41 @@ public abstract class FpgaModelDac implements FpgaModel {
    * Get the bits for the full SRAM sequence for this board.
    * We loop over all called blocks, padding the bits from each block
    * and then concatenating them together.
+   * 
+   * pomalley 4/22/2014 -- Added check for hasSramChannel(), and in the
+   * case where it is false, just do zeroes of the whole memory length.
+   * See comment on hasSramChannel.
    * @return
    */
   public long[] getSram() {
-    // get bits for all SRAM blocks
-    int len = 0;
-    List<long[]> blocks = Lists.newArrayList();
-    for (String blockName : expt.getBlockNames()) {
-      long[] block = getSramBlock(blockName);
-      padArrayFront(block, expt.getPaddedBlockLength(blockName));
-      blocks.add(block);
-      len += block.length;
-    }
-    // concatenate blocks into one array
-    long[] sram = new long[len];
-    int pos = 0;
-    for (long[] block : blocks) {
-      System.arraycopy(block, 0, sram, pos, block.length);
-      pos += block.length;
-    }
+	long[] sram;
+	if (hasSramChannel()) {
+	  // get bits for all SRAM blocks
+	  int len = 0;
+	  List<long[]> blocks = Lists.newArrayList();
+	  for (String blockName : expt.getBlockNames()) {
+	    long[] block = getSramBlock(blockName);
+	    padArrayFront(block, expt.getPaddedBlockLength(blockName));
+	    blocks.add(block);
+	    len += block.length;
+	  }
+	  // concatenate blocks into one array
+	  sram = new long[len];
+	  // the length of long[sram] is effectively set by the experiment. it may be longer than the SRAM of this board.
+	  // but if we aren't using this board and are just filling its SRAM with zeroes, that may be unnecessary.
+	  int pos = 0;
+	  for (long[] block : blocks) {
+	    System.arraycopy(block, 0, sram, pos, block.length);
+	    pos += block.length;
+	  }		
+	} else {
+	  sram = new long[this.dacBoard.getBuildProperties().get("SRAM_LEN").intValue()];
+	  Arrays.fill(sram, 0);
+	}
     // check that the total sram sequence is not too long
     if (sram.length > this.dacBoard.getBuildProperties().get("SRAM_LEN")) {
       throw new RuntimeException("SRAM sequence exceeds maximum length. Length = " + sram.length + "; allowed = " +
-      		this.dacBoard.getBuildProperties().get("SRAM_LEN"));
+      		this.dacBoard.getBuildProperties().get("SRAM_LEN") + "; for board " + getName());
     }
     return sram;
   }
@@ -392,6 +404,17 @@ public abstract class FpgaModelDac implements FpgaModel {
    * @return
    */
   protected abstract long[] getSramDacBits(String block);
+  
+  /**
+   * pomalley 4/22/14
+   * This fpga may not have an SRAM channel if we are only using this board for FastBias control.
+   * In this case, since the SRAM will be only zeroes, we won't send a sequence
+   * as long as all the blocks in the Experiment object, since that may be
+   * longer than the SRAM of the boards. We will only send one as long as the memory
+   * of the boards.
+   * @return Whether or not we have an SRAM channel (IQ or analog) for this board.
+   */
+  protected abstract boolean hasSramChannel();
 
   /**
    * Set trigger bits in an array of DAC bits.
