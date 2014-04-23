@@ -96,11 +96,20 @@ class WatchedServer(object):
         raise NotImplementedError()
         
 class MKS(WatchedServer):
+    ''' for MKS servers, we have an optional "device" argument in the form of
+    (reading_name, multiplier), which tells us which reading to convert into
+    a He flow.
+    '''
     server_name = 'mks_gauge_server'
     @inlineCallbacks
     def _take_point(self):
         r = yield self.server.get_readings(context=self.ctx)
+        if not hasattr(self, 'channel'):
+            yield self.setup_he_flow()
+        if self.channel != -1:
+            r.append(self.multiplier * r[self.channel])
         returnValue(r)
+        
     @inlineCallbacks
     def get_variables(self):
         point = yield self.take_point()
@@ -108,7 +117,25 @@ class MKS(WatchedServer):
         rv = []
         for p, n in zip(point, names):
             rv.append('%s (Pressure) [%s]' % (n, str(p.unit)))
+        if self.channel != -1:
+            rv.append('He Flow (LHe) [L/h]')
         returnValue(rv)
+        
+    @inlineCallbacks
+    def setup_he_flow(self):
+        if self.device:
+            names = yield self.server.get_gauge_list(context=self.ctx)
+            for i, n in enumerate(names):
+                if n == self.device[0]:
+                    self.channel = i
+                    self.multiplier = self.device[1]
+                    print "Using gauge reading %s (%s) for He flow with multiplier %s" % (str(i), n, self.multiplier)
+                    break
+            else:
+                self.channel = -1
+                print "ERROR: could not find gauge reading named '%s'" % self.device[0]
+        else:
+            self.channel = -1
         
 class MKSHack(MKS):
     server_name = 'mks_gauge_server_testhack'
@@ -165,6 +192,7 @@ class DRLogger(DeviceWrapper):
             else:
                 cls = None
             if cls:
+                print "Found watcher for %s" % server_name
                 self.watchers.append(cls(server_name, self.cxn, self.ctx, device=devName))
             else:
                 print "ERROR: No watcher class found for server: %s" % server_name
@@ -259,7 +287,7 @@ class DRLoggerServer(DeviceServer):
             for dev in devs:
                 node = yield reg.get(dev)
                 serverDict[dev] = node
-                if len(node) == 1:
+                if len(node) == 1 or isinstance(node[1], tuple) or isinstance(node[1], list):
                     continue
                 node = node[1].split(' ')[0]
                 if "node_" + node.lower() not in self.client.servers:
