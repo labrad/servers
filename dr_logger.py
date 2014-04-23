@@ -110,6 +110,10 @@ class MKS(WatchedServer):
             rv.append('%s (Pressure) [%s]' % (n, str(p.unit)))
         returnValue(rv)
         
+class MKSHack(MKS):
+    server_name = 'mks_gauge_server_testhack'
+    
+        
 class Diodes(WatchedServer):
     server_name = 'lakeshore_diodes'
     @inlineCallbacks
@@ -131,7 +135,7 @@ class Ruox(WatchedServer):
         r = yield self.server.named_temperatures(context=self.ctx)
         returnValue(['%s (Ruox) [%s]' % (x[0], str(x[1][0].unit)) for x in r])
 
-WATCHERS = [MKS, Diodes, Ruox]
+WATCHERS = [MKS, MKSHack, Diodes, Ruox]
 
 class DRLogger(DeviceWrapper):
     #@inlineCallbacks
