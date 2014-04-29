@@ -84,7 +84,7 @@ class AgilentDCSource(GPIBManagedServer):
         """ Identical to current(curr), but returns the set value of current, not the measured value. """
         dev = self.selectedDevice(c)
         if not dev.psMode and curr is not None:
-            yield self.current(curr)
+            yield self.current(c, curr)
         returnValue(float( (yield self.selectedDevice(c).query('CURR?')) ))
 
     @setting(30, volt='v[V]', returns='v[V]')
@@ -106,7 +106,7 @@ class AgilentDCSource(GPIBManagedServer):
         """ Identical to voltage(volt), but returns the set value of current, not the measured value. """
         dev = self.selectedDevice(c)
         if not dev.psMode and volt is not None:
-            yield self.voltage(volt)
+            yield self.voltage(c, volt)
         returnValue(float( (yield dev.query('VOLT?')) ))
         
     @setting(40, mode='b', returns='b')
