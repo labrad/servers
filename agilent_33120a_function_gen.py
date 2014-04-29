@@ -37,17 +37,18 @@ from labrad.server import setting
 from labrad.gpib import GPIBManagedServer
 from struct import unpack
 from twisted.internet.defer import inlineCallbacks, returnValue
+from labrad.units import Unit, Value, V
 
 class AgilentFunctionGenerator(GPIBManagedServer):
     name = 'Agilent 33120a generator'
     deviceName = 'HEWLETT-PACKARD 33120A'
-    @setting(11,'Set DC', f='v[Volts]', returns='')
-    def set_dc_waveform(self, c,f=0):
-        if f< -5 or f > 5:
+    @setting(11,'Set DC', val='v[V]', returns='')
+    def set_dc_waveform(self, c,val=0*V):
+        if val< -5 or val > 5:
             raise Exception('Signal Gnerator only puts out -5 to 5 volts in DC Voltage')
         """Puts generator into DC mode with given voltage."""
         dev = self.selectedDevice(c)
-        dev.write(':APPL:DC DEF, DEF, %f' % float(f))
+        dev.write(':APPL:DC DEF, DEF, %f' % float(val))
       
     @setting(12, 'set impedance', setting='s', returns='')      
     def set_impedance(self, c, setting = '50'):
