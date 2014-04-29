@@ -38,12 +38,15 @@
 # where [node name] is something like "Vince" or "DR"
 # (note that the node name is actually taken from the first word of the device
 # wrapper's self.name) A given calibration consists of three keys:
-#   Calibration Type: must either be "Interpolation" or "Function"
+#   Calibration Type: must either be "Interpolation", "VRHopping", or "Function"
 # 	For an interpolation, there must be two more keys:
 #		"Resistances", an array of resistance values, and
 #		"Temperatures", an array of corresponding temperatures.
 #		In this case, the server will do a log-log interpolation of the given
 #       data to convert a resistance to a temperature.
+#   For VRHopping, we use a variable-range hopping model.  Two extra keys are required
+#       R0[Ohm] is the extrapolated resistance at infinite temperature (obtained from fitting)
+#       T0[K] is the characteristic temperature.
 #	For a function, there must be one more key:
 #		"Function", which is a string of a Python expression for converting a
 #       res to a temp, and "Inverse", which is also a Python expression, but
@@ -106,7 +109,7 @@ import numpy as np
 READ_ORDER = [1, 2, 1, 3, 1, 4, 1, 5]
 #N_CHANNELS = 5
 SETTLE_TIME = 8
-DEFAULT, FUNCTION, INTERPOLATION = range(3)
+DEFAULT, FUNCTION, INTERPOLATION, VRHOPPING = range(4)
 
 def res2temp(r):
     try:
@@ -201,6 +204,13 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 p.get("Inverse", key="inv")
                 ans = yield p.send()
                 returnValue([FUNCTION, ans.fun, ans.inv])
+            elif ans.type.upper() == "VRHOPPING":
+                p = reg.packet()
+                p.cd(path)
+                p.get("R0", key='res')
+                p.get("T0", key='temp')
+                ans = yield p.send()
+                returnValue([VRHOPPING, ans.res, ans.temp])
             else:
                 returnValue([DEFAULT])
         except Exception, e:
@@ -213,6 +223,8 @@ class RuOxWrapper(GPIBDeviceWrapper):
             if self.calibrations[channel][0] == INTERPOLATION:
                 str = "INTERPOLATION --  Resistances: %s -- Temperatures: %s"%\
                 (self.calibrations[channel][1], self.calibrations[channel][2])
+            elif self.calibrations[channel][0] == VRHOPPING:
+                str = "Variable-range hopping model: r0: %s, t0: %s" % (self.calibrations[channel][1], self.calibrations[channel][2])
             elif self.calibrations[channel][0] == FUNCTION:
                 str = "FUNCTION: %s -- Inverse: %s" %\
                 (self.calibrations[channel][1], self.calibrations[channel][2])
@@ -263,6 +275,8 @@ class RuOxWrapper(GPIBDeviceWrapper):
             print "WARNING: %s -- no calibration found for device default. Using server default calibration." % (self.addr)
         elif self.calibrations[0][0] == INTERPOLATION:
             print "%s -- found INTERPOLATION calibration for device default." % (self.addr)
+        elif self.calibrations[0][0] == VRHOPPING:
+            print "%s -- found VRHOPPING calibration for device default." % (self.addr,)
         elif self.calibrations[0][0] == FUNCTION:
             print "%s -- found FUNCTION calibration for device default." % (self.addr)
         else:
@@ -275,6 +289,8 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 print "WARNING: %s -- no calibration found for channel %d. Using device default calibration." % (self.addr, i+1)
             elif self.calibrations[i+1][0] == INTERPOLATION:
                 print "%s -- found INTERPOLATION calibration for channel %d." % (self.addr, i+1)
+            elif self.calibrations[i+1][0] == VRHOPPING:
+                print "%s -- found VRHOPPING calibration for channel %d." % (self.addr, i+1)
             elif self.calibrations[i+1][0] == FUNCTION:
                 print "%s -- found FUNCTION calibration for channel %d." % (self.addr, i+1)
             else:
@@ -351,14 +367,20 @@ class RuOxWrapper(GPIBDeviceWrapper):
         if calIndex == -1:
             calIndex = channel
         try:
-            print("lakeshore370: Computing temperature for channel %d"%channel)
-            print("Resistance is %f"%self.readings[channel][0])
+            #print("lakeshore370: Computing temperature for channel %d"%channel)
+            #print("Resistance is %f"%self.readings[channel][0])
             if self.calibrations[calIndex][0] == INTERPOLATION:
                 # log-log interpolation
                 return (np.exp(np.interp(np.log(self.readings[channel][0]),
                               np.log(np.array(self.calibrations[calIndex][1])),
                               np.log(np.array(self.calibrations[calIndex][2]))
                               )))
+            elif self.calibrations[calIndex][0] == VRHOPPING:
+                T0 = self.calibrations[calIndex][2]
+                R0 = self.calibrations[calIndex][1]
+                res = self.readings[channel][0]
+                T = T0['K'] / (np.log(R0['Ohm']/res)**4)
+                return T
             elif self.calibrations[calIndex][0] == FUNCTION:
                 # hack alert--using eval is bad:
                 # (1) This depends on the function string being good python
@@ -422,6 +444,8 @@ class RuOxWrapper(GPIBDeviceWrapper):
                                             np.log(np.array(self.calibrations[calIndex][2][::-1])),
                                             np.log(np.array(self.calibrations[calIndex][1][::-1]))
                                             )))
+            elif self.calibrations[calIndex][0] == VRHOPPING:
+                return self.calibrations[calIndex][1]['K'] * np.exp((self.calibrations[calIndex][2]['K']/temp)**.25)
             elif self.calibrations[calIndex][0] == FUNCTION:
                 # same as getSingleTemp, but use inverse instead of function
                 t = temp
