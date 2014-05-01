@@ -107,7 +107,10 @@ class MKS(WatchedServer):
         if not hasattr(self, 'channel'):
             yield self.setup_he_flow()
         if self.channel != -1:
-            r.append(self.multiplier * r[self.channel])
+            try:
+                r.append(self.multiplier * r[self.channel])
+            except IndexError:
+                print "Bad point"
         returnValue(r)
         
     @inlineCallbacks
