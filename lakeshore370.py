@@ -81,7 +81,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Lakeshore RuOx
-version = 2.5.1
+version = 2.5.2
 description = 
 
 [startup]
@@ -522,7 +522,7 @@ class LakeshoreRuOxServer(GPIBManagedServer):
         Returns temperature in Kelvin, and time of measurement.
         """
         dev = self.selectedDevice(c)
-        return (dev.getSingleTemp(channel), dev.readings[channel-1][1])
+        return (dev.getSingleTemp(channel), dev.readings[channel][1])
     
     @setting(22, 'Reload Calibrations')
     def reload(self, c):
