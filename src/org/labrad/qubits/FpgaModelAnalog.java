@@ -49,7 +49,7 @@ public class FpgaModelAnalog extends FpgaModelDac {
   public Future<Void> deconvolveSram(DeconvolutionProxy deconvolver) {
     List<Future<Void>> deconvolutions = Lists.newArrayList();
     for (AnalogChannel ch : dacs.values()) {
-      for (String blockName : expt.getBlockNames()) {
+      for (String blockName : getBlockNames()) {
         Deconvolvable block = ch.getBlockData(blockName);
         if (!block.isDeconvolved()) {
           deconvolutions.add(block.deconvolve(deconvolver));
@@ -66,7 +66,7 @@ public class FpgaModelAnalog extends FpgaModelDac {
    */
   @Override
   protected long[] getSramDacBits(String block) {
-    final long[] sram = new long[expt.getBlockLength(block)];
+    final long[] sram = new long[getBlockLength(block)];
     Arrays.fill(sram, 0);
     for (DacAnalogId id : dacs.keySet()) {
       int[] vals = dacs.get(id).getSramData(block);

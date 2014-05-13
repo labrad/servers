@@ -46,7 +46,7 @@ public class FpgaModelMicrowave extends FpgaModelDac {
 
   public Future<Void> deconvolveSram(DeconvolutionProxy deconvolver) {
     List<Future<Void>> deconvolutions = Lists.newArrayList();
-    for (String blockName : expt.getBlockNames()) {
+    for (String blockName : getBlockNames()) {
       Deconvolvable block = iq.getBlockData(blockName);
       if (!block.isDeconvolved()) {
         deconvolutions.add(block.deconvolve(deconvolver));
@@ -62,7 +62,7 @@ public class FpgaModelMicrowave extends FpgaModelDac {
    */
   @Override
   protected long[] getSramDacBits(String block) {
-    final long[] sram = new long[expt.getBlockLength(block)];
+    final long[] sram = new long[getBlockLength(block)];
     Arrays.fill(sram, 0);
     if (iq != null) {
       int[] A = iq.getSramDataA(block);

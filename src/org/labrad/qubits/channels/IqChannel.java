@@ -39,18 +39,22 @@ public class IqChannel extends SramChannelBase<IqData> implements StartDelayChan
     uwaveSrc = src;
   }
 
-  public void addData(String block, IqData data) {
-    int expected = expt.getBlockLength(block);
+  /**
+   * Add data to the current block
+   * @param data
+   */
+  public void addData(IqData data) {
+    int expected = fpga.getBlockLength(currentBlock);
     data.setChannel(this);
     data.checkLength(expected);
-    blocks.put(block, data);
+    blocks.put(currentBlock, data);
   }
 
   public IqData getBlockData(String name) {
     IqData data = blocks.get(name);
     if (data == null) {
       // create a dummy data set with zeros
-      int expected = expt.getBlockLength(name);
+      int expected = fpga.getBlockLength(name);
       double[] zeros = new double[expected];
       data = new IqDataFourier(new ComplexArray(zeros, zeros), 0);
       data.setChannel(this);

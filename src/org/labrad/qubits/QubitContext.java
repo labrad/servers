@@ -30,6 +30,7 @@ import org.labrad.qubits.channels.Channel;
 import org.labrad.qubits.channels.FastBiasChannel;
 import org.labrad.qubits.channels.IqChannel;
 import org.labrad.qubits.channels.PreampChannel;
+import org.labrad.qubits.channels.SramChannelBase;
 import org.labrad.qubits.channels.StartDelayChannel;
 import org.labrad.qubits.channels.TimingChannel;
 import org.labrad.qubits.channels.TriggerChannel;
@@ -512,23 +513,23 @@ public class QubitContext extends AbstractServerContext {
 	// SRAM
 	//
 
-	private String currentBlock;
-
 	/**
 	 * Start a new named SRAM block.
 	 */
 	@Setting(id = 400,
 			name = "New SRAM Block",
-			doc = "Create a new SRAM block with the specified name and length."
+			doc = "Create a new SRAM block with the specified name and length, for this channel."
 				+ "\n\n"
 				+ "All subsequent SRAM calls will affect this block, until a new block "
 				+ "is created.  If you do not provide SRAM data for a particular channel, "
 				+ "it will be filled with zeros (and deconvolved).  If the length is not "
 				+ "a multiple of 4, the data will be padded at the beginning after "
 				+ "deconvolution.")
-				public void new_sram_block(String name, long length) {
-		getExperiment().startSramBlock(name, length);
-		currentBlock = name;
+				public void new_sram_block(String name, long length, @Accepts({"ss"}) Data id) {
+		
+		SramChannelBase ch = getChannel(id, SramChannelBase.class);
+		ch.getFpgaModel().startSramBlock(name, length);
+		ch.setCurrentBlock(name);
 		sramDirty = true;
 	}
 
@@ -571,7 +572,7 @@ public class QubitContext extends AbstractServerContext {
 			boolean deconvolve) {
 		IqChannel ch = getChannel(id, IqChannel.class);
 		ComplexArray c = ComplexArray.fromData(vals);
-		ch.addData(currentBlock, new IqDataTime(c, !deconvolve));
+		ch.addData(new IqDataTime(c, !deconvolve));
 		sramDirty = true;
 	}
 
@@ -592,7 +593,7 @@ public class QubitContext extends AbstractServerContext {
 						@Accepts("v[ns]") double t0) {
 		IqChannel ch = getChannel(id, IqChannel.class);
 		ComplexArray c = ComplexArray.fromData(vals);
-		ch.addData(currentBlock, new IqDataFourier(c, t0));
+		ch.addData(new IqDataFourier(c, t0));
 		sramDirty = true;
 	}
 
@@ -618,7 +619,7 @@ public class QubitContext extends AbstractServerContext {
 			boolean deconvolve) {
 		AnalogChannel ch = getChannel(id, AnalogChannel.class);
 		double[] arr = vals.getValueArray();
-		ch.addData(currentBlock, new AnalogDataTime(arr, !deconvolve));
+		ch.addData(new AnalogDataTime(arr, !deconvolve));
 		sramDirty = true;
 	}
 
@@ -638,7 +639,7 @@ public class QubitContext extends AbstractServerContext {
 						@Accepts("v[ns]") double t0) {
 		AnalogChannel ch = getChannel(id, AnalogChannel.class);
 		ComplexArray c = ComplexArray.fromData(vals);
-		ch.addData(currentBlock, new AnalogDataFourier(c, t0));
+		ch.addData(new AnalogDataFourier(c, t0));
 		sramDirty = true;
 	} 
 
@@ -651,7 +652,7 @@ public class QubitContext extends AbstractServerContext {
 			public void sram_trigger_data(@Accepts({"s", "ss"}) Data id,
 					@Accepts("*b") Data data) {
 		TriggerChannel ch = getChannel(id, TriggerChannel.class);
-		ch.addData(currentBlock, new TriggerDataTime(data.getBoolArray()));
+		ch.addData(new TriggerDataTime(data.getBoolArray()));
 		sramDirty = true;
 	}
 
@@ -667,7 +668,7 @@ public class QubitContext extends AbstractServerContext {
 		for (Data pulse : pulses) {
 			int start = (int)pulse.get(0).getValue();
 			int length = (int)pulse.get(1).getValue();
-			ch.addPulse(currentBlock, start, length);
+			ch.addPulse(start, length);
 		}
 		sramDirty = true;
 	}

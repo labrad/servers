@@ -44,8 +44,8 @@ public class CallSramDualBlockCommand implements MemoryCommand {
   public double getTime_us(FpgaModelDac dac) {
 	  // Call Sram memory command includes 3 memory commands plus the SRAM sequence
 	  Preconditions.checkNotNull(delay, "Dual-block SRAM delay not set!");
-	  int b1len = dac.getExperiment().getBlockLength(block1);
-	  int b2len = dac.getExperiment().getBlockLength(block2);
+	  int b1len = dac.getBlockLength(block1);
+	  int b2len = dac.getBlockLength(block2);
 	  return dac.samplesToMicroseconds(b1len + b2len) + FpgaModelDac.clocksToMicroseconds(3) + this.delay/1000.0;
   } 
 }

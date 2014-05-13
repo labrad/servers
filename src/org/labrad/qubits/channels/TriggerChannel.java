@@ -45,14 +45,14 @@ public class TriggerChannel extends SramChannelBase<TriggerData> {
     return triggerId;
   }
 
-  public void addData(String block, TriggerData data) {
-    int expected = expt.getBlockLength(block);
+  public void addData(TriggerData data) {
+    int expected = fpga.getBlockLength(currentBlock);
     data.checkLength(expected);
-    blocks.put(block, data);
+    blocks.put(currentBlock, data);
   }
 
-  public void addPulse(String block, int start, int len) {
-    boolean[] data = getSramData(block);
+  public void addPulse(int start, int len) {
+    boolean[] data = getSramData(currentBlock);
     start = Math.max(0, start);
     int end = Math.min(data.length, start + len);
     for (int i = start; i < end; i++) {
@@ -64,7 +64,7 @@ public class TriggerChannel extends SramChannelBase<TriggerData> {
     TriggerData d = blocks.get(name);
     if (d == null) {
       // create a dummy data block
-      int length = expt.getBlockLength(name);
+      int length = fpga.getBlockLength(name);
       boolean[] zeros = new boolean[length];
       d = new TriggerDataTime(zeros);
       d.setChannel(this);

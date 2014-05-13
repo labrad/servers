@@ -48,6 +48,13 @@ public abstract class SramChannelBase<T> implements Channel {
   //
   // Blocks
   //
+  protected String currentBlock;
+  public String getCurrentBlock() {
+	  return currentBlock;
+  }
+  public void setCurrentBlock(String block) {
+	  currentBlock = block;
+  }
 
   Map<String, T> blocks = Maps.newHashMap();
 }

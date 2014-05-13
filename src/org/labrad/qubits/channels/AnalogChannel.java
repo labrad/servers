@@ -37,18 +37,22 @@ public class AnalogChannel extends SramChannelBase<AnalogData> {
     fpgaAnalog.setAnalogChannel(dacId, this);
   }
 
-  public void addData(String block, AnalogData data) {
-    int expected = expt.getBlockLength(block);
+  /**
+   * Add data to the current block.
+   * @param data
+   */
+  public void addData(AnalogData data) {
+    int expected = fpga.getBlockLength(currentBlock);
     data.setChannel(this);
     data.checkLength(expected);
-    blocks.put(block, data);
+    blocks.put(currentBlock, data);
   }
 
   public AnalogData getBlockData(String name) {
     AnalogData data = blocks.get(name);
     if (data == null) {
       // create a dummy data set with zeros
-      int len = expt.getBlockLength(name);
+      int len = fpga.getBlockLength(name);
       len = len % 2 == 0 ? len/2 + 1 : (len+1) / 2;
       double[] zeros = new double[len];
       data = new AnalogDataFourier(new ComplexArray(zeros, zeros), 0);

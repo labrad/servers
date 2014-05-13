@@ -278,8 +278,8 @@ public abstract class FpgaModelDac implements FpgaModel {
       if (c instanceof CallSramCommand) {
         CallSramCommand cmd = (CallSramCommand)c;
         String block = cmd.getBlockName();
-        cmd.setStartAddress(expt.getBlockStartAddress(block));
-        cmd.setEndAddress(expt.getBlockEndAddress(block));
+        cmd.setStartAddress(this.getBlockStartAddress(block));
+        cmd.setEndAddress(this.getBlockEndAddress(block));
       }
     }
 
@@ -322,9 +322,9 @@ public abstract class FpgaModelDac implements FpgaModel {
 	  // get bits for all SRAM blocks
 	  int len = 0;
 	  List<long[]> blocks = Lists.newArrayList();
-	  for (String blockName : expt.getBlockNames()) {
+	  for (String blockName : this.getBlockNames()) {
 	    long[] block = getSramBlock(blockName);
-	    padArrayFront(block, expt.getPaddedBlockLength(blockName));
+	    padArrayFront(block, this.getPaddedBlockLength(blockName));
 	    blocks.add(block);
 	    len += block.length;
 	  }
@@ -477,5 +477,67 @@ public abstract class FpgaModelDac implements FpgaModel {
     System.arraycopy(data, 0, newData, 0, data.length); // copy at the beginning
     Arrays.fill(newData, data.length, newData.length - 1, last); // repeat last value
     return newData;
+  }
+  
+
+  //
+  // SRAM block management
+  //
+
+  private List<String> blocks = Lists.newArrayList();
+  private Map<String, Integer> blockLengths = Maps.newHashMap();
+
+  public void startSramBlock(String name, long length) {
+	  if (blocks.contains(name)) {
+		  Preconditions.checkArgument(blockLengths.get(name) == length,
+				  "Conflicting block lengths for block '" + name + "' for FPGA " + getName() + " (DAC board " + dacBoard.getName() + ")");
+	  }  else {
+		  blocks.add(name);
+		  blockLengths.put(name, (int)length);
+	  }
+  }
+
+  public List<String> getBlockNames() {
+    return Lists.newArrayList(blocks);
+  }
+
+  public int getBlockLength(String name) {
+    Preconditions.checkArgument(blockLengths.containsKey(name), "SRAM block '%s' is undefined", name);
+    return blockLengths.get(name);
+  }
+
+  /**
+   * Get the proper length for an SRAM block after padding.
+   * The length should be a multiple of 4 and greater or equal to 20.
+   * @param name
+   * @return
+   */
+  public int getPaddedBlockLength(String name) {
+    int len = getBlockLength(name);
+    if (len % 4 == 0 && len >= 20) return len;
+    int paddedLen = Math.max(len + ((4 - len % 4) % 4), 20);
+    return paddedLen;
+  }
+
+  public int getBlockStartAddress(String name) {
+    int start = 0;
+    for (String block : blocks) {
+      if (block.equals(name)) {
+        return start;
+      }
+      start += getPaddedBlockLength(block);
+    }
+    throw new RuntimeException(String.format("Block '%s' not found", name));
+  }
+
+  public int getBlockEndAddress(String name) {
+    int end = 0;
+    for (String block : blocks) {
+      end += getPaddedBlockLength(block);
+      if (block.equals(name)) {
+        return end - 1; //Zero indexing ;)
+      }
+    }
+    throw new RuntimeException(String.format("Block '%s' not found", name));
   }
 }
