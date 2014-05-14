@@ -449,6 +449,24 @@ public class Experiment {
       fpga.setSramDualBlockDelay(delay_ns);
     }
   }
+  
+  
+  /**
+   * Get the length of the shortest SRAM block across all fpgas.
+   * @return
+   */
+  public int getShortestSram() {
+	  int i = 0;
+	  for (FpgaModelDac fpga : getDacFpgas()) {
+		  for (String block : fpga.getBlockNames()) {
+			  int len = fpga.getBlockLength(block);
+			  if (i == 0 || len < i) {
+				  i = len;
+			  }
+		  }
+	  }
+	  return i;
+  }
 
   /**
    * Start timer on a set of boards.

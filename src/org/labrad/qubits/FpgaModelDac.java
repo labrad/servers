@@ -278,8 +278,14 @@ public abstract class FpgaModelDac implements FpgaModel {
       if (c instanceof CallSramCommand) {
         CallSramCommand cmd = (CallSramCommand)c;
         String block = cmd.getBlockName();
-        cmd.setStartAddress(this.getBlockStartAddress(block));
-        cmd.setEndAddress(this.getBlockEndAddress(block));
+        if (getBlockNames().contains(block)) {
+        	cmd.setStartAddress(this.getBlockStartAddress(block));
+        	cmd.setEndAddress(this.getBlockEndAddress(block));
+        } else {
+        	// if this block wasn't defined for us, then it will be filled with zeros
+        	cmd.setStartAddress(0);
+        	cmd.setEndAddress(expt.getShortestSram());
+        }
       }
     }
 
@@ -338,7 +344,11 @@ public abstract class FpgaModelDac implements FpgaModel {
 	    pos += block.length;
 	  }		
 	} else {
-	  sram = new long[this.dacBoard.getBuildProperties().get("SRAM_LEN").intValue()];
+	  int len = dacBoard.getBuildProperties().get("SRAM_LEN").intValue();
+	  if (expt.getShortestSram() < len) {
+		  len = expt.getShortestSram();
+	  }
+	  sram = new long[len];
 	  Arrays.fill(sram, 0);
 	}
     // check that the total sram sequence is not too long
