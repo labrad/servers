@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Data Vault
-version = 2.3.6-hydra
+version = 2.3.7-hydra
 description = Store and retrieve numeric data
 
 [startup]
@@ -36,6 +36,7 @@ import sys
 import os
 import warnings
 import time
+import re
 
 import labrad
 from labrad import constants, types as T, util
@@ -896,6 +897,7 @@ class DataVault(LabradServer):
         self.password = password
         self.hub = hub
         self.path = path
+        self.alive = False
         self.onNewDir = Signal(543617, 'signal: new dir', 's')
         self.onNewDataset = Signal(543618, 'signal: new dataset', 's')
         self.onTagsUpdated = Signal(543622, 'signal: tags updated', '*(s*s)*(s*s)')
@@ -909,6 +911,7 @@ class DataVault(LabradServer):
         # let the DataVaultHost know that we connected
         self.hub.connect(self)
         # create root session
+        self.alive = True
         root = Session([''], self.hub)
         self.keepalive_timer = twisted.internet.task.LoopingCall(self.keepalive)
         self.onShutdown().addBoth(self.end_keepalive)
@@ -988,22 +991,27 @@ class DataVault(LabradServer):
         #print dirs, datasets
         return dirs, datasets
     
-    @setting(7, path=['{get current directory}',
-                      's{change into this directory}',
-                      '*s{change into each directory in sequence}',
-                      'w{go up by this many directories}'],
-                create='b',
+    @setting(7, target = ['       : {get current directory}',
+                          's      : {change into this directory}',
+                          '*s     : {change into each directory in sequence}',
+                          'w      : {go up by this many directories}',
+                          '(s, b) : Enter subdirectory "s", creating it as needed if "b"==True', 
+                          '(*s, b): Enter subdirectories "*s", creating it as needed if "b"==True'], 
                 returns='*s')
-    def cd(self, c, path=None, create=False):
+    def cd(self, c, target=None):
         """Change the current directory.
         
         The empty string '' refers to the root directory. If the 'create' flag
         is set to true, new directories will be created as needed.
         Returns the path to the new current directory.
         """
-        if path is None:
+        if target is None:
             return c['path']
-        #print "cd to path %s for %s %s" % (path, type(c), c.__dict__)
+        if isinstance(target, tuple):
+            path, create = target
+        else:
+            path = target
+
         temp = c['path'][:] # copy the current path
         if isinstance(path, (int, long)):
             if path > 0:
@@ -1311,7 +1319,7 @@ class DataVault(LabradServer):
         for s in self.hub:
             host = s.host
             port = s.port
-            running = hasattr(s, 'cxn') and bool(s.cxn)
+            running = hasattr(s, 'server') and bool(s.server.alive)
             print "host: %s port: %s running: %s" % (host, port, running)
             rv.append((host, port, running))
         return rv
@@ -1323,8 +1331,27 @@ class DataVault(LabradServer):
         """
         port = port or self.port
         password = password or self.password
-        self.hub.addService(DataVaultConnector(host, port, password, self.hub, self.path))
-    
+        dvc = DataVaultConnector(host, port, password, self.hub, self.path)
+        dvc.setServiceParent(self.hub)
+        #self.hub.addService(DataVaultConnector(host, port, password, self.hub, self.path))
+
+    @setting(403, 'Ping Managers')
+    def ping_managers(self, c):
+        self.hub.ping()
+
+    @setting(404, 'Kick Managers', host_regex='s', port='w')
+    def kick_managers(self, c, host_regex, port=0):
+        self.hub.kick(host_regex, port)
+
+    @setting(405, 'Reconnect', host_regex='s', port='w')
+    def reconnect(self, c, host_regex, port=0):
+        self.hub.reconnect(host_regex, port)
+
+    @setting(406, 'Refresh Managers')
+    def refresh_managers(self, c):
+        return self.hub.refresh_managers()
+
+
 # One instance per manager, persistant (not recreated when connections are dropped)
 class DataVaultConnector(MultiService):
     """Service that connects the Data Vault to a single LabRAD manager
@@ -1342,7 +1369,8 @@ class DataVaultConnector(MultiService):
         self.password = password
         self.hub = hub
         self.path = path
-        
+        self.die = False
+
     def startService(self):
         MultiService.startService(self)
         self.startConnection()
@@ -1373,11 +1401,18 @@ class DataVaultConnector(MultiService):
         #dispatcher.senders.clear()
         #dispatcher._boundMethods.clear()
         ## end hack
+
         if hasattr(self, 'cxn'):
             self.removeService(self.cxn)
             del self.cxn
-        reactor.callLater(self.reconnectDelay, self.startConnection)
-        print 'Will try to reconnect to %s:%d in %d seconds...' % (self.host, self.port, self.reconnectDelay)
+        if self.die:
+            print "Connecting terminating permanetly"
+            self.stopService()
+            self.disownServiceParent()
+            return False
+        else:
+            reactor.callLater(self.reconnectDelay, self.startConnection)
+            print 'Will try to reconnect to %s:%d in %d seconds...' % (self.host, self.port, self.reconnectDelay)
     
 # Hub object: one instance total
 class DataVaultServiceHost(MultiService):
@@ -1400,7 +1435,9 @@ class DataVaultServiceHost(MultiService):
         for signal in self.signals:
             self.wrapSignal(signal)
         for host, port, password in managers:
-            self.addService(DataVaultConnector(host, port, password, self, self.path))
+            x = DataVaultConnector(host, port, password, self, self.path)
+            x.setServiceParent(self)
+            #self.addService(DataVaultConnector(host, port, password, self, self.path))
     
     def connect(self, server):
         print 'server connected: %s:%d' % (server.host, server.port)
@@ -1411,8 +1448,76 @@ class DataVaultServiceHost(MultiService):
         if server in self.servers:
             self.servers.remove(server)
     
+    def reconnect(self, host_regex, port=0):
+        '''
+        Drop the connection to the specified host(s).  They will auto-reconnect.
+        '''
+
+        for s in self.servers:
+            if re.match(host_regex, s.host) and (port == 0 or s.port==port):
+                s._cxn.disconnect()
+
+    def ping(self):
+        '''
+        Ping all attached managers as a keepalive/dropped connection detection mechanism
+        '''
+        for s in self.servers:
+            s.keepalive()
+            #s.client.manager.packet()
+            #p.echo('123')
+            #result = yield p.send()
+            # x = result.echo
+        # return result
+
+    def kick(self, host_regexp, port=0):
+        '''
+        Disconnect from a manager and don't reconnect.
+        '''
+        for connector in self:
+            if re.match(host_regexp, connector.host) and (port == 0 or port == connector.port):
+                connector.die = True
+                try:
+                    connector.server._cxn.disconnect()
+                except Exception:
+                    pass
+
+    @inlineCallbacks
+    def refresh_managers(self):
+        '''
+        Refresh list of managers from the registry.  New servers will be added.  Existing servers
+        will *not* be removed, even if they are no longer in the registry.  Use "kick" to disconnect
+        them.
+        '''
+
+        # We don't know which (if any) managers are live.  For now, just make a new client connection
+        # to the "primary" manager.
+
+        cxn = yield labrad.wrappers.connectAsync()
+        reg = cxn.registry
+        path = ['', 'Servers', 'Data Vault', 'Multihead']
+        reg = cxn.registry
+        p = reg.packet()
+        p.cd(path)
+        p.get("Managers", "*(sws)", key="managers")
+        ans = yield p.send()
+        for (host, port, password) in ans.managers:
+            if not port:
+                port = constants.MANAGER_PORT
+            if not password:
+                password = constants.PASSWORD
+            for connector in self:
+                if connector.host == host and connector.port == port:
+                    break
+            else:
+                dvc = DataVaultConnector(host, port, password, self, self.path)
+                dvc.setServiceParent(self)
+                #self.addService(DataVaultConnector(host, port, password, self, self.path))
+
+        cxn.disconnect()
+        return
+
     def __str__(self):
-        managers = ['%s:%d' % (m[0], m[1]) for m in self.managers]
+        managers = ['%s:%d' % (connector.host, connector.port) for connector in self]
         return 'DataVaultServiceHost(%s)' % (managers,) 
     
     def wrapSignal(self, signal):
