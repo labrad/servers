@@ -18,7 +18,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Cryo Notifier
-version = 2.0
+version = 2.1
 description = Send reminders to fill cryos
 
 [startup]
@@ -131,12 +131,15 @@ class CryoNotifier(LabradServer):
         matches = [x for x in nodes if x in dirs]
         if not matches:
             print "No node <--> registry directory matches found. Using %s" % self.path
+            returnValue(self.path)
         elif len(matches) > 1:
             print "Multiple node matches found! %s Sticking with %s" % (str(matches), self.path)
+            returnValue(self.path)
         else:
             print "Found node: %s" % matches[0]
             yield self.reg.cd(matches[0])
             self.path.append(matches[0])
+            returnValue(self.path)
     
     @inlineCallbacks
     def initServer(self):
@@ -157,8 +160,13 @@ class CryoNotifier(LabradServer):
                                   "func": self.sleepyTimerCheckFunc}
                              }
         self.path = ['', 'Servers', self.name]
-        self.matchNode()
-        yield start_server(self.client, 'node_vince', 'Telecomm Server')
+        self.path = yield self.matchNode()
+        if self.path[0]==self.name:
+            self.node = 'node_vince'
+        else:
+            self.node = 'node_'+self.path[0]
+        print self.path
+        yield start_server(self.client, self.node, 'Telecomm Server')
         self.cb = LoopingCall(self.checkForAndSendAlerts)
         self.cb.start(interval=10.0, now=True)
         
