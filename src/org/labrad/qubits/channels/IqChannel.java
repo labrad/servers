@@ -12,7 +12,7 @@ import org.labrad.qubits.util.ComplexArray;
 
 import com.google.common.base.Preconditions;
 
-public class IqChannel extends SramChannelBase<IqData> implements StartDelayChannel{
+public class IqChannel extends SramChannelBase<IqData> {
 
   private MicrowaveSource uwaveSrc = null;
   private MicrowaveSourceConfig uwaveConfig;
@@ -94,13 +94,4 @@ public class IqChannel extends SramChannelBase<IqData> implements StartDelayChan
     return uwaveConfig;
   }
 
-	@Override
-	public int getStartDelay() {
-		return this.getFpgaModel().getStartDelay();
-	}
-
-	@Override
-	public void setStartDelay(int startDelay) {
-		this.getFpgaModel().setStartDelay(startDelay);
-	}
 }

@@ -8,7 +8,7 @@ import org.labrad.qubits.resources.DacBoard;
 
 import com.google.common.collect.Maps;
 
-public abstract class SramChannelBase<T> implements Channel {
+public abstract class SramChannelBase<T> implements SramChannel {
 
   String name = null;
   Experiment expt = null;
@@ -57,4 +57,15 @@ public abstract class SramChannelBase<T> implements Channel {
   }
 
   Map<String, T> blocks = Maps.newHashMap();
+  
+  // Start delay
+	@Override
+	public int getStartDelay() {
+		return this.getFpgaModel().getStartDelay();
+	}
+
+	@Override
+	public void setStartDelay(int startDelay) {
+		this.getFpgaModel().setStartDelay(startDelay);
+	}
 }
