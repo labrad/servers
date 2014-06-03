@@ -679,7 +679,7 @@ public class QubitContext extends AbstractServerContext {
 
 	@Setting(id = 510,
 			name = "Set Start Delay",
-			doc = "Sets the SRAM start delay (get fucked, Peter) for this channel; must be an ADC or IQ channel. " +
+			doc = "Sets the SRAM start delay for this channel; valid for ADC, IQ, and analog channels. " +
 			"First argument {s or (ss)}: channel (either device name or (device name, channel name) " +
 			"Second: delay, in clock cycles (typically 4 ns) (w)")
 	public void adc_set_start_delay(@Accepts({"s", "ss"}) Data id,
