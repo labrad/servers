@@ -66,6 +66,8 @@ from matplotlib.mlab import find
 #
 # Removed a tab
 
+DITHER = True
+
 def cosinefilter(n, width=0.4):
     """cosinefilter(n,width) cosine lowpass filter
     n samples from 0 to 1 GHz
@@ -1274,12 +1276,14 @@ class DACcorrection:
                or rescale < self.min_rescale_factor:
                 self.min_rescale_factor = rescale
             fullscale *= rescale
-
-        ditheringspan = 2. #a dithering span of 3 goes from -1.5.. 1.5, i.e. 0..3 = 0,1,2,3 = 4 numbers = 2 bits exactly
+        if DITHER:
+            ditheringspan = 2. #a dithering span of 3 goes from -1.5.. 1.5, i.e. 0..3 = 0,1,2,3 = 4 numbers = 2 bits exactly
+        else:
+            ditheringspan = 0.
         dithering = ditheringspan * (np.random.rand( len(signal ) )-0.5)
         dithering[0:4]=0.0
         dithering[-4:]=0.0
-        
+    
         signal = np.round(1.0*signal * fullscale + zero + dithering).astype(np.int32)        
         
    
