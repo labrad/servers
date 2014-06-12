@@ -17,7 +17,7 @@
 """
 ### BEGIN NODE INFO
 [info]
-name = SRS lockin
+name = SRS lockin Serial
 version = 1.0
 description = Brooks adding serial communication
 
@@ -107,7 +107,7 @@ class SRSLockinWrapper(DeviceWrapper):
  
 class SRSLockinServer(DeviceServer):
     deviceName = ['Stanford_Research_Systems SIM900']
-    name = 'SRS lockin'
+    name = 'SRS lockin Serial'
     deviceWrapper = SRSLockinWrapper
     
     @inlineCallbacks
