@@ -151,7 +151,6 @@ class SRSLockinServer(DeviceServer):
         dev = self.selectedDevice(c)
         data = yield dev.res(data)
         yield dev.disconnect()
-        print data
         data = float(data)*V
         returnValue(data)
         
