@@ -346,6 +346,7 @@ public abstract class FpgaModelDac implements FpgaModel {
 	} else {
 	  int len = dacBoard.getBuildProperties().get("SRAM_LEN").intValue();
 	  if (expt.getShortestSram() < len) {
+		  //System.out.println(getName() + ": len: " + len + ", shortest: " + expt.getShortestSram());
 		  len = expt.getShortestSram();
 	  }
 	  sram = new long[len];
@@ -365,7 +366,15 @@ public abstract class FpgaModelDac implements FpgaModel {
    */
   public long[] getSramDualBlock1() {
     Preconditions.checkState(sramCalledDualBlock, "Sequence does not have a dual-block SRAM call");
-    return getSramBlock(sramDualBlockCmd.getBlockName1());
+    if (!hasSramChannel()) {
+    	// return zeros in this case
+    	int len = Math.min(dacBoard.getBuildProperties().get("SRAM_LEN").intValue(), expt.getShortestSram());
+    	long[] sram = new long[len];
+    	Arrays.fill(sram, 0);
+    	return sram;
+    } else {
+    	return getSramBlock(sramDualBlockCmd.getBlockName1());
+    }
   }
 
   /**
@@ -374,7 +383,15 @@ public abstract class FpgaModelDac implements FpgaModel {
    */
   public long[] getSramDualBlock2() {
     Preconditions.checkState(sramCalledDualBlock, "Sequence does not have a dual-block SRAM call");
-    return getSramBlock(sramDualBlockCmd.getBlockName2(), false); // no autotrigger on second block
+    if (!hasSramChannel()) {
+    	// return zeros in this case
+    	int len = Math.min(dacBoard.getBuildProperties().get("SRAM_LEN").intValue(), expt.getShortestSram());
+    	long[] sram = new long[len];
+    	Arrays.fill(sram, 0);
+    	return sram;
+    } else {
+    	return getSramBlock(sramDualBlockCmd.getBlockName2(), false); // no autotrigger on second block
+    }
   }
 
   /**
@@ -512,7 +529,7 @@ public abstract class FpgaModelDac implements FpgaModel {
   }
 
   public int getBlockLength(String name) {
-    Preconditions.checkArgument(blockLengths.containsKey(name), "SRAM block '%s' is undefined", name);
+    Preconditions.checkArgument(blockLengths.containsKey(name), "SRAM block '%s' is undefined for board %s", name, getName());
     return blockLengths.get(name);
   }
 

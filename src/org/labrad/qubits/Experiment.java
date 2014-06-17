@@ -416,12 +416,22 @@ public class Experiment {
 	  //Find maximum sequence length on all fpgas
 	  double maxT_us=0;
 	  for (FpgaModel fpga : getFpgas()) {
-		  double t_us = fpga.getSequenceLengthPostSRAM_us();
-		  maxT_us = Math.max(maxT_us, t_us);
+		  try {
+			  double t_us = fpga.getSequenceLengthPostSRAM_us();
+			  maxT_us = Math.max(maxT_us, t_us);
+		  } catch (java.lang.IllegalArgumentException ex) {
+			  
+		  }
+
 	  }
 	  
 	  for (FpgaModelDac fpga : getDacFpgas()) {
-		  double t = fpga.getSequenceLength_us();
+		  double t = 0;
+		  try {
+			  t = fpga.getSequenceLength_us();
+		  } catch (java.lang.IllegalArgumentException ex) {
+			  
+		  }
 		  if (t < maxT_us) {
 			  fpga.addMemoryDelay(maxT_us - t);
 		  } else {

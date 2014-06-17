@@ -257,7 +257,7 @@ public class QubitContext extends AbstractServerContext {
 			doc = "Configure the deconvolution settling rates for the given channel.")
 			public void config_settling(@Accepts({"s", "ss"}) Data id,
 					@Accepts("*v[GHz]") double[] rates,
-					@Accepts("*v[GHz]") double[] amplitudes) {
+					@Accepts("*v[]") double[] amplitudes) {
 		AnalogChannel ch = getChannel(id, AnalogChannel.class);
 		ch.setSettling(rates, amplitudes);
 		configDirty = true;
