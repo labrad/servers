@@ -30,6 +30,18 @@ timeout = 20
 ### END NODE INFO
 """
 
+'''
+How to define DACs to be emulated:
+-- In the registry, under >> Servers >> DAC Emulator
+-- One folder for each DAC, with the DAC's name as folder name
+-- Recognized keys (* = can be changed with server function)
+    address         *(MAC address)
+    device          (what ethernet device (NIC) number to emulate on)
+    build           (DAC build number)
+    SRAM Length     *(in bytes)
+    plotting        *(boolean--whether to plot SRAM on run.)
+'''
+
 # doo dee doop, just a dac emulator
 
 import time
@@ -126,8 +138,7 @@ class DacEmulator (DeviceWrapper):
     def plotSRAM(self):
         dacA = self.sram & 0x3FFF # first 14 bits
         dacB = self.sram >> 14 & 0x3FFF # second 14 bits
-        dacA, dacB = _convertTwosComplement(dacA),
-                     _convertTwosComplement(dacB)
+        dacA, dacB = _convertTwosComplement(dacA), _convertTwosComplement(dacB)
         ax = plt.figure().add_subplot(111)
         ax.plot(dacA, 'b.')
         ax.plot(dacB, 'r.')
