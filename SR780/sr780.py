@@ -13,11 +13,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+# Updated Sep 2013 by Peter O'Malley, again Dec 2013
+
 """
 ### BEGIN NODE INFO
 [info]
 name = Signal Analyzer SR780
-version = 1.1
+version = 2.0
 description = Talks to the Stanford Research Systems Signal Analyzer
 
 [startup]
@@ -36,10 +38,152 @@ from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 from struct import unpack
-import numpy
+import numpy as np
+
+COUPLINGS = {0: 'DC',
+             1: 'AC'}
+
+GROUNDINGS = {
+              0: 'FLOAT',
+              1: 'GROUND'
+              }
+
+WINDOWS = {
+            'UNIFORM': 0,
+            'FLATTOP': 1,
+            'HANNING': 2,
+            'BLACKMANHARRIS': 3
+            }
+              
+SPANS = {0:0.191,
+              1:0.382,
+              2:0.763,
+              3:1.5,
+              4:3.1,
+              5:6.1,
+              6:12.2,
+              7:24.4,
+              8:48.75,
+              9:97.5,
+              10:195.0,
+              11:390.0,
+              12:780.0,
+              13:1560.0,
+              14:3120.0,
+              15:6250.0,
+              16:12500.0,
+              17:25000.0,
+              18:50000.0,
+              19:100000.0}
+
+             
+def inverseDict(d):
+    outDict = dict([(value,key) for key,value in d.items()])
+    return outDict
 
 class SR780Wrapper(GPIBDeviceWrapper):
-    pass
+    SETTLING_TIME = T.Value(5, 's')
+    AVERAGING_TIME = T.Value(1, 's')
+    
+    @inlineCallbacks
+    def clearStatusBytes(self):
+        yield self.write("*CLS\n")
+    
+    @inlineCallbacks
+    def doneSettling(self):
+        #yield self.write("*CLS\n")
+        respa = yield self.query("DSPS? 2\n")
+        #respb = yield self.query("DSPS? 10\n")
+        returnValue(bool(int(respa)))# and int(respb))
+        
+    @inlineCallbacks
+    def waitForSettling(self, minSettle=T.Value(0,'s')):
+        yield self.write("*CLS\n")
+        yield self.write("UNST 0\n")
+        # wait for 1 / (5 * bandwidth)
+        span = yield self.query("FSPN? 0\n")
+        time = 0.2 / float(span)
+        yield util.wakeupCall(max(time, minSettle['s']))
+        done = yield self.doneSettling()
+        while not done:
+            yield util.wakeupCall(self.SETTLING_TIME['s'])
+            done = yield self.doneSettling()
+        returnValue(None)
+        
+    @inlineCallbacks
+    def doneAveraging(self):
+        n = yield self.query("FAVN? 0")
+        n = int(n)
+        ndone = yield self.query("NAVG? 0")
+        ndone = int(ndone)
+        avgOn = yield self.query("FAVG? 0")
+        avgOn = int(avgOn)
+        returnValue( avgOn and ndone >= n )
+        
+    @inlineCallbacks
+    def waitForAveraging(self):
+        done = yield self.doneAveraging()
+        while not done:
+            yield util.wakeupCall(self.AVERAGING_TIME['s'])
+            done = yield self.doneAveraging()
+        returnValue(None)
+        
+    @inlineCallbacks
+    def overlapPercentage(self, ov):
+        if ov is not None:
+            yield self.write("FOVL 0 %s\n" % ov)
+        resp = yield self.query("FOVL? 0")
+        returnValue(resp)
+        
+    #DEVICE SETUP AND OPERATION
+    @inlineCallbacks
+    def input_range(self,range):
+        #If the user gave an input range
+        if range is not None:
+            if isinstance(range,int):
+                if range<-60 or range>34 or not(range%2==0):
+                    raise Exception('Input range must be an even number in [-60,34]')
+            else:
+                raise Exception('Input range must be an integer')
+            yield self.write('I1RG%d\n' %range)
+            yield self.write('I2RG%d\n' %range)
+        #Readback input range
+        resp = yield self.query('I1RG?\n')
+        resp = int(resp)
+        returnValue(resp)
+        
+    @inlineCallbacks
+    def coupling(self, coupling):
+        if coupling is not None:
+            if isinstance(coupling,int):
+                if coupling not in [0,1]:
+                    raise Exception('Coupling specified as integer must be 0 or 1')
+            elif isinstance(coupling,str):
+                if coupling.upper() not in ['AC','DC']:
+                    raise Exception('Coupling specified as string must be AC or DC')
+                coupling = inverseDict(COUPLINGS)[coupling.upper()]
+            else:
+                raise Exception('Coupling not recognized')
+            yield self.write('I1CP%d\n' %coupling)
+            yield self.write('I2CP%d\n' %coupling)
+        resp = yield self.query('I1CP?\n')
+        returnValue(COUPLINGS[int(resp)])
+
+    @inlineCallbacks
+    def grounding(self, grounding):
+        if grounding is not None:
+            if isinstance(grounding,int) and grounding not in GROUNDINGS.keys():
+                raise Exception('Groundings specified as integer must be 0 or 1')
+            elif isinstance(grounding,str):
+                if grounding.upper() not in GROUNDINGS.values():
+                    raise Exception('Grounding specified as string must be %s or %s' %tuple([u for u in GROUNDINGS.values()]))
+                grounding = inverseDict(GROUNDINGS)[grounding.upper()]
+            yield self.write('I1GD%d\n' %grounding)
+            yield self.write('I2GD%d\n' %grounding)
+        resp = yield self.query('I1GD?\n')
+        returnValue(GROUNDINGS[int(resp)])
+        
+
 
 class SR780Server(GPIBManagedServer):
     """Serves the Stanford Research Systems SR780 Network Signal Analyzer.
@@ -70,11 +214,10 @@ class SR780Server(GPIBManagedServer):
     def span(self, c, sp=None):
         """Get or set the current frequency span for display A."""
         dev = self.selectedDevice(c)
-        if sp is None:
-            resp = yield dev.query('FSPN?0\n')
-            sp = T.Value(float(resp), 'Hz')
-        elif isinstance(sp, T.Value):
-            yield dev.write('FSPN2, %f\n' % sp.value)
+        if sp is not None:
+            yield dev.write('FSPN2, %f\n' % sp['Hz'])
+        resp = yield dev.query('FSPN?0\n')
+        sp = T.Value(float(resp), 'Hz')
         returnValue(sp)
 
     @setting(11, cf=['v[Hz]'], returns=['v[Hz]'])
@@ -92,11 +235,10 @@ class SR780Server(GPIBManagedServer):
     def start_frequency(self, c, fs=None):
         """Get or set the start frequency. Must be between 0 and 100kHz"""
         dev = self.selectedDevice(c)
-        if fs is None:
-            resp = yield dev.query('FSTR?0\n')
-            fs = T.Value(float(resp), 'Hz')
-        else:
-            yield dev.write('FSTR0,%f\n' % fs.value)
+        if fs is not None:
+            yield dev.write('FSTR 2,%f\n' % fs['Hz'])
+        resp = yield dev.query('FSTR?0\n')
+        fs = T.Value(float(resp), 'Hz')
         returnValue(fs)
 
     @setting(13, fe=['v[Hz]'], returns=['v[Hz]'])
@@ -109,6 +251,14 @@ class SR780Server(GPIBManagedServer):
         else:
             yield dev.write('FEND0,%f\n' % fe.value)
         returnValue(fe)
+        
+    @setting(14, sp='v[Hz]', fs='v[Hz]', minSettle='v[s]', returns='(v[Hz]v[Hz])')
+    def freq_and_settle(self, c, sp, fs, minSettle=T.Value(0, 's')):
+        dev = self.selectedDevice(c)
+        sp = yield self.span(c, sp)
+        fs = yield self.start_frequency(c, fs)
+        yield dev.waitForSettling(minSettle)
+        returnValue((sp, fs))
 
     @setting(15, nl=['w', 's'], returns=['w'])
     def num_lines(self, c, nl=None):
@@ -166,29 +316,49 @@ class SR780Server(GPIBManagedServer):
         elif isinstance(av, long):
             yield dev.write('FAVN0, %u' % av)
         returnValue(av)
+        
+    @setting(19, ov='v{overlap percentage}', returns='v{overlap percentage}')
+    def overlap(self, c, ov):
+        ''' Get/set the overlap. Note that on the SR780 the terminology is
+        "time record increment" rather than "overlap". Overlap = 100% - TRI.
+        For TRI > 100%, there is an effective wait between scans.
+        TRI of 0% to 300% allowed, so overlap from 100% to -200%. '''
+        ov = yield self.selectedDevice(c).overlapPercentage(ov)
+        returnValue(ov)
     
-    @setting(30, ms=['w'], returns=['w'])
-    def measure(self, c, ms=None):
+    @setting(30, disp='w{display}', ms=['w', 's'], returns=['ws'])
+    def measure(self, c, disp=0, ms=None):
         """Get or set the measurement.
         0 FFT 1; 1 FFT 2;
         2 Time 1; 3 Time 2;
         4 Windowed Time 1; 5 Windowed Time 2;
         6 Orbit; 7 Coherence; 8 Cross Spectrum;
         9 <F2/F1> Transfer Function Averaged;
-        10 <F2>/<F1> Transfer Function of Averaged FFT's;
+        10 <F2>/<F1> Transfer Function of Averaged FFTs;
         11 Auto Correlation 1; 12 Auto Correlation 2;
         13 Cross Correlation;
         """
+        measureNames = {
+            'FFT 1': 0L, 'FFT 2': 1L, 'TIME 1': 2L, 'TIME 2': 3L,
+            'WINDOWED TIME 1': 4L, 'WINDOWED TIME 2': 5L, 'ORBIT': 6L,
+            'COHERENCE': 7L, 'CROSS SPECTRUM': 8L, '<F2/F1> TRANSFER FUNCTION AVERAGED': 9L,
+            '<F2>/<F1> TRANSFER FUNCTION OF AVERAGED FFTS': 10L, 'AUTO CORRELATION 1': 11L,
+            'AUTO CORRELATION 2': 12L, 'CROSS CORRELATION': 13L,
+        }
+        if isinstance(ms, str):
+            if ms.upper() not in measureNames:
+                raise ValueError("Invalid Measure Name")
+            ms = measureNames[ms.upper()]
         dev = self.selectedDevice(c)
         if ms is None:
-            resp = yield dev.query('MEAS?0\n')
+            resp = yield dev.query('MEAS?%d\n' % disp)
             ms = long(resp)
         elif isinstance(ms, long):
-            yield dev.write('MEAS0, %u ' % ms)
-        returnValue(ms)
+            yield dev.write('MEAS%d, %u ' % (disp,ms))
+        returnValue((ms,inverseDict(measureNames)[ms]))
 
-    @setting(31, mv=['w', 's'], returns=['w'])
-    def measure_view(self, c, mv=None):
+    @setting(31, disp='w{display}', mv=['w', 's'], returns=['ws'])
+    def display(self, c, disp=0, mv=None):
         """Get or set the view.
         0 Log Mag;
         1 Linear Mag;
@@ -202,29 +372,29 @@ class SR780Server(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         views = {
-            'LOG MAG': 0,
-            'LINEAR MAG': 1,
-            'MAG SQUARED': 2,
-            'REAL PART': 3,
-            'IMAGINARY PART': 4,
-            'PHASE': 5,
-            'UNWRAPPED PHASE': 6,
-            'NYQUIST': 7,
-            'NICHOLS': 8,
+            'LOG MAG': 0L,
+            'LINEAR MAG': 1L,
+            'MAG SQUARED': 2L,
+            'REAL PART': 3L,
+            'IMAGINARY PART': 4L,
+            'PHASE': 5L,
+            'UNWRAPPED PHASE': 6L,
+            'NYQUIST': 7L,
+            'NICHOLS': 8L,
             }
         if mv is None:
-            resp = yield dev.query('VIEW?0\n')
+            resp = yield dev.query('VIEW?%d\n' % disp)
             mv = long(resp)
         else:
             if isinstance(mv, str):
                 if mv.upper() not in views:
-                    raise Exception('Invalid View Name.')
+                    raise ValueError('Invalid View Name.')
                 mv = views[mv.upper()]
-            yield dev.write('VIEW0, %u ' % mv)
-        returnValue(mv)
+            yield dev.write('VIEW%d, %u ' % (disp, mv))
+        returnValue((mv, inverseDict(views)[mv]))
 
-    @setting(32, un=['w', 's'], returns=['w'])
-    def units(self, c, un=None):
+    @setting(32, disp='w{display}', un=['w', 's'], returns=['ws'])
+    def units(self, c, disp=0, un=None):
         """Get or set the units.
         0 Vpk;
         1 Vrms;
@@ -237,25 +407,25 @@ class SR780Server(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         units = {
-            'VPK': 0,
-            'VRMS': 1,
-            'VPK^2': 2,
-            'VRMS^2': 3,
-            'DBVPK': 4,
-            'DBVRMS': 5,
-            'DBM': 6,
-            'DBSPL': 7,
+            'VPK': 0L,
+            'VRMS': 1L,
+            'VPK^2': 2L,
+            'VRMS^2': 3L,
+            'DBVPK': 4L,
+            'DBVRMS': 5L,
+            'DBM': 6L,
+            'DBSPL': 7L,
             }
         if un is None:
-            resp = yield dev.query('UNIT?0\n')
+            resp = yield dev.query('UNIT?%d\n' % disp)
             un = long(resp)
         else:
             if isinstance(un, str):
                 if un.upper() not in units:
                     raise Exception('Invalid Unit.')
                 un = units[un.upper()]
-            yield dev.write('UNIT0, %u ' % un)
-        returnValue(un)
+            yield dev.write('UNIT%d, %u ' % (un,disp))
+        returnValue((un,inverseDict(units)[un]))
         
     @setting(33, psd=['w', 's'], returns=['w'])
     def psd_units(self, c, psd=None):
@@ -276,6 +446,63 @@ class SR780Server(GPIBManagedServer):
             yield dev.write('PSDU0, %u ' % psd)
         returnValue(psd)
         
+    @setting(49, trace='i', window=['i','s'], returns=['s{Window type}'])
+    def window(self, c, trace, window=None):
+        dev = self.selectedDevice(c)
+        if window is not None:
+            if isinstance(window,str):
+                window = WINDOWS[window.upper()]
+            elif isinstance(window,int) and window not in [0,1,2,3]:
+                raise Exception('Window specified as integer must be in range 0 to 3')
+            yield dev.write('FWIN%d,%d\n' %(trace,window))
+        resp = yield dev.query('FWIN?%d\n' %trace)
+        answer = inverseDict(WINDOWS)[int(resp)]
+        returnValue(answer)
+
+    @setting(50, coupling=['i','s'], returns='s')
+    def coupling(self, c, coupling=None):
+        dev = self.selectedDevice(c)
+        resp = yield dev.coupling(coupling)
+        returnValue(resp)
+
+    @setting(52, range='i{input range in dbV}', returns='i{input range in dbV}')
+    def input_range(self, c, range=None):
+        """Get or set the input range of BOTH channels.
+        Note that the units of the input range are the weird decibel unit defined as
+        
+        20*log10(N)
+        """
+        dev = self.selectedDevice(c)
+        result = yield dev.input_range(range)
+        returnValue(result)
+
+    @setting(53, grnd=['i','s'], returns = 's')
+    def grounding(self, c, grnd=None):
+        ''' Gets/sets grounding of BOTH channels. '''
+        dev = self.selectedDevice(c)
+        result = yield dev.grounding(grnd)
+        returnValue(result)
+
+    @setting(90, trace='i{trace}', returns='*2v{[freq,srqt(psd)]}')
+    def power_spectral_amplitude_ASCII(self, c, trace):
+        ''' Get the trace in spectral amplitude (RMS units). '''
+        dev = self.selectedDevice(c)
+        yield dev.clearStatusBytes()
+        disp = yield self.display(c)
+        if disp[0] != 0:
+            raise Exception("Display must be LOG MAG for power spectral amplitude retrieval")
+        span = yield self.span(c)
+        freqStart = yield self.start_frequency(c)
+        yield self.startsweep(c)
+        yield dev.waitForAveraging()
+        n_points = yield dev.query("DSPN? 0")
+        n_points = int(n_points)
+        data = yield dev.query("DSPY? 0")
+        data = data.split(',')
+        vrms = np.array([float(d) for d in data])
+        freqs = np.linspace(freqStart['Hz'], (span+freqStart)['Hz'], n_points)
+        data = np.vstack((freqs,vrms)).T
+        returnValue(data)
 
     @setting(100, returns=['*(v[Hz] v[Vrms/Hz^1/2])'])
     def freq_sweep(self, c):
@@ -326,13 +553,13 @@ class SR780Server(GPIBManagedServer):
         print "unpacking..."
 
         data = [unpack('<f', data[i*4:i*4+4])[0] for i in range(length)]
-        data = numpy.array(data)
+        data = np.array(data)
         #Calculate frequencies from current span
         resp = yield dev.query('FSTR?0\n')
         fs = T.Value(float(resp), 'Hz')
         resp = yield dev.query('FEND?0\n')
         fe = T.Value(float(resp), 'Hz')
-        freq = numpy.linspace(fs, fe, length)
+        freq = np.linspace(fs, fe, length)
         
         
 
@@ -342,7 +569,7 @@ class SR780Server(GPIBManagedServer):
         dependents = [('Sv', 'PSD', 'Vrms/Hz^1/2')]
         p = dv.packet()
         p.new(name, independents, dependents)
-        p.add(numpy.vstack((freq, data)).T)
+        p.add(np.vstack((freq, data)).T)
         p.add_comment('Autosaved by SR780 server.')
         yield p.send(context=c.ID)
         
@@ -351,7 +578,7 @@ class SR780Server(GPIBManagedServer):
     # helper methods
 
     @setting(150)
-    def startsweep(self, c, sweeptype):
+    def startsweep(self, c):
         dev = self.selectedDevice(c)
         yield dev.write('STRT\n')
     
