@@ -18,7 +18,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Cryo Notifier
-version = 2.1
+version = 2.2
 description = Send reminders to fill cryos
 
 [startup]
@@ -184,6 +184,14 @@ class CryoNotifier(LabradServer):
         else:
             rv = [(t, 0) for t in self.timers]
         returnValue(rv)
+        
+    @setting(6, returns='*(sv[s])')
+    def query_temperatures(self, c):
+        '''
+        Returns the list of temperatures and their current values.
+        '''
+        rv = self.thingsToCheck['temperatures']['data']
+        returnValue(rv)
     
     @setting(10, timer_name='s', message='s', returns='v[s]')
     def reset_timer(self, c, timer_name, message=''):
@@ -276,12 +284,16 @@ class CryoNotifier(LabradServer):
     
     @inlineCallbacks
     def update_temperatures(self):
+        data = {}
         #Check to see if we're still cold
         try:
             p = self.client.lakeshore_diodes.packet()
             p.select_device()
             p.temperatures()
             ans = yield p.send()
+            # only keep the ones we're interested in
+            names = ["4Kin", "4Kout", "77K",]# "Ret", "Mix", "Xchg", "Still", "Pot"]
+            data.update(dict(zip(names, ans['tempetratures'])))
             self.cold = ans['temperatures'][1]['K'] < 10.0
         except Exception:
             #Assume we are cold if we can't reach the lakeshore server
@@ -291,12 +303,12 @@ class CryoNotifier(LabradServer):
         try:
             p.named_temperatures(key='temps')
             resp = yield p.send()
-            data = dict([(x[0],x[1][0]) for x in resp['temps']])
+            data.update(dict([(x[0],x[1][0]) for x in resp['temps']]))
         except AttributeError:
             p.temperatures(key='temps')
             resp = yield p.send()
-            data = dict(zip(['Mix1', 'Mix2', 'Still', 'Pot', 'Xchg'],
-                            [x[0] for x in resp['temps']]))
+            data.update(dict(zip(['Mix1', 'Mix2', 'Still', 'Pot', 'Xchg'],
+                            [x[0] for x in resp['temps']])))
 
         nodeName = resp['device'].split(' ')[0]
         #Now we do something really ugly. We need to be able to handle the fact
