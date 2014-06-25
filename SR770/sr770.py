@@ -18,7 +18,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Signal Analyzer SR770
-version = 1.2.0
+version = 1.2.1
 description = Talks to the Stanford Research Systems Signal Analyzer
 
 [startup]
@@ -44,6 +44,7 @@ Hz,MHz,V,nV = [Unit(s) for s in ['Hz', 'MHz', 'V', 'nV']]
 
 from struct import unpack
 import numpy as np
+import time
 
 NUM_POINTS=400
 
@@ -201,10 +202,12 @@ class SR770Wrapper(GPIBDeviceWrapper):
             returnValue(False)
             
     @inlineCallbacks
-    def waitForSettling(self):
+    def waitForSettling(self, minSettle=Value(0.0,'s')):
+        t = time.time()
         while 1:
             done = yield self.doneSettling()
             if done:
+                yield util.wakeupCall(max(0.0, minSettle['s'] - (time.time() - t)))
                 returnValue(None) #Return None because returnValue needs an argument
             else:
                 print 'Device waiting for settling. Will check again in %d seconds' %self.SETTLING_TIME['s']
@@ -303,7 +306,7 @@ class SR770Server(GPIBManagedServer):
             elif isinstance(sp,Value):
                 if not sp.isCompatible('Hz'):
                     raise Exception('Spans specified as Values must be in frequency units')
-                if not sp['Hz']<100000 and sp['Hz']>0.191:
+                if not sp['Hz']<=100000 and sp['Hz']>0.191:
                     raise Exception('Frequency span out of range')
                 sp = indexOfClosest(SPANS.values(),sp['Hz'])
             else:
@@ -349,13 +352,13 @@ class SR770Server(GPIBManagedServer):
         fs = Value(float(resp), 'Hz')
         returnValue(fs)
     
-    @setting(13, sp=['i','v[Hz]'], fs='v[Hz]', returns='(v[Hz]v[Hz])')
-    def freq_and_settle(self, c, sp, fs):
+    @setting(13, sp=['i','v[Hz]'], fs='v[Hz]', minSettle='v[s]', returns='(v[Hz]v[Hz])')
+    def freq_and_settle(self, c, sp, fs, minSettle=Value(0.0, 's')):
         dev = self.selectedDevice(c)
         yield dev.write('*CLS\n')
         sp = yield self.span(c, sp)
         fs = yield self.start_frequency(c, fs)
-        yield dev.waitForSettling()
+        yield dev.waitForSettling(minSettle)
         returnValue((sp,fs))
 
     #AVERAGING
@@ -411,7 +414,9 @@ class SR770Server(GPIBManagedServer):
         dev.write('AUTS%d\n' %trace)
     
     #MEASUREMENT SETTINGS
-    @setting(30, trace=['i{which trace to set/get}'], measType=['i{integer code for measure type}','s{measure type}'], returns=['i{integerCode}s{measureType}'])
+    @setting(30, trace=['i{which trace to set/get}'],
+                measType=['i{integer code for measure type}','s{measure type}'],
+                returns=['i{integerCode}s{measureType}'])
     def measure(self, c, trace, measType=None):
         """Get or set the measurement type.
         0: SPECTRUM,
