@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Agilent 7104B Oscilloscope
-version = 0.1
+version = 0.2
 description = Talks to the Agilent 7104B oscilloscope
 
 [startup]
@@ -52,7 +52,7 @@ class Agilent7104BWrapper(GPIBDeviceWrapper):
     pass
 
 class Agilent7104BServer(GPIBManagedServer):
-    name = 'AGILENT DSO 7104B OSCILLOSCOPE'
+    name = 'Agilent 7104B Oscilloscope'
     deviceName = 'AGILENT TECHNOLOGIES DSO7104B'
     deviceWrapper = Agilent7104BWrapper
         
@@ -288,6 +288,20 @@ class Agilent7104BServer(GPIBManagedServer):
         else:
             raise Exception('Select valid trigger channel')
         returnValue(resp)
+        
+    @setting(134, mode='s', returns = ['s'])
+    def trigger_mode(self, c, mode=None):
+        """
+        get or set the trigger mode. allowed values = AUTO, NONE
+        """
+        dev = self.selectedDevice(c)
+        if mode == 'AUTO':
+            yield dev.write(':TRIG:SWE AUTO')
+        elif mode == 'NORM':
+            yield dev.write(':TRIG:SWE NORM')
+        ans = yield dev.query(":TRIG:SWE?")
+        returnValue(str(ans))
+        
     '''
     @setting(151, position = 'v', returns = ['v'])
     def horiz_position(self, c, position = None):
@@ -375,6 +389,38 @@ class Agilent7104BServer(GPIBManagedServer):
         traceVolts = (trace - yreference) * yincrement * voltUnitScaler
         timeAxis = (numpy.arange(points)*xincrement + xorigin) * timeUnitScaler
         returnValue((timeAxis, traceVolts))
+        
+    @setting(210)
+    def measureStart(self, c):
+        ''' (re-)start the measurement statistics. (See measure.)'''
+        dev = self.selectedDevice(c)
+        dev.write(":MEAS:STAT:RES")
+        
+    @setting(211, count = 'i{count}', wait='v', returns='*(s{name} v{current} v{min} v{max} v{mean} v{std dev} v{count})')
+    def measure(self, c, count=0, wait=Value(0.5, 's')):
+        ''' returns the values from the measure function of the scope. if count >0, wait until
+        scope has >= count stats before returning, waiting _wait_ time between calls.
+        
+        Note that the measurement must be set manually on the scope for this to work. '''
+        dev = self.selectedDevice(c)
+        yield dev.write(":MEAS:STAT ON")
+        
+        def parse(s):
+            s = s.split(',')
+            d = []
+            while s:
+                d += [[s[0]] + [float(x) for x in s[1:7]]]
+                s = s[7:]
+            return d
+        d = []
+        while True:
+            d = yield dev.query(":MEAS:RES?")
+            d = parse(d)
+            counts = [x[-1] for x in d]
+            if min(counts) >= count:
+                break
+            yield util.wakeupCall(wait['s'])
+        returnValue(d)
 
 def _parsePreamble(preamble):
     '''
