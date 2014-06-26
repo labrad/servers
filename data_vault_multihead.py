@@ -869,6 +869,21 @@ class NumpyDataset(Dataset):
         return data, start + nrows
         
     def keepStreaming(self, context, pos):
+        # keepStreaming does something a bit odd and has a confusing name (ERJ)
+        #
+        # The goal is this: a client that is listening for "new data" events should only
+        # receive a single notification even if there are multiple writes.  To do this,
+        # we do the following:
+        #
+        # If a client reads to the end of the dataset, it is added to the list to be notified
+        # if another context does 'addData'.
+        #
+        # if a client calls 'addData', all listeners are notified, and then the set of listeners
+        # is cleared.
+        # 
+        # If a client reads, but not to the end of the dataset, it is immediately notified that
+        # there is more data for it to read, and then removed from the set of notifiers.
+
         # cheesy hack: if pos == 0, we only need to check whether
         # the filesize is nonzero
         if pos == 0:
