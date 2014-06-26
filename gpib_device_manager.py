@@ -92,16 +92,16 @@ class GPIBDeviceManager(LabradServer):
                      if (('GPIB Bus' in n) or ('gpib_bus' in n)) and \
                         (('List Devices' in s.settings) or \
                          ('list_devices' in s.settings))]
-        names = [s.name for s in servers]
+        serverNames = [s.name for s in servers]
         print 'Pinging servers:', names
         resp = yield DeferredList([s.list_devices() for s in servers])
-        for name, (success, addrs) in zip(names, resp):
+        for serverName, (success, addrs) in zip(serverNames, resp):
             if not success:
-                print 'Failed to get device list for:', name
+                print 'Failed to get device list for:', serverName
             else:
-                print 'Server %s has devices: %s' % (name, addrs)
+                print 'Server %s has devices: %s' % (serverName, addrs)
                 for addr in addrs:
-                    self.gpib_device_connect(name, addr)
+                    self.gpib_device_connect(serverName, addr)
 
     @inlineCallbacks
     def gpib_device_connect(self, gpibBusServer, channel):
