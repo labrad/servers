@@ -218,22 +218,15 @@ from labrad import types as T
 from labrad.devices import DeviceServer
 from labrad.server import setting
 
-# import adc
 import Cleanup.dac as dac
 import Cleanup.adc as adc
-# import dac
 import Cleanup.fpga as fpga
+
 from util import TimedLock
 
 from matplotlib import pyplot as plt
 
 NUM_PAGES = 2
-
-# Time for master to delay before SRAM to ensure synchronization
-MASTER_SRAM_DELAY = 2 #us
-
-# Safety factor for timeout estimates
-TIMEOUT_FACTOR = 10 #seconds
 
 I2C_RB = 0x100
 I2C_ACK = 0x200
@@ -358,25 +351,25 @@ class BoardGroup(object):
         """Try to detect DAC boards on this board group."""
         def callback(src, data):
             board = int(src[-2:], 16)
-            build = fpga.DAC.readback2BuildNumber(data)
+            build = dac.DAC.readback2BuildNumber(data)
             devName = '%s DAC %d' % (self.name, board)
             args = devName, self, self.server, self.port, board, build
             return (devName, args)
-        macs = [fpga.DAC.macFor(board) for board in range(256)]
-        return self._doDetection(macs, fpga.DAC.regPing(),
-                                 fpga.DAC.READBACK_LEN, callback)
+        macs = [dac.DAC.macFor(board) for board in range(256)]
+        return self._doDetection(macs, dac.DAC.regPing(),
+                                 dac.DAC.READBACK_LEN, callback)
     
     def detectADCs(self, timeout=1.0):
         """Try to detect ADC boards on this board group."""
         def callback(src, data):
             board = int(src[-2:], 16)
-            build = fpga.ADC.readback2BuildNumber(data)
+            build = adc.ADC.readback2BuildNumber(data)
             devName = '%s ADC %d' % (self.name, board)
             args = devName, self, self.server, self.port, board, build
             return (devName, args)
-        macs = [fpga.ADC.macFor(board) for board in range(256)]
-        return self._doDetection(macs, fpga.ADC.regPing(),
-                                 fpga.ADC.READBACK_LEN, callback)
+        macs = [adc.ADC.macFor(board) for board in range(256)]
+        return self._doDetection(macs, adc.ADC.regPing(),
+                                 adc.ADC.READBACK_LEN, callback)
 
     @inlineCallbacks
     def _doDetection(self, macs, packet, respLength, callback, timeout=1.0):
@@ -532,10 +525,10 @@ class BoardGroup(object):
                 # This board is after the master, but will not itself run, so
                 # we put it in idle mode
                 dev = self.fpgaServer.devices[board] # Look up device wrapper
-                if isinstance(dev, fpga.DAC):
+                if isinstance(dev, dac.DAC):
                     regs = dev.regIdle(delay)
                     boards.append((dev, regs))
-                elif isinstance(dev, fpga.ADC):
+                elif isinstance(dev, adc.ADC):
                     # ADC boards always pass through signals, so no need for
                     # Idle mode
                     pass
@@ -643,7 +636,6 @@ class BoardGroup(object):
                     # a subset of the actual one, we need to set up.
                     needSetup = (not setupState) or (not self.setupState) or \
                                     (not (setupState <= self.setupState))
-                    raise RuntimError("setup state does not seem to check trig lookup tables on ADC")
                     if needSetup:
                         # we require changes to the setup state so first, wait
                         # for triggers indicating that the previous run has
@@ -756,7 +748,7 @@ class BoardGroup(object):
                     else:
                         idx = boardOrder.index(board)
                         runner = runners[idx]
-                        allDacs &= isinstance(runner, DacRunner)
+                        allDacs &= isinstance(runner, dac.DacRunner)
                         result = [data for src, dest, eth, data in results[idx]['read']]
                         # Array of all timing results (DAC)
                         answer = runner.extract(result)
@@ -815,7 +807,7 @@ class BoardGroup(object):
         """Recover from a timeout error so that pipelining can proceed.
         
         We clear the packet buffer for all boards, whether or not they
-        succeeded. We then check how many time each board its SRAM
+        succeeded. We then check how many time each board executed its SRAM
         sequence (or demod sequence for ADC boards), and store this value
         in the respective runner object. Finally, for failed boards we
         send a trigger to the master context.
@@ -825,8 +817,9 @@ class BoardGroup(object):
         #      dac.py
         for runner, (success, result) in zip(runners, results):
             ctx = None if success else self.ctx
+            # 1. Clear packet buffer for this board
             yield runner.dev.clear().send()
-            #Try to ping the board to read its execution counter
+            # 2. Ping the board to read its execution counter
             try:
                 p = runner.dev.regPingPacket()
                 p.timeout(1.0).collect(1).read(1)
@@ -835,10 +828,10 @@ class BoardGroup(object):
                 # This if construction exists only because right now I have
                 # processReadback as a module level function in dac.py,
                 # whereas in adc.py it's a staticmethod of the ADC class.
-                if isinstance(runner, DacRunner):
+                if isinstance(runner, dac.DacRunner):
                     count = runner.dev.\
                             processReadback(ans[0][3])['executionCounter']
-                elif isinstance(runner, AdcRunner):
+                elif isinstance(runner, adc.AdcRunner):
                     count = runner.dev.processReadback(ans[0][3])\
                                 ['executionCounter']
                 runner.executionCount = count
@@ -868,8 +861,6 @@ class FPGAServer(DeviceServer):
     """
     name = 'GHz FPGAs'
     retries = 5
-    
-    RICH_DEVICE_CREATION = True
     
     @inlineCallbacks
     def initServer(self):
@@ -998,24 +989,12 @@ class FPGAServer(DeviceServer):
                 print "Autodetection failed on board group '%s':" % name
                 result.printBriefTraceback(elideFrameworkCode=1)
         returnValue(found)
-
-    def deviceWrapper(self, guid, name, *arg, **kw):
-        _, boardGroup, ethernetServer, port, boardNumber, build = arg
-        _, boardType, _ = name.split(' ')
-        return fpga.REGISTRY[(boardType, build)](guid, name)
     
-#    def deviceWrapper(self, guid, name):
-#        """Build a DAC or ADC device wrapper, depending on the device name"""
-#        if 'ADC' in name:
-#            print('ghz_fpga_server making instance of adc.ADC_B2')
-#            print('This is probably not the right subclass')
-#            return adc.ADC_B2(guid, name)
-#        elif 'DAC' in name:
-#            print('ghz_fpga_server making instance of dac.DAC_BSomething')
-#            print('This is probably not the right subclass')
-#            return dac.DAC_BSomething(guid, name)
-#        else:
-#            raise Exception('Device name does not correspond to a known device type')
+    def chooseDeviceWrapper(self, name, *args, **kw):
+        """Choose which FPGA class to use for this device"""
+        _, boardGroup, ethernetServer, port, boardNumber, build = args
+        _, boardType, _ = name.rsplit(' ', 2)
+        return fpga.REGISTRY[(boardType, build)]
     
     ## Trigger refreshes if a direct ethernet server connects or disconnects
     def serverConnected(self, ID, name):
@@ -1029,13 +1008,13 @@ class FPGAServer(DeviceServer):
     ## allow selecting different kinds of devices in each context
     def selectedDAC(self, context):
         dev = self.selectedDevice(context)
-        if not isinstance(dev, fpga.DAC):
+        if not isinstance(dev, dac.DAC):
             raise Exception("selected device is not a DAC board")
         return dev
     
     def selectedADC(self, context):
         dev = self.selectedDevice(context)
-        if not isinstance(dev, fpga.ADC):
+        if not isinstance(dev, adc.ADC):
             raise Exception("selected device is not an ADC board")
         return dev
     
@@ -1396,8 +1375,8 @@ class FPGAServer(DeviceServer):
         for chan in timingOrder:
             if 'DAC' in chan:
                 # Round stats up to multiple of the timing packet length
-                reps += fpga.DAC.TIMING_PACKET_LEN - 1
-                reps -= reps % fpga.DAC.TIMING_PACKET_LEN
+                reps += dac.DAC.TIMING_PACKET_LEN - 1
+                reps -= reps % dac.DAC.TIMING_PACKET_LEN
                 break
         
         if len(c['daisy_chain']):
@@ -1414,7 +1393,7 @@ class FPGAServer(DeviceServer):
         
         # build a list of runners which have necessary sequence information
         # for each board
-        runners = [dev.buildRunner(reps, c.get(dev,{})) for dev in devs]
+        runners = [dev.buildRunner(reps, c.get(dev, {})) for dev in devs]
         
         # build setup requests
         setupReqs = processSetupPackets(self.client, setupPkts)
@@ -1430,7 +1409,7 @@ class FPGAServer(DeviceServer):
                 # For ADCs in demodulate mode, store their I and Q ranges to
                 # check for possible clipping.
                 for runner in runners:
-                    if getTimingData and isinstance(runner, AdcRunner) and \
+                    if getTimingData and isinstance(runner, adc.AdcRunner) and \
                       runner.runMode == 'demodulate' and \
                       runner.dev.devName in timingOrder:
                         c[runner.dev]['ranges'] = runner.ranges
@@ -1717,7 +1696,7 @@ class FPGAServer(DeviceServer):
         Sets the output voltage of any Vout channel, A, B, C or D.
         (DAC only)
         """
-        cmd = getCommand({'A': 16, 'B': 18, 'C': 20, 'D': 22}, chan)
+        cmd = dac.DAC.getCommand({'A': 16, 'B': 18, 'C': 20, 'D': 22}, chan)
         dev = self.selectedDAC(c)
         val = int(max(min(round(V*0x3333), 0x10000), 0))
         pkts = [[154, cmd, (val >> 8) & 0xFF, val & 0xFF]]
@@ -1751,7 +1730,7 @@ class FPGAServer(DeviceServer):
         The returned list of words contains any read-back values.
         It has the same length as the sent list.
         """
-        cmd = getCommand({'A': 2, 'B': 3}, chan)
+        cmd = dac.DAC.getCommand({'A': 2, 'B': 3}, chan)
         dev = self.selectedDAC(c)
         return dev.runSerial(cmd, data)
 
@@ -1769,7 +1748,7 @@ class FPGAServer(DeviceServer):
         For unsigned data, this sequence is 0026, 0006, 1603, 0500
         For signed data, this sequence is 0024, 0004, 1603, 0500
         """
-        cmd = getCommand({'A': 2, 'B': 3}, chan)
+        cmd = dac.DAC.getCommand({'A': 2, 'B': 3}, chan)
         dev = self.selectedDAC(c)
         pkt = [0x0024, 0x0004, 0x1603, 0x0500] if signed else \
               [0x0026, 0x0006, 0x1603, 0x0500]
@@ -1788,7 +1767,7 @@ class FPGAServer(DeviceServer):
         
         Returns success, MSD, MHD, SD, timing profile, checkHex
         """
-        cmd = getCommand({'A': 2, 'B': 3}, chan)
+        cmd = dac.DAC.getCommand({'A': 2, 'B': 3}, chan)
         dev = self.selectedDAC(c)
         ans = yield dev.setLVDS(cmd, data, optimizeSD)
         returnValue(ans)
@@ -1805,7 +1784,7 @@ class FPGAServer(DeviceServer):
         
         Returns success, clock polarity, PHOF, number of tries, FIFO counter
         """
-        op = getCommand({'A': 2, 'B': 3}, chan)
+        op = dac.DAC.getCommand({'A': 2, 'B': 3}, chan)
         dev = self.selectedDAC(c)
         ans = yield dev.setFIFO(chan, op, targetFifo)
         returnValue(ans)
@@ -1817,7 +1796,7 @@ class FPGAServer(DeviceServer):
         Range for delay is -63 to 63.
         """
         dev = self.selectedDAC(c)
-        cmd = getCommand({'A': 2, 'B': 3}, chan)
+        cmd = dac.DAC.getCommand({'A': 2, 'B': 3}, chan)
         if delay < -63 or delay > 63:
             raise T.Error(11, 'Delay must be between -63 and 63')
 
@@ -1832,7 +1811,7 @@ class FPGAServer(DeviceServer):
         
         Returns success, theory, LVDS, FIFO
         """
-        cmd, shift = getCommand({'A': (2, 0), 'B': (3, 14)}, chan)
+        cmd, shift = dac.DAC.getCommand({'A': (2, 0), 'B': (3, 14)}, chan)
         dev = self.selectedDAC(c)
         ans = yield dev.runBIST(cmd, shift, data)
         returnValue(ans)
@@ -1971,16 +1950,6 @@ class FPGAServer(DeviceServer):
 
 # some helper methods
 
-def getCommand(cmds, chan):
-    """Get a command from a dictionary of commands.
-
-    Raises a helpful error message if the given channel is not allowed.
-    """
-    try:
-        return cmds[chan]
-    except:
-        raise Exception("Allowed channels are %s." % sorted(cmds.keys()))
-
 def processSetupPackets(cxn, setupPkts):
     """
     Process packets sent in flattened form into actual labrad packets on the
@@ -2002,142 +1971,6 @@ def processSetupPackets(cxn, setupPkts):
                 raise Exception('Malformed setup packet: ctx=%s, server=%s, settings=%s' % (ctxt, server, settings))
         pkts.append(p)
     return pkts
-
-# commands for analyzing and manipulating FPGA memory sequences
-
-def sequenceTime_sec(cmds):
-    """Conservative estimate of the length of a sequence in seconds.
-    
-    cmds - list of numbers: memory commands for GHz DAC
-    """
-    cycles = sum(cmdTime_cycles(c) for c in cmds)
-    return cycles * 40e-9 # assume 25 MHz clock -> 40 ns per cycle
-
-def getOpcode(cmd):
-    return (cmd & 0xF00000) >> 20
-
-def getAddress(cmd):
-    return (cmd & 0x0FFFFF)
-
-def cmdTime_cycles(cmd):
-    """A conservative estimate of the number of cycles a given command takes.
-    
-    SRAM calls are assumed to take 12us. This is an upper bound.
-    """
-    opcode = getOpcode(cmd)
-    # noOp, fiber 0 out, fiber 1 out, start/stop timer, sram start addr,
-    # sram end addr
-    if opcode in [0x0, 0x1, 0x2, 0x4, 0x8, 0xA]:
-        return 1
-    #branch to start
-    if opcode == 0xF:
-        return 2
-    #delay
-    if opcode == 0x3:
-        return getAddress(cmd) + 1
-    #run sram
-    if opcode == 0xC:
-        # TODO: Incorporate SRAMoffset when calculating sequence time.
-        #       This gives a max of up to 12 + 255 us
-        return 25*12 # maximum SRAM length is 12us, with 25 cycles per us
-
-def addMasterDelay(cmds, delay_us=MASTER_SRAM_DELAY):
-    """Add delays to master board before SRAM calls.
-    
-    Creates a memory sequence with delays added before all SRAM
-    calls to ensure that boards stay properly synchronized by
-    allowing extra time for slave boards to reach the SRAM
-    synchronization point.  The delay is specified in microseconds.
-    
-    TODO: check for repeated delay calls to make sure delays actually happen
-    """
-    newCmds = []
-    delayCycles = int(delay_us * 25) #memory clock speed is 25MHz
-    assert delayCycles < 0xFFFFF
-    delayCmd = 0x300000 + delayCycles
-    for cmd in cmds:
-        if getOpcode(cmd) == 0xC: # call SRAM
-            newCmds.append(delayCmd) # add delay
-        newCmds.append(cmd)
-    return newCmds
-
-def fixSRAMaddresses(mem, sram, device):
-    """Set the addresses of SRAM calls for multiblock sequences.
-    
-    The addresses are set according to the following diagrams:
-    
-    FIG1
-    row1    00000000000000-------||-----00000
-    row2    ^             x     ^||^   x    ^
-    
-    FIG2
-    row1    00000000000000-------|             |-----00000
-    row2    ^             x     ^|    DELAY    |^   x    ^
-    
-    FIG1 shows the physical sram block whereas FIG2 shows the sram as
-    seen by the GHz clock, eg. including the inter-block delay.
-    
-    row1 represents the sram data:
-        0's indicate unused SRAM words
-        -'s indicate used SRAM words
-    row2 shows important points:
-        ^'s indicate the physical start and end points of the SRAM blocks
-        x's indicate where we want the sram to start and stop execution
-    
-    Note that in FIG2 the distance between the starting x and the final x
-    is larger than in FIG1. This means that the final SRAM word occurs at
-    a clock count DELAY later than you would expect given the its
-    _physical_ location in the memory block. This clock count is what
-    matters, so when we write the end address we have to include DELAY,
-    Block0 length + length of signal in block1 + DELAY = endAddr,
-    in other words, endAddr is equal to
-    # of 0s in block0 + # of -'s in block0 + # of -'s in block1 + DELAY
-    """
-    block0Len_words = len(sram[0])/4
-    block1Len_words = len(sram[1])/4
-    delayBlocks = sram[2]
-    if not isinstance(sram, tuple):
-        return mem
-    numSramCalls = sum(getOpcode(cmd) == 0xC for cmd in mem)
-    if numSramCalls > 1:
-        raise Exception('Only one SRAM call allowed in multi-block sequences.')
-    def fixAddr(cmd):
-        opcode, address = getOpcode(cmd), getAddress(cmd)
-        if opcode == 0x8:
-            # SRAM start address
-            address = device.SRAM_BLOCK0_LEN - block0Len_words
-            return (opcode << 20) + address
-        elif opcode == 0xA:
-            # SRAM end address
-            address = device.SRAM_BLOCK0_LEN + block1Len_words \
-                + device.SRAM_DELAY_LEN * delayBlocks - 1
-            return (opcode << 20) + address
-        else:
-            return cmd
-    return [fixAddr(cmd) for cmd in mem]
-
-def maxSRAM(cmds):
-    """Determines the maximum SRAM address used in a memory sequence.
-
-    This is used to determine whether a given memory sequence is pageable,
-    since only half of the available SRAM can be used when paging.
-    """
-    def addr(cmd):
-        return getAddress(cmd) if getOpcode(cmd) in [0x8, 0xA] else 0
-    return max(addr(cmd) for cmd in cmds)
-
-def timerCount(cmds):
-    """Return the number of timer stops in a memory sequence.
-
-    This should correspond to the number of timing results per
-    repetition of the sequence.  Note that this method does no
-    checking of the timer logic, for example whether every stop
-    has a corresponding start.  That sort of checking is the
-    user's responsibility at this point (if using the qubit server,
-    these things are automatically checked).
-    """
-    return int(sum(np.asarray(cmds) == 0x400001)) # numpy version
-    #return cmds.count(0x400001) # python list version
 
 __server__ = FPGAServer()
 
