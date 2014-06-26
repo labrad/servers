@@ -218,11 +218,10 @@ from labrad import types as T
 from labrad.devices import DeviceServer
 from labrad.server import setting
 
-# import adc
 import Cleanup.dac as dac
 import Cleanup.adc as adc
-# import dac
 import Cleanup.fpga as fpga
+
 from util import TimedLock
 
 from matplotlib import pyplot as plt
@@ -749,7 +748,7 @@ class BoardGroup(object):
                     else:
                         idx = boardOrder.index(board)
                         runner = runners[idx]
-                        allDacs &= isinstance(runner, DacRunner)
+                        allDacs &= isinstance(runner, dac.DacRunner)
                         result = [data for src, dest, eth, data in results[idx]['read']]
                         # Array of all timing results (DAC)
                         answer = runner.extract(result)
@@ -829,10 +828,10 @@ class BoardGroup(object):
                 # This if construction exists only because right now I have
                 # processReadback as a module level function in dac.py,
                 # whereas in adc.py it's a staticmethod of the ADC class.
-                if isinstance(runner, DacRunner):
+                if isinstance(runner, dac.DacRunner):
                     count = runner.dev.\
                             processReadback(ans[0][3])['executionCounter']
-                elif isinstance(runner, AdcRunner):
+                elif isinstance(runner, adc.AdcRunner):
                     count = runner.dev.processReadback(ans[0][3])\
                                 ['executionCounter']
                 runner.executionCount = count
@@ -1394,7 +1393,7 @@ class FPGAServer(DeviceServer):
         
         # build a list of runners which have necessary sequence information
         # for each board
-        runners = [dev.buildRunner(reps, c.get(dev,{})) for dev in devs]
+        runners = [dev.buildRunner(reps, c.get(dev, {})) for dev in devs]
         
         # build setup requests
         setupReqs = processSetupPackets(self.client, setupPkts)
@@ -1410,7 +1409,7 @@ class FPGAServer(DeviceServer):
                 # For ADCs in demodulate mode, store their I and Q ranges to
                 # check for possible clipping.
                 for runner in runners:
-                    if getTimingData and isinstance(runner, AdcRunner) and \
+                    if getTimingData and isinstance(runner, adc.AdcRunner) and \
                       runner.runMode == 'demodulate' and \
                       runner.dev.devName in timingOrder:
                         c[runner.dev]['ranges'] = runner.ranges
