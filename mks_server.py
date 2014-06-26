@@ -67,7 +67,8 @@ class MKSServer(LabradServer):
             dictentry = {gaugeentry[0][0]:gaugeentry[0][1],gaugeentry[1][0]:gaugeentry[1][1],gaugeentry[2][0]:gaugeentry[2][1]}
             gauges.append(dictentry)
         self.gaugeServers = [{'server' : serial_server, 'ID':None, 'gauges':gauges}]
-        
+        lc = twisted.internet.task.loopingCall(self.update_readings)
+        lc.start(1.0)
         self.gauges = []
         yield self.findGauges()
 
@@ -155,10 +156,11 @@ class MKSServer(LabradServer):
             # create a packet to read the pressure
             p = ser.packet(context=ctx)\
                    .write_line('p').pause(T.Value(0.02, 's'))\
-                   .read_line(key='pressure').pause(T.Value(0.01, 's'))
+                   .read_line(key='pressure').pause(T.Value(0.02, 's'))
             G['packet'] = p
 
             G['server'] = ser
+            G['readings'] = (T.Value(float('nan'), 'Torr'), T.Value(float('nan'), 'Torr'))
 
         if ready:
             self.gauges.append(G)
@@ -174,28 +176,41 @@ class MKSServer(LabradServer):
                         for ch in CHANNELS if G[ch]]
         return gauges
 
-
+    @inlineCallbacks
+    def update_readings(self):
+        for G in self.gauges:
+            try:
+                result = yield G['packet'].send()
+            except Exception:
+                continue
+            if result:
+                try:
+                    (rdg1, rdg2) = result.pressure.split()
+                except Exception:
+                    (rdg1, rdg2) = ('Off', 'Off')
+                try: data1 = float(rdg1) except Exception: data1 = float('NaN')
+                try: data2 = float(rdg2) except Exception: data2 = float('NaN')
+                if G[0] and math.isnan(data1): print 'gauge %s returns NaN (%s:ch1)' % (G[0], G['port'])
+                if G[1] and math.isnan(data2): print 'gauge %s returns NaN (%s:ch2)' % (G[1], G['port'])
+                G['reading'] = T.Value(data1, 'Torr'), T.Value(data2, 'Torr')
+                
     @setting(1, 'Get Readings', returns=['*v[Torr]: Readings'])
     def get_readings(self, c):
         """Request current readings."""
-        deferreds = [G['packet'].send() for G in self.gauges]
-        res = yield defer.DeferredList(deferreds, fireOnOneErrback=True)
-        readings = []
-        strs = []
-        idx = 0
-        for rslt, G in zip(res, self.gauges):
-            s = rslt[1].pressure
-            strs.append(s)
-            r = rslt[1].pressure.split()
-            idx = idx+1
-            for ch, rdg in zip(CHANNELS, r):
+        result = []
+        for G in self.gauges:
+            for ch in CHANNELS:
                 if G[ch]:
-                    try:
-                        readings += [T.Value(float(rdg), 'Torr')]
-                    except:
-                        print "reading failed for %s:%s with result %s, using zero" % (G[ch], ch, rdg)
-                        readings += [T.Value(0, 'Torr')]
-        
+                    readings += [G['reading'][ch]]
+        return readings
+    @setting(2, 'Get Named Readings', returns=['*(s, v[Torr])'])
+    def get_named_readings(self, c):
+        result = []
+        for G in self.gauges:
+            for ch in CHANNELS:
+                if G[ch]:
+                    readings += [(G[ch], G['reading'][ch])]
+    
         packagedreadings = zip(gauge_list,readings)#@#
         returnValue(packagedreadings)#@#
         
