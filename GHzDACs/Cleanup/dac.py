@@ -70,106 +70,124 @@ from util import littleEndian, TimedLock
 # These functions generate numpy arrays of bytes which will be converted
 # to raw byte strings prior to being sent to the direct ethernet server.
 
-class DAC_B7(fpga.DAC):
-    """Manages communication with a single GHz DAC board.
+# Time for master to delay before SRAM to ensure synchronization
+MASTER_SRAM_DELAY = 2 #us
 
-    All communication happens through the direct ethernet server,
-    and we set up one unique context to use for talking to each board.
-    """
+
+class DAC(fpga.FPGA):
     
-    MEM_LEN = 512
-    MEM_PAGE_LEN = 256
+    MAC_PREFIX = '00:01:CA:AA:00:'
+    REG_PACKET_LEN = 56
+    READBACK_LEN = 70
+    
     TIMING_PACKET_LEN = 30
-    # timing estimates are multiplied by this factor to determine sequence
-    # timeout
-    TIMEOUT_FACTOR = 10
-    I2C_RB = 0x100
-    I2C_ACK = 0x200
-    I2C_RB_ACK = I2C_RB | I2C_ACK
-    I2C_END = 0x400
-    MAX_FIFO_TRIES = 5
     
-    # Methods to get bytes to be written to register
+    # Master delay before SRAM to ensure synchronization
+    MASTER_SRAM_DELAY = 2 # microseconds
+
+    @classmethod
+    def macFor(cls, board):
+        """Get the MAC address of a DAC board as a string."""
+        return cls.MAC_PREFIX + ('0'+hex(int(board))[2:])[-2:].upper()
     
     @classmethod
-    def regRun(cls, reps, page, slave, delay, blockDelay=None, sync=249):
-        regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
-        regs[0] = 1 + (page << 7) # run memory in specified page
-        regs[1] = 3 # stream timing data
-        regs[13:15] = littleEndian(reps, 2)
-        if blockDelay is not None:
-            regs[19] = blockDelay # for boards running multi-block sequences
-        regs[43] = int(slave)
-        # Addressing out of order because we added the high byte for start
-        # delay after the rest of the registers had been defined.
-        regs[44],regs[51] = littleEndian(int(delay),2)
-        regs[45] = sync
-        return regs
+    def isMac(mac):
+        """Return True if this mac is for a DAC, otherwise False"""
+        return mac.startswith('00:01:CA:AA:00:')
     
-    @classmethod
-    def regRunSram(cls, startAddr, endAddr, loop=True, blockDelay=0, sync=249):
-        regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
-        regs[0] = (3 if loop else 4) #3: continuous, 4: single run
-        regs[1] = 0 #No register readback
-        regs[13:16] = littleEndian(startAddr, 3) #SRAM start address
-        regs[16:19] = littleEndian(endAddr-1 + cls.SRAM_DELAY_LEN \
-            * blockDelay, 3) #SRAM end
-        regs[19] = blockDelay
-        regs[45] = sync
-        return regs
+    # lifecycle methods
     
-    @classmethod
-    def regIdle(cls, delay):
-        """
-        Numpy array of register bytes for idle mode
+    @inlineCallbacks
+    def connect(self, name, group, de, port, board, build):
+        """Establish a connection to the board."""
+        print('connecting to DAC board: %s (build #%d)'% \
+            (self.macFor(board), build))
         
-        TODO: Move into DAC superclass if this is common functionality.
-              Need to check.
-        """
+        self.boardGroup = group
+        self.server = de
+        self.cxn = de._cxn
+        self.ctx = de.context()
+        self.port = port
+        self.board = board
+        self.build = build
+        self.MAC = self.macFor(board)
+        self.devName = name
+        self.serverName = de._labrad_name
+        self.timeout = T.Value(1, 's')
+
+        # Set up our context with the ethernet server
+        # This context is expired when the device shuts down
+        p = self.makePacket()
+        p.connect(port)
+        p.require_length(self.READBACK_LEN)
+        p.destination_mac(self.MAC)
+        p.require_source_mac(self.MAC)
+        p.timeout(self.timeout)
+        p.listen()
+        yield p.send()
+        
+        # Get board specific information about this device.
+        # We talk to the labrad system using a new context and close it when
+        # done.
+        reg = self.cxn.registry
+        ctxt = reg.context()
+        p = reg.packet()
+        p.cd(['','Servers','GHz FPGAs'])
+        p.get('dac'+self.devName.split(' ')[-1], key='boardParams')
+        try:
+            resp = yield p.send()
+            boardParams = resp['boardParams']
+            self.parseBoardParameters(boardParams)
+        finally:
+            yield self.cxn.manager.expire_context(reg.ID, context=ctxt)
+    
+    @inlineCallbacks
+    def shutdown(self):
+        """Called when this device is to be shutdown."""
+        yield self.cxn.manager.expire_context(self.server.ID,
+                                              context=self.ctx)
+    
+    # Register byte methods
+    
+    @classmethod
+    def regPing(cls):
+        """Returns a numpy array of register bytes to ping DAC register"""
         regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
-        regs[0] = 0 # do not start
-        regs[1] = 0 # no readback
-        regs[43] = 3 # IDLE mode
-        # 1 August 2012: Why do we need delays when in idle mode? DTS
-        regs[44] = int(delay)
+        regs[0] = 0 # No sequence start
+        regs[1] = 1 # Readback after 2us
+        return regs 
+    
+    @classmethod
+    def regPllQuery(cls):
+        """Returns a numpy array of register bytes to query PLL status"""
+        regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
+        regs[0] = 1 # No sequence start
+        regs[1] = 1 # Readback after 2us
         return regs
     
     @classmethod
-    def regClockPolarity(cls, chan, invert):
-        ofs = {'A': (4, 0), 'B': (5, 1)}[chan]
+    def regSerial(cls, op, data):
+        regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
+        regs[0] = 0 #Start mode = no start
+        regs[1] = 1 #Readback = readback after 2us to allow for serial
+        regs[47] = op #Set serial operation mode to op
+        regs[48:51] = littleEndian(data, 3) #Serial data
+        return regs
+    
+    @classmethod
+    def regPllReset(cls):
+        """Send reset pulse to 1GHz PLL"""
         regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
         regs[0] = 0
         regs[1] = 1
-        regs[46] = (1 << ofs[0]) + ((invert & 1) << ofs[1])
+        regs[46] = 0x80 #Set d[7..0] to 10000000 = reset 1GHz PLL pulse
         return regs
     
-    @classmethod
-    def regDebug(cls, word1, word2, word3, word4):
-        """Returns as numpy arrya of register bytes to set DAC into debug mode"""
-        regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
-        regs[0] = 2
-        regs[1] = 1
-        regs[13:17] = littleEndian(word1)
-        regs[17:21] = littleEndian(word2)
-        regs[21:25] = littleEndian(word3)
-        regs[25:29] = littleEndian(word4)
-        return regs
+    def resetPLL(self):
+        """Reset PLL"""
+        raise NotImplementedError
     
-    @classmethod
-    def regI2C(cls, data, read, ack):
-        assert len(data) == len(read) == len(ack), \
-            "data, read and ack must have same length for I2C"
-        assert len(data) <= 8, "Cannot send more than 8 I2C data bytes"
-        regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
-        regs[0] = 0
-        regs[1] = 2
-        regs[2] = 1 << (8 - len(data))
-        regs[3] = sum(((r & 1) << (7 - i)) for i, r in enumerate(read))
-        regs[4] = sum(((a & a) << (7 - i)) for i, a in enumerate(ack))
-        regs[12:12-len(data):-1] = data
-        return regs
-    
-    # Methods to get bytes to write data to the board
+    # Methods to get byte arrays to be written to the board
     
     @classmethod
     def pktWriteSram(cls, derp, data):
@@ -238,70 +256,303 @@ class DAC_B7(fpga.DAC):
     # Utility
     
     @staticmethod
-    def processReadback(resp):
-        """Interpret byte string returned by register readback"""
+    def readback2BuildNumber(resp):
+        """Get build number from register readback"""
         a = np.fromstring(resp, dtype='<u1')
-        return {
-            'build': a[51],
-            'serDAC': a[56],
-            'noPllLatch': bool((a[58] & 0x80) > 0),
-            'ackoutI2C': a[61],
-            'I2Cbytes': a[69:61:-1],
-            'executionCounter': (a[53]<<8) + a[52]
-        }
+        return a[51]
     
+    def parseBoardParameters(self, parametersFromRegistry):
+        """Handle board specific data retreived from registry"""
+        self.boardParams = dict(parametersFromRegistry)
+        #for key, val in dict(parametersFromRegistry).items():
+        #    setattr(self, key, val)
     
-    # lifecycle methods
+    @staticmethod
+    def bistChecksum(data):
+        bist = [0, 0]
+        for i in xrange(0, len(data), 2):
+            for j in xrange(2):
+                if data[i+j] & 0x3FFF != 0:
+                    bist[j] = (((bist[j] << 1) & 0xFFFFFFFE) | \
+                              ((bist[j] >> 31) & 1)) ^ \
+                              ((data[i+j] ^ 0x3FFF) & 0x3FFF)
+        return bist
     
-    @inlineCallbacks
-    def connect(self, name, group, de, port, board, build):
-        """Establish a connection to the board."""
-        print('connecting to DAC board: %s (build #%d)'% \
-            (self.macFor(board), build))
-        
-        self.boardGroup = group
-        self.server = de
-        self.cxn = de._cxn
-        self.ctx = de.context()
-        self.port = port
-        self.board = board
-        self.build = build
-        self.MAC = self.macFor(board)
-        self.devName = name
-        self.serverName = de._labrad_name
-        self.timeout = T.Value(1, 's')
+    @classmethod
+    def shiftSRAM(cls, cmds, page):
+        """Shift the addresses of SRAM calls for different pages.
 
-        # Set up our context with the ethernet server
-        # This context is expired when the device shuts down
-        p = self.makePacket()
-        p.connect(port)
-        p.require_length(self.READBACK_LEN)
-        p.destination_mac(self.MAC)
-        p.require_source_mac(self.MAC)
-        p.timeout(self.timeout)
-        p.listen()
-        yield p.send()
-        
-        # Get board specific information about this device.
-        # We talk to the labrad system using a new context and close it when
-        # done.
-        reg = self.cxn.registry
-        ctxt = reg.context()
-        p = reg.packet()
-        p.cd(['','Servers','GHz FPGAs'])
-        p.get('dac'+self.devName.split(' ')[-1], key='boardParams')
-        try:
-            resp = yield p.send()
-            boardParams = resp['boardParams']
-            self.parseBoardParameters(boardParams)
-        finally:
-            yield self.cxn.manager.expire_context(reg.ID, context=ctxt)
+        Takes a list of memory commands and a page number and
+        modifies the commands for calling SRAM to point to the
+        appropriate page.
+        """
+        def shiftAddr(cmd):
+            opcode, address = MemorySequence.getOpcode(cmd), \
+                              MemorySequence.getAddress(cmd)
+            if opcode in [0x8, 0xA]: 
+                address += page * cls.SRAM_PAGE_LEN
+                return (opcode << 20) + address
+            else:
+                return cmd
+        return [shiftAddr(cmd) for cmd in cmds]
     
-    @inlineCallbacks
-    def shutdown(self):
-        """Called when this device is to be shutdown."""
-        yield self.cxn.manager.expire_context(self.server.ID,
-                                              context=self.ctx)
+    @staticmethod
+    def getCommand(cmds, chan):
+        """Get a command from a dictionary of commands.
+
+        Raises a helpful error message if the given channel is not allowed.
+        """
+        try:
+            return cmds[chan]
+        except:
+            raise Exception("Allowed channels are %s." % sorted(cmds.keys()))
+
+
+class DacRunner(object):
+    pass
+
+
+class DacRunner_Build7(DacRunner):
+    def __init__(self, dev, reps, startDelay, mem, sram):
+        self.dev = dev
+        self.reps = reps
+        self.startDelay = startDelay
+        self.mem = mem
+        self.sram = sram
+        self.blockDelay = None
+        self._fixDualBlockSram()
+        
+        if self.pageable():
+            # shorten our sram data so that it fits in one page
+            # Why is there a factor of 4 here? Is this because each SRAM
+            # word is 4 bytes? Check John's documentation
+            self.sram = self.sram[:self.dev.SRAM_PAGE_LEN * 4]
+        
+        # calculate expected number of packets
+        self.nTimers = MemorySequence.timerCount(self.mem)
+        self.nPackets = self.reps * self.nTimers // DAC.TIMING_PACKET_LEN
+        # calculate sequence time
+        self.memTime = MemorySequence.sequenceTime_sec(self.mem)
+        # Why is this +1 here?
+        self.seqTime = fpga.TIMEOUT_FACTOR * (self.memTime * self.reps) + 1
+    
+    def pageable(self):
+        """
+        Check whether sequence fits in one page, based on SRAM addresses
+        called by mem commands.
+        """
+        return maxSRAM(self.mem) <= self.dev.SRAM_PAGE_LEN
+    
+    def _fixDualBlockSram(self):
+        """
+        If this sequence is for dual-block sram, fix memory addresses and
+        build sram.
+        
+        When this function completes
+          1. self.sram will be a byte string to be written to the
+             physical memory block
+          2. self.blockDelay will be an integer, the number of times
+             to repeate the delay block
+          3. The memory sequence is adjusted so that SRAM start addr
+             and SRAM end addr are set to properly execute the dual
+             blocks of SRAM.
+        
+        Input:
+              Block0            Block1
+              aaaaaaaaaaaaaDELAYbbbbbb
+        Output:
+        |00000aaaaaaaaaaaaa|bbbbbb
+        
+        The sram byte string is prepended with zeros to make sure that
+        our desired block0, represented by a's, lies with its end
+        exactly at the end of the physical memory block0. The two blocks
+        are concatened forming a single byte string.
+        
+        Note that because the sram sequence will be padded to take up the
+        entire first block of SRAM (before the delay section), this
+        disables paging.
+        """
+        #Note that as this function executes self.sram should be a tuple of
+        #(block0,block1,delay) where block0 and block1 are strings
+        if isinstance(self.sram, tuple):
+            # update addresses in memory commands that call into SRAM
+            self.mem = MemorySequence.fixSRAMaddresses(self.mem, self.sram, self.dev)
+            
+            # combine blocks into one sram sequence to be uploaded
+            block0, block1, delayBlocks = self.sram
+            #Prepend bloock0 with \x00's so that the actual signal data
+            #exactly fills the first physical SRAM block
+            #Note block0 length in bytes = 4*block0 length in words
+            data = '\x00' * (self.dev.SRAM_BLOCK0_LEN * 4 - \
+                len(block0)) + block0 + block1
+            self.sram = data
+            self.blockDelay = delayBlocks
+    
+    def loadPacket(self, page, isMaster):
+        """Create pipelined load packet.  For DAC, upload mem and SRAM."""
+        if isMaster:
+            # this will be the master, so add delays before SRAM
+            self.mem = MemorySequence.addMasterDelay(self.mem)
+            # Recompute sequence time
+            # Recalculate sequence time
+            self.memTime = MemorySequence.sequenceTime_sec(self.mem)
+            # Following line added Oct 2 2012 - DTS
+            self.seqTime = fpga.TIMEOUT_FACTOR * (self.memTime * self.reps) + 1
+        return self.dev.load(self.mem, self.sram, page)
+    
+    def setupPacket(self):
+        """Create non-pipelined setup packet.  For DAC, does nothing."""
+        return None
+    
+    def runPacket(self, page, slave, delay, sync):
+        """Create run packet."""
+        startDelay = self.startDelay + delay
+        regs = self.dev.regRun(self.reps, page, slave, startDelay,
+                               blockDelay=self.blockDelay, sync=sync)
+        return regs
+    
+    def collectPacket(self, seqTime, ctx):
+        """
+        Collect appropriate number of ethernet packets for this sequence, then
+        trigger the run context.
+        """
+        return self.dev.collect(self.nPackets, seqTime, ctx)
+    
+    def triggerPacket(self, ctx):
+        """Send a trigger to the master context"""
+        return self.dev.trigger(ctx)
+    
+    def readPacket(self, timingOrder):
+        """
+        Read (or discard) appropriate number of ethernet packets, depending
+        on whether timing results are wanted.
+        """
+        keep = any(s.startswith(self.dev.devName) for s in timingOrder)
+        return self.dev.read(self.nPackets) if keep else \
+            self.dev.discard(self.nPackets)
+    
+    def extract(self, packets):
+        """Extract timing data coming back from a readPacket."""
+        data = ''.join(data[3:63] for data in packets)
+        return np.fromstring(data, dtype='<u2').astype('u4')
+
+
+class DAC_Build7(DAC):
+    """Manages communication with a single GHz DAC board.
+
+    All communication happens through the direct ethernet server,
+    and we set up one unique context to use for talking to each board.
+    """
+    
+    RUNNER_CLASS = DacRunner_Build7
+    
+    MEM_LEN = 512
+    MEM_PAGE_LEN = 256
+    # timing estimates are multiplied by this factor to determine sequence
+    # timeout
+    I2C_RB = 0x100
+    I2C_ACK = 0x200
+    I2C_RB_ACK = I2C_RB | I2C_ACK
+    I2C_END = 0x400
+    MAX_FIFO_TRIES = 5
+    
+    SRAM_LEN = 10240
+    SRAM_WRITE_PKT_LEN = 256
+    SRAM_WRITE_DERPS = SRAM_LEN // SRAM_WRITE_PKT_LEN
+    SRAM_PAGE_LEN = 5120
+    SRAM_DELAY_LEN = 1024
+    SRAM_BLOCK0_LEN = 8192
+    SRAM_BLOCK1_LEN = 2048
+    
+    # Methods to get bytes to be written to register
+    
+    def buildRunner(self, reps, info):
+        """Get a runner for this board"""
+        mem = info.get('mem', None)
+        startDelay = info.get('startDelay', 0)
+        sram = info.get('sram', None)
+        runner = self.RUNNER_CLASS(self, reps, startDelay, mem, sram)
+        return runner
+    
+    @classmethod
+    def regRun(cls, reps, page, slave, delay, blockDelay=None, sync=249):
+        regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
+        regs[0] = 1 + (page << 7) # run memory in specified page
+        regs[1] = 3 # stream timing data
+        regs[13:15] = littleEndian(reps, 2)
+        if blockDelay is not None:
+            regs[19] = blockDelay # for boards running multi-block sequences
+        regs[43] = int(slave)
+        # Addressing out of order because we added the high byte for start
+        # delay after the rest of the registers had been defined.
+        regs[44],regs[51] = littleEndian(int(delay),2)
+        regs[45] = sync
+        return regs
+    
+    @classmethod
+    def regRunSram(cls, startAddr, endAddr, loop=True, blockDelay=0, sync=249):
+        regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
+        regs[0] = (3 if loop else 4) #3: continuous, 4: single run
+        regs[1] = 0 #No register readback
+        regs[13:16] = littleEndian(startAddr, 3) #SRAM start address
+        regs[16:19] = littleEndian(endAddr-1 + cls.SRAM_DELAY_LEN \
+            * blockDelay, 3) #SRAM end
+        regs[19] = blockDelay
+        regs[45] = sync
+        return regs
+    
+    @classmethod
+    def regIdle(cls, delay):
+        """
+        Numpy array of register bytes for idle mode
+        
+        TODO: Move into DAC superclass if this is common functionality.
+              Need to check.
+        """
+        regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
+        regs[0] = 0 # do not start
+        regs[1] = 0 # no readback
+        regs[43] = 3 # IDLE mode
+        # 1 August 2012: Why do we need delays when in idle mode? DTS
+        regs[44] = int(delay)
+        return regs
+    
+    @classmethod
+    def regClockPolarity(cls, chan, invert):
+        ofs = {'A': (4, 0), 'B': (5, 1)}[chan]
+        regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
+        regs[0] = 0
+        regs[1] = 1
+        regs[46] = (1 << ofs[0]) + ((invert & 1) << ofs[1])
+        return regs
+    
+    @classmethod
+    def regDebug(cls, word1, word2, word3, word4):
+        """Returns as numpy arrya of register bytes to set DAC into debug mode"""
+        regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
+        regs[0] = 2
+        regs[1] = 1
+        regs[13:17] = littleEndian(word1)
+        regs[17:21] = littleEndian(word2)
+        regs[21:25] = littleEndian(word3)
+        regs[25:29] = littleEndian(word4)
+        return regs
+    
+    @classmethod
+    def regI2C(cls, data, read, ack):
+        assert len(data) == len(read) == len(ack), \
+            "data, read and ack must have same length for I2C"
+        assert len(data) <= 8, "Cannot send more than 8 I2C data bytes"
+        regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
+        regs[0] = 0
+        regs[1] = 2
+        regs[2] = 1 << (8 - len(data))
+        regs[3] = sum(((r & 1) << (7 - i)) for i, r in enumerate(read))
+        regs[4] = sum(((a & a) << (7 - i)) for i, a in enumerate(ack))
+        regs[12:12-len(data):-1] = data
+        return regs
+    
+    # Methods to get bytes to write data to the board
     
     # Direct ethernet server packet creation methods
     
@@ -334,16 +585,16 @@ class DAC_B7(fpga.DAC):
             #and does NOT wrap around to the beginning
             chunk, data = data[:bytesPerDerp], data[bytesPerDerp:]
             chunk = np.fromstring(chunk, dtype='<u4')
-            dacPkt = self.pktWriteSram(writeDerp, chunk)
+            dacPkt = cls.pktWriteSram(writeDerp, chunk)
             p.write(dacPkt.tostring())
             writeDerp += 1
     
     @classmethod
     def makeMemory(cls, data, p, page=0):
         """Update a packet for the ethernet server with Memory commands."""
-        if len(data) > MEM_PAGE_LEN:
+        if len(data) > cls.MEM_PAGE_LEN:
             msg = "Memory length %d exceeds maximum length %d (one page)."
-            raise Exception(msg % (len(data), MEM_PAGE_LEN))
+            raise Exception(msg % (len(data), CLS.MEM_PAGE_LEN))
         # translate SRAM addresses for higher pages
         if page:
             data = cls.shiftSRAM(data, page)
@@ -385,7 +636,7 @@ class DAC_B7(fpga.DAC):
         """Run a command or list of commands through the serial interface."""
         answer = []
         for d in data:
-            regs = regSerial(op, d)
+            regs = self.regSerial(op, d)
             r = yield self._sendRegisters(regs)
             # turn these into python ints, instead of numpy ints
             answer += [int(self.processReadback(r)['serDAC'])]
@@ -443,7 +694,7 @@ class DAC_B7(fpga.DAC):
         """Reset PLL"""
         @inlineCallbacks
         def func():
-            regs = regPllReset()
+            regs = self.regPllReset()
             yield self._sendRegisters(regs)
         return self.testMode(func)
     
@@ -457,7 +708,7 @@ class DAC_B7(fpga.DAC):
     def runSram(self, dataIn, loop, blockDelay):
         @inlineCallbacks
         def func():
-            pkt = regPing()
+            pkt = self.regPing()
             yield self._sendRegisters(pkt)
                 
             data = np.array(dataIn, dtype='<u4').tostring()
@@ -576,7 +827,7 @@ class DAC_B7(fpga.DAC):
             tries = 1
             found = False
     
-            while tries <= MAX_FIFO_TRIES and not found:
+            while tries <= self.MAX_FIFO_TRIES and not found:
                 # Send all four PHOFs & measure resulting FIFO counters. If
                 # one of these equals targetFifo, set the PHOF and check that
                 # the FIFO counter is indeed targetFifo. If so, break out.
@@ -637,8 +888,68 @@ class DAC_B7(fpga.DAC):
             returnValue((lvds == theory and fifo == theory, theory, lvds,
                          fifo))
         return self.testMode(func)
+    
+    # Utility
+    
+    @staticmethod
+    def processReadback(resp):
+        """Interpret byte string returned by register readback"""
+        a = np.fromstring(resp, dtype='<u1')
+        return {
+            'build': a[51],
+            'serDAC': a[56],
+            'noPllLatch': bool((a[58] & 0x80) > 0),
+            'ackoutI2C': a[61],
+            'I2Cbytes': a[69:61:-1],
+            'executionCounter': (a[53]<<8) + a[52]
+        }
 
-fpga.REGISTRY[('DAC', 7)] = DAC_B7
+
+fpga.REGISTRY[('DAC', 7)] = DAC_Build7
+
+
+class DacRunner_Build8(DacRunner_Build7):
+    pass
+
+
+class DAC_Build8(DAC_Build7):
+    
+    RUNNER_CLASS = DacRunner_Build8
+    
+    SRAM_LEN = 18432
+    SRAM_WRITE_PKT_LEN = 256
+    SRAM_WRITE_DERPS = SRAM_LEN // SRAM_WRITE_PKT_LEN
+    SRAM_PAGE_LEN = 9216
+    SRAM_DELAY_LEN = 1024
+    SRAM_BLOCK0_LEN = 16384
+    SRAM_BLOCK1_LEN = 2048
+
+
+fpga.REGISTRY[('DAC', 8)] = DAC_Build8
+
+### classes below this line are NOT properly implemented!!!
+
+class DacRunner_Build11(DacRunner_Build7):
+    pass
+
+
+class DAC_Build11(DAC_Build7):
+    RUNNER_CLASS = DacRunner_Build11
+
+fpga.REGISTRY[('DAC', 11)] = DAC_Build11
+
+#Utility functions
+
+def maxSRAM(cmds):
+    """Determines the maximum SRAM address used in a memory sequence.
+
+    This is used to determine whether a given memory sequence is pageable,
+    since only half of the available SRAM can be used when paging.
+    """
+    def addr(cmd):
+        return MemorySequence.getAddress(cmd) if\
+            MemorySequence.getOpcode(cmd) in [0x8, 0xA] else 0
+    return max(addr(cmd) for cmd in cmds)
 
 #Memory sequence functions
 
@@ -719,4 +1030,126 @@ class MemorySequence(list):
     def branchToStart(self):
         self.append(0xf00000)
         return self
+    
+    @staticmethod
+    def addMasterDelay(cmds, delay_us=MASTER_SRAM_DELAY):
+        """Add delays to master board before SRAM calls.
+        
+        Creates a memory sequence with delays added before all SRAM
+        calls to ensure that boards stay properly synchronized by
+        allowing extra time for slave boards to reach the SRAM
+        synchronization point.  The delay is specified in microseconds.
+        
+        TODO: check for repeated delay calls to make sure delays actually happen
+        """
+        newCmds = []
+        delayCycles = int(delay_us * 25) #memory clock speed is 25MHz
+        assert delayCycles < 0xFFFFF
+        delayCmd = 0x300000 + delayCycles
+        for cmd in cmds:
+            if MemorySequence.getOpcode(cmd) == 0xC: # call SRAM
+                newCmds.append(delayCmd) # add delay
+            newCmds.append(cmd)
+        return newCmds
+    
+    @staticmethod
+    def cmdTime_cycles(cmd):
+        """A conservative estimate of the number of cycles a given command takes.
+        
+        SRAM calls are assumed to take 12us. This is an upper bound.
+        """
+        opcode = MemorySequence.getOpcode(cmd)
+        # noOp, fiber 0 out, fiber 1 out, start/stop timer, sram start addr,
+        # sram end addr
+        if opcode in [0x0, 0x1, 0x2, 0x4, 0x8, 0xA]:
+            return 1
+        #branch to start
+        if opcode == 0xF:
+            return 2
+        #delay
+        if opcode == 0x3:
+            return MemorySequence.getAddress(cmd) + 1
+        #run sram
+        if opcode == 0xC:
+            # TODO: Incorporate SRAMoffset when calculating sequence time.
+            #       This gives a max of up to 12 + 255 us
+            return 25*12 # maximum SRAM length is 12us, with 25 cycles per us
+    
+    @staticmethod
+    def sequenceTime_sec(cmds):
+        """Conservative estimate of the length of a sequence in seconds.
+        
+        cmds - list of numbers: memory commands for GHz DAC
+        """
+        cycles = sum(MemorySequence.cmdTime_cycles(c) for c in cmds)
+        return cycles * 40e-9 # assume 25 MHz clock -> 40 ns per cycle
 
+    @staticmethod
+    def fixSRAMaddresses(mem, sram, device):
+        """Set the addresses of SRAM calls for multiblock sequences.
+        
+        The addresses are set according to the following diagrams:
+        
+        FIG1
+        row1    00000000000000-------||-----00000
+        row2    ^             x     ^||^   x    ^
+        
+        FIG2
+        row1    00000000000000-------|             |-----00000
+        row2    ^             x     ^|    DELAY    |^   x    ^
+        
+        FIG1 shows the physical sram block whereas FIG2 shows the sram as
+        seen by the GHz clock, eg. including the inter-block delay.
+        
+        row1 represents the sram data:
+            0's indicate unused SRAM words
+            -'s indicate used SRAM words
+        row2 shows important points:
+            ^'s indicate the physical start and end points of the SRAM blocks
+            x's indicate where we want the sram to start and stop execution
+        
+        Note that in FIG2 the distance between the starting x and the final x
+        is larger than in FIG1. This means that the final SRAM word occurs at
+        a clock count DELAY later than you would expect given the its
+        _physical_ location in the memory block. This clock count is what
+        matters, so when we write the end address we have to include DELAY,
+        Block0 length + length of signal in block1 + DELAY = endAddr,
+        in other words, endAddr is equal to
+        # of 0s in block0 + # of -'s in block0 + # of -'s in block1 + DELAY
+        """
+        block0Len_words = len(sram[0])/4
+        block1Len_words = len(sram[1])/4
+        delayBlocks = sram[2]
+        if not isinstance(sram, tuple):
+            return mem
+        numSramCalls = sum(MemorySequence.getOpcode(cmd) == 0xC for cmd in mem)
+        if numSramCalls > 1:
+            raise Exception('Only one SRAM call allowed in multi-block sequences.')
+        def fixAddr(cmd):
+            opcode, address = MemorySequence.getOpcode(cmd), MemorySequence.getAddress(cmd)
+            if opcode == 0x8:
+                # SRAM start address
+                address = device.SRAM_BLOCK0_LEN - block0Len_words
+                return (opcode << 20) + address
+            elif opcode == 0xA:
+                # SRAM end address
+                address = device.SRAM_BLOCK0_LEN + block1Len_words \
+                    + device.SRAM_DELAY_LEN * delayBlocks - 1
+                return (opcode << 20) + address
+            else:
+                return cmd
+        return [fixAddr(cmd) for cmd in mem]
+    
+    @staticmethod
+    def timerCount(cmds):
+        """Return the number of timer stops in a memory sequence.
+
+        This should correspond to the number of timing results per
+        repetition of the sequence.  Note that this method does no
+        checking of the timer logic, for example whether every stop
+        has a corresponding start.  That sort of checking is the
+        user's responsibility at this point (if using the qubit server,
+        these things are automatically checked).
+        """
+        return int(sum(np.asarray(cmds) == 0x400001)) # numpy version
+        #return cmds.count(0x400001) # python list version
