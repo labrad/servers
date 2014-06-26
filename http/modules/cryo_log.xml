@@ -1,0 +1,47 @@
+<html xmlns:t="http://twistedmatrix.com/ns/twisted.web.template/0.1">
+<body>
+  <h3> Cryostat status for fridge <span t:render='name'/></h3>
+  <table border="1"><tr><td>
+    <h4>Cryo timers</h4>
+    <table>
+      <tr t:render='timeouts'>
+	<td><t:slot name='name'/></td>
+	<td><t:slot name='time'/></td>
+      </tr>
+    </table>
+    </td><td>
+    <h4>RuOx Temperatures</h4>
+    <table>
+      <tr t:render='RuOx'>
+	<td><t:slot name='channel'/></td>
+	<td><t:slot name='temp'/></td>
+      </tr>
+    </table>
+    </td><td>
+    <h4>Diode Temperatures</h4>
+    <table>
+      <tr t:render='Diode'>
+	<td><t:slot name='channel'/></td>
+	<td><t:slot name='temp'/></td>
+      </tr>
+    </table>
+    </td><td>
+    <h4>Pressures</h4>
+    <table>
+      <tr t:render='MKS'>
+	<td><t:slot name='channel'/></td>
+	<td><t:slot name='pressure'/></td>
+      </tr>
+    </table>
+  </td></tr></table>
+  <h4> Cryogen fill log </h4>
+  Most recent <span t:render='maxentries'/> entries
+  <table border="1">
+    <tr t:render='logentries'>
+      <td><t:slot name='timestamp'/></td>
+      <td><t:slot name='cryo_name'/></td>
+      <td><t:slot name='comments'/></td>
+    </tr>
+  </table>
+</body>
+</html>
