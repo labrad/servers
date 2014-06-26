@@ -38,7 +38,7 @@ from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad.types import Value
 from struct import unpack
-
+from time import sleep
 import numpy, re
 
 COUPLINGS = ['AC', 'DC', 'GND']
@@ -222,11 +222,15 @@ class TektronixDSA8300Server(GPIBManagedServer):
         
     
     #Data acquisition settings
-    @setting(201, channel = 'i', start = 'i', stop = 'i', returns='*v[ns] {time axis} *v[mV] {scope trace}')
-    def get_trace(self, c, channel, start=1, stop=16000, record_length = 16000):
+    @setting(201, channel = 'i', start = 'i', stop = 'i', record_length='i', numavg='i', returns='*v[ns] {time axis} *v[mV] {scope trace}')
+    def get_trace(self, c, channel, start=1, stop=16000, record_length = 16000, numavg=128):
         """Get a trace from the scope.
         OUTPUT - (array voltage in volts, array time in seconds)
         record_length can be 50, 100, 250, 500, 1000, 2000, 4000, 8000, 16000
+        
+        FIXME:  This currently takes as a parameter and sets the number of averages.  It should instead
+        respect the number of averages set by self.average().  I think the scope can be made
+        to do this by fiddling with the ACQUIRE:STOPAFTER series of commands.  -- ERJ
         """
 ##        DATA ENCODINGS
 ##        RIB - signed, MSB first
@@ -237,17 +241,31 @@ class TektronixDSA8300Server(GPIBManagedServer):
         recordLength = stop-start+1
         
         dev = self.selectedDevice(c)
-
+        yield dev.write('ACQUIRE:STATE OFF')
         #DAT:SOU - set waveform source channel
         yield dev.write('DAT:SOU CH%d' %channel)
         #DAT:ENC - data format (binary/ascii)
         yield dev.write('DAT:ENC ASCI')
+        yield dev.write('ACQUIRE:MODE AVERAGE')
+        yield dev.write('ACQUIRE:NUMAVG %d' % numavg)
+        yield dev.write('ACQUIRE:STOPAFTER COUNT %d' % numavg)
+        yield dev.write('ACQUIRE:STOPAFTER:MODE CONDITION')
+        #yield dev.write('ACQUIRE:STOPAFTER:CONDITION AVGComp')
+        yield dev.write('ACQUIRE:DATA:CLEAR')
+        
         #Starting and stopping point
         yield dev.write('DAT:STAR %d' %start)
         yield dev.write('DAT:STOP %d' %stop)
         yield dev.write('HOR:MAI:REC %d' %record_length)
         #Transfer waveform preamble
         position = yield dev.query('HOR:MAI:POS?') # in units of divisions
+        yield dev.write('ACQUIRE:STATE ON')
+        while True:
+            busy = yield dev.query('BUSY?')
+            if '1' in busy:
+                sleep(2)
+            else:
+                break     
         #Transfer waveform data
         stringData = yield dev.query('CURV?')
         trace = numpy.array(stringData.split(','), dtype='float')
