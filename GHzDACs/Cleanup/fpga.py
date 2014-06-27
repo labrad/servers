@@ -18,7 +18,7 @@ LOGGING_PACKET_PATH = os.path.join("U:\\", "daniel", "datataking", "labrad",
 # Safety factor for timeout estimates
 TIMEOUT_FACTOR = 10 #seconds
 
-USE_LOGGING_PACKETS = True
+USE_LOGGING_PACKETS = False
 # if USE_LOGGING_PACKETS:
     # LOGGING_FILE = open(LOGGING_PACKET_PATH, 'w')
 # else:
@@ -107,9 +107,7 @@ class FPGA(DeviceWrapper):
         makePacket = makeLoggingPacket
     else:
         makePacket = _makePacket
-    
-    makePacket = makeLoggingPacket
-    
+        
     
     def collect(self, nPackets, timeout, triggerCtx=None):
         """
