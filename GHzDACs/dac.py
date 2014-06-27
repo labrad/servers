@@ -78,23 +78,18 @@ def macFor(board):
     return '00:01:CA:AA:00:' + ('0'+hex(int(board))[2:])[-2:].upper()
 
 def isMac(mac):
-    """Return True if this mac is for a DAC, otherwise False"""
     return mac.startswith('00:01:CA:AA:00:')
 
 
 # functions to register packets for DAC boards
-# These functions generate numpy arrays of bytes which will be converted
-# to raw byte strings prior to being sent to the direct ethernet server.
 
 def regPing():
-    """Returns a numpy array of register bytes to ping DAC register"""
     regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = 0 #No sequence start
     regs[1] = 1 #Readback after 2us
     return regs    
 
 def regDebug(word1, word2, word3, word4):
-    """Returns as numpy arrya of register bytes to set DAC into debug mode"""
     regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = 2
     regs[1] = 1
@@ -109,8 +104,7 @@ def regRunSram(dev, startAddr, endAddr, loop=True, blockDelay=0, sync=249):
     regs[0] = (3 if loop else 4) #3: continuous, 4: single run
     regs[1] = 0 #No register readback
     regs[13:16] = littleEndian(startAddr, 3) #SRAM start address
-    regs[16:19] = littleEndian(endAddr-1 + dev.buildParams['SRAM_DELAY_LEN'] \
-        * blockDelay, 3) #SRAM end
+    regs[16:19] = littleEndian(endAddr-1 + dev.buildParams['SRAM_DELAY_LEN'] * blockDelay, 3) #SRAM end
     regs[19] = blockDelay
     regs[45] = sync
     return regs
@@ -124,7 +118,6 @@ def regClockPolarity(chan, invert):
     return regs
 
 def regPllReset():
-    """Send reset pulse to 1GHz PLL"""
     regs = np.zeros(REG_PACKET_LEN, dtype='<u1')
     regs[0] = 0
     regs[1] = 1
@@ -185,11 +178,8 @@ def processReadback(resp):
         'executionCounter': (a[53]<<8) + a[52]
     }
 
-def pktWriteSram(device, derp, data, errorCheck=True):
+def pktWriteSram(device, derp, data):
     """A DAC packet to write one derp of SRAM
-    
-    This function converts an array of SRAM words into a byte string
-    appropriate for writing over ethernet to the board.
     
     A derp is 256 words of SRAM, 1024 bytes
     
@@ -200,14 +190,10 @@ def pktWriteSram(device, derp, data, errorCheck=True):
            If less than a full derp is written, the rest of the derp is
            populated with zeros.
     """
-    if errorCheck:
-        assert 0 <= derp < device.buildParams['SRAM_WRITE_DERPS'], \
-            "SRAM derp out of range: %d" % derp
-        assert 0< len(data) <= device.buildParams['SRAM_WRITE_PKT_LEN'], \
-            "Tried to write %d words to SRAM derp"%len(data)
+    assert 0 <= derp < device.buildParams['SRAM_WRITE_DERPS'], "SRAM derp out of range: %d" % derp
+    assert 0< len(data) <= device.buildParams['SRAM_WRITE_PKT_LEN'], "Tried to write %d words to SRAM derp"%len(data)
     data = np.asarray(data)
-    #packet length is data length plus two bytes for write address (derp)
-    pkt = np.zeros(1026, dtype='<u1')
+    pkt = np.zeros(1026, dtype='<u1') #data length plus two bytes for write address (derp)
     #DAC firmware assumes SRAM write address lowest 8 bits = 0, so here
     #we're only setting the middle and high byte. This is good, because
     #it means that each time we increment derp by 1, we increment our
@@ -248,6 +234,7 @@ def pktWriteMem(page, data):
     return pkt
 
 
+
 class DacDevice(DeviceWrapper):
     """Manages communication with a single GHz DAC board.
 
@@ -260,8 +247,7 @@ class DacDevice(DeviceWrapper):
     @inlineCallbacks
     def connect(self, name, group, de, port, board, build):
         """Establish a connection to the board."""
-        print('connecting to DAC board: %s (build #%d)'\
-            % (macFor(board), build))
+        print 'connecting to DAC board: %s (build #%d)' % (macFor(board), build)
 
         self.boardGroup = group
         self.server = de
@@ -370,7 +356,7 @@ class DacDevice(DeviceWrapper):
         # is discarded, so that the trigger command will not be sent.
         #This really reall REALLY bad programming but I don't want to
         #learn Delphi to fix the direct ethernet server. Just be happy
-        #that I put this note here so you know what's going on.
+        #that I put this note here so you know what the hell is going on.
         if triggerCtx is not None:
             p.send_trigger(triggerCtx)
         return p
@@ -416,8 +402,7 @@ class DacDevice(DeviceWrapper):
     def _sendRegisters(self, regs, readback=True, timeout=T.Value(10, 's')):
         """Send a register packet and optionally readback the result.
 
-        If readback is True, the result packet is returned as a string of
-        bytes.
+        If readback is True, the result packet is returned as a string of bytes.
         """
         if not isinstance(regs, np.ndarray):
             regs = np.asarray(regs, dtype='<u1')
@@ -490,11 +475,6 @@ class DacDevice(DeviceWrapper):
         return self.testMode(func)
         
     def initPLL(self):
-        """Initial program  of PLL chip
-        
-        I _believe_ this only has to be run once after the board has been
-        powered on. DTS
-        """
         @inlineCallbacks
         def func():
             yield self._runSerial(1, [0x1FC093, 0x1FC092, 0x100004, 0x000C11])
@@ -551,22 +531,6 @@ class DacDevice(DeviceWrapper):
         return self.testMode(self._setPolarity, chan, invert)
     
     def setLVDS(self, cmd, sd, optimizeSD):
-        """
-        INPUTS
-        cmd - int: 2 for DAC A, 3 for DAC B
-        sd - :
-        optimizeSD - bool:
-        
-        Returns (success, MSD, MHD, t, (range(16), MSDbits, MHDbits), checkHex)
-        success - bool: 
-        MSD - int:
-        MHD - int:
-        t - :
-        range(16)
-        MSDbits - :
-        MHDbits - :
-        checkHes - :
-        """
         @inlineCallbacks
         # See U:\John\ProtelDesigns\GHzDAC_R3_1\Documentation\HardRegProgram.txt
         # for how this function works.
@@ -615,7 +579,6 @@ class DacDevice(DeviceWrapper):
             MHDbits = [bool(answer[i*4+4] & 1) for i in range(16)]
             MSDswitch = [(MSDbits[i+1] != MSDbits[i]) for i in range(15)]
             MHDswitch = [(MHDbits[i+1] != MHDbits[i]) for i in range(15)]
-            #Find first index at which MHD/MSD switch
             leadingEdge = MSDswitch.index(True)
             trailingEdge = MHDswitch.index(True)
             if setMSDMHD:
@@ -778,9 +741,9 @@ class MemorySequence(list):
         1     1     COARSE SLOW
         """
         if fbDac not in [0,1]:
-            raise RuntimeError('fbDac must be 0 or 1')
+            raise Exception('fbDac must be 0 or 1')
         if slow not in [0,1]:
-            raise RuntimeError('slow must be 0 or 1')
+            raise Exception('slow must be 0 or 1')
         a = {0:0x100000,1:0x200000}[fo]
         b = (data & 0xffff) << 3
         c = fbDac << 19

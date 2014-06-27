@@ -63,7 +63,7 @@ class Operation(object):
     def getJumpIndex(self):
         return self._jumpIndex
     def setJumpIndex(self, idx):
-        if JUMP_INDEX_MIN < idx and idx < JUMP_INDEX_MAX:
+        if JUMP_IDX_MIN < idx and idx < JUMP_IDX_MAX:
             self._jumpIndex = idx
         else:
             raise RuntimeError("Must have %s < jump index < %s"%(JUMP_INDEX_MIN, JUMP_INDEX_MAX))
@@ -234,35 +234,10 @@ class JumpTable(object):
 # Unit tests
 
 def testNormal(stopAddr):
-    """Test END function
-    
-    The SRAM block we use to store data
-    
-    ns  || 0         10        20        30
-        || 0123456789012345678901234567890123456789
-    cell|| 0  |1  |2  |3  |4  |5  |6  |7  |8  |9  |
-    data|| ____--------________----____________________
-    table                          End
-    
-    If stopAddr >= 6:
-    The sequence should show a pulse of 8ns length, followed by a gap of 8ns,
-    and then another 4ns pulse. Since the system idles at the same cell as the
-    END command the idle state should be all zero.
-    
-    If stopAddr == 5
-    The system will idle inside the final 4ns pulse, meaning the idle values
-    are high, not zero. The second pulse will not appear to have an end because
-    of this.1
-    
-    We observe in this case that if we specify 1 repetition, the system instead
-    executes many times. Why?
-    
-    If stopAddr==3
-    ???
-    """
-    waveform = np.zeros(256)
-    waveform[4:12] = 0.8
-    waveform[20:24] = 0.8
+    #SRAM steps from 0 to 1020 over 256 ns.
+    #Verticle step size is 4 DAC clicks per sample
+    waveform = np.zeros(256)*1.0
+    waveform = ([0]*8 + [1]*8)*16
     
     jumpEntries = []
     
@@ -278,72 +253,36 @@ def testNormal(stopAddr):
     return waveform, table
 
 def testIdle(cycles):
-    """Single high sample, followed by idle, followed by single high sample
+    """
+    Single high sample, followed by idle, followed by single high sample
     
     RETURNS - (sramBlock, table)
      sramBlock - ndarray: numerical SRAM data, not packed as bytes
      table - JumpTable: jump table object
-    
-    The SRAM block we use to store data
-    ns   || 0         10        20        30        40        50        60
-         || 0123456789012345678901234567890123456789012345678901234567890123
-    cell || 0  |1  |2  |3  |4  |5  |6  |7  |8  |9  |10 |11 |12 |13 |14 |15 |
-    data || ________________________----________________----________________
-    table||                         IDLE                    END
-    
-    The fromAddr for the IDLE command is set to cell number 6. Therefore, you
-    should see a pulse of length (1+cycles)*4ns, followed by 16ns of zeros,
-    followed by a 4ns pulse. The system should then idle with zeros.
     """
+    #The SRAM block we use to store data
+    #0          10       20        30
+    #   |   |   |   |   |   |   |   |   |   |
+    #0123456789012345678901234567890123456789
+    #___________-____________________-_______
+    
     waveform = np.zeros(256)
-    waveform[24:28] = 0.8
-    waveform[44:48] = 0.8
+    waveform[11] = 1    #This is at the end of a 4 word block
+    waveform[32] = 1    #This is at the start of a 4 word block
     
     jumpEntries = []
     
-    #Idle over 6th SRAM cell
+    #Jump from first SRAM section to second one
+    #Run SRAM words 0..11, idle 25 cycles, run words 32..35
     op = IDLE(cycles)
-    fromAddr = 6
+    fromAddr = 5
     toAddr = 0 #Meaningless?
     jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
     
     #End execution
     op = END()
-    fromAddr = 12
+    fromAddr = 40
     toAddr = 0 #Meaningless?
-    jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
-    
-    table = JumpTable(0)
-    table.jumps = jumpEntries
-    
-    return waveform, table
-    
-def testJump():
-    """Test jump function
-    
-    The SRAM block we use to store data
-    ns   || 0         10        20        30        40        50        60
-         || 0123456789012345678901234567890123456789012345678901234567890123
-    cell || 0  |1  |2  |3  |4  |5  |6  |7  |8  |9  |10 |11 |12 |13 |14 |15 |
-    data || ________________________----________________----________________
-    table||                             ^               ^       ^
-                                        Jump            Arrive  End
-    """
-    waveform = np.zeros(256)
-    waveform[24:28] = 0.8
-    waveform[44:48] = 0.8
-    
-    jumpEntries = []
-    
-    #Jump at 6th SRAM cell
-    op = JUMP(2)
-    fromAddr = 6
-    toAddr = 11
-    jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
-    
-    op = END()
-    fromAddr = 13
-    toAddr = 0
     jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
     
     table = JumpTable(0)

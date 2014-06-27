@@ -1,41 +1,6 @@
 import time
-import os
 from twisted.internet import defer
 
-DUMP_NUM = 0
-DEBUG_PATH = os.path.join(os.path.expanduser('~'), 'packet-dump')
-
-TEMP = {
-    'ether_type' : 62 ,
-    'connect' : 10 ,
-    'write' : 65 ,
-    'require_source_mac' : 100 ,
-    'require_length' : 120 ,
-    'send_trigger' : 200 ,
-    'reject_content' : 141 ,
-    'wait_for_trigger' : 201 ,
-    'reject_destination_mac' : 111 ,
-    'destination_mac' : 61 ,
-    'listen' : 20 ,
-    'require_content' : 140 ,
-    'read' : 50 ,
-    'source_mac' : 60 ,
-    'reject_ether_type' : 131 ,
-    'require_destination_mac' : 110 ,
-    'require_ether_type' : 130 ,
-    'clear' : 55 ,
-    'collect' : 40 ,
-    'reject_length' : 121 ,
-    'timeout' : 30 ,
-    'read_as_words' : 51 ,
-    'discard' : 52 ,
-    'adapters' : 1 ,
-    'reject_source_mac' : 101 ,
-}
-
-DIRECT_ETHERNET_SETTINGS = {}
-for key,val in TEMP.items():
-    DIRECT_ETHERNET_SETTINGS[val] = key
 
 def littleEndian(data, bytes=4):
     return [(data >> ofs) & 0xFF for ofs in (0, 8, 16, 24)[:bytes]]
@@ -101,59 +66,3 @@ class TimedLock(object):
             self.addTime(dt)
             d.callback(dt)
 
-
-# class LoggingPacketWrapper(object):
-    # def __init__(self, packet, outFile=None):
-        # self._packet = packet
-        # self.outFile = outFile
-    
-    # def __getattr__(self, name):
-        # return getattr(self._packet, name)
-
-    # def send(self):
-        # if self.outFile:
-            # #self.outFile.write(self._packet._packet.__repr__()+',')
-            # self.outFile.write(self._packet[0][1])
-            # self.outFile.flush()
-            # return self._packet.send()
-        # else:
-            # return self._packet.send()
-
-
-class LoggingPacket(object):
-    def __init__(self, p):
-        self._packet = p
-    
-    def __getattr__(self, name):
-        return getattr(self._packet, name)
-    
-    def send(self):
-        global DUMP_NUM
-        packetType = '-'.join([DIRECT_ETHERNET_SETTINGS[x[0]] for x in self._packet._packet])
-        fname = os.path.join(DEBUG_PATH, 'dac_packet_%d_%s.txt' %(DUMP_NUM, packetType))
-        with open(fname, 'wb') as f:
-            dumpPacketWithHash(f, self._packet)
-        DUMP_NUM += 1
-        return self._packet.send()
-
-
-def dumpPacketWithHash(file, p):
-    print("Dumping Dan-style packet")
-    #toWrite = ''.join([str(x[1]) for x in p._packet])
-    print str(p)
-    toWrite = repr(p)
-    file.write(toWrite)
-    import hashlib
-    m = hashlib.md5()
-    m.update(toWrite)
-    hash = m.digest()
-    file.write('\nMD5 Hash:\n')
-    hash_str = ':'.join('%02X' % (ord(c),) for c in hash)
-    file.write(hash_str)
-
-
-def getPacketInfo(filename="packetLog.txt"):
-    with open(filename) as f:
-        data = f.readlines()[0]
-        data = data.replace('][', '],[')
-        return data
