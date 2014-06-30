@@ -511,7 +511,8 @@ class ADC_Build1(ADC_Branch1):
         Is, Qs = vals.reshape(-1, 2).astype(int).T
         #Parse the IQ data into the following format
         #[(Is ch0, Qs ch0), (Is ch1, Qs ch1),...,(Is chnDemod, Qs chnDemod)]
-        data = [(Is[i::nDemod], Qs[i::nDemod]) for i in xrange(nDemod)]
+        data = (Is, Qs)
+        #data = [(Is[i::nDemod], Qs[i::nDemod]) for i in xrange(nDemod)]
         #data_saved = data
         # compute overall max and min for I and Q
         def getRange(pkt):
@@ -568,8 +569,14 @@ class ADC_Build2(ADC_Build1):
 
 
 fpga.REGISTRY[('ADC', 2)] = ADC_Build2
-fpga.REGISTRY[('ADC', 3)] = ADC_Build2
 
+class AdcRunner_Build3(AdcRunner_Build2):
+    pass
+
+class ADC_Build3(ADC_Build2):
+    RUNNER_CLASS = AdcRunner_Build3
+ 
+fpga.REGISTRY[('ADC', 3)] = ADC_Build3
 
 class AdcRunner_Build4(AdcRunner_Build2):
     def __init__(self, dev, reps, runMode, startDelay, filter, channels,

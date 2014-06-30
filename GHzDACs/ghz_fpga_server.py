@@ -1911,6 +1911,11 @@ class FPGAServer(DeviceServer):
              returns='((*i{I}, *i{Q}), (i{Imax} i{Imin} i{Qmax} i{Qmin}))')
     #@setting(2602, 'ADC Run Demod', returns='*i')
     def adc_run_demod(self, c):
+        '''
+        Run the ADC in demod mode but with no synchronization to the DAC.
+        This runs only a single shot, and returns (*I, *Q) with a single I
+        and Q for each demodulator, and also the max and min of I and Q.
+        '''
         dev = self.selectedADC(c)
         info = c.setdefault(dev, {})
         # Default to full length filter with half full scale amplitude
