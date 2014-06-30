@@ -568,6 +568,7 @@ class ADC_Build2(ADC_Build1):
 
 
 fpga.REGISTRY[('ADC', 2)] = ADC_Build2
+fpga.REGISTRY[('ADC', 3)] = ADC_Build2
 
 
 class AdcRunner_Build4(AdcRunner_Build2):
