@@ -558,9 +558,9 @@ class ADC_Build2(ADC_Build1):
             noPllLatch - bool: True is unlatch, False is latch (I think)
             executionCounter - int: Number of executions since last start
         """
-        raise RuntimeError("Check this function for correctness")
+        #raise RuntimeError("Check this function for correctness")
         a = np.fromstring(resp, dtype='<u1')
-        raise RuntimeError("check parity of pll latch bits")
+        #raise RuntimeError("check parity of pll latch bits")
         return {
             'build': a[0],
             'noPllLatch': a[1]&1 == 1,
@@ -807,5 +807,145 @@ class ADC_Build6(ADC_Build2):
     # Build-specific constants
     DEMOD_CHANNELS = 6
 
-
 fpga.REGISTRY[('ADC', 6)] = ADC_Build6
+
+class ADC_Branch2(ADC):
+    """Superclass for first branch of ADC boards"""
+    
+    # Direct ethernet server packet update methods
+    
+    # @classmethod
+    # def makeFilter(cls, data, p):
+        # """
+        # Update a packet for the ethernet server with SRAM commands to upload
+        # the filter function.
+        # """
+        # for derp in range(cls.FILTER_DERPS):
+            # start = cls.SRAM_WRITE_PKT_LEN * derp
+            # end = start + cls.SRAM_WRITE_PKT_LEN
+            # pkt = cls.pktWriteSram(derp, data[start:end])
+            # p.write(pkt.tostring())
+    
+    # @classmethod
+    # def makeTrigLookups(cls, demods, p):
+        # """
+        # Update a packet for the ethernet server with SRAM commands to upload
+        # Trig lookup tables.
+        # """
+        # derp = 4 # First 4 derps used for filter function
+        # channel = 0
+        # while channel < cls.DEMOD_CHANNELS:
+            # data = []
+            # for ofs in [0, 1]:
+                # ch = channel + ofs
+                # for func in ['cosine', 'sine']:
+                    # if ch in demods:
+                        # d = demods[ch][func]
+                    # else:
+                        # d = np.zeros(cls.LOOKUP_TABLE_LEN, dtype='<u1')
+                    # data.append(d)
+            # data = np.hstack(data)
+            # pkt = cls.pktWriteSram(derp, data)
+            # p.write(pkt.tostring())
+            # channel += 2 # two channels per sram packet
+            # derp += 1 # each sram packet writes one derp
+    
+    @classmethod
+    def makeTretriggerTable(cls, *args):
+        """
+        Page 0 of SRAM has a table defining ADC trigger repetition counts and delays
+        """
+        pass
+    @classmethod
+    def makeMixerTable(cls, *args):
+        """
+        Page 1-12 of SRAM has the mixer tables for demodulators 0-11 respectively.
+        """
+        pass
+        
+    # board communication (can be called from within test mode)
+    
+    @inlineCallbacks
+    def _runSerial(self, data):
+        """Run a command or list of commands through the serial interface."""
+        for d in data:
+            regs = self.regSerial(d)
+            yield self._sendRegisters(regs, readback=False)
+    
+    # Externally available board communication methods
+    # These run in test mode.
+    
+    def recalibrate(self):
+        @inlineCallbacks
+        def func():
+            regs = self.regAdcRecalibrate()
+            yield self._sendRegisters(regs, readback=False)
+        return self.testMode(func)
+    
+    def initPLL(self):
+        @inlineCallbacks
+        def func():
+            yield self._runSerial([0x1FC093, 0x1FC092, 0x100004, 0x000C11])
+        return self.testMode(func)
+    
+    def runCalibrate(self):
+        raise Exception("Depricated. Use recalibrate instead")
+        @inlineCallbacks
+        def func():
+            # build register packet
+            filterFunc=np.zeros(self.FILTER_LEN, dtype='<u1')
+            filterStretchLen=0
+            filterStretchAt=0
+            demods={}
+            regs = self.regRun(RUN_MODE_CALIBRATE, 1, filterFunc,
+                filterStretchLen, filterStretchAt, demods)
+    
+            # create packet for the ethernet server
+            p = self.makePacket()
+            p.write(regs.tostring()) # send registry packet
+            yield p.send() #Send the packet to the direct ethernet server
+            returnValue(None)
+        return self.testMode(func)
+    
+    # Utility
+    
+    @staticmethod
+    def extractAverage(packets):
+        """Extract Average waveform from a list of packets (byte strings)."""
+        
+        data = ''.join(packets)
+        Is, Qs = np.fromstring(data, dtype='<i2').reshape(-1, 2).astype(int).T
+        return (Is, Qs)
+
+class ADC_Build7(ADC_Branch2):
+    """ADC build 7"""
+    
+    RUNNER_CLASS = AdcRunner_Build7
+    
+    # Build-specific constants
+    DEMOD_CHANNELS = 12
+    DEMOD_CHANNELS_PER_PACKET = 11
+    DEMOD_PACKET_LEN = 46
+    DEMOD_TIME_STEP = 2 #ns
+    AVERAGE_PACKETS = 16 #Number of packets per average mode execution
+    AVERAGE_PACKET_LEN = 1024 #bytes
+    SRAM_RETRIGGER_SRAM_PKT_LEN = 1024 # Length of the data portion, not address bytes
+    SRAM_MIXER_SRAM_PKT_LEN = 1024 # Length of the data portion, not address bytes
+    
+    def buildRunner(self, reps, info):
+        """Get a runner for this board"""
+        runMode = info['runMode']
+        startDelay = info['startDelay']
+        channels = dict((i, info[i]) for i in range(self.DEMOD_CHANNELS) \
+                        if i in info)
+        runner = self.RUNNER_CLASS(self, reps, runMode, startDelay, filter,
+                                   channels)
+        return runner
+    
+    def __init__(self, *args, **kw):
+        print "initializing ADC build 7"
+
+class AdcRunner7():
+    pass
+
+fpga.REGISTRY[('ADC', 7)] = ADC_Build7
