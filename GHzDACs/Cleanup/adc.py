@@ -1159,9 +1159,5 @@ class ADC_Build7(ADC_Branch2):
             d(47)	spare [7..0]		   
             '''
             raise RuntimeError('Operation mode %s not implemented / available' % (mode,))
-            
-    def __init__(self, *args, **kw):
-        print "initializing ADC build 7"
-        #self.name = "balls"
 
 fpga.REGISTRY[('ADC', 7)] = ADC_Build7
