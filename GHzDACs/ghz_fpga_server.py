@@ -1163,7 +1163,7 @@ class FPGAServer(DeviceServer):
         d = c.setdefault(dev, {})
         d['mem'] = data
     
-    # ADC configuration
+    # ADC configuration (pre v7)
     
     @setting(40, 'ADC Filter Func', bytes='s', stretchLen='w', stretchAt='w',
                                     returns='')
@@ -1273,18 +1273,8 @@ class FPGAServer(DeviceServer):
         ch = d.setdefault(channel, {})
         ch['dPhi'] = dPhi
         ch['phi0'] = phi0
-    
-    @setting(43, 'ADC Trigger Table', data='*(i,i)', returns='')
-    def adc_trigger_table(self, c, data):
-        """
-        Set the ADC trigger table
-        
-        data: A list of (count, delay) tuples.
-        """
-        dev = self.selectedADC(c)
-        d = c.setdefault(dev, {})
-        d['triggerTable'] = data
-    
+
+
     @setting(44, 'ADC Run Mode', mode='s', returns='')
     def adc_run_mode(self, c, mode):
         """
@@ -1315,6 +1305,29 @@ class FPGAServer(DeviceServer):
         """
         dev = self.selectedADC(c)
         return c[dev]['ranges']
+
+    # ADC configuration (v7)
+        
+    @setting(47, 'ADC Trigger Table', data='*(i, i, i, i)', returns='')
+    def adc_trigger_table(self, c, data):
+        """
+        Set the ADC trigger table
+        
+        data: A list of (count, delay, length, rchan) tuples, one per jump table entry
+        """
+        dev = self.selectedADC(c)
+        info = c.setdefault(dev, {})
+        info['triggerTable'] = data
+    
+    @setting(48, 'ADC Mixer Table', channel='w', data='*2i {Nx2 array of IQ values}')
+    def adc_mixer_table(self, c, channel, data):
+        """
+        Set the ADC mixer table for a given demodulator channel
+        """
+        dev = self.selectedADC(c)
+        info = c.setdefault(dev, {})
+        channel = info.setdefault(channel, {})
+        channel['mixTable'] = data
 
     # multiboard sequence execution
 

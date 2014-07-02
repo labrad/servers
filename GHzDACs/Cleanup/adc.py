@@ -814,44 +814,8 @@ class ADC_Branch2(ADC):
     
     # Direct ethernet server packet update methods
     
-    # @classmethod
-    # def makeFilter(cls, data, p):
-        # """
-        # Update a packet for the ethernet server with SRAM commands to upload
-        # the filter function.
-        # """
-        # for derp in range(cls.FILTER_DERPS):
-            # start = cls.SRAM_WRITE_PKT_LEN * derp
-            # end = start + cls.SRAM_WRITE_PKT_LEN
-            # pkt = cls.pktWriteSram(derp, data[start:end])
-            # p.write(pkt.tostring())
-    
-    # @classmethod
-    # def makeTrigLookups(cls, demods, p):
-        # """
-        # Update a packet for the ethernet server with SRAM commands to upload
-        # Trig lookup tables.
-        # """
-        # derp = 4 # First 4 derps used for filter function
-        # channel = 0
-        # while channel < cls.DEMOD_CHANNELS:
-            # data = []
-            # for ofs in [0, 1]:
-                # ch = channel + ofs
-                # for func in ['cosine', 'sine']:
-                    # if ch in demods:
-                        # d = demods[ch][func]
-                    # else:
-                        # d = np.zeros(cls.LOOKUP_TABLE_LEN, dtype='<u1')
-                    # data.append(d)
-            # data = np.hstack(data)
-            # pkt = cls.pktWriteSram(derp, data)
-            # p.write(pkt.tostring())
-            # channel += 2 # two channels per sram packet
-            # derp += 1 # each sram packet writes one derp
-    
     @classmethod
-    def makeTretriggerTable(cls, *args):
+    def makeTriggerTable(cls, *args):
         """
         Page 0 of SRAM has a table defining ADC trigger repetition counts and delays
         """
@@ -888,25 +852,6 @@ class ADC_Branch2(ADC):
             yield self._runSerial([0x1FC093, 0x1FC092, 0x100004, 0x000C11])
         return self.testMode(func)
     
-    def runCalibrate(self):
-        raise Exception("Depricated. Use recalibrate instead")
-        @inlineCallbacks
-        def func():
-            # build register packet
-            filterFunc=np.zeros(self.FILTER_LEN, dtype='<u1')
-            filterStretchLen=0
-            filterStretchAt=0
-            demods={}
-            regs = self.regRun(RUN_MODE_CALIBRATE, 1, filterFunc,
-                filterStretchLen, filterStretchAt, demods)
-    
-            # create packet for the ethernet server
-            p = self.makePacket()
-            p.write(regs.tostring()) # send registry packet
-            yield p.send() #Send the packet to the direct ethernet server
-            returnValue(None)
-        return self.testMode(func)
-    
     # Utility
     
     @staticmethod
@@ -938,14 +883,246 @@ class ADC_Build7(ADC_Branch2):
         startDelay = info['startDelay']
         channels = dict((i, info[i]) for i in range(self.DEMOD_CHANNELS) \
                         if i in info)
-        runner = self.RUNNER_CLASS(self, reps, runMode, startDelay, filter,
+        runner = self.RUNNER_CLASS(self, reps, runMode, startDelay,
                                    channels)
         return runner
     
+    @classmethod
+    def regRun(cls, mode, reps, filterFunc, filterStretchAt,
+                  filterStretchLen, demods, startDelay=0):
+        """Returns a numpy array of register bytes to run the board
+        Register Write:
+        These registers control the AD functions.  This card is always set in slave mode for daisychain initiation of AD functions (see GHzDAC board).  
+
+        l(1)	length[15..8]		set to 0  ; ( length[15..0] = 59 )
+        l(2)	length[7..0]		set to 59
+
+        d(1)	start[7..0]     Output & command function
+                                0 = off
+                                1 = register readback
+                                2 = average mode, auto start (use n=1)
+                                3 = average mode, daisychain start
+                                4 = demodulator mode, auto start (use n=1)
+                                5 = demodulator mode, daisychain start
+                                6 = set PLL of 1GHz clock with ser[23..0], no readback
+                                7 = recalibrate AD converters, no readback
+        d(2)	startdelay[7..0]	Start delay after daisychain signal, compensates for dchain delays 
+        d(3)	startdelay[15..8]	  Note longer delays than for GHzDAC
+        d(4) 	ser1[7..0]		8 lowest PLL bits of serial interface 
+        d(5)	ser2[7..0]		8 middle PLL bits
+        d(6)	ser3[7..0]		8 highest PLL bits
+        d(7)	spare
+
+        d(8)	n[7..0]			n = Number of averages in average mode
+        d(9)	n[15..8]		n = Number of total events in demodulator mode
+        d(10)	bitflip[7..0]		XOR mask for bit readout	
+        d(11)	mon0[7..0] 		SMA mon0 and mon1 programming, like DAC board
+        d(12)	mon1[7..0] 	
+        …
+        d(59)	spare	
+        
+        """
+        regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
+        regs[0] = mode
+        regs[1:3] = littleEndian(startDelay, 2) #Daisychain delay
+        regs[7:9] = littleEndian(reps, 2)       #Number of repetitions
+        
+        regs[9] = littleEndian(0, 1) #XOR bit flip mask
+        regs[10:12] = littleEndian(0, 2) #SMA monitor channels
+        
+        return regs
+    
+    # Direct ethernet server packet creation methods
+    
+    def setup(self, info, demods):
+        mixTables, triggerTable = info
+        p = self.makePacket()
+        self.makeTriggerTable(triggerTable, p)
+        self.makeMixTable(mixTables, p)
+
+        mixTableState = " ".join(['mixTable%d=%s' % (idx, mixTables[idx]) for idx in len(mixTables) ])
+        setupState = '%s: mixTable%d=%s %=%s, trigAmps=%s' % (self.devName, \
+            filterFunc.tostring(), amps)
+        return p, setupState
+    
+    # Direct ethernet server packet update methods
+    
+    # board communication (can be called from within test mode)
+    
+    @inlineCallbacks
+    def _sendSRAM(self, filter, demods={}):
+        """Write filter and sine table SRAM to the FPGA."""
+        #Raise exception to see what's calling this method
+        raise RuntimeError("_sendSRAM was called")
+        p = self.makePacket()
+        self.makeFilter(filter, p)
+        self.makeTrigLookups(demods, p)
+        yield p.send()
+    
+    # Externally available board communication methods
+    # These run in test mode.
+    
+    def runAverage(self, filterFunc, filterStretchLen, filterStretchAt,
+                   demods):
+        @inlineCallbacks
+        def func():
+            # build registry packet
+            regs = self.regRun(self, self.RUN_MODE_AVERAGE_AUTO, 1, filterFunc,
+                filterStretchLen, filterStretchAt, demods)
+            
+            p = self.makePacket()
+            p.write(regs.tostring())
+            p.timeout(T.Value(10, 's'))
+            p.read(self.AVERAGE_PACKETS)
+            ans = yield p.send()
+                    
+            # parse the packets out and return data
+            packets = [data for src, dst, eth, data in ans.read]
+            returnValue(self.extractAverage(packets))
+            
+        return self.testMode(func)
+    
+    def runDemod(self, filterFunc, filterStretchLen, filterStretchAt, demods):
+        @inlineCallbacks
+        def func():
+            # build register packet
+            regs = self.regRun(self.RUN_MODE_DEMOD_AUTO, 1, filterFunc,
+                filterStretchLen, filterStretchAt, demods)
+    
+            # create packet for the ethernet server
+            p = self.makePacket()
+            self.makeFilter(filterFunc, p) # upload filter function
+            # upload trig lookup tables, cosine and sine for each demod
+            # channel
+            self.makeTrigLookups(demods, p)
+            p.write(regs.tostring()) # send registry packet
+            p.timeout(T.Value(10, 's')) # set a conservative timeout
+            p.read(1) # read back one demodulation packet
+            ans = yield p.send() #Send the packet to the direct ethernet
+            # server parse the packets out and return data. packets is a list
+            # of 48-byte strings
+            packets = [data for src, dst, eth, data in ans.read]
+            returnValue(self.extractDemod(packets,
+                self.DEMOD_CHANNELS_PER_PACKET))
+            
+        return self.testMode(func)
+    
+    # Utility
+    
+    @staticmethod
+    def processReadback(resp):
+        """Process byte string returned by ADC register readback
+        
+        Returns a dict with following keys
+            build - int: the build number of the board firmware
+            noPllLatch - bool: True is unlatch, False is latch (I think)
+            executionCounter - int: Number of executions since last start
+            
+        Register Readback:
+        Registers are readback according to the above data fields and additional bytes given here.  Length of readback = 46.
+
+        d(1)	build[7..0]		Build number of FPGA code.  
+        d(2) 	clockmon[7..0]	bit0 = NOT(LED1 light) = no PLL in external 1GHz clock 
+                                                bit1=dclkA output (phase of data stream)
+                                bit2=dclkA delayed 1ns output
+                                bit3=dclkB output
+                                bit4=dclkB delayed 1ns output
+        d(3)	trigs[7..0]		Count of number of triggers (same as DAC sramcount) 
+        d(4) 	trigs[15..8]	 	  reset with start=2,3,4,5
+        d(5) 	npackets[7..0]		Counter of number of packets received (reg and SRAM)
+        d(6)	badpackets[7..0]	Number of packets received with bad CRC 
+        d(7)	spare
+        …
+        d(46)	spare[7..0]		set to 0	
+        """
+        
+        a = np.fromstring(resp, dtype='<u1')
+        return {
+            'build': a[0],
+            'noPllLatch': a[1]&1 == 1,
+            'trigCount': a[2] + a[3]<<8,
+            'nPackets': a[4],
+            'badPackets': a[5]
+        }
+    
+    @staticmethod
+    def extractDemod(packets, nDemod, mode):
+        """Extract Demodulation data from a list of packets (byte strings).
+        
+        After demodulation is done on each retrigger, demodulator output is put
+        into a FIFO from channel 0 to numchan[7..0]-1.  Once 11 channels are
+        in FIFO (44 bytes), or end of all retriggering, the ethernet packet is
+        sent by pulling bytes out of FIFO, 44 bytes per output event.  Use
+        numchan[7..0]=11 to read back every AD retrigger, since the writing of
+        44 bytes will immediately trigger a FIFO read.  
+
+        The FIFO stores 8192 bytes of data, or 186 packets.  This should be fine except for really long sequences.  If you have many retriggers that are closely spaced, with large number channels, the FIFO will overflow before having a chance to release the data.  The total Ethernet transmission time for one packet is around 5 us.  We have halved the averager size to 8 us to have larger FIFO memory.    
+
+        When returning these packets, there is a running count from the end bytes countpack[7..0] and countrb[15..0] that increases for each packet.  This data enables one to check if any packets were missed or to check for their ordering.    
+
+        l(0)	length[15..8]		set to 0
+        l(1)	length[7..0]		set to 48
+
+        d(0)	Idemod0[7..0]		First channel ; Low byte of demodulator sum
+        d(1)	Idemod0[15..8]		        High byte
+        d(2)	Qdemod0[7..0]	First channel ; Quadrature output
+        d(3)	Qdemod0[15..8]
+        …
+        d(4)	Idemod1[7..0]		Second channel
+        d(5)	Idemod1[15..8]	
+        d(6)	Qdemod1[7..0]	
+        d(7)	Qdemod1[15..8]
+        …
+        d(40)	Idemod10[7..0]	11th channel
+        d(41)	Idemod10[15..8]	
+        d(42)	Qdemod10[7..0]	
+        d(43)	Qdemod10[15..8]
+
+        d(44)	countrb[7..0]		Running count of readback number since last start
+        d(45)	countrb[15..8]		1st readback has countrb=1
+        d(46)	countpack[7..0]	Packet counter, reset on start
+        d(47)	spare [7..0]		
+
+        """
+        #stick all data strings in packets together, chopping out last 4 bytes
+        #from each string
+        data = ''.join(data[:44] for data in packets)
+        pktCounters = [ data[46] for data in packets ]
+        readbackCounters = [ data[44] + data[45]<<8 for data in packets ]
+        if mode=='iq':
+            vals = np.fromstring(data, dtype='<i2') # Convert to 16-bit int array
+            # Slowest varying index: time step, next slowest index : demodulator, fastest index: I vs Q
+            #  Transpose first two indices to make demodulator first index 
+            # Iq0[t=0], Qq0[t=0], Iq1[t=0], Qq1[t=0], Iq0[t=1], Qq0[t=1], Iq1[t=1], Qq1[t=1]
+            #    
+            #     goes to:
+            # data[qubit, time_step, (I=0 | Q=1)]           
+            
+            data = vals.reshape(-1 , nDemod, 2).astype(int).transpose((1, 0, 2))
+            return (data, pktCounters, readbackCounters)
+        else:
+            '''
+            In bit readout mode, use rchan[7..0]=0.  Readout is only the sign bit of channels 0 to 7; one byte readout is designed for compactness to minimize number of Ethernet packets.  The bit is 0 if real quadrature of the channel is positive.  Bit is flipped with XOR mask bitflip[7..0] defined in register write.  Order of bits in output byte is [ch7..ch0].
+
+            l(0)	length[15..8]		set to 0
+            l(1)	length[7..0]		set to 48
+
+            d(0)	bits1[7..0]		1st bitstring
+            d(1)	bits2[7..0]		2nd bitstring
+            …	
+            d(43)	bits44[7..0]		44th bitstring
+
+            d(44)	countrb[7..0]		Running count of triggers since last start
+            d(45)	countrb[15..8]		   1st readback has countrb=1
+            d(46)	countpack[7..0]	Packet counter for retriggering, reset when countrb incr
+            d(47)	spare [7..0]		   
+            '''
+            raise RuntimeError('Operation mode %s not implemented / available' % (mode,))
+            
     def __init__(self, *args, **kw):
         print "initializing ADC build 7"
 
-class AdcRunner7():
+class AdcRunner_Build7():
     pass
 
 fpga.REGISTRY[('ADC', 7)] = ADC_Build7
