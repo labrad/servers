@@ -809,8 +809,53 @@ class ADC_Build6(ADC_Build2):
 
 fpga.REGISTRY[('ADC', 6)] = ADC_Build6
 
+class AdcRunner_Build7(AdcRunner_Build4):
+    def __init__(self, dev, reps, runMode, startDelay, channels, 
+                 triggerTable, mixerTable):
+        self.dev = dev
+        self.reps = reps
+        self.runMode = runMode
+        self.startDelay = startDelay
+        self.channels = channels
+        self.triggerTable = triggerTable
+        self.mixerTable = mixerTable
+        
+        if self.runMode == 'average':
+            self.mode = self.dev.RUN_MODE_AVERAGE_DAISY
+            self.nPackets = self.dev.AVERAGE_PACKETS
+        elif self.runMode == 'demodulate':
+            self.mode = self.dev.RUN_MODE_DEMOD_DAISY
+            raise RuntimeError("Following line is probably wrong")
+            self.nPackets = reps
+        else:
+            raise Exception("Unknown run mode '%s' for board '%s'" \
+                % (self.runMode, self.dev.devName))
+        # 16us acquisition time + 10us packet transmit.
+        # Not sure why the extra +1 is here
+        raise RuntimeError("Following line is probably wrong")
+        self.seqTime = fpga.TIMEOUT_FACTOR * (26E-6 * self.reps) + 1
+    
+    def loadPacket(self, page, isMaster):
+        """Create pipelined load packet. For ADC this is the trigger table."""
+        if isMaster:
+            raise Exception("Cannot use ADC board '%s' as master." \
+                % self.dev.devName)
+        return self.dev.load(self.triggerTable)
+    
+    def runPacket(self, page, slave, delay, sync):
+        """Create run packet.
+        
+        The unused arguments page, slave, and sync, in the call signature
+        are there so that we could use the same call for DACs and ADCs.
+        This is cheesey and ought to be fixed.
+        """
+        
+        startDelay = self.startDelay + delay
+        regs = self.dev.regRun(self.mode, self.reps, startDelay=startDelay)
+        return regs    
+
 class ADC_Branch2(ADC):
-    """Superclass for first branch of ADC boards"""
+    """Superclass for second branch of ADC boards"""
     
     # Direct ethernet server packet update methods
     
@@ -910,7 +955,7 @@ class ADC_Build7(ADC_Branch2):
         d(1)	startdelay[7..0]	Start delay after daisychain signal, compensates for dchain delays 
         d(2)	startdelay[15..8]	  Note longer delays than for GHzDAC
         d(3) 	ser1[7..0]		8 lowest PLL bits of serial interface 
-        d(4)	ser2[7..0]		8 middle PLL bits
+        d(4)	ser2[7..0]		8  middle PLL bits
         d(5)	ser3[7..0]		8 highest PLL bits
         d(6)	spare
 
@@ -919,7 +964,7 @@ class ADC_Build7(ADC_Branch2):
         d(9)	bitflip[7..0]		XOR mask for bit readout	
         d(10)	mon0[7..0] 		SMA mon0 and mon1 programming, like DAC board
         d(11)	mon1[7..0] 	
-        …
+        ...
         d(58)	spare	
         
         """
@@ -963,13 +1008,11 @@ class ADC_Build7(ADC_Branch2):
     # Externally available board communication methods
     # These run in test mode.
     
-    def runAverage(self, filterFunc, filterStretchLen, filterStretchAt,
-                   demods):
+    def runAverage(self):
         @inlineCallbacks
         def func():
             # build registry packet
-            regs = self.regRun(self, self.RUN_MODE_AVERAGE_AUTO, 1, filterFunc,
-                filterStretchLen, filterStretchAt, demods)
+            regs = self.regRun(self, self.RUN_MODE_AVERAGE_AUTO, 1)
             
             p = self.makePacket()
             p.write(regs.tostring())
@@ -983,28 +1026,25 @@ class ADC_Build7(ADC_Branch2):
             
         return self.testMode(func)
     
-    def runDemod(self, filterFunc, filterStretchLen, filterStretchAt, demods):
+    def runDemod(self, triggerTable, mixerTable, demods, mode):
         @inlineCallbacks
         def func():
             # build register packet
-            regs = self.regRun(self.RUN_MODE_DEMOD_AUTO, 1, filterFunc,
-                filterStretchLen, filterStretchAt, demods)
+            regs = self.regRun(self.RUN_MODE_DEMOD_AUTO, 1, filterFunc)
     
             # create packet for the ethernet server
             p = self.makePacket()
-            self.makeFilter(filterFunc, p) # upload filter function
-            # upload trig lookup tables, cosine and sine for each demod
-            # channel
-            self.makeTrigLookups(demods, p)
+            self.makeTriggerTable(triggerTable,p)
+            self.makeMixerTable(mixerTable,p)
             p.write(regs.tostring()) # send registry packet
             p.timeout(T.Value(10, 's')) # set a conservative timeout
-            p.read(1) # read back one demodulation packet
+            p.read(1) # read back one demodulation packet (?)
             ans = yield p.send() #Send the packet to the direct ethernet
             # server parse the packets out and return data. packets is a list
             # of 48-byte strings
             packets = [data for src, dst, eth, data in ans.read]
             returnValue(self.extractDemod(packets,
-                self.DEMOD_CHANNELS_PER_PACKET))
+                self.DEMOD_CHANNELS_PER_PACKET, mode))
             
         return self.testMode(func)
     
@@ -1033,7 +1073,7 @@ class ADC_Build7(ADC_Branch2):
         d(5) 	npackets[7..0]		Counter of number of packets received (reg and SRAM)
         d(6)	badpackets[7..0]	Number of packets received with bad CRC 
         d(7)	spare
-        …
+        ...
         d(46)	spare[7..0]		set to 0	
         """
         
@@ -1044,7 +1084,7 @@ class ADC_Build7(ADC_Branch2):
             'trigCount': a[2] + a[3]<<8,
             'nPackets': a[4],
             'badPackets': a[5]
-            }
+            } 
     
     @staticmethod
     def extractDemod(packets, nDemod, mode):
@@ -1068,12 +1108,12 @@ class ADC_Build7(ADC_Branch2):
         d(1)	Idemod0[15..8]		        High byte
         d(2)	Qdemod0[7..0]	First channel ; Quadrature output
         d(3)	Qdemod0[15..8]
-        …
+        ...
         d(4)	Idemod1[7..0]		Second channel
         d(5)	Idemod1[15..8]	
         d(6)	Qdemod1[7..0]	
         d(7)	Qdemod1[15..8]
-        …
+        ...
         d(40)	Idemod10[7..0]	11th channel
         d(41)	Idemod10[15..8]	
         d(42)	Qdemod10[7..0]	
@@ -1110,7 +1150,7 @@ class ADC_Build7(ADC_Branch2):
 
             d(0)	bits1[7..0]		1st bitstring
             d(1)	bits2[7..0]		2nd bitstring
-            …	
+            ...	
             d(43)	bits44[7..0]		44th bitstring
 
             d(44)	countrb[7..0]		Running count of triggers since last start
@@ -1122,51 +1162,6 @@ class ADC_Build7(ADC_Branch2):
             
     def __init__(self, *args, **kw):
         print "initializing ADC build 7"
-
-class AdcRunner_Build7(AdcRunner_Build4):
-    def __init__(self, dev, reps, runMode, startDelay, channels, 
-                 triggerTable, mixerTable):
-        self.dev = dev
-        self.reps = reps
-        self.runMode = runMode
-        self.startDelay = startDelay
-        self.channels = channels
-        self.triggerTable = triggerTable
-        self.mixerTable = mixerTable
-        
-        if self.runMode == 'average':
-            self.mode = self.dev.RUN_MODE_AVERAGE_DAISY
-            self.nPackets = self.dev.AVERAGE_PACKETS
-        elif self.runMode == 'demodulate':
-            self.mode = self.dev.RUN_MODE_DEMOD_DAISY
-            raise RuntimeError("Following line is probably wrong")
-            self.nPackets = reps
-        else:
-            raise Exception("Unknown run mode '%s' for board '%s'" \
-                % (self.runMode, self.dev.devName))
-        # 16us acquisition time + 10us packet transmit.
-        # Not sure why the extra +1 is here
-        raise RuntimeError("Following line is probably wrong")
-        self.seqTime = fpga.TIMEOUT_FACTOR * (26E-6 * self.reps) + 1
-    
-    def loadPacket(self, page, isMaster):
-        """Create pipelined load packet. For ADC this is the trigger table."""
-        if isMaster:
-            raise Exception("Cannot use ADC board '%s' as master." \
-                % self.dev.devName)
-        return self.dev.load(self.triggerTable)
-    
-    def runPacket(self, page, slave, delay, sync):
-        """Create run packet.
-        
-        The unused arguments page, slave, and sync, in the call signature
-        are there so that we could use the same call for DACs and ADCs.
-        This is cheesey and ought to be fixed.
-        """
-        
-        startDelay = self.startDelay + delay
-        regs = self.dev.regRun(self.mode, self.reps, startDelay=startDelay)
-        return regs    
-        
+        #self.name = "balls"
 
 fpga.REGISTRY[('ADC', 7)] = ADC_Build7

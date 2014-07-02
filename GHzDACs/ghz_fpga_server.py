@@ -1897,15 +1897,9 @@ class FPGAServer(DeviceServer):
         """
         dev = self.selectedADC(c)
         info = c.setdefault(dev, {})
-        filterFunc = info.get('filterFunc', np.array([255], dtype='<u1'))
-        # Default to no stretch
-        filterStretchLen = info.get('filterStretchLen', 0)
-        # Default to stretch at 0
-        filterStretchAt = info.get('filterStretchAt', 0)
-        demods = dict((i, info[i]) for i in \
-            range(dev.DEMOD_CHANNELS) if i in info)
-        ans = yield dev.runAverage(filterFunc, filterStretchLen,
-                                   filterStretchAt, demods)
+        #demods = dict((i, info[i]) for i in \
+        #    range(dev.DEMOD_CHANNELS) if i in info)
+        ans = yield dev.runAverage()
         returnValue(ans)
     
     @setting(2601, 'ADC Run Calibrate', returns='')
@@ -1942,8 +1936,7 @@ class FPGAServer(DeviceServer):
         filterStretchAt = info.get('filterStretchAt', 0)
         demods = dict((i, info[i]) for i in \
             range(dev.DEMOD_CHANNELS) if i in info)
-        ans = yield dev.runDemod(filterFunc, filterStretchLen,
-                                 filterStretchAt, demods)
+        ans = yield dev.runDemod(triggerTable, mixerTable, demods, mode)
         returnValue(ans)
     
     @setting(2700, 'ADC Bringup', returns='')
