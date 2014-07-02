@@ -972,8 +972,7 @@ class ADC_Build7(ADC_Branch2):
         regs[0] = mode
         regs[1:3] = littleEndian(startDelay, 2) #Daisychain delay
         regs[7:9] = littleEndian(reps, 2)       #Number of repetitions
-        
-        regs[9] = littleEndian(0, 1) #XOR bit flip mask
+        regs[9] = littleEndian(0, 1)[0] #XOR bit flip mask
         regs[10:12] = littleEndian(0, 2) #SMA monitor channels
         
         return regs
@@ -1012,7 +1011,7 @@ class ADC_Build7(ADC_Branch2):
         @inlineCallbacks
         def func():
             # build registry packet
-            regs = self.regRun(self, self.RUN_MODE_AVERAGE_AUTO, 1)
+            regs = self.regRun(self.RUN_MODE_AVERAGE_AUTO, 1)
             
             p = self.makePacket()
             p.write(regs.tostring())
