@@ -881,23 +881,24 @@ class ADC_Build7(ADC_Branch2):
         """Get a runner for this board"""
         runMode = info['runMode']
         startDelay = info['startDelay']
+        triggerTable = info['triggerTable']
+        mixerTable = info['mixerTable']
         channels = dict((i, info[i]) for i in range(self.DEMOD_CHANNELS) \
                         if i in info)
         runner = self.RUNNER_CLASS(self, reps, runMode, startDelay,
-                                   channels)
+                                   channels, triggerTable, mixerTable)
         return runner
     
     @classmethod
-    def regRun(cls, mode, reps, filterFunc, filterStretchAt,
-                  filterStretchLen, demods, startDelay=0):
+    def regRun(cls, mode, reps, startDelay=0):
         """Returns a numpy array of register bytes to run the board
         Register Write:
         These registers control the AD functions.  This card is always set in slave mode for daisychain initiation of AD functions (see GHzDAC board).  
 
-        l(1)	length[15..8]		set to 0  ; ( length[15..0] = 59 )
-        l(2)	length[7..0]		set to 59
+        l(0)	length[15..8]		set to 0  ; ( length[15..0] = 59 )
+        l(1)	length[7..0]		set to 59
 
-        d(1)	start[7..0]     Output & command function
+        d(0)	start[7..0]     Output & command function
                                 0 = off
                                 1 = register readback
                                 2 = average mode, auto start (use n=1)
@@ -906,20 +907,20 @@ class ADC_Build7(ADC_Branch2):
                                 5 = demodulator mode, daisychain start
                                 6 = set PLL of 1GHz clock with ser[23..0], no readback
                                 7 = recalibrate AD converters, no readback
-        d(2)	startdelay[7..0]	Start delay after daisychain signal, compensates for dchain delays 
-        d(3)	startdelay[15..8]	  Note longer delays than for GHzDAC
-        d(4) 	ser1[7..0]		8 lowest PLL bits of serial interface 
-        d(5)	ser2[7..0]		8 middle PLL bits
-        d(6)	ser3[7..0]		8 highest PLL bits
-        d(7)	spare
+        d(1)	startdelay[7..0]	Start delay after daisychain signal, compensates for dchain delays 
+        d(2)	startdelay[15..8]	  Note longer delays than for GHzDAC
+        d(3) 	ser1[7..0]		8 lowest PLL bits of serial interface 
+        d(4)	ser2[7..0]		8 middle PLL bits
+        d(5)	ser3[7..0]		8 highest PLL bits
+        d(6)	spare
 
-        d(8)	n[7..0]			n = Number of averages in average mode
-        d(9)	n[15..8]		n = Number of total events in demodulator mode
-        d(10)	bitflip[7..0]		XOR mask for bit readout	
-        d(11)	mon0[7..0] 		SMA mon0 and mon1 programming, like DAC board
-        d(12)	mon1[7..0] 	
+        d(7)	n[7..0]			n = Number of averages in average mode
+        d(8)	n[15..8]		n = Number of total events in demodulator mode
+        d(9)	bitflip[7..0]		XOR mask for bit readout	
+        d(10)	mon0[7..0] 		SMA mon0 and mon1 programming, like DAC board
+        d(11)	mon1[7..0] 	
         …
-        d(59)	spare	
+        d(58)	spare	
         
         """
         regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
@@ -939,11 +940,11 @@ class ADC_Build7(ADC_Branch2):
         p = self.makePacket()
         self.makeTriggerTable(triggerTable, p)
         self.makeMixTable(mixTables, p)
-
+        
+        triggerTableState = " ".join(['triggerTableState%d=%s' % (idx, triggerTable[idx]) for idx in len(triggerTable) ])
         mixTableState = " ".join(['mixTable%d=%s' % (idx, mixTables[idx]) for idx in len(mixTables) ])
-        setupState = '%s: mixTable%d=%s %=%s, trigAmps=%s' % (self.devName, \
-            filterFunc.tostring(), amps)
-        return p, setupState
+
+        return p, setupState, mixTableState
     
     # Direct ethernet server packet update methods
     
@@ -1043,7 +1044,7 @@ class ADC_Build7(ADC_Branch2):
             'trigCount': a[2] + a[3]<<8,
             'nPackets': a[4],
             'badPackets': a[5]
-        }
+            }
     
     @staticmethod
     def extractDemod(packets, nDemod, mode):
@@ -1122,7 +1123,50 @@ class ADC_Build7(ADC_Branch2):
     def __init__(self, *args, **kw):
         print "initializing ADC build 7"
 
-class AdcRunner_Build7():
-    pass
+class AdcRunner_Build7(AdcRunner_Build4):
+    def __init__(self, dev, reps, runMode, startDelay, channels, 
+                 triggerTable, mixerTable):
+        self.dev = dev
+        self.reps = reps
+        self.runMode = runMode
+        self.startDelay = startDelay
+        self.channels = channels
+        self.triggerTable = triggerTable
+        self.mixerTable = mixerTable
+        
+        if self.runMode == 'average':
+            self.mode = self.dev.RUN_MODE_AVERAGE_DAISY
+            self.nPackets = self.dev.AVERAGE_PACKETS
+        elif self.runMode == 'demodulate':
+            self.mode = self.dev.RUN_MODE_DEMOD_DAISY
+            raise RuntimeError("Following line is probably wrong")
+            self.nPackets = reps
+        else:
+            raise Exception("Unknown run mode '%s' for board '%s'" \
+                % (self.runMode, self.dev.devName))
+        # 16us acquisition time + 10us packet transmit.
+        # Not sure why the extra +1 is here
+        raise RuntimeError("Following line is probably wrong")
+        self.seqTime = fpga.TIMEOUT_FACTOR * (26E-6 * self.reps) + 1
+    
+    def loadPacket(self, page, isMaster):
+        """Create pipelined load packet. For ADC this is the trigger table."""
+        if isMaster:
+            raise Exception("Cannot use ADC board '%s' as master." \
+                % self.dev.devName)
+        return self.dev.load(self.triggerTable)
+    
+    def runPacket(self, page, slave, delay, sync):
+        """Create run packet.
+        
+        The unused arguments page, slave, and sync, in the call signature
+        are there so that we could use the same call for DACs and ADCs.
+        This is cheesey and ought to be fixed.
+        """
+        
+        startDelay = self.startDelay + delay
+        regs = self.dev.regRun(self.mode, self.reps, startDelay=startDelay)
+        return regs    
+        
 
 fpga.REGISTRY[('ADC', 7)] = ADC_Build7
