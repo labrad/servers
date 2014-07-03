@@ -1312,12 +1312,13 @@ class FPGAServer(DeviceServer):
 
     # ADC configuration (v7)
         
-    @setting(47, 'ADC Trigger Table', data='*(i, i, i, i)', returns='')
+    @setting(47, 'ADC Trigger Table', data='*(i, i, i)', returns='')
     def adc_trigger_table(self, c, data):
         """
         Set the ADC trigger table
         
-        data: A list of (count, delay, length, rchan) tuples, one per jump table entry
+        data: A list of (count, delay, length) tuples, one per jump table entry.
+        assume that all channels are read out for every trigger (rchan set by nDemod).
         """
         dev = self.selectedADC(c)
         info = c.setdefault(dev, {})
@@ -1929,14 +1930,11 @@ class FPGAServer(DeviceServer):
         '''
         dev = self.selectedADC(c)
         info = c.setdefault(dev, {})
+        triggerTable = info['triggerTable']
         # Default to full length filter with half full scale amplitude
-        filterFunc = info.get('filterFunc',
-            np.array(dev.FILTER_LEN * [128], dtype='<u1'))
-        filterStretchLen = info.get('filterStretchLen', 0)
-        filterStretchAt = info.get('filterStretchAt', 0)
         demods = dict((i, info[i]) for i in \
             range(dev.DEMOD_CHANNELS) if i in info)
-        ans = yield dev.runDemod(triggerTable, mixerTable, demods, mode)
+        ans = yield dev.runDemod(triggerTable, demods, mode)
         returnValue(ans)
     
     @setting(2700, 'ADC Bringup', returns='')

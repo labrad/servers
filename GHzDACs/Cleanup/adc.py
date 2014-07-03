@@ -643,6 +643,7 @@ class ADC_Build4(ADC_Branch1):
     SRAM_WRITE_DERPS = 10
     SRAM_WRITE_PKT_LEN = 1024 # Length of the data portion, not address bytes
     LOOKUP_ACCUMULATOR_BITS = 16
+    MIXER_TABLE_LEN = 510 # WE THINK LOL ASK JOHN (3 bytes used at beginning of sram write + 1 spare)
     
     TRIGGER_TABLE_ENTRIES = 64
     TRIGGER_TABLE_DERP = 9
@@ -860,17 +861,99 @@ class ADC_Branch2(ADC):
     # Direct ethernet server packet update methods
     
     @classmethod
-    def makeTriggerTable(cls, *args):
+    def makeTriggerTable(cls, nDemod, triggerTable, p):
         """
         Page 0 of SRAM has a table defining ADC trigger repetition counts and delays
+        
+        SRAM Write:
+        The controller must write to SRAM in the AD board to define two tables, a retrigger table to define multiple AD triggers for an experiment start, and a multiplier table for demodulation of the incoming signal for each demodulation channel.
+
+        (1) The retrigger table defines multiple AD triggers per master start.  The table starts at address 0, then increments up (to a maximum 127) after performing the functions of each table entry, until it reaches a table entry with rdelay[15..8]=0, at which time the retriggering stops.  Note that an empty table with rdelay[15..9]=0 at the address 0 will not ever trigger the AD.  In the table entry, rdelay[15..0]+ 3 is the number of 4 ns cycles between the AD start (or last end of ADon) and the AD trigger.  After this delay, the AD is turned on for rlength[7..0]+1 cycles, during which ADon demultiplexer (don) is high.  The value rcount[15..0]+1 is the number of AD triggers per table entry.  An AD done signal pulses 3 cycles after the last ADon goes low.  Note that there is approximately 7 clock cycle delay that needs to be measured and taken into account to get demodulation time correct.  Channels 0 to rchan[3..0]-1 is read out; maximum rchan[3..0] is 11 for 12 channels.  If rchan[3..0]=0, then save data in bit readout mode – see below.
+
+        Note that you have multiple triggers, as for the DAC board.  But for each trigger, you can have multiple retriggering to account for multiple AD demodulations during each sequence.  
+
+        (1) The retrigger table is stored in SRAM memory with adrstart[20..8] = 0.  The Ethernet packet is given by
+
+        l(0)	length[15..8]		set to 4; ( length[15..0]= 1024+2=1026 )
+        l(1)	length[7..0]		set to 2
+
+        d(0)	adrstart[15..8]		SRAM page for start address: middle bits = 0,
+        d(1)	adrstart[23..16]	upper bits; size of SRAM implies bits [23..19] = 0
+
+        d(2)	sram(+0)[7..0]		rcount[7..0](0)		+1 = number AD cycles
+        d(3)	sram(+1)[7..0]		rcount[15..8](0)
+        d(4)	sram(+2)[7..0]		rdelay[7..0](0)		+3= clock delay before Multiplier on
+        d(5)	sram(+3)[7..0]		rdelay[15..8](0)	    (units of 4 ns)
+        d(6)	sram(+4)[7..0]		rlength(7..0](0)	+1 = clock length of Multiplier on
+        d(7)	sram(+5)[7..0]		rchan[3..0](0)		Number channels saved, 0=bit mode	    
+        d(8)	sram(+6)[7..0]		spare			
+        d(9)	sram(+7)[7..0]		spare			
+
+        d(10)	sram(+8)[7..0]		rcount[7..0](1)
+        ...
+        d(1022)sram(+1022)[7..0]	rcount[15..8](127)
+        ...
+        d(1025)sram(+1022)[7..0]	spare
+
         """
-        pass
+        # takes trigger table and turns it into a packet for ADC
+        
+        assert len(triggerTable) <= 128 # no memory for more than 128 entries
+        
+        data = np.zeros(cls.SRAM_RETRIGGER_SRAM_PKT_LEN, dtype='<u1')
+        
+        data[0] = 0 # John didn't specify this
+        data[1] = 0 # SRAM page for start address: middle bits = 0,
+        data[2] = 0 # upper bits; size of SRAM implies bits [23..19] = 0
+        
+        for idx,entry in enumerate(triggerTable):
+            currCount, currDelay, currLength = entry
+            
+            midx = idx * 8
+            data[midx+3:midx+5] = littleEndian(currCount, 2)
+            data[midx+5:midx+7] = littleEndian(currDelay, 2)
+            data[midx+7] = currLength
+            data[midx+8] = ndemod
+            data[midx+9:midx+11] = littleEndian(0, 2) # spare
+        
+        p.write(data.tostring())
+        
     @classmethod
-    def makeMixerTable(cls, *args):
+    def makeMixerTable(cls, nDemod, demods, p):
         """
         Page 1-12 of SRAM has the mixer tables for demodulators 0-11 respectively.
+
+        (2) For the multiplier lookup tables, adrstart is taken from the following table  
+        adrstart[20..8]= channel n + 1.  This offsets by 1 from the above trigger page.
+
+        The Ethernet packet for channel n is:
+
+        l(1)	length[15..8]		set to 4; ( length[15..0]= 1024+2=1026 )
+        l(2)	length[7..0]		set to 2
+
+        d(1)	adrstart[15..8]		SRAM page for start address: middle bits = n+1 
+        d(2)	adrstart[23..16]	upper bits; size of SRAM implies bits [23..19] = 0
+
+        d(3)	sram(+0)[7..0]		multsin(0)		Multiplier time 0
+        d(4)	sram(+1)[7..0]		multcos(0)
+        d(5)	sram(+2)[7..0]		multsin(1)		Multiplier time 1 (1/2 clock, 2ns)
+        d(6)	sram(+3)[7..0]		multcos(1)
+        …
+        d(1025)sram(+1022)[7..0]	multsin(511)
+        d(1026)sram(+1023)[7..0]	multcos(511)
         """
-        pass
+
+        for idx in range(nDemod):
+            data = np.zeros(cls.SRAM_RETRIGGER_SRAM_PKT_LEN, dtype='<u1')
+            data[0] = 0 # John didn't specify this
+            data[1] = idx+1 # retrigger table is page 0, mxier tables are pages 1-13
+            data[2] = 0
+            mixerTable = demods[idx]['mixerTable']
+            for tidx, row in enumerate(mixerTable):
+                I, Q = row
+                data[(tidx*2)+3] = I
+                data[(tidx*2+1)+3] = Q
+            p.write(data.tostring())
         
     # board communication (can be called from within test mode)
     
@@ -968,7 +1051,7 @@ class ADC_Build7(ADC_Branch2):
         d(58)	spare	
         
         """
-        regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
+        regs = np.zeros(cls.SRAM_RETRIGGER_SRAM_PKT_LEN, dtype='<u1')
         regs[0] = mode
         regs[1:3] = littleEndian(startDelay, 2) #Daisychain delay
         regs[7:9] = littleEndian(reps, 2)       #Number of repetitions
@@ -980,15 +1063,16 @@ class ADC_Build7(ADC_Branch2):
     # Direct ethernet server packet creation methods
     
     def setup(self, info, demods):
-        mixTables, triggerTable = info
+        mixerTable, triggerTable = info
+        nDemod = fill_me_in
         p = self.makePacket()
-        self.makeTriggerTable(triggerTable, p)
-        self.makeMixTable(mixTables, p)
+        self.makeTriggerTable(nDemod, triggerTable, p)
+        self.makeMixerTable(nDemod, demods, p)
         
         triggerTableState = " ".join(['triggerTableState%d=%s' % (idx, triggerTable[idx]) for idx in len(triggerTable) ])
-        mixTableState = " ".join(['mixTable%d=%s' % (idx, mixTables[idx]) for idx in len(mixTables) ])
-
-        return p, setupState, mixTableState
+        mixTableState = " ".join(['mixTable%d=%s' % (idx, mixerTable[idx]) for idx in len(mixerTable) ])
+        
+        return p, setupState, mixTableState, nDemod
     
     # Direct ethernet server packet update methods
     
@@ -1025,16 +1109,17 @@ class ADC_Build7(ADC_Branch2):
             
         return self.testMode(func)
     
-    def runDemod(self, triggerTable, mixerTable, demods, mode):
+    def runDemod(self, triggerTable, demods, mode):
         @inlineCallbacks
         def func():
             # build register packet
-            regs = self.regRun(self.RUN_MODE_DEMOD_AUTO, 1, filterFunc)
+            regs = self.regRun(self.RUN_MODE_DEMOD_AUTO, 1)
     
             # create packet for the ethernet server
             p = self.makePacket()
-            self.makeTriggerTable(triggerTable,p)
-            self.makeMixerTable(mixerTable,p)
+            nDemod = fill_me_in
+            self.makeTriggerTable(nDemod,triggerTable,p)
+            self.makeMixerTable(nDemod,demods,p)
             p.write(regs.tostring()) # send registry packet
             p.timeout(T.Value(10, 's')) # set a conservative timeout
             p.read(1) # read back one demodulation packet (?)
