@@ -902,9 +902,8 @@ class ADC_Branch2(ADC):
         
         data = np.zeros(cls.SRAM_RETRIGGER_PKT_LEN, dtype='<u1')
         
-        data[0] = 0 # John didn't specify this
-        data[1] = 0 # SRAM page for start address: middle bits = 0,
-        data[2] = 0 # upper bits; size of SRAM implies bits [23..19] = 0
+        data[0] = 0 # SRAM page for start address: middle bits = 0,
+        data[1] = 0 # upper bits; size of SRAM implies bits [23..19] = 0
         
         for idx,entry in enumerate(triggerTable):
             currCount, currDelay, currLength, currChans = entry
@@ -919,12 +918,17 @@ class ADC_Branch2(ADC):
             # For now, we will not make use of currChans(rchan),
             # rather default it all channels always read out.
             
-            midx = idx * 8
-            data[midx+3:midx+5] = littleEndian(currCount, 2)
-            data[midx+5:midx+7] = littleEndian(currDelay, 2)
-            data[midx+7] = currLength
-            data[midx+8] = nDemod # currChans
-            data[midx+9:midx+11] = littleEndian(0, 2) # spare
+            # See documentation above
+            currCount -= 1 # compensate for FPGA offsets
+            currDelay -= 3 # compensate for FPGA offsets
+            currLength -=1 # compensate for FPGA offsets
+            
+            midx = idx * 8 + 2
+            data[midx:midx+2] = littleEndian(currCount, 2)
+            data[midx+2:midx+4] = littleEndian(currDelay, 2)
+            data[midx+4] = currLength
+            data[midx+5] = nDemod # currChans
+            data[midx+6:midx+8] = littleEndian(0, 2) # spare
         
         p.write(data.tostring())
         
@@ -956,14 +960,13 @@ class ADC_Branch2(ADC):
 
         for idx in range(nDemod):
             data = np.zeros(cls.SRAM_MIXER_PKT_LEN, dtype='<u1')
-            data[0] = 0 # John didn't specify this
-            data[1] = idx+1 # retrigger table is page 0, mxier tables are pages 1-13
-            data[2] = 0
+            # retrigger table is page 0, mixer tables are pages 1-13, factor of 4 from stripping least significant bits
+            data[0:2] = littleEndian((idx+1)*4,2) 
             mixerTable = demods[idx]['mixerTable']
             for tidx, row in enumerate(mixerTable):
                 I, Q = row
-                data[(tidx*2)+3] = I
-                data[(tidx*2+1)+3] = Q
+                data[(tidx*2)+2] = I
+                data[(tidx*2+1)+2] = Q
             p.write(data.tostring())
         
     # board communication (can be called from within test mode)

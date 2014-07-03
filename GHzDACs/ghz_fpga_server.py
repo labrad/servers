@@ -1317,7 +1317,7 @@ class FPGAServer(DeviceServer):
         """
         Set the ADC trigger table
         
-        data: A list of (count, delay, length) tuples, one per jump table entry.
+        data: A list of (count, delay, length, rchan) tuples, one per jump table entry.
         assume that all channels are read out for every trigger (rchan set by nDemod).
         """
         dev = self.selectedADC(c)
