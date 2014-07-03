@@ -961,7 +961,7 @@ class ADC_Branch2(ADC):
         for idx in range(nDemod):
             data = np.zeros(cls.SRAM_MIXER_PKT_LEN, dtype='<u1')
             # retrigger table is page 0, mixer tables are pages 1-13, factor of 4 from stripping least significant bits
-            data[0:2] = littleEndian((idx+1)*4,2) 
+            data[0:2] = littleEndian((idx+1)*4,2) # SRAM page address
             mixerTable = demods[idx]['mixerTable']
             for tidx, row in enumerate(mixerTable):
                 I, Q = row
@@ -1017,8 +1017,8 @@ class ADC_Build7(ADC_Branch2):
     REGISTER_READBACK_PKT_LEN = 46
     AVERAGE_PACKETS = 16 #Number of packets per average mode execution
     AVERAGE_PACKET_LEN = 1024 #bytes
-    SRAM_RETRIGGER_PKT_LEN = 1024 # Length of the data portion, not address bytes
-    SRAM_MIXER_PKT_LEN = 1024 # Length of the data portion, not address bytes
+    SRAM_RETRIGGER_PKT_LEN = 1026 # Length of the data portion, not address bytes
+    SRAM_MIXER_PKT_LEN = 1026 # Length of the data portion, not address bytes
     
     def buildRunner(self, reps, info):
         """Get a runner for this board"""
@@ -1151,7 +1151,7 @@ class ADC_Build7(ADC_Branch2):
     
             # create packet for the ethernet server
             p = self.makePacket()
-            nDemod = fill_me_in
+            nDemod = len(demods)
             self.makeTriggerTable(nDemod,triggerTable,p)
             self.makeMixerTable(nDemod,demods,p)
             p.write(regs.tostring()) # send registry packet
@@ -1244,9 +1244,9 @@ class ADC_Build7(ADC_Branch2):
         """
         #stick all data strings in packets together, chopping out last 4 bytes
         #from each string
-        data = ''.join(data[:44] for data in packets)
-        pktCounters = [ data[46] for data in packets ]
-        readbackCounters = [ data[44] + data[45]<<8 for data in packets ]
+        data = np.fromstring(''.join(data[:44] for data in packets), dtype='<u1')
+        pktCounters = [ ord(pkt[46]) for pkt in packets ]
+        readbackCounters = [ ord(pkt[44]) + ord(pkt[45])<<8 for pkt in packets ]
         if mode=='iq':
             vals = np.fromstring(data, dtype='<i2') # Convert to 16-bit int array
             # Slowest varying index: time step, next slowest index : demodulator, fastest index: I vs Q

@@ -1926,14 +1926,17 @@ class FPGAServer(DeviceServer):
             range(dev.DEMOD_CHANNELS) if i in info)
         yield dev.runCalibrate()
     
-    @setting(2602, 'ADC Run Demod',
-             returns='((*i{I}, *i{Q}), (i{Imax} i{Imin} i{Qmax} i{Qmin}))')
+    @setting(2602, 'ADC Run Demod', mode='s',
+             returns='*3i{I,Q}, *i, *i')
     #@setting(2602, 'ADC Run Demod', returns='*i')
-    def adc_run_demod(self, c):
+    def adc_run_demod(self, c, mode='iq'):
         '''
         Run the ADC in demod mode but with no synchronization to the DAC.
         This runs only a single shot, and returns (*I, *Q) with a single I
         and Q for each demodulator, and also the max and min of I and Q.
+        
+        Returns data, pktCounters, readbackCounters
+        data[qubit, time_step, (I=0, Q=1)] dim=3 array
         '''
         dev = self.selectedADC(c)
         info = c.setdefault(dev, {})
