@@ -1,5 +1,4 @@
-"""
-"""
+# -*- coding: utf-8 -*-
 import numpy as np
 
 import fpga
@@ -29,6 +28,7 @@ class ADC(fpga.FPGA):
     READBACK_LEN = 46
     
     # Start modes
+    RUN_MODE_REGISTER_READBACK = 1
     RUN_MODE_AVERAGE_AUTO = 2
     RUN_MODE_AVERAGE_DAISY = 3
     RUN_MODE_DEMOD_AUTO = 4
@@ -867,9 +867,9 @@ class ADC_Branch2(ADC):
         
         SRAM Write:
         The controller must write to SRAM in the AD board to define two tables, a retrigger table to define multiple AD triggers for an experiment start, and a multiplier table for demodulation of the incoming signal for each demodulation channel.
-
-        (1) The retrigger table defines multiple AD triggers per master start.  The table starts at address 0, then increments up (to a maximum 127) after performing the functions of each table entry, until it reaches a table entry with rdelay[15..8]=0, at which time the retriggering stops.  Note that an empty table with rdelay[15..9]=0 at the address 0 will not ever trigger the AD.  In the table entry, rdelay[15..0]+ 3 is the number of 4 ns cycles between the AD start (or last end of ADon) and the AD trigger.  After this delay, the AD is turned on for rlength[7..0]+1 cycles, during which ADon demultiplexer (don) is high.  The value rcount[15..0]+1 is the number of AD triggers per table entry.  An AD done signal pulses 3 cycles after the last ADon goes low.  Note that there is approximately 7 clock cycle delay that needs to be measured and taken into account to get demodulation time correct.  Channels 0 to rchan[3..0]-1 is read out; maximum rchan[3..0] is 11 for 12 channels.  If rchan[3..0]=0, then save data in bit readout mode – see below.
-
+        
+        (1) The retrigger table defines multiple AD triggers per master start.  The table starts at address 0, then increments up (to a maximum 127) after performing the functions of each table entry, until it reaches a table entry with rdelay[15..8]=0, at which time the retriggering stops.  Note that an empty table with rdelay[15..9]=0 at the address 0 will not ever trigger the AD.  In the table entry, rdelay[15..0]+ 3 is the number of 4 ns cycles between the AD start (or last end of ADon) and the AD trigger.  After this delay, the AD is turned on for rlength[7..0]+1 cycles, during which ADon demultiplexer (don) is high.  The value rcount[15..0]+1 is the number of AD triggers per table entry.  An AD done signal pulses 3 cycles after the last ADon goes low.  Note that there is approximately 7 clock cycle delay that needs to be measured and taken into account to get demodulation time correct.  Channels 0 to rchan[3..0]-1 is read out; maximum rchan[3..0] is 11 for 12 channels.  If rchan[3..0]=0, then save data in bit readout mode - see below.
+        
         Note that you have multiple triggers, as for the DAC board.  But for each trigger, you can have multiple retriggering to account for multiple AD demodulations during each sequence.  
 
         (1) The retrigger table is stored in SRAM memory with adrstart[20..8] = 0.  The Ethernet packet is given by
@@ -907,19 +907,30 @@ class ADC_Branch2(ADC):
         data[2] = 0 # upper bits; size of SRAM implies bits [23..19] = 0
         
         for idx,entry in enumerate(triggerTable):
-            currCount, currDelay, currLength = entry
+            currCount, currDelay, currLength, currChans = entry
+            
+            # WARNING: currChans defined in a funny way
+            # if you want a trigger to measure a subset of channels,
+            # those channels must be the lowest channels.
+            # i.e. you can only read out:
+            # (0, 0-1, 0-2, ... 0-11)
+            # you cannot cherry pick which channels to read out 
+            # as far as JK and TW understand it.
+            # For now, we will not make use of currChans(rchan),
+            # rather default it all channels always read out.
             
             midx = idx * 8
             data[midx+3:midx+5] = littleEndian(currCount, 2)
             data[midx+5:midx+7] = littleEndian(currDelay, 2)
             data[midx+7] = currLength
-            data[midx+8] = ndemod
+            data[midx+8] = nDemod # currChans
             data[midx+9:midx+11] = littleEndian(0, 2) # spare
         
         p.write(data.tostring())
         
     @classmethod
     def makeMixerTable(cls, nDemod, demods, p):
+    
         """
         Page 1-12 of SRAM has the mixer tables for demodulators 0-11 respectively.
 
@@ -1000,6 +1011,7 @@ class ADC_Build7(ADC_Branch2):
     DEMOD_CHANNELS_PER_PACKET = 11
     DEMOD_PACKET_LEN = 46
     DEMOD_TIME_STEP = 2 #ns
+    REGISTER_READBACK_PACKETS = 46
     AVERAGE_PACKETS = 16 #Number of packets per average mode execution
     AVERAGE_PACKET_LEN = 1024 #bytes
     SRAM_RETRIGGER_SRAM_PKT_LEN = 1024 # Length of the data portion, not address bytes
@@ -1019,7 +1031,8 @@ class ADC_Build7(ADC_Branch2):
     
     @classmethod
     def regRun(cls, mode, reps, startDelay=0):
-        """Returns a numpy array of register bytes to run the board
+        """
+        Returns a numpy array of register bytes to run the board
         Register Write:
         These registers control the AD functions.  This card is always set in slave mode for daisychain initiation of AD functions (see GHzDAC board).  
 
@@ -1091,12 +1104,30 @@ class ADC_Build7(ADC_Branch2):
     # Externally available board communication methods
     # These run in test mode.
     
+    def registerReadback(self):
+        @inlineCallbacks
+        def func():
+            # build registry packet
+            regs = self.regRun(self.RUN_MODE_REGISTER_READBACK, 0) # 0 reps?
+            
+            p = self.makePacket()
+            p.write(regs.tostring())
+            p.timeout(T.Value(10, 's'))
+            p.read(self.REGISTER_READBACK_PACKETS)
+            ans = yield p.send()
+                    
+            # parse the packets out and return data
+            packets = [data for src, dst, eth, data in ans.read]
+            returnValue(self.processReadback(packets))
+            
+        return self.testMode(func)
+        
+    
     def runAverage(self):
         @inlineCallbacks
         def func():
             # build registry packet
             regs = self.regRun(self.RUN_MODE_AVERAGE_AUTO, 1)
-            
             p = self.makePacket()
             p.write(regs.tostring())
             p.timeout(T.Value(10, 's'))

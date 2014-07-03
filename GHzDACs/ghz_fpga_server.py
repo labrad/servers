@@ -1312,7 +1312,7 @@ class FPGAServer(DeviceServer):
 
     # ADC configuration (v7)
         
-    @setting(47, 'ADC Trigger Table', data='*(i, i, i)', returns='')
+    @setting(47, 'ADC Trigger Table', data='*(i, i, i, i)', returns='')
     def adc_trigger_table(self, c, data):
         """
         Set the ADC trigger table
@@ -1883,6 +1883,13 @@ class FPGAServer(DeviceServer):
         """Recalibrate the analog-to-digital converters. (ADC only)"""
         dev = self.selectedADC(c)
         yield dev.recalibrate()
+        
+    @setting(2501, 'ADC Register Readback', returns='?')
+    def adc_register_readback(self, c):
+        """Register Readback. (ADC only)"""
+        dev = self.selectedADC(c)
+        ans = yield dev.registerReadback()
+        returnValue(ans)
     
     @setting(2600, 'ADC Run Average', returns='*i{I}, *i{Q}')
     def adc_run_average(self, c):
