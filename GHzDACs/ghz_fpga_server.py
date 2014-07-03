@@ -1884,12 +1884,12 @@ class FPGAServer(DeviceServer):
         dev = self.selectedADC(c)
         yield dev.recalibrate()
         
-    @setting(2501, 'ADC Register Readback', returns='?')
+    @setting(2501, 'ADC Register Readback', returns='s')
     def adc_register_readback(self, c):
         """Register Readback. (ADC only)"""
         dev = self.selectedADC(c)
         ans = yield dev.registerReadback()
-        returnValue(ans)
+        returnValue(str(ans))
     
     @setting(2600, 'ADC Run Average', returns='*i{I}, *i{Q}')
     def adc_run_average(self, c):

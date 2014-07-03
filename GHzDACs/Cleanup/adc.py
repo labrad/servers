@@ -900,7 +900,7 @@ class ADC_Branch2(ADC):
         
         assert len(triggerTable) <= 128 # no memory for more than 128 entries
         
-        data = np.zeros(cls.SRAM_RETRIGGER_SRAM_PKT_LEN, dtype='<u1')
+        data = np.zeros(cls.SRAM_RETRIGGER_PKT_LEN, dtype='<u1')
         
         data[0] = 0 # John didn't specify this
         data[1] = 0 # SRAM page for start address: middle bits = 0,
@@ -949,13 +949,13 @@ class ADC_Branch2(ADC):
         d(4)	sram(+1)[7..0]		multcos(0)
         d(5)	sram(+2)[7..0]		multsin(1)		Multiplier time 1 (1/2 clock, 2ns)
         d(6)	sram(+3)[7..0]		multcos(1)
-        …
+        ...
         d(1025)sram(+1022)[7..0]	multsin(511)
         d(1026)sram(+1023)[7..0]	multcos(511)
         """
 
         for idx in range(nDemod):
-            data = np.zeros(cls.SRAM_RETRIGGER_SRAM_PKT_LEN, dtype='<u1')
+            data = np.zeros(cls.SRAM_MIXER_PKT_LEN, dtype='<u1')
             data[0] = 0 # John didn't specify this
             data[1] = idx+1 # retrigger table is page 0, mxier tables are pages 1-13
             data[2] = 0
@@ -1011,11 +1011,11 @@ class ADC_Build7(ADC_Branch2):
     DEMOD_CHANNELS_PER_PACKET = 11
     DEMOD_PACKET_LEN = 46
     DEMOD_TIME_STEP = 2 #ns
-    REGISTER_READBACK_PACKETS = 46
+    REGISTER_READBACK_PKT_LEN = 46
     AVERAGE_PACKETS = 16 #Number of packets per average mode execution
     AVERAGE_PACKET_LEN = 1024 #bytes
-    SRAM_RETRIGGER_SRAM_PKT_LEN = 1024 # Length of the data portion, not address bytes
-    SRAM_MIXER_SRAM_PKT_LEN = 1024 # Length of the data portion, not address bytes
+    SRAM_RETRIGGER_PKT_LEN = 1024 # Length of the data portion, not address bytes
+    SRAM_MIXER_PKT_LEN = 1024 # Length of the data portion, not address bytes
     
     def buildRunner(self, reps, info):
         """Get a runner for this board"""
@@ -1064,7 +1064,7 @@ class ADC_Build7(ADC_Branch2):
         d(58)	spare	
         
         """
-        regs = np.zeros(cls.SRAM_RETRIGGER_SRAM_PKT_LEN, dtype='<u1')
+        regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
         regs[0] = mode
         regs[1:3] = littleEndian(startDelay, 2) #Daisychain delay
         regs[7:9] = littleEndian(reps, 2)       #Number of repetitions
@@ -1113,12 +1113,12 @@ class ADC_Build7(ADC_Branch2):
             p = self.makePacket()
             p.write(regs.tostring())
             p.timeout(T.Value(10, 's'))
-            p.read(self.REGISTER_READBACK_PACKETS)
+            p.read(1)
             ans = yield p.send()
                     
             # parse the packets out and return data
             packets = [data for src, dst, eth, data in ans.read]
-            returnValue(self.processReadback(packets))
+            returnValue(self.processReadback(packets[0]))
             
         return self.testMode(func)
         
@@ -1191,7 +1191,6 @@ class ADC_Build7(ADC_Branch2):
         ...
         d(46)	spare[7..0]		set to 0	
         """
-        
         a = np.fromstring(resp, dtype='<u1')
         return {
             'build': a[0],
