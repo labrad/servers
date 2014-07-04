@@ -1,15 +1,18 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 
-import fpga
+import servers.GHzDACs.Cleanup.fpga as fpga
 
 # named functions
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 from labrad.devices import DeviceWrapper
 from labrad import types as T
+import labrad.support
 
-from util import littleEndian, TimedLock
+from servers.GHzDACs.util import littleEndian, TimedLock
+
+import servers.GHzDACs.Cleanup.mondict as mondict
 
 
 ### Base classes ###
@@ -578,222 +581,6 @@ class ADC_Build3(ADC_Build2):
  
 fpga.REGISTRY[('ADC', 3)] = ADC_Build3
 
-class AdcRunner_Build4(AdcRunner_Build2):
-    def __init__(self, dev, reps, runMode, startDelay, filter, channels,
-                 triggerTable):
-        self.dev = dev
-        self.reps = reps
-        self.runMode = runMode
-        self.startDelay = startDelay
-        self.filter = filter
-        self.channels = channels
-        self.triggerTable = triggerTable
-        
-        if self.runMode == 'average':
-            self.mode = self.dev.RUN_MODE_AVERAGE_DAISY
-            self.nPackets = self.dev.AVERAGE_PACKETS
-        elif self.runMode == 'demodulate':
-            self.mode = self.dev.RUN_MODE_DEMOD_DAISY
-            raise RuntimeError("Following line is probably wrong")
-            self.nPackets = reps
-        else:
-            raise Exception("Unknown run mode '%s' for board '%s'" \
-                % (self.runMode, self.dev.devName))
-        # 16us acquisition time + 10us packet transmit.
-        # Not sure why the extra +1 is here
-        raise RuntimeError("Following line is probably wrong")
-        self.seqTime = fpga.TIMEOUT_FACTOR * (26E-6 * self.reps) + 1
-    
-    def loadPacket(self, page, isMaster):
-        """Create pipelined load packet. For ADC this is the trigger table."""
-        if isMaster:
-            raise Exception("Cannot use ADC board '%s' as master." \
-                % self.dev.devName)
-        return self.dev.load(self.triggerTable)
-    
-    def runPacket(self, page, slave, delay, sync):
-        """Create run packet.
-        
-        The unused arguments page, slave, and sync, in the call signature
-        are there so that we could use the same call for DACs and ADCs.
-        This is cheesey and ought to be fixed.
-        """
-        
-        startDelay = self.startDelay + delay
-        regs = self.dev.regRun(self.mode, self.reps, len(self.filter),
-                               self.channels, self.monA, self.monB,
-                               startDelay=startDelay, bitmask=self.bitmask)
-        return regs
-
-
-class ADC_Build4(ADC_Branch1):
-    
-    RUNNER_CLASS = AdcRunner_Build4
-    
-    # Build-specific constants
-    DEMOD_CHANNELS = 4
-    DEMOD_CHANNELS_PER_PACKET = 11
-    DEMOD_TIME_STEP = 2 #ns
-    AVERAGE_PACKETS = 32 #Number of packets per average mode execution
-    AVERAGE_PACKET_LEN = 1024 #bytes
-    TRIG_AMP = 255
-    LOOKUP_TABLE_LEN = 256
-    FILTER_LEN = 4096
-    FILTER_DERPS = 4
-    SRAM_WRITE_DERPS = 10
-    SRAM_WRITE_PKT_LEN = 1024 # Length of the data portion, not address bytes
-    LOOKUP_ACCUMULATOR_BITS = 16
-    MIXER_TABLE_LEN = 510 # WE THINK LOL ASK JOHN (3 bytes used at beginning of sram write + 1 spare)
-    
-    TRIGGER_TABLE_ENTRIES = 64
-    TRIGGER_TABLE_DERP = 9
-    
-    # Methods to get bytes to be written to register
-    
-    def buildRunner(self, reps, info):
-        """Get a runner for this board"""
-        runMode = info['runMode']
-        startDelay = info['startDelay']
-        filter = info['filter']
-        triggerTable = info['triggerTable']
-        channels = dict((i, info[i]) for i in range(self.DEMOD_CHANNELS) \
-                        if i in info)
-        runner = self.RUNNER_CLASS(self, reps, runMode, startDelay, filter,
-                                   channels, triggerTable)
-        return runner
-    
-    @classmethod
-    def regRun(cls, mode, reps, filterLen, demods, monA, monB, startDelay=0,
-               bitmask=0):
-        """Returns a numpy array of register bytes to run the board"""
-        regs = np.zeros(self.REG_PACKET_LEN, dtype='<u1')
-        regs[0] = mode
-        regs[1:3] = littleEndian(startDelay, 2)
-        regs[7:9] = littleEndian(reps, 2)
-        
-        if filterLen <= 1:
-            raise Exception("Filter func length must be >= 2")
-        regs[9:11] = littleEndian(filterLen - 1, 2)
-        regs[11] = len(demods)
-        regs[12] = bitmask
-        regs[13], regs[14] = monA, monB
-        for i in range(cls.DEMOD_CHANNELS):
-            if i not in demods:
-                continue
-            addr = 15 + 4*i
-            regs[addr:addr+2] = littleEndian(demods[i]['dPhi'], 2)
-            regs[addr+2:addr+4] = littleEndian(demods[i]['phi0'], 2)
-        return regs
-
-    # Direct ethernet server packet creation methods
-    
-    def setup(self, filter, demods):
-        p = self.makePacket()
-        self.makeFilter(filter, p)
-        self.makeTrigLookups(demods, p)
-        amps = ''
-        for ch in xrange(self.DEMOD_CHANNELS):
-            if ch in demods:
-                cosineAmp = demods[ch]['cosineAmp']
-                sineAmp = demods[ch]['sineAmp']
-            else:
-                cosineAmp = sineAmp = 0
-            amps += '%s,%s;' % (cosineAmp, sineAmp)
-        setupState = "%s: filter=%s, trigAmps=%s" % (self.devName, \
-            filterFunc.tostring(), amps)
-        return p, setupState
-    
-    def load(self, triggerData):
-        """
-        Create a direct ethernet packet to load sequence data.
-        
-        Sequence data is just the trigger table.
-        """
-        p = self.makePacket()
-        self.makeTriggerTable(triggerData, p)
-        return p
-    
-    # Direct ethernet server packet update methods
-    
-    @classmethod
-    def makeTriggerTable(cls, data, p):
-        """
-        Add trigger table write to packet
-        
-        data - list of (count, delay) tuples
-        p: packet to update
-        """
-        #Convert to little endian numpy array
-        data = np.array(data, dtype='<i2').flatten()
-        pkt = cls.pktWriteSram(cls.TRIGGER_TABLE_DERP, data)
-        p.write(pkt.tostring())
-    
-    # board communication (can be called from within test mode)
-    
-    @inlineCallbacks
-    def _sendSRAM(self, filter, demods={}):
-        """
-        Write SRAM to the FPGA
-        
-        SRAM includes trig lookups, filter function, and trigger table
-        """
-        #Raise exception to see what's calling this method
-        raise RuntimeError("_sendSRAM was called")
-        p = self.makePacket()
-        self.makeFilter(filter, p)
-        self.makeTrigLookups(demods, p)
-        self.makeTriggerTable(data, p)
-        yield p.send()
-    
-    # Externally available board communication methods
-    # These run in test mode
-    
-    def runAverage(self, filterFunc, demods):
-        @inlineCallbacks
-        def func():
-            regs = self.regRun(self.RUN_MODE_AVERAGE_AUTO, 1, len(filterFunc),
-                               demods, monA, monB)
-            p = self.makePacket()
-            p.write(regs.tostring())
-            p.timeout(T.Value(10, 's'))
-            p.read(self.AVERAGE_PACKETS)
-            ans = yield p.send()
-            packets = [data for src, dst, eth, data in ans.read]
-            returnValue(self.extractAverage(packets))
-    
-    def runDemod(self, filterFunc, demods, triggerTable, monA, monB,
-                 bitmask=0):
-        @inlineCallbacks
-        def func():
-            regs = self.regRun(self.RUN_MODE_DEMOD_AUTO, 1, len(filterFunc),
-                               demods, monA, monB, bitmask=bitmask)
-            p = self.makePacket()
-            self.makeFilter(filterFunc, p)
-            self.makeTrigLookups(demods, p)
-            self.makeTriggerTable(triggerTable, p)
-            p.write(regs.tostring())
-            p.timeout(T.Value(10, 's'))
-            p.read(1)
-            ans =  yield p.send()
-            packets = [data for src, dst, eth, data in ans.read]
-            returnValue(self.extractDemod(packets, \
-                self.DEMOD_CHANNELS_PER_PACKET))
-        
-        return self.testMode(func)
-    
-    # Utility
-    
-    @staticmethod
-    def processReadback(resp):
-        raise NotImplementedError
-    
-    @staticmethod
-    def extractDemod(packets, nDemod):
-        raise NotImplementedError
-
-
-fpga.REGISTRY[('ADC', 4)] = ADC_Build4
-
 
 class AdcRunner_Build6(AdcRunner_Build2):
     pass
@@ -810,39 +597,40 @@ class ADC_Build6(ADC_Build2):
 
 fpga.REGISTRY[('ADC', 6)] = ADC_Build6
 
-class AdcRunner_Build7(AdcRunner_Build4):
-    def __init__(self, dev, reps, runMode, startDelay, channels, 
-                 triggerTable, mixerTable):
+class AdcRunner_Build7(AdcRunner_Build2):
+    def __init__(self, dev, reps, runMode, startDelay, channels, info):
         self.dev = dev
         self.reps = reps
         self.runMode = runMode
         self.startDelay = startDelay
         self.channels = channels
-        self.triggerTable = triggerTable
-        self.mixerTable = mixerTable
+        self.info = info
         
         if self.runMode == 'average':
             self.mode = self.dev.RUN_MODE_AVERAGE_DAISY
             self.nPackets = self.dev.AVERAGE_PACKETS
         elif self.runMode == 'demodulate':
             self.mode = self.dev.RUN_MODE_DEMOD_DAISY
-            raise RuntimeError("Following line is probably wrong")
-            self.nPackets = reps
+            triggers = sum([count*chan for count, delay, rlen, chan in info['triggerTable']])
+            self.nPackets = int(np.ceil(reps * triggers / 11.0))
+            print "number of packets: %d" % (self.nPackets,)
         else:
             raise Exception("Unknown run mode '%s' for board '%s'" \
                 % (self.runMode, self.dev.devName))
         # 16us acquisition time + 10us packet transmit.
         # Not sure why the extra +1 is here
-        raise RuntimeError("Following line is probably wrong")
-        self.seqTime = fpga.TIMEOUT_FACTOR * (26E-6 * self.reps) + 1
-    
+        statTime = 4e-9*sum([count*(delay+rlen) for count, delay, rlen, chan in info['triggerTable']])
+        self.seqTime = fpga.TIMEOUT_FACTOR * (statTime * self.reps) + 1
+        print "sequence time: %f, timeout: %f" % (statTime, self.seqTime)
     def loadPacket(self, page, isMaster):
         """Create pipelined load packet. For ADC this is the trigger table."""
         if isMaster:
             raise Exception("Cannot use ADC board '%s' as master." \
                 % self.dev.devName)
-        return self.dev.load(self.triggerTable)
-    
+        return self.dev.load(self.info)
+    def setupPacket(self):
+        return self.dev.setup(self.info)
+        
     def runPacket(self, page, slave, delay, sync):
         """Create run packet.
         
@@ -852,8 +640,15 @@ class AdcRunner_Build7(AdcRunner_Build4):
         """
         
         startDelay = self.startDelay + delay
-        regs = self.dev.regRun(self.mode, self.reps, startDelay=startDelay)
+        regs = self.dev.regRun(self.mode, self.info, self.reps, startDelay=startDelay)
         return regs    
+    def extract(self, packets):
+        """Extract data coming back from a readPacket."""
+        if self.runMode == 'average':
+            return self.dev.extractAverage(packets)
+        elif self.runMode == 'demodulate':
+            return self.dev.extractDemod(packets,
+                self.dev.DEMOD_CHANNELS_PER_PACKET, self.info.get('mode', 'iq'))
 
 class ADC_Branch2(ADC):
     """Superclass for second branch of ADC boards"""
@@ -961,7 +756,7 @@ class ADC_Branch2(ADC):
         for idx in range(nDemod):
             data = np.zeros(cls.SRAM_MIXER_PKT_LEN, dtype='<u1')
             # retrigger table is page 0, mixer tables are pages 1-13, factor of 4 from stripping least significant bits
-            data[0:2] = littleEndian((idx+1)*4,2) # SRAM page address
+            data[0:2] = littleEndian((idx+1),2) # SRAM page address
             mixerTable = demods[idx]['mixerTable']
             for tidx, row in enumerate(mixerTable):
                 I, Q = row
@@ -1022,18 +817,17 @@ class ADC_Build7(ADC_Branch2):
     
     def buildRunner(self, reps, info):
         """Get a runner for this board"""
+        print("building runner with setting keys: ", info.keys())
         runMode = info['runMode']
         startDelay = info['startDelay']
-        triggerTable = info['triggerTable']
-        mixerTable = info['mixerTable']
         channels = dict((i, info[i]) for i in range(self.DEMOD_CHANNELS) \
                         if i in info)
         runner = self.RUNNER_CLASS(self, reps, runMode, startDelay,
-                                   channels, triggerTable, mixerTable)
+                                   channels, info)
         return runner
     
     @classmethod
-    def regRun(cls, mode, reps, startDelay=0):
+    def regRun(cls, mode, info, reps, startDelay=0):
         """
         Returns a numpy array of register bytes to run the board
         Register Write:
@@ -1072,26 +866,41 @@ class ADC_Build7(ADC_Branch2):
         regs[1:3] = littleEndian(startDelay, 2) #Daisychain delay
         regs[7:9] = littleEndian(reps, 2)       #Number of repetitions
         regs[9] = littleEndian(0, 1)[0] #XOR bit flip mask
-        regs[10:12] = littleEndian(0, 2) #SMA monitor channels
+        
+        mon0 = mondict.MONDICT[info.get('mon0', 'start')]
+        mon1 = mondict.MONDICT[info.get('mon1', 'don')]
+        regs[10] = mon0
+        regs[11] = mon1
         
         return regs
     
     # Direct ethernet server packet creation methods
     
-    def setup(self, info, demods):
-        mixerTable, triggerTable = info
-        nDemod = fill_me_in
+    def setup(self, info):
+        triggerTable = info['triggerTable']
+        demods = [info[idx] for idx in range(self.DEMOD_CHANNELS) if idx in info]
+        nDemod = len(demods)
         p = self.makePacket()
         self.makeTriggerTable(nDemod, triggerTable, p)
         self.makeMixerTable(nDemod, demods, p)
         
-        triggerTableState = " ".join(['triggerTableState%d=%s' % (idx, triggerTable[idx]) for idx in len(triggerTable) ])
-        mixTableState = " ".join(['mixTable%d=%s' % (idx, mixerTable[idx]) for idx in len(mixerTable) ])
-        
-        return p, setupState, mixTableState, nDemod
+        triggerTableState = " ".join(['triggerTableState%d=%s' % (idx, triggerTable[idx]) for idx in range(len(triggerTable)) ])
+        #mixTableState = " ".join(['mixTable%d=%s' % (idx, mixerTable[idx]) for idx in len(mixerTable) ])
+        setupState = triggerTableState
+        return p, setupState
     
     # Direct ethernet server packet update methods
-    
+    def load(self, info):
+        """
+        Create a direct ethernet packet to load sequence data.
+        
+        Sequence data is just the trigger table.
+        """
+        p = self.makePacket()
+        triggerData = info['triggerTable']
+        nDemod = np.sum([ 1 if idx in info else 0 for idx in range(self.DEMOD_CHANNELS) ])
+        self.makeTriggerTable(nDemod, triggerData, p)
+        return p    
     # board communication (can be called from within test mode)
     
     @inlineCallbacks
@@ -1130,7 +939,7 @@ class ADC_Build7(ADC_Branch2):
         @inlineCallbacks
         def func():
             # build registry packet
-            regs = self.regRun(self.RUN_MODE_AVERAGE_AUTO, 1)
+            regs = self.regRun(self.RUN_MODE_AVERAGE_AUTO, {}, 1)
             p = self.makePacket()
             p.write(regs.tostring())
             p.timeout(T.Value(10, 's'))
@@ -1143,20 +952,29 @@ class ADC_Build7(ADC_Branch2):
             
         return self.testMode(func)
     
-    def runDemod(self, triggerTable, demods, mode):
+    def runDemod(self, info):
+        triggerTable = info['triggerTable']
+        # Default to full length filter with half full scale amplitude
+        demods = dict((i, info[i]) for i in \
+            range(self.DEMOD_CHANNELS) if i in info)
+        mode = info['mode']    
         @inlineCallbacks
         def func():
             # build register packet
-            regs = self.regRun(self.RUN_MODE_DEMOD_AUTO, 1)
+            regs = self.regRun(self.RUN_MODE_DEMOD_AUTO, info, 1)
     
             # create packet for the ethernet server
             p = self.makePacket()
             nDemod = len(demods)
+            print '(ADC) nDemod: ',str(nDemod)
             self.makeTriggerTable(nDemod,triggerTable,p)
             self.makeMixerTable(nDemod,demods,p)
             p.write(regs.tostring()) # send registry packet
             p.timeout(T.Value(10, 's')) # set a conservative timeout
-            p.read(1) # read back one demodulation packet (?)
+            if nDemod > 11:
+                p.read(2)
+            else:
+                p.read(1) # read back one demodulation packet (?)
             ans = yield p.send() #Send the packet to the direct ethernet
             # server parse the packets out and return data. packets is a list
             # of 48-byte strings
@@ -1244,6 +1062,10 @@ class ADC_Build7(ADC_Branch2):
         """
         #stick all data strings in packets together, chopping out last 4 bytes
         #from each string
+        print "extract demod packets:"
+        for p in packets:
+            print "len: %d" % (len(p),)
+            print labrad.support.hexdump(p)
         data = np.fromstring(''.join(data[:44] for data in packets), dtype='<u1')
         pktCounters = [ ord(pkt[46]) for pkt in packets ]
         readbackCounters = [ ord(pkt[44]) + ord(pkt[45])<<8 for pkt in packets ]

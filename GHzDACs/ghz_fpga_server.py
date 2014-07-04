@@ -218,9 +218,9 @@ from labrad import types as T
 from labrad.devices import DeviceServer
 from labrad.server import setting
 
-import Cleanup.dac as dac
-import Cleanup.adc as adc
-import Cleanup.fpga as fpga
+import servers.GHzDACs.Cleanup.dac as dac
+import servers.GHzDACs.Cleanup.adc as adc
+import servers.GHzDACs.Cleanup.fpga as fpga
 
 from util import TimedLock
 
@@ -1284,6 +1284,7 @@ class FPGAServer(DeviceServer):
         Set the run mode for the current ADC board, 'average' or 'demodulate'.
         (ADC only)
         """
+        print "setting ADC run mode to: ", mode
         mode = mode.lower()
         assert mode in ['average', 'demodulate'], 'unknown mode: "%s"' % mode
         dev = self.selectedADC(c)
@@ -1890,7 +1891,15 @@ class FPGAServer(DeviceServer):
         dev = self.selectedADC(c)
         ans = yield dev.registerReadback()
         returnValue(str(ans))
-    
+        
+    @setting(2502, 'ADC Monitor Outputs', mon0='s', mon1='s')
+    def adc_monitor_outputs(self, c, mon0, mon1):
+        """Specify monitor outputs. (ADC only)"""
+        dev = self.selectedADC(c)
+        info = c.setdefault(dev, {})
+        info['mon0'] = mon0
+        info['mon1'] = mon1
+        
     @setting(2600, 'ADC Run Average', returns='*i{I}, *i{Q}')
     def adc_run_average(self, c):
         """Run the selected ADC board once in average mode. (ADC only)
@@ -1940,11 +1949,8 @@ class FPGAServer(DeviceServer):
         '''
         dev = self.selectedADC(c)
         info = c.setdefault(dev, {})
-        triggerTable = info['triggerTable']
-        # Default to full length filter with half full scale amplitude
-        demods = dict((i, info[i]) for i in \
-            range(dev.DEMOD_CHANNELS) if i in info)
-        ans = yield dev.runDemod(triggerTable, demods, mode)
+        info['mode'] = mode
+        ans = yield dev.runDemod(info)
         returnValue(ans)
     
     @setting(2700, 'ADC Bringup', returns='')
