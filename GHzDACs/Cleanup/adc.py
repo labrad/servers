@@ -828,6 +828,7 @@ class ADC_Build7(ADC_Branch2):
     
     @classmethod
     def regRun(cls, mode, info, reps, startDelay=0):
+        print "(ADC) regRun"
         """
         Returns a numpy array of register bytes to run the board
         Register Write:
@@ -1076,7 +1077,7 @@ class ADC_Build7(ADC_Branch2):
             # Iq0[t=0], Qq0[t=0], Iq1[t=0], Qq1[t=0], Iq0[t=1], Qq0[t=1], Iq1[t=1], Qq1[t=1]
             #    
             #     goes to:
-            # data[qubit, time_step, (I=0 | Q=1)]           
+            # data[qubit][time_step][(I=0 | Q=1)]       
             
             data = vals.reshape(-1 , nDemod, 2).astype(int).transpose((1, 0, 2))
             return (data, pktCounters, readbackCounters)
