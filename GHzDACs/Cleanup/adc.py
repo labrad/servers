@@ -661,7 +661,7 @@ class ADC_Branch2(ADC):
     # Direct ethernet server packet update methods
     
     @classmethod
-    def makeTriggerTable(cls, nDemod, triggerTable, p):
+    def makeTriggerTable(cls, triggerTable, p):
         """
         Page 0 of SRAM has a table defining ADC trigger repetition counts and delays
         
@@ -727,13 +727,13 @@ class ADC_Branch2(ADC):
             data[midx:midx+2] = littleEndian(currCount, 2)
             data[midx+2:midx+4] = littleEndian(currDelay, 2)
             data[midx+4] = currLength
-            data[midx+5] = nDemod # currChans
+            data[midx+5] = currChans
             data[midx+6:midx+8] = littleEndian(0, 2) # spare
         
         p.write(data.tostring())
         
     @classmethod
-    def makeMixerTable(cls, nDemod, demods, p):
+    def makeMixerTable(cls, demods, p):
     
         """
         Page 1-12 of SRAM has the mixer tables for demodulators 0-11 respectively.
@@ -758,11 +758,11 @@ class ADC_Branch2(ADC):
         d(1026)sram(+1023)[7..0]	multcos(511)
         """
 
-        for idx in range(nDemod):
+        for idx,demod in enumerate(demods):
             data = np.zeros(cls.SRAM_MIXER_PKT_LEN, dtype='<u1')
             # retrigger table is page 0, mixer tables are pages 1-13, factor of 4 from stripping least significant bits
             data[0:2] = littleEndian((idx+1),2) # SRAM page address
-            mixerTable = demods[idx]['mixerTable']
+            mixerTable = demod['mixerTable']
             for tidx, row in enumerate(mixerTable):
                 I, Q = row
                 data[(tidx*2)+2] = I
@@ -885,10 +885,9 @@ class ADC_Build7(ADC_Branch2):
     def setup(self, info):
         triggerTable = info['triggerTable']
         demods = [info[idx] for idx in range(self.DEMOD_CHANNELS) if idx in info]
-        nDemod = len(demods)
         p = self.makePacket()
-        self.makeTriggerTable(nDemod, triggerTable, p)
-        self.makeMixerTable(nDemod, demods, p)
+        self.makeTriggerTable(triggerTable, p)
+        self.makeMixerTable(demods, p)
         
         triggerTableState = " ".join(['triggerTableState%d=%s' % (idx, triggerTable[idx]) for idx in range(len(triggerTable)) ])
         #mixTableState = " ".join(['mixTable%d=%s' % (idx, mixerTable[idx]) for idx in len(mixerTable) ])
@@ -967,8 +966,9 @@ class ADC_Build7(ADC_Branch2):
         print "runDemod"
         triggerTable = info['triggerTable']
         # Default to full length filter with half full scale amplitude
-        demods = dict((i, info[i]) for i in \
-            range(self.DEMOD_CHANNELS) if i in info)
+        demods = [info[idx] for idx in range(self.DEMOD_CHANNELS) if idx in info]
+        #demods = dict((i, info[i]) for i in \
+        #    range(self.DEMOD_CHANNELS) if i in info)
         mode = info['mode']    
         @inlineCallbacks
         def func():
@@ -977,16 +977,14 @@ class ADC_Build7(ADC_Branch2):
     
             # create packet for the ethernet server
             p = self.makePacket()
-            nDemod = len(demods)
-            print '(ADC) nDemod: ',str(nDemod)
-            self.makeTriggerTable(nDemod,triggerTable,p)
-            self.makeMixerTable(nDemod,demods,p)
+            self.makeTriggerTable(triggerTable,p)
+            self.makeMixerTable(demods,p)
             p.write(regs.tostring()) # send registry packet
             p.timeout(T.Value(10, 's')) # set a conservative timeout
-            if nDemod > 11:
-                p.read(2)
-            else:
-                p.read(1) # read back one demodulation packet (?)
+            totalReadouts = np.sum([ row[0]*row[3] for row in triggerTable])
+            nPackets = int(np.ceil(totalReadouts/11.0))
+            print "Trying to read back %d packets with %d readouts" % (nPackets, totalReadouts)
+            p.read(nPackets)
             ans = yield p.send() #Send the packet to the direct ethernet
             # server parse the packets out and return data. packets is a list
             # of 48-byte strings
