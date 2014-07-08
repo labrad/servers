@@ -121,24 +121,30 @@ class TimedLock(object):
 
 
 class LoggingPacket(object):
-    def __init__(self, p):
+    def __init__(self, p, name=None):
         self._packet = p
-    
+        self._name = name
     def __getattr__(self, name):
         return getattr(self._packet, name)
-    
+        
+    def __getitem__(self, key):
+        return self._packet[key]
+    def __setitem__(self, key, value):
+        self._packet[key] = value
+        
     def send(self):
         global DUMP_NUM
         packetType = '-'.join([DIRECT_ETHERNET_SETTINGS[x[0]] for x in self._packet._packet])
         fname = os.path.join(DEBUG_PATH, 'dac_packet_%d_%s.txt' %(DUMP_NUM, packetType))
         with open(fname, 'wb') as f:
-            dumpPacketWithHash(f, self._packet)
+            dumpPacketWithHash(f, self._packet, self._name)
         DUMP_NUM += 1
         return self._packet.send()
 
 
-def dumpPacketWithHash(file, p):
-    print("Dumping Dan-style packet")
+def dumpPacketWithHash(file, p, name):
+    if name:
+        print "Dumping Packet: ", name
     #toWrite = ''.join([str(x[1]) for x in p._packet])
     print str(p)
     toWrite = repr(p)

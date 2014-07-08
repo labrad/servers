@@ -222,7 +222,8 @@ import servers.GHzDACs.Cleanup.dac as dac
 import servers.GHzDACs.Cleanup.adc as adc
 import servers.GHzDACs.Cleanup.fpga as fpga
 
-from util import TimedLock
+from util import TimedLock, LoggingPacket
+LOGGING_PACKET=True
 
 from matplotlib import pyplot as plt
 
@@ -561,6 +562,10 @@ class BoardGroup(object):
         wait = self.server.packet(context=self.ctx)
         run = self.server.packet(context=self.ctx)
         both = self.server.packet(context=self.ctx)
+        if LOGGING_PACKET:
+            wait = LoggingPacket(wait, name='run=wait')
+            run = LoggingPacket(run, name='run=run')
+            both = LoggingPacket(both, name='run=both')
         # wait for triggers and discard them
         # The actual number of triggers to wait for will be decided
         # later. The 0 is a placeholder here.

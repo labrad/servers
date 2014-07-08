@@ -720,7 +720,7 @@ class ADC_Branch2(ADC):
             
             # See documentation above
             currCount -= 1 # compensate for FPGA offsets
-            currDelay -= 3 # compensate for FPGA offsets
+            currDelay -= 4 # compensate for FPGA offsets
             currLength -=1 # compensate for FPGA offsets
             
             midx = idx * 8 + 2
@@ -866,7 +866,6 @@ class ADC_Build7(ADC_Branch2):
         d(58)	spare	
         
         """
-        print "regRun"
         regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
         regs[0] = mode
         regs[1:3] = littleEndian(startDelay, 2) #Daisychain delay
@@ -891,7 +890,7 @@ class ADC_Build7(ADC_Branch2):
     def setup(self, info):
         triggerTable = info['triggerTable']
         demods = [info[idx] for idx in range(self.DEMOD_CHANNELS) if idx in info]
-        p = self.makePacket()
+        p = self.makePacket("setup")
         self.makeTriggerTable(triggerTable, p)
         self.makeMixerTable(demods, p)
         
@@ -907,10 +906,9 @@ class ADC_Build7(ADC_Branch2):
         
         Sequence data is just the trigger table.
         """
-        p = self.makePacket()
+        p = self.makePacket("load")
         triggerData = info['triggerTable']
-        nDemod = np.sum([ 1 if idx in info else 0 for idx in range(self.DEMOD_CHANNELS) ])
-        self.makeTriggerTable(nDemod, triggerData, p)
+        self.makeTriggerTable(triggerData, p)
         return p    
     # board communication (can be called from within test mode)
     
@@ -928,13 +926,12 @@ class ADC_Build7(ADC_Branch2):
     # These run in test mode.
     
     def registerReadback(self):
-        print "registerReadback"
         @inlineCallbacks
         def func():
             # build registry packet
             regs = self.regRun(self.RUN_MODE_REGISTER_READBACK, 0) # 0 reps?
             
-            p = self.makePacket()
+            p = self.makePacket("registerReadback")
             p.write(regs.tostring())
             p.timeout(T.Value(10, 's'))
             p.read(1)
@@ -952,7 +949,7 @@ class ADC_Build7(ADC_Branch2):
         def func():
             # build registry packet
             regs = self.regRun(self.RUN_MODE_AVERAGE_AUTO, {}, 1)
-            p = self.makePacket()
+            p = self.makePacket("runAverage")
             p.write(regs.tostring())
             p.timeout(T.Value(10, 's'))
             p.read(self.AVERAGE_PACKETS)
@@ -969,7 +966,6 @@ class ADC_Build7(ADC_Branch2):
         return self.testMode(func)
     
     def runDemod(self, info):
-        print "runDemod"
         triggerTable = info['triggerTable']
         # Default to full length filter with half full scale amplitude
         demods = [info[idx] for idx in range(self.DEMOD_CHANNELS) if idx in info]
@@ -982,7 +978,7 @@ class ADC_Build7(ADC_Branch2):
             regs = self.regRun(self.RUN_MODE_DEMOD_AUTO, info, 1)
     
             # create packet for the ethernet server
-            p = self.makePacket()
+            p = self.makePacket("runDemod packet")
             self.makeTriggerTable(triggerTable,p)
             self.makeMixerTable(demods,p)
             p.write(regs.tostring()) # send registry packet
@@ -995,8 +991,7 @@ class ADC_Build7(ADC_Branch2):
             # server parse the packets out and return data. packets is a list
             # of 48-byte strings
             packets = [data for src, dst, eth, data in ans.read]
-            returnValue(self.extractDemod(packets,
-                self.DEMOD_CHANNELS_PER_PACKET, mode))
+            returnValue(self.extractDemod(packets, triggerTable, mode))
             
         return self.testMode(func)
     
@@ -1038,7 +1033,7 @@ class ADC_Build7(ADC_Branch2):
             } 
     
     @staticmethod
-    def extractDemod(packets, nDemod, mode):
+    def extractDemod(packets, triggerTable, mode):
         """Extract Demodulation data from a list of packets (byte strings).
         
         After demodulation is done on each retrigger, demodulator output is put
@@ -1078,24 +1073,39 @@ class ADC_Build7(ADC_Branch2):
         """
         #stick all data strings in packets together, chopping out last 4 bytes
         #from each string
-        print "extract demod packets:"
+        
+        rchans = np.array([row[3] for row in triggerTable])
+        nTrigger = np.array([row[0] for row in triggerTable])
+        
+        totalTriggers = np.sum(nTrigger)
+        if not all(rchans==rchans[0]):
+            raise RuntimeError("Currently, all rchan must be equal")
+        else:
+            rchan = rchans[0]
+            
+        print "extract demod packets.  Total triggers: %d, rchan: %d" % (totalTriggers, rchan)
         for p in packets:
             print "len: %d" % (len(p),)
             print labrad.support.hexdump(p)
         data = np.fromstring(''.join(data[:44] for data in packets), dtype='<u1')
         pktCounters = [ ord(pkt[46]) for pkt in packets ]
         readbackCounters = [ ord(pkt[44]) + ord(pkt[45])<<8 for pkt in packets ]
+        print "packet counters: %s, readback counters: %s" % (pktCounters, readbackCounters)
         if mode=='iq':
-            vals = np.fromstring(data, dtype='<i2') # Convert to 16-bit int array
+            # Convert to 16-bit int array and chop garbage from last packet
+            vals = np.fromstring(data, dtype='<i2')[:2*rchan*totalTriggers] 
             # Slowest varying index: time step, next slowest index : demodulator, fastest index: I vs Q
             #  Transpose first two indices to make demodulator first index 
             # Iq0[t=0], Qq0[t=0], Iq1[t=0], Qq1[t=0], Iq0[t=1], Qq0[t=1], Iq1[t=1], Qq1[t=1]
             #    
             #     goes to:
             # data[qubit][time_step][(I=0 | Q=1)]       
-            
-            data = vals.reshape(-1 , nDemod, 2).astype(int).transpose((1, 0, 2))
-            return (data, pktCounters, readbackCounters)
+            print "flat values: ", vals
+            reshapedData = vals.reshape(totalTriggers , rchan, 2).astype(int)
+            print "reshaped data: ", reshapedData
+            transposedData = reshapedData.transpose((1, 0, 2))
+            print "transposed data: ", transposedData
+            return (transposedData, pktCounters, readbackCounters)
         else:
             '''
             In bit readout mode, use rchan[7..0]=0.  Readout is only the sign bit of channels 0 to 7; one byte readout is designed for compactness to minimize number of Ethernet packets.  The bit is 0 if real quadrature of the channel is positive.  Bit is flipped with XOR mask bitflip[7..0] defined in register write.  Order of bits in output byte is [ch7..ch0].

@@ -94,22 +94,20 @@ class FPGA(DeviceWrapper):
     # Direct ethernet packet creation methods.
     # These probably do not need to be overridden in subclasses.
     
-    def _makePacket(self):
+    def _makePacket(self, ignore=None):
         """Create a direct ethernet server request packet for this device"""
         return self.server.packet(context=self.ctx)
     
-    def makeLoggingPacket(self):
+    def makeLoggingPacket(self, name=None):
         """Create a direct ethernet server request packet with tracing"""
         p = self._makePacket()
-        return LoggingPacket(p)
+        return LoggingPacket(p, name)
     
     if USE_LOGGING_PACKETS:
         makePacket = makeLoggingPacket
     else:
         makePacket = _makePacket
-    
-    makePacket = makeLoggingPacket
-    
+        
     
     def collect(self, nPackets, timeout, triggerCtx=None):
         """
