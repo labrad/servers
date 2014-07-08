@@ -872,9 +872,15 @@ class ADC_Build7(ADC_Branch2):
         regs[1:3] = littleEndian(startDelay, 2) #Daisychain delay
         regs[7:9] = littleEndian(reps, 2)       #Number of repetitions
         regs[9] = littleEndian(0, 1)[0] #XOR bit flip mask
+
+        mon0 = info.get('mon0', 'start')
+        mon1 = info.get('mon1', 'don')
         
-        mon0 = mondict.MONDICT[info.get('mon0', 'start')]
-        mon1 = mondict.MONDICT[info.get('mon1', 'don')]
+        if isinstance(mon0,str):
+            mon0 = mondict.MONDICT[mon0]
+        if isinstance(mon1,str):
+            mon1 = mondict.MONDICT[mon1]
+
         regs[10] = mon0
         regs[11] = mon1
         

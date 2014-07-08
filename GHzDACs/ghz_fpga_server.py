@@ -1892,7 +1892,7 @@ class FPGAServer(DeviceServer):
         ans = yield dev.registerReadback()
         returnValue(str(ans))
         
-    @setting(2502, 'ADC Monitor Outputs', mon0='s', mon1='s')
+    @setting(2502, 'ADC Monitor Outputs', mon0=['s','w'], mon1=['s','w'])
     def adc_monitor_outputs(self, c, mon0, mon1):
         """Specify monitor outputs. (ADC only)"""
         dev = self.selectedADC(c)
