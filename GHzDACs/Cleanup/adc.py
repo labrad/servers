@@ -624,13 +624,18 @@ class AdcRunner_Build7(AdcRunner_Build2):
         print "sequence time: %f, timeout: %f" % (statTime, self.seqTime)
     def loadPacket(self, page, isMaster):
         """Create pipelined load packet. For ADC this is the trigger table."""
+        print "making ADC load packet"
         if isMaster:
             raise Exception("Cannot use ADC board '%s' as master." \
                 % self.dev.devName)
-        return self.dev.load(self.info)
-    def setupPacket(self):
-        return self.dev.setup(self.info)
+        p = self.dev.load(self.info)
+        print("adc load packet: %s" % (str(p._packet)))
+        return p
         
+    def setupPacket(self):
+        p = self.dev.setup(self.info)
+        print("ADC setup packet: %s" % (str(p[0]._packet),))
+        return p
     def runPacket(self, page, slave, delay, sync):
         """Create run packet.
         
@@ -638,9 +643,9 @@ class AdcRunner_Build7(AdcRunner_Build2):
         are there so that we could use the same call for DACs and ADCs.
         This is cheesey and ought to be fixed.
         """
-        
         startDelay = self.startDelay + delay
         regs = self.dev.regRun(self.mode, self.info, self.reps, startDelay=startDelay)
+        print("ADC run packet: %s" % (regs,))
         return regs    
     def extract(self, packets):
         """Extract data coming back from a readPacket."""
@@ -828,7 +833,6 @@ class ADC_Build7(ADC_Branch2):
     
     @classmethod
     def regRun(cls, mode, info, reps, startDelay=0):
-        print "(ADC) regRun"
         """
         Returns a numpy array of register bytes to run the board
         Register Write:
@@ -862,6 +866,7 @@ class ADC_Build7(ADC_Branch2):
         d(58)	spare	
         
         """
+        print "regRun"
         regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
         regs[0] = mode
         regs[1:3] = littleEndian(startDelay, 2) #Daisychain delay
@@ -918,6 +923,7 @@ class ADC_Build7(ADC_Branch2):
     # These run in test mode.
     
     def registerReadback(self):
+        print "registerReadback"
         @inlineCallbacks
         def func():
             # build registry packet
@@ -949,11 +955,16 @@ class ADC_Build7(ADC_Branch2):
                     
             # parse the packets out and return data
             packets = [data for src, dst, eth, data in ans.read]
+            print "average mode packets:"
+            for p in packets:
+                print "len: %d, first 64 byes:" % (len(p),)
+                print labrad.support.hexdump(p[0:64])
             returnValue(self.extractAverage(packets))
             
         return self.testMode(func)
     
     def runDemod(self, info):
+        print "runDemod"
         triggerTable = info['triggerTable']
         # Default to full length filter with half full scale amplitude
         demods = dict((i, info[i]) for i in \
