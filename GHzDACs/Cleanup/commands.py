@@ -27,7 +27,7 @@ plt.plot(I)
 
 
 x = []
-fs = np.linspace(-.025, 0.025, 51)
+fs = np.linspace(-0.02,0.02,41)
 for f in fs:
     cxn.manager.expire_context()
     cxn.ghz_fpgas.select_device(1)
@@ -112,13 +112,15 @@ List of experiments to check ADC:
         appears to work with rdelay = 1 rlen=2
 
 5. Check that phase locked source gives same demod value for each experiment repetition
+--> Check
+7. Check daisy chain & sequence_run
+--> Check
+14. 1 us start multiple in daisy chain mode
+--> Check
+
 5a. Make sure all demods (esp. 0, 12) run the same time steps
 6. Compare average mode to demod mode by reconstructing a signal using many delta functions for demod mode (needs phase locked source).
-7. Check daisy chain & sequence_run
-
-
 11. check various conditions that may put the board in a weird state
-14. 1 us start multiple in daisy chain mode
 15. Check that the rlen is not off by 1
 
 """

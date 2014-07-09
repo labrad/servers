@@ -5,7 +5,7 @@ import os
 from labrad.devices import DeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad.units import Value
-from servers.GHzDACs.util import LoggingPacket
+from GHzDACs.util import LoggingPacket
 
 # A registry of FPGA board classes. The class for each build must be added to
 # this registry so that the fpga server knows what type of object to construct

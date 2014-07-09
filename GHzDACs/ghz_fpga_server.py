@@ -218,9 +218,9 @@ from labrad import types as T
 from labrad.devices import DeviceServer
 from labrad.server import setting
 
-import servers.GHzDACs.Cleanup.dac as dac
-import servers.GHzDACs.Cleanup.adc as adc
-import servers.GHzDACs.Cleanup.fpga as fpga
+import GHzDACs.Cleanup.dac as dac
+import GHzDACs.Cleanup.adc as adc
+import GHzDACs.Cleanup.fpga as fpga
 
 from util import TimedLock, LoggingPacket
 LOGGING_PACKET=True

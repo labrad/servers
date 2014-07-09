@@ -1,6 +1,6 @@
 import numpy as np
 
-import servers.GHzDACs.Cleanup.fpga as fpga
+import GHzDACs.Cleanup.fpga as fpga
 
 # named functions
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -8,7 +8,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad.devices import DeviceWrapper
 from labrad import types as T
 
-from servers.GHzDACs.util import littleEndian, TimedLock
+from GHzDACs.util import littleEndian, TimedLock
 
 
 # CHANGELOG

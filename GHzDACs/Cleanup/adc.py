@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 
-import servers.GHzDACs.Cleanup.fpga as fpga
+import GHzDACs.Cleanup.fpga as fpga
 
 # named functions
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -10,9 +10,9 @@ from labrad.devices import DeviceWrapper
 from labrad import types as T
 import labrad.support
 
-from servers.GHzDACs.util import littleEndian, TimedLock
+from GHzDACs.util import littleEndian, TimedLock
 
-import servers.GHzDACs.Cleanup.mondict as mondict
+import GHzDACs.Cleanup.mondict as mondict
 
 
 ### Base classes ###
@@ -612,8 +612,8 @@ class AdcRunner_Build7(AdcRunner_Build2):
         elif self.runMode == 'demodulate':
             self.mode = self.dev.RUN_MODE_DEMOD_DAISY
             triggers = sum([count*chan for count, delay, rlen, chan in info['triggerTable']])
-            self.nPackets = int(np.ceil(reps * triggers / 11.0))
-            print "number of packets: %d" % (self.nPackets,)
+            self.nPackets = int(np.ceil(reps * triggers / float(self.dev.DEMOD_CHANNELS_PER_PACKET)))
+            print "(ADC) number of packets: %d" % (self.nPackets,)
         else:
             raise Exception("Unknown run mode '%s' for board '%s'" \
                 % (self.runMode, self.dev.devName))
@@ -653,7 +653,7 @@ class AdcRunner_Build7(AdcRunner_Build2):
             return self.dev.extractAverage(packets)
         elif self.runMode == 'demodulate':
             return self.dev.extractDemod(packets,
-                self.dev.DEMOD_CHANNELS_PER_PACKET, self.info.get('mode', 'iq'))
+                self.info['triggerTable'], self.info.get('mode', 'iq'))
 
 class ADC_Branch2(ADC):
     """Superclass for second branch of ADC boards"""
@@ -889,10 +889,10 @@ class ADC_Build7(ADC_Branch2):
     
     def setup(self, info):
         triggerTable = info['triggerTable']
-        demods = [info[idx] for idx in range(self.DEMOD_CHANNELS) if idx in info]
+        # demods = [info[idx] for idx in range(self.DEMOD_CHANNELS) if idx in info]
         p = self.makePacket("setup")
-        self.makeTriggerTable(triggerTable, p)
-        self.makeMixerTable(demods, p)
+        # self.makeTriggerTable(triggerTable, p)
+        # self.makeMixerTable(demods, p)
         
         triggerTableState = " ".join(['triggerTableState%d=%s' % (idx, triggerTable[idx]) for idx in range(len(triggerTable)) ])
         #mixTableState = " ".join(['mixTable%d=%s' % (idx, mixerTable[idx]) for idx in len(mixerTable) ])
@@ -904,11 +904,13 @@ class ADC_Build7(ADC_Branch2):
         """
         Create a direct ethernet packet to load sequence data.
         
-        Sequence data is just the trigger table.
+        Sequence data is the trigger table and mixer table.
         """
         p = self.makePacket("load")
         triggerData = info['triggerTable']
         self.makeTriggerTable(triggerData, p)
+        demods = [info[idx] for idx in range(self.DEMOD_CHANNELS) if idx in info]
+        self.makeMixerTable(demods, p)
         return p    
     # board communication (can be called from within test mode)
     
@@ -1074,6 +1076,7 @@ class ADC_Build7(ADC_Branch2):
         #stick all data strings in packets together, chopping out last 4 bytes
         #from each string
         
+        print "(ADC) triggerTable: ",str(triggerTable)
         rchans = np.array([row[3] for row in triggerTable])
         nTrigger = np.array([row[0] for row in triggerTable])
         
