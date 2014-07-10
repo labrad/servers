@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Lakeshore Diodes
-version = 2.1
+version = 2.2
 description = 
 
 [startup]
@@ -31,8 +31,9 @@ timeout = 20
 """
 
 from labrad import types as T, gpib
+from labrad.units import K, V
 from labrad.server import setting
-from labrad.gpib import GPIBManagedServer
+from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 def parse(val):
@@ -48,6 +49,7 @@ def parse(val):
 class LakeshoreDiodeServer(GPIBManagedServer):
     name = 'Lakeshore Diodes'
     deviceName = 'LSCI MODEL218S'
+    deviceWrapper = GPIBDeviceWrapper
 
     @setting(10, 'Temperatures', returns=['*v[K]'])
     def temperatures(self, c):
@@ -57,7 +59,7 @@ class LakeshoreDiodeServer(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         resp = yield dev.query('KRDG? 0')
-        vals = [parse(val) for val in resp.split(',')]
+        vals = [parse(val)*K for val in resp.split(',')]
         returnValue(vals)
 
     @setting(11, 'Voltages', returns=['*v[V]'])
@@ -68,7 +70,7 @@ class LakeshoreDiodeServer(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         resp = yield dev.query('SRDG? 0')
-        vals = [parse(val) for val in resp.split(',')]
+        vals = [parse(val)*V for val in resp.split(',')]
         returnValue(vals)
 
 __server__ = LakeshoreDiodeServer()
