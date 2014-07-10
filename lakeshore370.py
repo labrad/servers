@@ -100,11 +100,13 @@ import math
 from twisted.python import log
 from twisted.internet.defer import inlineCallbacks, returnValue
 
-from labrad import types as T, util
+from labrad import types as T, util, units as U
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 
 import numpy as np
+
+Ohm, K = [U.Unit(s) for s in ['Ohm', 'K']]
 
 READ_ORDER = [1, 2, 1, 3, 1, 4, 1, 5]
 #N_CHANNELS = 5
@@ -265,7 +267,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
         # len(set(x)) gets the number of unique elements in x
         self.readings = {}
         for channel in self.readOrder:
-            self.readings[channel] = (0, datetime.now())
+            self.readings[channel] = (0*Ohm, datetime.now())
         
         # now start with the calibrations
         # first get the default one
@@ -340,7 +342,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 chan = self.onlyChannel
                 yield util.wakeupCall(SETTLE_TIME)
                 r = yield self.query('RDGR? %d' % chan)
-                self.readings[chan] = float(r), datetime.now()
+                self.readings[chan] = float(r)*Ohm, datetime.now()
             # scan over channels
             else:
                 if len(self.readOrder) > 0:
@@ -351,7 +353,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 yield self.selectChannel(chan)
                 yield util.wakeupCall(SETTLE_TIME)
                 r = yield self.query('RDGR? %d' % chan)
-                self.readings[chan] = float(r), datetime.now()
+                self.readings[chan] = float(r)*Ohm, datetime.now()
                 idx = (idx + 1) % len(self.readOrder)
     
     def getSingleTemp(self, channel, calIndex=-1):
@@ -374,12 +376,12 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 return (np.exp(np.interp(np.log(self.readings[channel][0]),
                               np.log(np.array(self.calibrations[calIndex][1])),
                               np.log(np.array(self.calibrations[calIndex][2]))
-                              )))
+                              ))) * K
             elif self.calibrations[calIndex][0] == VRHOPPING:
                 T0 = self.calibrations[calIndex][2]
                 R0 = self.calibrations[calIndex][1]
                 res = self.readings[channel][0]
-                T = T0['K'] / (np.log(R0['Ohm']/res)**4)
+                T = T0 / (np.log(R0['Ohm']/res)**4)
                 return T
             elif self.calibrations[calIndex][0] == FUNCTION:
                 # hack alert--using eval is bad:
@@ -390,14 +392,14 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 # (3) very unsafe if anyone ever hacks the registry. of course,
                 #     then we have bigger problems
                 r = self.readings[channel][0]
-                return eval(self.calibrations[calIndex][1])
+                return eval(self.calibrations[calIndex][1]) * K
             elif self.calibrations[calIndex][0] == DEFAULT:
                 if calIndex > 0:
                     # use calibration 0--the device calibration
                     return self.getSingleTemp(channel, 0) 
                 else:
                     #If there is no calibration at all use res2temp
-                    return res2temp(self.readings[channel][0])
+                    return res2temp(self.readings[channel][0]) * K
         except Exception, e:
             print e
             return 0.0
