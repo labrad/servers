@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 
-import GHzDACs.Cleanup.fpga as fpga
+import servers.GHzDACs.Cleanup.fpga as fpga
 
 # named functions
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -10,9 +10,9 @@ from labrad.devices import DeviceWrapper
 from labrad import types as T
 import labrad.support
 
-from GHzDACs.util import littleEndian, TimedLock
+from servers.GHzDACs.util import littleEndian, TimedLock
 
-import GHzDACs.Cleanup.mondict as mondict
+import servers.GHzDACs.Cleanup.mondict as mondict
 
 
 ### Base classes ###
