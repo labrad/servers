@@ -25,6 +25,7 @@
 #                                       channels
 # Version 2.5.1 Jim Wenner  2014/04/09  If using interpolation, resistances no
 #                                       longer must be monotonically increasing
+# Version 2.6   pomalley    2014/07/10  Made unitses more better
 #
 # How to set your Lakeshore 370's Resistance vs. Temperature Curve:
 # Previously, conversion of a resistance to a temperature happened with a hard
@@ -81,7 +82,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Lakeshore RuOx
-version = 2.5.2
+version = 2.6
 description = 
 
 [startup]
