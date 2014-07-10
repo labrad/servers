@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Hittite T2100 Server
-version = 1.0
+version = 1.1
 description = Microwave function generator
 
 [startup]
@@ -31,6 +31,7 @@ timeout = 5
 """
 
 from labrad.server import setting
+from labrad.units import Hz, dBm
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 
@@ -95,7 +96,7 @@ class HittiteServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if f is not None:
             yield dev.setFrequency(f)
-        returnValue(dev.frequency)
+        returnValue(float(dev.frequency)*Hz)
 
     @setting(11, 'Amplitude', a=['v[dBm]'], returns=['v[dBm]'])
     def amplitude(self, c, a=None):
@@ -103,7 +104,7 @@ class HittiteServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if a is not None:
             yield dev.setAmplitude(a)
-        returnValue(dev.amplitude)
+        returnValue(float(dev.amplitude)*dBm)
 
     @setting(12, 'Output', os=['b'], returns=['b'])
     def output_state(self, c, os=None):
