@@ -223,7 +223,7 @@ import servers.GHzDACs.Cleanup.adc as adc
 import servers.GHzDACs.Cleanup.fpga as fpga
 
 from util import TimedLock, LoggingPacket
-LOGGING_PACKET=True
+LOGGING_PACKET=False
 
 from matplotlib import pyplot as plt
 
