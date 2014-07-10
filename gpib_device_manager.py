@@ -93,7 +93,7 @@ class GPIBDeviceManager(LabradServer):
                         (('List Devices' in s.settings) or \
                          ('list_devices' in s.settings))]
         serverNames = [s.name for s in servers]
-        print 'Pinging servers:', names
+        print 'Pinging servers:', serverNames
         resp = yield DeferredList([s.list_devices() for s in servers])
         for serverName, (success, addrs) in zip(serverNames, resp):
             if not success:
