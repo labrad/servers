@@ -51,16 +51,16 @@ cxn.ghz_fpgas.adc_monitor_outputs('ADdone', 'alldone')
 #mixTable *= 0
 #mixTable[3,:] = 127
 #            rcount rdelay rlen, rchan
-triggerTable = [(1, 10, 100, 1)]
+triggerTable = [(3, 10, 250, 12)]
 cxn.ghz_fpgas.select_device(1)
 cxn.ghz_fpgas.adc_trigger_table(triggerTable)
-for idx in range(2):
-    mix_wfm = np.exp(2*np.pi*1j*np.arange(512) * 2.0 * .000)*np.exp(-1j*np.pi*idx/3)
+for idx in range(12):
+    mix_wfm = np.exp(2*np.pi*1j*np.arange(512) * 2.0 * .010)#*np.exp(-1j*np.pi*idx/3)
     mixTable = np.array(np.column_stack((np.real(mix_wfm*127), np.imag(mix_wfm*127))), dtype=int)    
     cxn.ghz_fpgas.adc_mixer_table(idx, mixTable)
 #cxn.ghz_fpgas.adc_mixer_table(0, mixTable)
 data = cxn.ghz_fpgas.adc_run_demod()
-print data
+print np.array(data[0])
 
 def flatMix(mon0='start',mon1='don',triggerTable = [(1,1250,100,1)]):#trigger=1,chan=1):
     cxn.manager.expire_context()
@@ -85,6 +85,12 @@ def flatMix(mon0='start',mon1='don',triggerTable = [(1,1250,100,1)]):#trigger=1,
     print "angle: ", np.angle(Z)*180/np.pi, " degrees"
     return Z
     
+data = []
+for idx in range(512):
+    mixerTable = fpgaTest.deltaMixerTable(idx)
+    currData = fpgaTest.mixerTriggerTable(s, cxn, mixerTable = mixerTable, demodFreq=None)
+    data.append(currData[0][0][0])
+    
 """
 List of experiments to check ADC:
 1. Check that multiple channels works as expected
@@ -101,7 +107,7 @@ List of experiments to check ADC:
 
 8. Check minimum rdelay (minimum start-start and minimum stop-start)
 --> Packet count correct for rdelay, rlen = (1, 1)
-
+### BUT: data gets screwed up for rdelay < 50 cycles and 12 channels
 
 4. Check that the phase is consistent for multiple demods -> demod multiple times for a signal at some frequency and see that the phase shift makes sense between demods, given the rdelay
 
@@ -119,8 +125,11 @@ List of experiments to check ADC:
 --> Check
 
 5a. Make sure all demods (esp. 0, 12) run the same time steps
+--> Check
 6. Compare average mode to demod mode by reconstructing a signal using many delta functions for demod mode (needs phase locked source).
-11. check various conditions that may put the board in a weird state
+--> Check
 15. Check that the rlen is not off by 1
+--> Check
 
+11. check various conditions that may put the board in a weird state
 """

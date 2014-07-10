@@ -617,6 +617,8 @@ class BoardGroup(object):
                 # Send load packets. Do not wait for response.
                 # We already acquired the page lock, so sending data to
                 # SRAM and memory is kosher at this time
+                # XXX Need to check what "load packets" is for ADC and make
+                # sure sending load packets here is ok.
                 loadDone = self.sendAll(loadPkts, 'Load')
                 # stage 2: run
                 # Send a request for the run lock, do not wait for response.
@@ -635,10 +637,12 @@ class BoardGroup(object):
                     # store the number of triggers for the next run
                     self.prevTriggers = len(runners)
                     
-                    #If the passed in setup state setupState, or the current
+                    # If the passed in setup state setupState, or the current
                     # actual setup state, self.setupState are empty, we need
                     # to set things up. Also if the desired setup state isn't
                     # a subset of the actual one, we need to set up.
+                    # XXX Check what setup state means for ADC. Should this
+                    # include the trigger/demodulator tables or not?
                     needSetup = (not setupState) or (not self.setupState) or \
                                     (not (setupState <= self.setupState))
                     if needSetup:
@@ -661,12 +665,14 @@ class BoardGroup(object):
                         # if this fails, something BAD happened!
                         r = yield bothPkt.send()
                     
-                    # keep track of how long the packet waited before being
-                    # able to run
+                    # Keep track of how long the packet waited before being
+                    # able to run.
+                    # XXX How does this work? Why is r['nTriggers'] the wait
+                    # time?
                     self.runWaitTimes.append(float(r['nTriggers']))
                     if len(self.runWaitTimes) > 100:
                         self.runWaitTimes.pop(0)
-                        
+                    
                     yield self.readLock.acquire() # wait for our turn to read
                     
                     # stage 3: collect
@@ -721,64 +727,55 @@ class BoardGroup(object):
             #This line scales really badly with incrasing stats
             #At 9600 stats the next line takes 10s out of 20s per
             #sequence.
-            t0 = time.clock()
             results = yield readAll # wait for read to complete
-            t1 = time.clock()
-    
+            
             if getTimingData:
-                allDacs = True
                 answers = []
-                boardResults = {}
-                for board in timingOrder:
-                    channel = None
-                    #If board has a :: in it, it's an ADC with specified demod
+                # Cache of already-parsed data from a particular board.
+                # Prevents un-flattening a packet more than once.
+                extractedData = {}
+                for dataChannelName in timingOrder:
+                    # If dataChannelName has a :: in it, it's an ADC with specified demod
                     # channel
-                    if '::' in board:
-                        board, channel = board.split('::')
-                        channel = int(channel) 
-                    # Extract data from ethernet packets if we have not
-                    # already.
-                    # Why are we doing this? We're looping over all timing
-                    # channels, and ADC boards have more than one timing
-                    # channel. On the frist run through the loop we might have
-                    # ADC 0 demod channel i. To get that data we have to
-                    # extract from the packets that came back from the ADC
-                    # board. Then, on the next run through the loop, we might
-                    # want to get data for ADC 0 demod channel i+1. We don't
-                    # want to re-extract the data from the packet on the
-                    # second run, so we keep track of which boards have had
-                    # their data extracted.
-                    if board in boardResults:
-                        answer = boardResults[board]
+                    if "::" in dataChannelName:
+                        boardName, channel = dataChannelName.split('::')
+                        channel = int(channel)
+                    elif 'DAC' in dataChannelName:
+                        raise RuntimeError("DAC data readback not supported")
                     else:
-                        idx = boardOrder.index(board)
+                        raise RuntimeError('channel format not understood')
+                    
+                    # If we have already parsed the packet for this board, fetch the
+                    # cached result.
+                    if boardName in extractedData:
+                        extracted = extractedData[boardName]
+                        extracted = extracted[0][channel]
+                    # Otherwise, extract the data, cache it, and add the relevant part
+                    # to the list of returned data.
+                    else:
+                        idx = boardOrder.index(boardName)
                         runner = runners[idx]
-                        allDacs &= isinstance(runner, dac.DacRunner)
                         result = [data for src, dest, eth, data in results[idx]['read']]
                         # Array of all timing results (DAC)
-                        answer = runner.extract(result)
-                        boardResults[board] = answer
-                        runner.ranges = answer[1]
-                    # Add extracted data to the list of timing results
-                    # If this is an ADC demod channel, grab that channel's
-                    # data only
-                    if channel is not None: #channel is None for DAC boards
-                        answer = answer[0][channel]
-                    answers.append(answer)
-                
-                if allDacs and \
-                  len(set(len(answer) for answer in answers)) == 1:
-                    # make a 2D list for backward compatibility
-                    answers = np.vstack(answers)
-                else:
-                    # otherwise make a tuple
-                    # If the returned data contains data from both DACs
-                    # and ADCs, then the data type is not homogeneous,
-                    # meaning we can't use a LabRAD list. Instead we
-                    # have to use a cluster. Therefore, cast to a python
-                    # tuple here.
-                    answers = tuple(answers)
-                returnValue(answers)
+                        extracted = runner.extract(result)
+                        extractedData[boardName] = extracted
+                        
+                        # XXX I'm about to re-define extracted. This is ok
+                        # because it's a tuple and won't mutate the thing in the
+                        # cache, but it's bad and I should rename the variables.
+                        
+                        # XXX Ranges code needs to be updated. Next line obsolete.
+                        # runner.ranges = extracted[1]
+                        # Add extracted data to the list of data to be returned.
+                        # If this is an ADC demod channel, grab that channel's
+                        # data only
+                        print("fpga_server: extracted: %s"%(extracted,))
+                        extracted = extracted[0]
+                        print("fpga_server: extacted no pkt counters: %s"%(type(extracted),))
+                        print("fpga_server: channel: %d"%(channel,))
+                        extracted = extracted[channel]
+                    answers.append(extracted)
+                returnValue(tuple(answers))
         finally:
             self.pipeSemaphore.release()
 

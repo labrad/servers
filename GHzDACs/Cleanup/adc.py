@@ -598,6 +598,7 @@ class ADC_Build6(ADC_Build2):
 fpga.REGISTRY[('ADC', 6)] = ADC_Build6
 
 class AdcRunner_Build7(AdcRunner_Build2):
+    
     def __init__(self, dev, reps, runMode, startDelay, channels, info):
         self.dev = dev
         self.reps = reps
@@ -622,6 +623,7 @@ class AdcRunner_Build7(AdcRunner_Build2):
         statTime = 4e-9*sum([count*(delay+rlen) for count, delay, rlen, chan in info['triggerTable']])
         self.seqTime = fpga.TIMEOUT_FACTOR * (statTime * self.reps) + 1
         print "sequence time: %f, timeout: %f" % (statTime, self.seqTime)
+    
     def loadPacket(self, page, isMaster):
         """Create pipelined load packet. For ADC this is the trigger table."""
         print "making ADC load packet"
@@ -636,6 +638,7 @@ class AdcRunner_Build7(AdcRunner_Build2):
         p = self.dev.setup(self.info)
         print("ADC setup packet: %s" % (str(p[0]._packet),))
         return p
+    
     def runPacket(self, page, slave, delay, sync):
         """Create run packet.
         
@@ -647,6 +650,7 @@ class AdcRunner_Build7(AdcRunner_Build2):
         regs = self.dev.regRun(self.mode, self.info, self.reps, startDelay=startDelay)
         print("ADC run packet: %s" % (regs,))
         return regs    
+    
     def extract(self, packets):
         """Extract data coming back from a readPacket."""
         if self.runMode == 'average':
@@ -698,7 +702,11 @@ class ADC_Branch2(ADC):
         """
         # takes trigger table and turns it into a packet for ADC
         
-        assert len(triggerTable) <= 128 # no memory for more than 128 entries
+        if len(triggerTable) > 128: # no memory for more than 128 entries
+            raise Exception("Trigger table max len = 128")
+        rlens = [row[1]<50 for row in triggerTable]
+        if any(rlens):
+            raise Exception("rlen < 50 clock cycles (200 ns) can cause FIFO backup for 12 chans")
         
         data = np.zeros(cls.SRAM_RETRIGGER_PKT_LEN, dtype='<u1')
         
@@ -944,7 +952,6 @@ class ADC_Build7(ADC_Branch2):
             returnValue(self.processReadback(packets[0]))
             
         return self.testMode(func)
-        
     
     def runAverage(self):
         @inlineCallbacks
@@ -1036,7 +1043,19 @@ class ADC_Build7(ADC_Branch2):
     
     @staticmethod
     def extractDemod(packets, triggerTable, mode):
-        """Extract Demodulation data from a list of packets (byte strings).
+        """
+        Extract Demodulation data from a list of packets (byte strings).
+        
+        Returns a tuple of (demodData, packet counters, readback counters)
+        
+        demodData is a 3-index numpy array with the following indices:
+            0: channel
+            1: trigger event
+            2: I or Q
+        
+        Index 0 runs from 0 to rchans-1
+        Index 1 runs from 0 to number of trigger events - 1
+        Index 2 runs from 0(I) to 1(Q)
         
         After demodulation is done on each retrigger, demodulator output is put
         into a FIFO from channel 0 to numchan[7..0]-1.  Once 11 channels are
@@ -1045,9 +1064,17 @@ class ADC_Build7(ADC_Branch2):
         numchan[7..0]=11 to read back every AD retrigger, since the writing of
         44 bytes will immediately trigger a FIFO read.  
 
-        The FIFO stores 8192 bytes of data, or 186 packets.  This should be fine except for really long sequences.  If you have many retriggers that are closely spaced, with large number channels, the FIFO will overflow before having a chance to release the data.  The total Ethernet transmission time for one packet is around 5 us.  We have halved the averager size to 8 us to have larger FIFO memory.    
+        The FIFO stores 8192 bytes of data, or 186 packets.  This should be
+        fine except for really long sequences.  If you have many retriggers
+        that are closely spaced, with large number channels, the FIFO will
+        overflow before having a chance to release the data.  The total
+        Ethernet transmission time for one packet is around 5 us.  We have
+        halved the averager size to 8 us to have larger FIFO memory.    
 
-        When returning these packets, there is a running count from the end bytes countpack[7..0] and countrb[15..0] that increases for each packet.  This data enables one to check if any packets were missed or to check for their ordering.    
+        When returning these packets, there is a running count from the end
+        bytes countpack[7..0] and countrb[15..0] that increases for each
+        packet. This data enables one to check if any packets were missed or to
+        check for their ordering.    
 
         l(0)	length[15..8]		set to 0
         l(1)	length[7..0]		set to 48
@@ -1071,27 +1098,34 @@ class ADC_Build7(ADC_Branch2):
         d(45)	countrb[15..8]		1st readback has countrb=1
         d(46)	countpack[7..0]	Packet counter, reset on start
         d(47)	spare [7..0]		
-
+        
         """
         #stick all data strings in packets together, chopping out last 4 bytes
         #from each string
         
-        print "(ADC) triggerTable: ",str(triggerTable)
-        rchans = np.array([row[3] for row in triggerTable])
-        nTrigger = np.array([row[0] for row in triggerTable])
+        rchans = [trig[3] for trig in triggerTable]
+        nTrigger = [trig[0] for trig in triggerTable]
         
         totalTriggers = np.sum(nTrigger)
-        if not all(rchans==rchans[0]):
-            raise RuntimeError("Currently, all rchan must be equal")
+        
+        # Allow only cases where rchans was the same for each entry in the
+        # trigger table.
+        # XXX This _really_ should have been checked earlier. Checking this
+        # here is just stupid.
+        if not rchans == len(rchans)*[rchans[0]]:
+            msg = "Unequal rchans: {0} not supported".format(rchans)
+            raise RuntimeError(msg)
         else:
             rchan = rchans[0]
-            
+        
+        # Puke all over the console output.
         print "extract demod packets.  Total triggers: %d, rchan: %d" % (totalTriggers, rchan)
         for p in packets:
             print "len: %d" % (len(p),)
             print labrad.support.hexdump(p)
+        
         data = np.fromstring(''.join(data[:44] for data in packets), dtype='<u1')
-        pktCounters = [ ord(pkt[46]) for pkt in packets ]
+        pktCounters = [ord(pkt[46]) for pkt in packets]
         readbackCounters = [ ord(pkt[44]) + ord(pkt[45])<<8 for pkt in packets ]
         print "packet counters: %s, readback counters: %s" % (pktCounters, readbackCounters)
         if mode=='iq':
