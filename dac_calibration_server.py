@@ -106,7 +106,7 @@ class CalibrationServer(LabradServer):
             keyval = yield reg.get(key,False,default)
             if not isinstance(keyval,bool):
                 #keyval is a number, in labrad units
-                keyval=keyval.value
+                keyval=keyval
             print key,':', keyval
             dict[key]=keyval         
         self.serverSettings=dict
