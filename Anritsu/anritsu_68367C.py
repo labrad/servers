@@ -31,6 +31,7 @@ timeout = 5
 """
 
 from labrad.server import setting
+from labrad.units import Hz, dBm
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 
@@ -83,7 +84,7 @@ class AnritsuServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if f is not None:
             yield dev.setFrequency(f)
-        returnValue(dev.frequency)
+        returnValue(dev.frequency*Hz)
 
     @setting(11, 'Amplitude', a=['v[dBm]'], returns=['v[dBm]'])
     def amplitude(self, c, a=None):
@@ -91,7 +92,7 @@ class AnritsuServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if a is not None:
             yield dev.setAmplitude(a)
-        returnValue(dev.amplitude)
+        returnValue(dev.amplitude*dBm)
 
     @setting(12, 'Output', os=['b'], returns=['b'])
     def output_state(self, c, os=None):
