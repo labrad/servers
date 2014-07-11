@@ -615,6 +615,7 @@ class AdcRunner_Build7(AdcRunner_Build2):
             triggers = sum([count*chan for count, delay, rlen, chan in info['triggerTable']])
             self.nPackets = int(np.ceil(reps * triggers / float(self.dev.DEMOD_CHANNELS_PER_PACKET)))
             print "(ADC) number of packets: %d" % (self.nPackets,)
+            print "(ADC) rcount: %s, rdelay: %s, rlen: %s, rchan: %s, triggers: %s, reps: %s" % (count, delay, rlen, chan, triggers, reps)
         else:
             raise Exception("Unknown run mode '%s' for board '%s'" \
                 % (self.runMode, self.dev.devName))

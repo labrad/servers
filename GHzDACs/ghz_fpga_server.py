@@ -653,7 +653,16 @@ class BoardGroup(object):
                         r = yield waitPkt.send()
                         try:
                             # Then set up
+                            # print "fpga server: type(setupPkts): ",type(setupPkts)
+                            # for idx, sp in enumerate(setupPkts):
+                                # print "type setupPkt[%d]: %s.  setupPkt: " % (idx, type(sp))
+                                # print str(sp)
+                                # for idx, rec in enumerate(sp._packet):
+                                    # print "record %d types: %s, %s, %s, %s" % (idx, type(rec[0]), type(rec[1]), type(rec[2]), type(rec[3]))
+                                    # print "record %d data %s,%s,%s,%s" % (idx, rec[0], rec[1], rec[2], rec[3])
+                            print("fpga server: run: sending setup packets")
                             yield self.sendAll(setupPkts, 'Setup')
+                            print setupPkts
                             self.setupState = setupState
                         except Exception:
                             # if there was an error, clear setup state
@@ -730,6 +739,7 @@ class BoardGroup(object):
             results = yield readAll # wait for read to complete
             
             if getTimingData:
+                # print("fpga server: run: %s"%(timingOrder,))
                 answers = []
                 # Cache of already-parsed data from a particular board.
                 # Prevents un-flattening a packet more than once.
@@ -756,6 +766,7 @@ class BoardGroup(object):
                         idx = boardOrder.index(boardName)
                         runner = runners[idx]
                         result = [data for src, dest, eth, data in results[idx]['read']]
+                        print("fpga server: run: result is %s"%(result,))
                         # Array of all timing results (DAC)
                         extracted = runner.extract(result)
                         extractedData[boardName] = extracted
@@ -778,10 +789,12 @@ class BoardGroup(object):
                 returnValue(tuple(answers))
         finally:
             self.pipeSemaphore.release()
-
+    
     @inlineCallbacks
     def sendAll(self, packets, info, infoList=None):
         """Send a list of packets and wrap them up in a deferred list."""
+        # Remove packets which contain no actual requests.
+        packets = [p for p in packets if p._packet]
         results = yield defer.DeferredList([p.send() for p in packets],
                             consumeErrors=True)#[(success, result)...]
         if all(s for s, r in results):
@@ -1414,6 +1427,7 @@ class FPGAServer(DeviceServer):
         
         # build a list of runners which have necessary sequence information
         # for each board
+        print "fpga server: buildRunner reps: %s" % (reps,)
         runners = [dev.buildRunner(reps, c.get(dev, {})) for dev in devs]
         
         # build setup requests
