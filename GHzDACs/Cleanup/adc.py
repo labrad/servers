@@ -704,9 +704,16 @@ class ADC_Branch2(ADC):
         
         if len(triggerTable) > 128: # no memory for more than 128 entries
             raise Exception("Trigger table max len = 128")
-        rlens = [row[1]<50 for row in triggerTable[1:]] # we don't care about the first delay because there have been no demodulations yet
+        rlens = [row[1]<50 for row in triggerTable]
+        
+        # if there is a spacing of <50 clock cycles between demods then the FIFO gets backed up
         if any(rlens):
-            raise Exception("rlen < 50 clock cycles (200 ns) can cause FIFO backup for 12 chans")
+            count0 = triggerTable[0][0]
+            rlen0 = triggerTable[0][1]
+            if rlen0<50 and count0==1 and not any(rlens[1:]): # if its only the start delay, no exception
+                pass
+            else:
+                raise Exception("rlen < 50 clock cycles (200 ns) can cause FIFO backup for 12 chans")
         
         data = np.zeros(cls.SRAM_RETRIGGER_PKT_LEN, dtype='<u1')
         
@@ -894,8 +901,10 @@ class ADC_Build7(ADC_Branch2):
         return regs
     
     # Direct ethernet server packet creation methods
-    
     def setup(self, info):
+        """
+        A setup packet is something that cannot pipeline, e.g. changing microwave source freq.
+        """
         triggerTable = info['triggerTable']
         demods = [info[idx] for idx in range(self.DEMOD_CHANNELS) if idx in info]
         
@@ -912,6 +921,8 @@ class ADC_Build7(ADC_Branch2):
     # Direct ethernet server packet update methods
     def load(self, info):
         """
+        A load packet is something that can pipeline in some way, e.g. paging on the DAC boards.
+        
         Create a direct ethernet packet to load sequence data.
         
         Sequence data is the trigger table and mixer table.
