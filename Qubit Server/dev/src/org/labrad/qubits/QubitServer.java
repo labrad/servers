@@ -60,11 +60,16 @@ import org.labrad.qubits.resources.Resources;
 		// automatically reload the wiring configuration when it changes
 		cxn.addMessageListener(new MessageListener() {
 			@Override
-			public void messageReceived(MessageEvent e) {
+			public void messageReceived(MessageEvent e)  {
 				if (e.getMessageID() == 55443322L) {
 					String serverName = e.getData().getClusterAsList().get(1).getString();
 					if (serverName.equals(Constants.GHZ_DAC_SERVER)) {
 						System.out.println("Server connected: " + Constants.GHZ_DAC_SERVER + " -- refreshing wiring.");
+						try {
+							Thread.sleep(2000);
+						} catch (InterruptedException e1) {
+							e1.printStackTrace();
+						}
 						loadWiringConfiguration();
 					}
 				}
