@@ -704,7 +704,7 @@ class ADC_Branch2(ADC):
         
         if len(triggerTable) > 128: # no memory for more than 128 entries
             raise Exception("Trigger table max len = 128")
-        rlens = [row[1]<50 for row in triggerTable]
+        rlens = [row[1]<50 for row in triggerTable[1:]] # we don't care about the first delay because there have been no demodulations yet
         if any(rlens):
             raise Exception("rlen < 50 clock cycles (200 ns) can cause FIFO backup for 12 chans")
         
@@ -897,14 +897,16 @@ class ADC_Build7(ADC_Branch2):
     
     def setup(self, info):
         triggerTable = info['triggerTable']
+        demods = [info[idx] for idx in range(self.DEMOD_CHANNELS) if idx in info]
+        
         # demods = [info[idx] for idx in range(self.DEMOD_CHANNELS) if idx in info]
         p = self.makePacket("setup")
-        # self.makeTriggerTable(triggerTable, p)
-        # self.makeMixerTable(demods, p)
+        self.makeTriggerTable(triggerTable, p)
+        self.makeMixerTable(demods, p)
         
         triggerTableState = " ".join(['triggerTableState%d=%s' % (idx, triggerTable[idx]) for idx in range(len(triggerTable)) ])
-        #mixTableState = " ".join(['mixTable%d=%s' % (idx, mixerTable[idx]) for idx in len(mixerTable) ])
-        setupState = triggerTableState
+        mixTableState = " ".join(['mixTable%d=%s' % (idx, demod['mixerTable']) for idx,demod in enumerate(demods) ])
+        setupState = " ".join([triggerTableState,mixTableState])
         return p, setupState
     
     # Direct ethernet server packet update methods
@@ -915,10 +917,6 @@ class ADC_Build7(ADC_Branch2):
         Sequence data is the trigger table and mixer table.
         """
         p = self.makePacket("load")
-        triggerData = info['triggerTable']
-        self.makeTriggerTable(triggerData, p)
-        demods = [info[idx] for idx in range(self.DEMOD_CHANNELS) if idx in info]
-        self.makeMixerTable(demods, p)
         return p    
     # board communication (can be called from within test mode)
     
