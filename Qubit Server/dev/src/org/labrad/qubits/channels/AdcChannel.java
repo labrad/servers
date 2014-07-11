@@ -129,14 +129,14 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 			Preconditions.checkState(getStartDelay() > -1, "ADC Start Delay not set for channel '%s'", this.name);
 			runRequest.add("ADC Run Mode", Data.valueOf("average"));
 			runRequest.add("Start Delay", Data.valueOf((long)this.getStartDelay()));
-			runRequest.add("ADC Filter Func", Data.valueOf("balhQLIYFGDSVF"), Data.valueOf(42L), Data.valueOf(42L));
+			//runRequest.add("ADC Filter Func", Data.valueOf("balhQLIYFGDSVF"), Data.valueOf(42L), Data.valueOf(42L));
 		} else if (this.mode == AdcMode.DEMODULATE) {
 			Preconditions.checkState(getStartDelay() > -1, "ADC Start Delay not set for channel '%s'", this.name);
-			Preconditions.checkState(stretchLen > -1 && stretchAt > -1, "ADC Filter Func not set for channel '%s'", this.name);
+			//Preconditions.checkState(stretchLen > -1 && stretchAt > -1, "ADC Filter Func not set for channel '%s'", this.name);
 			runRequest.add("ADC Run Mode", Data.valueOf("demodulate"));
 			runRequest.add("Start Delay", Data.valueOf((long)this.getStartDelay()));
-			runRequest.add("ADC Filter Func", Data.valueOf(this.filterFunction),
-					Data.valueOf((long)this.stretchLen), Data.valueOf((long)this.stretchAt));
+			//runRequest.add("ADC Filter Func", Data.valueOf(this.filterFunction),
+			//		Data.valueOf((long)this.stretchLen), Data.valueOf((long)this.stretchAt));
 		} else {
 			Preconditions.checkArgument(false, "ADC channel %s has no mode (avg/demod) set!", this.name);
 		}
@@ -147,11 +147,11 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 	
 	// add local packets. only really applicable for demod mode
 	public void addLocalPackets(Request runRequest) {
-		if (this.mode == AdcMode.DEMODULATE) {
+		/*if (this.mode == AdcMode.DEMODULATE) {
 			Preconditions.checkState(ampSin > -1 && ampCos > -1, "ADC Trig Magnitude not set on demod channel %s on channel '%s'", this.demodChannel, this.name);
 			runRequest.add("ADC Demod Phase", Data.valueOf((long)this.demodChannel), Data.valueOf(dPhi), Data.valueOf(phi0));
 			runRequest.add("ADC Trig Magnitude", Data.valueOf((long)this.demodChannel), Data.valueOf((long)ampSin), Data.valueOf((long)ampCos));
-		}
+		}*/
 		if (this.mixerTable != null) {
 			runRequest.add("ADC Mixer Table", Data.valueOf((long)this.demodChannel), this.mixerTable);
 		}
