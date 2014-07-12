@@ -109,7 +109,7 @@ class FPGA(DeviceWrapper):
         Note that if the collect times out, the triggers are NOT sent.
         """
         p = self.makePacket()
-        print('fpga.py: collect: timeout = %s, waiting for nPackets: %s'%(timeout,nPackets))
+        # print('fpga.py: collect: timeout = %s, waiting for nPackets: %s'%(timeout,nPackets))
         p.timeout(Value(timeout, 's'))
         p.collect(nPackets)
         # If a timeout error occurs the remaining records in the direct
