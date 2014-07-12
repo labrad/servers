@@ -961,7 +961,7 @@ public class QubitContext extends AbstractServerContext {
 		if (configDirty || memDirty || sramDirty) {
 			build_sequence();
 		}
-
+		nextRequest.getRecord(runIndex).getData().setWord(reps, 0);
 		lastData = getConnection().sendAndWait(nextRequest).get(runIndex);
 	}
 
