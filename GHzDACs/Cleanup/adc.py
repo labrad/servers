@@ -612,10 +612,11 @@ class AdcRunner_Build7(AdcRunner_Build2):
             self.nPackets = self.dev.AVERAGE_PACKETS
         elif self.runMode == 'demodulate':
             self.mode = self.dev.RUN_MODE_DEMOD_DAISY
-            triggers = sum([count*chan for count, delay, rlen, chan in info['triggerTable']])
-            self.nPackets = int(np.ceil(reps * triggers / float(self.dev.DEMOD_CHANNELS_PER_PACKET)))
-            print "(ADC) number of packets: %d" % (self.nPackets,)
-            print "(ADC) rcount: %s, rdelay: %s, rlen: %s, rchan: %s, triggers: %s, reps: %s" % (count, delay, rlen, chan, triggers, reps)
+            iqPairsPerExpt = sum([rcount*rchan for rcount, rdelay, rlen, rchan in info['triggerTable']])
+            packetsPerExpt = int(np.ceil(iqPairsPerExpt/float(self.dev.DEMOD_CHANNELS_PER_PACKET)))
+            self.nPackets = reps * packetsPerExpt
+            # print "(ADC) number of packets: %d" % (self.nPackets,)
+            # print "(ADC) rcount: %s, rdelay: %s, rlen: %s, rchan: %s, iqPairsPerExpt: %s, packetsPerExpt: %s, reps: %s" % (rcount, rdelay, rlen, rchan, iqPairsPerExpt, packetsPerExpt, reps)
         else:
             raise Exception("Unknown run mode '%s' for board '%s'" \
                 % (self.runMode, self.dev.devName))
@@ -623,21 +624,21 @@ class AdcRunner_Build7(AdcRunner_Build2):
         # Not sure why the extra +1 is here
         statTime = 4e-9*sum([count*(delay+rlen) for count, delay, rlen, chan in info['triggerTable']])
         self.seqTime = fpga.TIMEOUT_FACTOR * (statTime * self.reps) + 1
-        print "sequence time: %f, timeout: %f" % (statTime, self.seqTime)
+        # print "sequence time: %f, timeout: %f" % (statTime, self.seqTime)
     
     def loadPacket(self, page, isMaster):
         """Create pipelined load packet. For ADC this is the trigger table."""
-        print "making ADC load packet"
+        # print "making ADC load packet"
         if isMaster:
             raise Exception("Cannot use ADC board '%s' as master." \
                 % self.dev.devName)
         p = self.dev.load(self.info)
-        print("adc load packet: %s" % (str(p._packet)))
+        # print("adc load packet: %s" % (str(p._packet)))
         return p
         
     def setupPacket(self):
         p = self.dev.setup(self.info)
-        print("ADC setup packet: %s" % (str(p[0]._packet),))
+        # print("ADC setup packet: %s" % (str(p[0]._packet),))
         return p
     
     def runPacket(self, page, slave, delay, sync):
@@ -649,7 +650,7 @@ class AdcRunner_Build7(AdcRunner_Build2):
         """
         startDelay = self.startDelay + delay
         regs = self.dev.regRun(self.mode, self.info, self.reps, startDelay=startDelay)
-        print("ADC run packet: %s" % (regs,))
+        # print("ADC run packet: %s" % (regs,))
         return regs    
     
     def extract(self, packets):
@@ -838,7 +839,7 @@ class ADC_Build7(ADC_Branch2):
     
     def buildRunner(self, reps, info):
         """Get a runner for this board"""
-        print("building runner with setting keys: ", info.keys())
+        # print("building runner with setting keys: ", info.keys())
         runMode = info['runMode']
         startDelay = info['startDelay']
         channels = dict((i, info[i]) for i in range(self.DEMOD_CHANNELS) \
@@ -976,10 +977,10 @@ class ADC_Build7(ADC_Branch2):
                     
             # parse the packets out and return data
             packets = [data for src, dst, eth, data in ans.read]
-            print "average mode packets:"
-            for p in packets:
-                print "len: %d, first 64 byes:" % (len(p),)
-                print labrad.support.hexdump(p[0:64])
+            # print "average mode packets:"
+            # for p in packets:
+                # print "len: %d, first 64 byes:" % (len(p),)
+                # print labrad.support.hexdump(p[0:64])
             returnValue(self.extractAverage(packets))
             
         return self.testMode(func)
@@ -1004,7 +1005,7 @@ class ADC_Build7(ADC_Branch2):
             p.timeout(T.Value(10, 's')) # set a conservative timeout
             totalReadouts = np.sum([ row[0]*row[3] for row in triggerTable])
             nPackets = int(np.ceil(totalReadouts/11.0))
-            print "Trying to read back %d packets with %d readouts" % (nPackets, totalReadouts)
+            # print "Trying to read back %d packets with %d readouts" % (nPackets, totalReadouts)
             p.read(nPackets)
             ans = yield p.send() #Send the packet to the direct ethernet
             # server parse the packets out and return data. packets is a list
@@ -1051,8 +1052,8 @@ class ADC_Build7(ADC_Branch2):
             'badPackets': a[5]
             } 
     
-    @staticmethod
-    def extractDemod(packets, triggerTable, mode):
+    @classmethod
+    def extractDemod(cls, packets, triggerTable, mode):
         """
         Extract Demodulation data from a list of packets (byte strings).
         
@@ -1112,12 +1113,9 @@ class ADC_Build7(ADC_Branch2):
         """
         #stick all data strings in packets together, chopping out last 4 bytes
         #from each string
-        
         rchans = [trig[3] for trig in triggerTable]
         nTrigger = [trig[0] for trig in triggerTable]
-        
-        totalTriggers = np.sum(nTrigger)
-        
+             
         # Allow only cases where rchans was the same for each entry in the
         # trigger table.
         # XXX This _really_ should have been checked earlier. Checking this
@@ -1128,48 +1126,67 @@ class ADC_Build7(ADC_Branch2):
         else:
             rchan = rchans[0]
         
-        # Puke all over the console output.
-        print "extract demod packets.  Total triggers: %d, rchan: %d" % (totalTriggers, rchan)
-        for p in packets:
-            print "len: %d" % (len(p),)
-            print labrad.support.hexdump(p)
+        totalTriggers = np.sum(nTrigger)
+        pkt_per_stat = int(np.ceil((totalTriggers * rchan * 2.0)/cls.DEMOD_CHANNELS_PER_PACKET))
+        reps = len(packets)//pkt_per_stat
+        if len(packets)% pkt_per_stat:
+            raise RuntimeError("wrong number of packets: %d not a multiple of pkt_per_stat: %d" % (len(packets), pkt_per_stat))
+
         
-        data = np.fromstring(''.join(data[:44] for data in packets), dtype='<u1')
-        pktCounters = [ord(pkt[46]) for pkt in packets]
-        readbackCounters = [ ord(pkt[44]) + ord(pkt[45])<<8 for pkt in packets ]
-        print "packet counters: %s, readback counters: %s" % (pktCounters, readbackCounters)
-        if mode=='iq':
-            # Convert to 16-bit int array and chop garbage from last packet
-            vals = np.fromstring(data, dtype='<i2')[:2*rchan*totalTriggers] 
-            # Slowest varying index: time step, next slowest index : demodulator, fastest index: I vs Q
-            #  Transpose first two indices to make demodulator first index 
-            # Iq0[t=0], Qq0[t=0], Iq1[t=0], Qq1[t=0], Iq0[t=1], Qq0[t=1], Iq1[t=1], Qq1[t=1]
-            #    
-            #     goes to:
-            # data[qubit][time_step][(I=0 | Q=1)]       
-            print "flat values: ", vals
-            reshapedData = vals.reshape(totalTriggers , rchan, 2).astype(int)
-            print "reshaped data: ", reshapedData
-            transposedData = reshapedData.transpose((1, 0, 2))
-            print "transposed data: ", transposedData
-            return (transposedData, pktCounters, readbackCounters)
-        else:
-            '''
-            In bit readout mode, use rchan[7..0]=0.  Readout is only the sign bit of channels 0 to 7; one byte readout is designed for compactness to minimize number of Ethernet packets.  The bit is 0 if real quadrature of the channel is positive.  Bit is flipped with XOR mask bitflip[7..0] defined in register write.  Order of bits in output byte is [ch7..ch0].
+        # Puke all over the console output.
+        #print "extract demod packets.  Total triggers: %d, rchan: %d" % (totalTriggers, rchan)
+        #for p in packets:
+        #    print "len: %d" % (len(p),)
+        #    print labrad.support.hexdump(p)
+        #print "total packets: %s, packets_per_stat: %s, reps: %s" % (len(packets), pkt_per_stat, reps)
+        
+        stat_pkt_list = [packets[idx*pkt_per_stat:pkt_per_stat*(idx+1)] for idx in range(reps)]
+        #print "len of stat_pkt_list: %d, len stat_packet 0: %d" % (len(stat_pkt_list),len(stat_pkt_list[0]))
+        all_data = []
+        for stat_packet in stat_pkt_list:
+            data = np.fromstring(''.join(data[:44] for data in stat_packet), dtype='<u1')
+            pktCounters = [ord(pkt[46]) for pkt in stat_packet]
+            readbackCounters = [ ord(pkt[44]) + ord(pkt[45])<<8 for pkt in stat_packet ]
+            #print "packet counters: %s, readback counters: %s" % (pktCounters, readbackCounters)
+            if mode=='iq':
+                # Convert to 16-bit int array and chop garbage from last packet
+                vals = np.fromstring(data, dtype='<i2')[:2*rchan*totalTriggers] 
+                # Slowest varying index: time step, next slowest index : demodulator, fastest index: I vs Q
+                #  Transpose first two indices to make demodulator first index 
+                # Iq0[t=0], Qq0[t=0], Iq1[t=0], Qq1[t=0], Iq0[t=1], Qq0[t=1], Iq1[t=1], Qq1[t=1]
+                #    
+                #     goes to:
+                # data[qubit][time_step][(I=0 | Q=1)]       
+                #print "flat values: ", vals
+                reshapedData = vals.reshape(totalTriggers , rchan, 2).astype(int)
+                #print "reshaped data: ", reshapedData
+                transposedData = reshapedData.transpose((1, 0, 2))
+                #print "transposed data: ", transposedData
+                all_data.append(transposedData)
+            else:
+                '''
+                In bit readout mode, use rchan[7..0]=0.  Readout is only the sign bit of channels 0 to 7; one byte readout is designed for compactness to minimize number of Ethernet packets.  The bit is 0 if real quadrature of the channel is positive.  Bit is flipped with XOR mask bitflip[7..0] defined in register write.  Order of bits in output byte is [ch7..ch0].
 
-            l(0)	length[15..8]		set to 0
-            l(1)	length[7..0]		set to 48
+                l(0)	length[15..8]		set to 0
+                l(1)	length[7..0]		set to 48
 
-            d(0)	bits1[7..0]		1st bitstring
-            d(1)	bits2[7..0]		2nd bitstring
-            ...	
-            d(43)	bits44[7..0]		44th bitstring
+                d(0)	bits1[7..0]		1st bitstring
+                d(1)	bits2[7..0]		2nd bitstring
+                ...	
+                d(43)	bits44[7..0]		44th bitstring
 
-            d(44)	countrb[7..0]		Running count of triggers since last start
-            d(45)	countrb[15..8]		   1st readback has countrb=1
-            d(46)	countpack[7..0]	Packet counter for retriggering, reset when countrb incr
-            d(47)	spare [7..0]		   
-            '''
-            raise RuntimeError('Operation mode %s not implemented / available' % (mode,))
+                d(44)	countrb[7..0]		Running count of triggers since last start
+                d(45)	countrb[15..8]		   1st readback has countrb=1
+                d(46)	countpack[7..0]	Packet counter for retriggering, reset when countrb incr
+                d(47)	spare [7..0]		   
+                '''
+                raise RuntimeError('Operation mode %s not implemented / available' % (mode,))
+        #print "all data length: %d, element 0 size: %s" % (len(all_data), all_data[0].shape)
+        # This makes stat the first index, giving us: data[stat][qubit][time_step][(I=0 | Q=1)]
+        all_data = np.array(all_data)
+        # data[stat][qubit][time_step][(I=0 | Q=1)] --> data[qubit][stat][time_step][(I=0 | Q=1)]
+        all_data = all_data.transpose([1, 0, 2, 3])
+        #print "all_data shape: ", all_data.shape
+        return (all_data, pktCounters, readbackCounters)  # Only returning the packet counters of the last stat.  FIXME if you care about these
 
 fpga.REGISTRY[('ADC', 7)] = ADC_Build7

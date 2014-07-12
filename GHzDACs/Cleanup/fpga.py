@@ -14,7 +14,7 @@ REGISTRY = {} #(Board type, build number) -> Class
 
 
 # Safety factor for timeout estimates
-TIMEOUT_FACTOR = 10 #seconds
+TIMEOUT_FACTOR = 10
 
 USE_LOGGING_PACKETS = False
 
@@ -109,6 +109,7 @@ class FPGA(DeviceWrapper):
         Note that if the collect times out, the triggers are NOT sent.
         """
         p = self.makePacket()
+        print('fpga.py: collect: timeout = %s, waiting for nPackets: %s'%(timeout,nPackets))
         p.timeout(Value(timeout, 's'))
         p.collect(nPackets)
         # If a timeout error occurs the remaining records in the direct
