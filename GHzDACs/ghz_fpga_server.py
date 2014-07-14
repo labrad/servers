@@ -215,6 +215,7 @@ from twisted.internet import defer
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 from labrad import types as T
+import labrad.units as U
 from labrad.devices import DeviceServer
 from labrad.server import setting
 
@@ -653,7 +654,16 @@ class BoardGroup(object):
                         r = yield waitPkt.send()
                         try:
                             # Then set up
+                            # print "fpga server: type(setupPkts): ",type(setupPkts)
+                            # for idx, sp in enumerate(setupPkts):
+                                # print "type setupPkt[%d]: %s.  setupPkt: " % (idx, type(sp))
+                                # print str(sp)
+                                # for idx, rec in enumerate(sp._packet):
+                                    # print "record %d types: %s, %s, %s, %s" % (idx, type(rec[0]), type(rec[1]), type(rec[2]), type(rec[3]))
+                                    # print "record %d data %s,%s,%s,%s" % (idx, rec[0], rec[1], rec[2], rec[3])
+                            # print("fpga server: run: sending setup packets")
                             yield self.sendAll(setupPkts, 'Setup')
+                            # print setupPkts
                             self.setupState = setupState
                         except Exception:
                             # if there was an error, clear setup state
@@ -730,6 +740,7 @@ class BoardGroup(object):
             results = yield readAll # wait for read to complete
             
             if getTimingData:
+                # print("fpga server: run: %s"%(timingOrder,))
                 answers = []
                 # Cache of already-parsed data from a particular board.
                 # Prevents un-flattening a packet more than once.
@@ -756,6 +767,7 @@ class BoardGroup(object):
                         idx = boardOrder.index(boardName)
                         runner = runners[idx]
                         result = [data for src, dest, eth, data in results[idx]['read']]
+                        # print("fpga server: run: result is %s"%(result,))
                         # Array of all timing results (DAC)
                         extracted = runner.extract(result)
                         extractedData[boardName] = extracted
@@ -769,19 +781,21 @@ class BoardGroup(object):
                         # Add extracted data to the list of data to be returned.
                         # If this is an ADC demod channel, grab that channel's
                         # data only
-                        print("fpga_server: extracted: %s"%(extracted,))
+                        # print("fpga_server: extracted: %s"%(extracted,))
                         extracted = extracted[0]
-                        print("fpga_server: extacted no pkt counters: %s"%(type(extracted),))
-                        print("fpga_server: channel: %d"%(channel,))
+                        # print("fpga_server: extacted no pkt counters: %s"%(type(extracted),))
+                        # print("fpga_server: channel: %d"%(channel,))
                         extracted = extracted[channel]
                     answers.append(extracted)
                 returnValue(tuple(answers))
         finally:
             self.pipeSemaphore.release()
-
+    
     @inlineCallbacks
     def sendAll(self, packets, info, infoList=None):
         """Send a list of packets and wrap them up in a deferred list."""
+        # Remove packets which contain no actual requests.
+        packets = [p for p in packets if p._packet]
         results = yield defer.DeferredList([p.send() for p in packets],
                             consumeErrors=True)#[(success, result)...]
         if all(s for s, r in results):
@@ -824,7 +838,7 @@ class BoardGroup(object):
             # 2. Ping the board to read its execution counter
             try:
                 p = runner.dev.regPingPacket()
-                p.timeout(1.0).collect(1).read(1)
+                p.timeout(U.Value(1.0, 's')).collect(1).read(1)
                 resp = yield p.send()
                 ans = resp.read
                 # This if construction exists only because right now I have
@@ -1286,7 +1300,7 @@ class FPGAServer(DeviceServer):
         Set the run mode for the current ADC board, 'average' or 'demodulate'.
         (ADC only)
         """
-        print "setting ADC run mode to: ", mode
+        # print "setting ADC run mode to: ", mode
         mode = mode.lower()
         assert mode in ['average', 'demodulate'], 'unknown mode: "%s"' % mode
         dev = self.selectedADC(c)
@@ -1342,8 +1356,8 @@ class FPGAServer(DeviceServer):
     @setting(50, 'Run Sequence', reps='w', getTimingData='b',
                              setupPkts='?{(((ww), s, ((s?)(s?)(s?)...))...)}',
                              setupState='*s',
-                             returns=['*2w', '?', ''])
-    def sequence_run(self, c, reps=30, getTimingData=True, setupPkts=[],
+                             returns=['*4i'])
+    def run_sequence(self, c, reps=30, getTimingData=True, setupPkts=[],
                      setupState=[]):
         """Executes a sequence on one or more boards.
 
@@ -1414,6 +1428,7 @@ class FPGAServer(DeviceServer):
         
         # build a list of runners which have necessary sequence information
         # for each board
+        # print "fpga server: buildRunner reps: %s" % (reps,)
         runners = [dev.buildRunner(reps, c.get(dev, {})) for dev in devs]
         
         # build setup requests
