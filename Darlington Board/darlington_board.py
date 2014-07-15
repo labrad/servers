@@ -135,7 +135,7 @@ class CSBBoardServer(LabradServer):
                 raise NoSuchChannel()
         for bit, val, t in seq:
             yield self.dll.SetDataBit(c['board'], c_byte(bit), val)
-            yield sleep(t * (t>0))
+            yield sleep(t['s'] * (t>0))
 
 __server__ = CSBBoardServer()
             
