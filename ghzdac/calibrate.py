@@ -23,7 +23,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 
 from labrad.types import Value
 
-from ghzdac import IQcorrector
+from servers.ghzdac import IQcorrector
 import keys
 
 #trigger to be set:
