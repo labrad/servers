@@ -1,6 +1,5 @@
 package org.labrad.qubits;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -527,6 +526,7 @@ public class QubitContext extends AbstractServerContext {
 				+ "deconvolution.")
 				public void new_sram_block(String name, long length, @Accepts({"ss"}) Data id) {
 		
+		@SuppressWarnings("rawtypes")
 		SramChannelBase ch = getChannel(id, SramChannelBase.class);
 		ch.getFpgaModel().startSramBlock(name, length);
 		ch.setCurrentBlock(name);
@@ -748,7 +748,24 @@ public class QubitContext extends AbstractServerContext {
 			ch.setPhase(dat.get(0).getValue(), dat.get(1).getValue());
 		}
 	}
+	
+	@Setting(id = 533, name = "ADC Trigger Table",
+			doc = "Pass through to GHz FPGA server's ADC Trigger Table.\n" +
+					"data: List of (count,delay,length,rchan) tuples.")
+	public void adc_trigger_table(@Accepts({"s", "ss"}) Data id,
+			@Accepts("*(i,i,i,i)") Data data) {
+		AdcChannel ch = getChannel(id, AdcChannel.class);
+		ch.setTriggerTable(data);
+	}
 
+	@Setting(id = 534, name = "ADC Mixer Table",
+			doc = "Pass through to GHz FPGA server's ADC Mixer Table.\n" +
+					"data: List of (count,delay,length,rchan) tuples.")
+	public void adc_mixer_table(@Accepts({"s", "ss"}) Data id,
+			@Accepts("*2i {Nx2 array of IQ values}") Data data) {
+		AdcChannel ch = getChannel(id, AdcChannel.class);
+		ch.setMixerTable(data);
+	}
 
 	//
 	// put the sequence together
@@ -939,106 +956,13 @@ public class QubitContext extends AbstractServerContext {
 				+ "\n\n"
 				+ "Note that no timing data are returned here.  You must call one or more "
 				+ "of the 'Get Data *' methods to retrieve the data in the desired format.")
-				public void run_experiment(long reps) throws InterruptedException, ExecutionException {
+	public void run_experiment(long reps) throws InterruptedException, ExecutionException {
 		Preconditions.checkArgument(reps > 0, "Reps must be a positive integer");
-		// multiple of 30 no longer required --ERJ
-		//Preconditions.checkArgument(reps % 30 == 0, "Reps must be a multiple of 30");  
-
 		if (configDirty || memDirty || sramDirty) {
 			build_sequence();
 		}
 
-		// run in chunks of at most MAX_REPS
-		List<Data> allData = Lists.newArrayList();
-		long remaining = reps;
-		while (remaining > 0) {
-			long chunk = Math.min(remaining, Constants.MAX_REPS);
-			remaining -= chunk;
-
-			// set the number of reps
-			nextRequest.getRecord(runIndex).getData().setWord(chunk, 0);
-
-			Data data = getConnection().sendAndWait(nextRequest).get(runIndex);
-			allData.add(data);
-		}
-
-		// redoing it here to keep the data roughly in FPGA format
-		if (allData.size() == 1)
-			lastData = allData.get(0);
-		else {
-			// append the different runs together
-			// get a list of all the adc indices in the timing order
-			List<Integer> adcIndices = expt.adcTimingOrderIndices();
-			if (adcIndices.size() == 0) {
-				// we have all DACs, data are of type *2w
-				int n = 0;
-				int len = 0;
-				for (Data data : allData) {
-					int[] shape = data.getArrayShape();
-					n = shape[0];
-					len += shape[1];
-				}
-				Data collected = Data.ofType("*2w");
-				collected.setArrayShape(n, len);
-				int ofs = 0;
-				for (Data data : allData) {
-					int[] shape = data.getArrayShape();
-					for (int i = 0; i < shape[0]; i++) {
-						for (int j = 0; j < shape[1]; j++) {
-							long val = data.get(i, j).getWord();
-							collected.get(i, j+ofs).setWord(val);
-						}
-					}
-					ofs += data.getArrayShape()[1];
-				}
-				lastData = collected;
-			} else {
-				// we have at least one adc, data are of type (*w, (*i, *i), *w, ...)
-				int len = 0;
-				for (Data data : allData) {
-					// get the number of runs in this piece
-					Data first = data.get(0);
-					if (first.matchesType("*w"))
-						len += first.getArraySize();
-					else {// matches (*i, *i)
-						len += first.get(0).getArraySize();
-					}
-				}
-				// now go through and append
-				// prepare final data holder
-				List<Data> collected = Lists.newArrayList();
-				for (Experiment.TimingOrderItem tc : expt.getTimingChannels()) {
-					if (tc.isAdc())
-						collected.add(Data.clusterOf(Data.ofType("*i{I}").setArraySize(len), 
-								Data.ofType("*i{Q}").setArraySize(len)));
-					else
-						collected.add(Data.ofType("*w").setArraySize(len));
-					
-				}
-				int ofs = 0;
-				for (Data oneRun : allData) {						// go through all runs
-					int ofsUpdate = 0;
-					for (int i = 0; i < collected.size(); i++) {	// go through all devices
-						if (adcIndices.contains(new Integer(i))) {	// it's an ADC
-							for (int j = 0; j < oneRun.get(i).get(0).getArraySize(); j++) {
-								collected.get(i).get(0).get(j+ofs).setInt(oneRun.get(i).get(0).get(j).getInt());
-								collected.get(i).get(1).get(j+ofs).setInt(oneRun.get(i).get(1).get(j).getInt());
-								ofsUpdate = oneRun.get(i).get(0).getArraySize();
-							}
-						} else {									// it's a DAC
-							for (int j = 0; j < oneRun.get(i).getArraySize(); j++) {
-								collected.get(i).get(j+ofs).setInt(oneRun.get(i).get(j).getInt());
-								ofsUpdate = oneRun.get(i).getArraySize();
-							}
-						}
-					}
-					ofs += ofsUpdate;
-				}
-				lastData = Data.clusterOf(collected);
-			}
-			
-		}
-
+		lastData = getConnection().sendAndWait(nextRequest).get(runIndex);
 	}
 
 	@Setting(id = 1001,
@@ -1058,476 +982,56 @@ public class QubitContext extends AbstractServerContext {
 
 		getConnection().sendAndWait(nextRequest);
 	}
+	
+	@Setting(id = 1002,
+			name = "ADC Run Demod",
+			doc = "Builds the sequence and runs ADC Run Demod")
+	@Returns("*3i{I,Q}, *i{pktCounters}, *i{readbackCounters}")
+	public Data adc_run_demod(@Accepts("s") Data mode) throws InterruptedException, ExecutionException {
+		if (configDirty || memDirty || sramDirty) {
+			build_sequence();
+		}
+		nextRequest.getRecords().remove(runIndex);
+		nextRequest.add("ADC Run Demod", mode);
+		return getConnection().sendAndWait(nextRequest).get(nextRequest.size()-1);
+	}
+	@SettingOverload
+	public Data adc_run_demod() throws InterruptedException, ExecutionException {
+		return adc_run_demod(Data.valueOf("iq"));
+	}
 
 	@Setting(id = 1100,
 			name = "Get Data Raw",
 			doc = "Gets the raw timing data from the previous run. Given a deinterlace argument, only DAC data are returned")
-			@Returns({"*2w", "?"})
+			@Returns("*4w")
 			public Data get_data_raw() {
 		return lastData;
-	}
-	@SettingOverload
-	@Returns("*3w")
-	public Data get_data_raw(int deinterlace) {
-		long[][] raw = extractLastDacData();
-		long[][][] reshaped = deinterlaceArray(raw, deinterlace);
-		return Data.valueOf(reshaped);
-	}
-
-
-	@Setting(id = 1101,
-			name = "Get Data Raw Microseconds",
-			doc = "Gets the raw timing data from the previous run, converted to microseconds")
-			@Returns("*2v[us]")
-			public Data get_data_raw_microseconds() {
-		double[][] ans = extractDataMicroseconds();
-		return Data.valueOf(ans, "us");
-	}
-	@SettingOverload
-	@Returns("*3v[us]")
-	public Data get_data_raw_microseconds(int deinterlace) {
-		double[][] ans = extractDataMicroseconds();
-		double[][][] reshaped = deinterlaceArray(ans, deinterlace);
-		return Data.valueOf(reshaped, "us");
-	}
-
-
-	@Setting(id = 1102,
-			name = "Get Data Raw Switches",
-			doc = "Gets the raw timing data from the previous run, converted to "
-				+ "booleans (T: switched, F: did not switch).")
-				@Returns("*2b")
-				public Data get_data_raw_switches() {
-		boolean[][] switches = interpretSwitches();
-		return Data.valueOf(switches);
-	}
-	@SettingOverload
-	@Returns("*3b")
-	public Data get_data_raw_switches(int deinterlace) {
-		boolean[][][] switches = interpretSwitches(deinterlace);
-		return Data.valueOf(switches);
-	}
-
-
-	@Setting(id = 1110,
-			name = "Get Data Probs Separate",
-			doc = "Get independent switching probabilities from the previous run."
-				+ "\n\n"
-				+ "Returns one probability for each timing channel, giving the switching "
-				+ "probability of that channel, independent of any other channels."
-				+ "\n\n"
-				+ "If only a subset of probabilities is required, you can pass a list "
-				+ "of indices for the timing channels whose probabilites should be returned.  "
-				+ "Indices must be in the range 0 to N-1, where N is the number of timing channels.")
-				@Returns("*v")
-				public Data get_data_probs_separate() {
-		return Data.valueOf(getProbsSeparate());
-	}
-	@SettingOverload
-	@Returns("*v")
-	public Data get_data_probs_separate(long[] qubits) {
-		double[] allProbs = getProbsSeparate();
-		double[] desiredProbs = filterArray(allProbs, qubits);
-		return Data.valueOf(desiredProbs);
-	}
-	@SettingOverload
-	@Returns("*2v")
-	public Data get_data_probs_separate(int deinterlace) {
-		double[][] probs = getProbsSeparate(deinterlace);
-		return Data.valueOf(probs);
-	}
-	@SettingOverload
-	@Returns("*2v")
-	public Data get_data_probs_separate(long[] states, int deinterlace) {
-		double[][] probs = getProbsSeparate(deinterlace);
-		for (int i = 0; i < probs.length; i++) {
-			probs[i] = filterArray(probs[i], states);
-		}
-		return Data.valueOf(probs);
-	}
-
-
-	@Setting(id = 1111,
-			name = "Get Data Probs",
-			doc = "Get combined switching probabilities from the previous run."
-				+ "\n\n"
-				+ "Returns 2^N probabilities, where N is the number of timing channels "
-				+ "(i.e. the number of qubits).  The index i should be interpreted as "
-				+ "a binary integer with N bits, that is i=i[N-1..0]; then each number gives the "
-				+ "probability that the measured switching result was sw[0]=i[N-1], "
-				+ "sw[1]=i[N-2],..., sw[N-1]=i[0] (the zeroth switching result is in "
-				+ "the MSB of the index).  In other words, the answer returned is: "
-				+ "[P_00...00, P_00...01, P_00...10, P_00...11, ..., P_11...11], where "
-				+ "the bits in each index read from left to right refer to qubits "
-				+ "0, 1,..., N-1.  This convention was chosen to agree with what one "
-				+ "obtains when taking tensor products of qubit systems, and so this "
-				+ "makes for easier agreement with simulations."
-				+ "\n\n"
-				+ "If only a subset of probabilities is required, you can pass a list "
-				+ "of states for which the probabilites should be returned.  The integers "
-				+ "are interpreted in binary as described above.  For example, if you "
-				+ "only care about the null result (no switches), then you would pass [0].  "
-				+ "If on the other hand you are only measuring one qubit and only want P1 "
-				+ "to be returned, you should pass [1].")
-				@Returns("*v")
-				public Data get_data_probs() {
-		return Data.valueOf(getProbs());
-	}
-	@SettingOverload
-	@Returns("*v")
-	public Data get_data_probs(long[] states) {
-		double[] allProbs = getProbs();
-		double[] desiredProbs = filterArray(allProbs, states);
-		return Data.valueOf(desiredProbs);
-	}
-	@SettingOverload
-	@Returns("*2v")
-	public Data get_data_probs(int deinterlace) {
-		double[][] probs = getProbs(deinterlace);
-		return Data.valueOf(probs);
-	}
-	@SettingOverload
-	@Returns("*2v")
-	public Data get_data_probs(long[] states, int deinterlace) {
-		double[][] probs = getProbs(deinterlace);
-		for (int i = 0; i < probs.length; i++) {
-			probs[i] = filterArray(probs[i], states);
-		}
-		return Data.valueOf(probs);
 	}
 
 	@Setting(id = 1112,
 			name = "Get Data Raw Phases",
 			doc = "Gets the raw data from the ADC results, converted to phases.")
-			@Returns("*2v[rad]")
+			@Returns("*3v[rad]")
 	public Data get_data_raw_phases() {
-		double[][] ans = extractDataPhases();
+		double[][][] ans = extractDataPhases();
 		return Data.valueOf(ans, "rad");
 	}
-	@SettingOverload
-	@Returns("*3v[rad]")
-	public Data get_data_raw_phases(int deinterlace) {
-		double[][] ans = extractDataPhases();
-		double[][][] reshaped = deinterlaceArray(ans, deinterlace);
-		return Data.valueOf(reshaped, "rad");
-	}
-	
-	@Setting(id = 1113,
-	    name = "Get Data Raw Shifted",
-	    doc = "Gets the raw data from the ADC results, with the IQ offset applied")
-	    @Returns("*2w")
-	public Data get_data_raw_shifted(){
-	  int[][][] shiftedData = extractDataRawShifted();
-	  return Data.valueOf(shiftedData);
-	}
-	
-	public int[][][] extractDataRawShifted() {
-	  int[][][] raw = extractDataRaw();
-	  int[][][] ans = new int[raw.length][2][];
-	  int numRuns = raw[0][0].length;
-	  for (int whichAdcChannel = 0; whichAdcChannel < raw.length; whichAdcChannel++) {
-        List<Integer> adcIndices = this.getExperiment().adcTimingOrderIndices();
-        AdcChannel ch = (AdcChannel)this.getExperiment().getTimingChannels().get(adcIndices.get(whichAdcChannel)).getChannel();
-        int[] offsets = ch.getOffsets();
-        ans[whichAdcChannel][0] = new int[numRuns];
-        ans[whichAdcChannel][1] = new int[numRuns];
-	    for (int run = 0; run < raw[whichAdcChannel][0].length; run++) {
-	      ans[whichAdcChannel][0][run] = raw[whichAdcChannel][0][run] + offsets[0];
-	      ans[whichAdcChannel][1][run] = raw[whichAdcChannel][1][run] + offsets[1];
-	    }
-	  }
-	  return ans;
-	}
-	
-	@Setting(id = 1114,
-	    name = "Get Data IQ",
-	    doc = "Gets the averaged IQ data from the ADC results")
-	    @Returns("*2v")
-	public Data get_data_iq() {
-	  int[][][] rawData = extractDataRaw();
-	  int numChannels = rawData.length;
-	  //Average the runs together
-	  int numRuns = rawData[0][0].length;
-	  double averaged[][] = new double[numChannels][2];
-	  for (int ch = 0; ch< numChannels; ch++) {
-	    double sumI = 0;
-	    double sumQ = 0;
-	    for (int idx = 0; idx < numRuns; idx++) {
-	      sumI += rawData[ch][0][idx];
-	      sumQ += rawData[ch][1][idx];
-	    }
-	    averaged[ch][0] = sumI/numRuns;
-	    averaged[ch][1] = sumQ/numRuns;
-	  }
-	  return Data.valueOf(averaged);
-	}
-	
-    @Setting(id = 1115,
-      name = "Get Data IQ Shifted",
-      doc = "Gets the averaged IQ data from the ADC results, with shifting")
-      @Returns("*2v")
-    public Data get_data_iq_shifted() {
-      int[][][] shiftedData = extractDataRawShifted();
-      int numChannels = shiftedData.length;
-      //Average the runs together
-      int numRuns = shiftedData[0][0].length;
-      double averaged[][] = new double[numChannels][2];
-      for (int ch = 0; ch < numChannels; ch++) {
-        double sumI = 0;
-        double sumQ = 0;
-        for (int idx = 0; idx<numRuns; idx++) {
-          sumI += shiftedData[ch][0][idx];
-          sumQ += shiftedData[ch][1][idx];
-        }
-        averaged[ch][0] = sumI/numRuns;
-        averaged[ch][1] = sumQ/numRuns;
-      }
-      return Data.valueOf(averaged);
-    }
-      
-    @Setting(id = 1116,
-        name = "Get Data Phases",
-        doc = "Returns averaged phase of ADC results")
-        @Returns("*2v")
-    public Data get_data_phases() {
-      //Get raw phase data
-      double[][] rawPhases = extractDataPhases();
-      int numChannels = rawPhases.length;
-      int numRuns = rawPhases[0].length;
-      //Data returned will be an array with one element for each ADC channel
-      double[] averaged = new double[numChannels];
-      //For each channel...
-      for (int ch = 0; ch < numChannels; ch++) {
-        double sum = 0;
-        //...sum up all the phases...
-        for (int idx = 0; idx < numRuns; idx++) {
-          sum += rawPhases[ch][idx];
-        }
-        //...and divide by the number of runs.
-        averaged[ch] = sum/numRuns;
-      }
-      return Data.valueOf(averaged, "rad");
-    }
     
-    
-	private int[][][] extractDataRaw() {
-	  int[][][] raw = extractLastAdcData(); //First index: which ADC channel
-	  return raw;
-	}
-
-	
-	// extract last ADC data as an array
-	private int[][][] extractLastAdcData() {
-		if (lastData.matchesType("*2w"))
-			return new int[0][0][];
-		List<Data> adcs = Lists.newArrayList();
-		for (Data d : lastData.getClusterAsList()) {
-			if (!d.matchesType("*w"))
-				adcs.add(d);
-		}
-		int[][][] ans = new int[adcs.size()][2][];
-		for (int i = 0; i < adcs.size(); i++) {
-			List<Data> IsAndQs = adcs.get(i).getClusterAsList();
-			for (int j = 0; j < 2; j++) {
-				ans[i][j] = new int[IsAndQs.get(j).getArraySize()];
-				for (int k = 0; k < IsAndQs.get(j).getArraySize(); k++) {
-					//System.out.println(i + " " + j + " " + k);
-					ans[i][j][k] = IsAndQs.get(j).get(k).getInt();
-				}
+	private double[][][] extractDataPhases() {
+		int[] shape = lastData.getArrayShape();
+		double[][][] ans = new double[shape[0]][shape[1]][];
+		List<Integer> adcIndices = this.getExperiment().adcTimingOrderIndices();
+		for (int whichAdcChannel = 0; whichAdcChannel < shape[0]; whichAdcChannel++) {
+			
+			AdcChannel ch = (AdcChannel)this.getExperiment().getTimingChannels().get(adcIndices.get(whichAdcChannel)).getChannel();
+			for (int j=0; j<shape[1]; j++) {
+				ans[whichAdcChannel][j] = ch.getPhases(
+						lastData.get(whichAdcChannel, j, 0).getIntArray(), 
+						lastData.get(whichAdcChannel, j, 1).getIntArray()
+						);
 			}
 		}
 		return ans;
-	}
-
-	// extract data from last run as an array
-	private long[][] extractLastDacData() {
-		Data data2w = null;
-		if (lastData.matchesType("*2w"))
-			data2w = lastData;
-		else { 
-			List<Data> dacData = Lists.newArrayList();
-			for (Data d : lastData.getClusterAsList()) {
-				if (d.matchesType("*w")) {
-					dacData.add(d);
-				}
-			}
-			data2w = Data.listOf(dacData);
-		}
-		int[] shape = data2w.getArrayShape();
-		long[][] ans = new long[shape[0]][shape[1]];
-		for (int i = 0; i < shape[0]; i++) {
-			for (int j = 0; j < shape[1]; j++) {
-				ans[i][j] = data2w.get(i, j).getWord();
-			}
-		}
-		return ans;
-	}
-
-	// convert data from last run to microseconds
-	private double[][] extractDataMicroseconds() {
-		long[][] raw = extractLastDacData();
-		double[][] ans = new double[raw.length][];
-		for (int i = 0; i < raw.length; i++) {
-			ans[i] = FpgaModelDac.clocksToMicroseconds(raw[i]);
-		}
-		return ans;
-	}
-	
-	private double[][] extractDataPhases() {
-	  int[][][] raw = extractLastAdcData(); //First index: which ADC channel
-	  double[][] ans = new double[raw.length][];
-	  for (int whichAdcChannel = 0; whichAdcChannel < raw.length; whichAdcChannel++) {
-	    ans[whichAdcChannel] = new double[raw[whichAdcChannel][0].length];
-	    List<Integer> adcIndices = this.getExperiment().adcTimingOrderIndices();
-	    AdcChannel ch = (AdcChannel)this.getExperiment().getTimingChannels().get(adcIndices.get(whichAdcChannel)).getChannel();
-	    ans[whichAdcChannel] = ch.getPhases(raw[whichAdcChannel][1], raw[whichAdcChannel][0]);
-	  }
-	  return ans;
-	}
-
-
-	private boolean[][][] deinterlaceArray(boolean[][] in, int deinterlace) {
-		int lim0 = deinterlace;
-		int lim1 = in.length;
-		int lim2 = in.length > 0 ? in[0].length / deinterlace : 0;
-		boolean[][][] ans = new boolean[lim0][lim1][lim2];
-		for (int i = 0; i < lim0; i++) {
-			for (int j = 0; j < lim1; j++) {
-				for (int k = 0; k < lim2; k++) {
-					ans[i][j][k] = in[j][i+k*deinterlace];
-				}
-			}
-		}
-		return ans;
-	}
-
-	private long[][][] deinterlaceArray(long[][] in, int deinterlace) {
-		int lim0 = deinterlace;
-		int lim1 = in.length;
-		int lim2 = in.length > 0 ? in[0].length / deinterlace : 0;
-		long[][][] ans = new long[lim0][lim1][lim2];
-		for (int i = 0; i < lim0; i++) {
-			for (int j = 0; j < lim1; j++) {
-				for (int k = 0; k < lim2; k++) {
-					ans[i][j][k] = in[j][i+k*deinterlace];
-				}
-			}
-		}
-		return ans;
-	}
-
-	private double[][][] deinterlaceArray(double[][] in, int deinterlace) {
-		int lim0 = deinterlace;
-		int lim1 = in.length;
-		int lim2 = in.length > 0 ? in[0].length / deinterlace : 0;
-		double[][][] ans = new double[lim0][lim1][lim2];
-		for (int i = 0; i < lim0; i++) {
-			for (int j = 0; j < lim1; j++) {
-				for (int k = 0; k < lim2; k++) {
-					ans[i][j][k] = in[j][i+k*deinterlace];
-				}
-			}
-		}
-		return ans;
-	}
-
-	// convert timing data to boolean switches, using the
-	// specified switch intervals to interpret 0 and 1
-	private boolean[][] interpretSwitches() {
-		return interpretSwitches(1)[0];
-	}
-	private boolean[][][] interpretSwitches(int deinterlace) {
-		List<Experiment.TimingOrderItem> chans = getExperiment().getTimingChannels();
-		boolean[][] switches = new boolean[chans.size()][];
-		if (lastData.matchesType("*2w")) {
-			long[][] dacData = extractLastDacData();
-			for (int i = 0; i < chans.size(); i++) {
-				switches[i] = chans.get(i).interpretData(Data.valueOf(dacData[i]));
-			}
-		} else {
-			for (int i = 0; i < chans.size(); i++) {
-				Data data = lastData.get(i);
-				switches[i] = chans.get(i).interpretData(data);
-			}
-		}
-		return deinterlaceArray(switches, deinterlace);
-	}
-
-
-	// calculate separate switching probabilities, ie probabilities
-	// for each channel to switch independent of the other channels
-	private double[] getProbsSeparate() {
-		return getProbsSeparate(1)[0];
-	}
-	private double[][] getProbsSeparate(int deinterlace) {
-		boolean[][][] switches = interpretSwitches(deinterlace);
-		double[][] probs = new double[deinterlace][];
-		for (int i = 0; i < deinterlace; i++) {
-			probs[i] = getProbsSeparateBase(switches[i]);
-		}
-		return probs;
-	}
-	private double[] getProbsSeparateBase(boolean[][] switches) {
-		int N = switches.length;
-		int reps = N > 0 ? switches[0].length : 0;
-
-		double[] probs = new double[N];
-		for (int i = 0; i < N; i++) {
-			int count = 0;
-			for (boolean sw : switches[i]) {
-				count += sw ? 1 : 0;
-			}
-			probs[i] = (double)count / reps;
-		}
-		return probs;
-	}
-
-
-	// calculate combined state probabilities, ie probabilities for each
-	// combination of switching states of the various timing channels
-
-	private double[] getProbs() {
-		return getProbs(1)[0];
-	}
-	private double[][] getProbs(int deinterlace) {
-		boolean[][][] switches = interpretSwitches(deinterlace);
-		double[][] probs = new double[deinterlace][];
-		for (int i = 0; i < deinterlace; i++) {
-			probs[i] = getProbsBase(switches[i]);
-		}
-		return probs;
-	}
-	private double[] getProbsBase(boolean[][] switches) {
-		int N = switches.length;
-		int reps = N > 0 ? switches[0].length : 0;
-
-		// count switching states
-		int[] counts = new int[1<<N];
-		Arrays.fill(counts, 0);
-		for (int j = 0; j < reps; j++) {
-			int state = 0;
-			for (int i = 0; i < N; i++) {
-				state |= (switches[i][j] ? 1 : 0) << (N-1-i);
-			}
-			counts[state] += 1;
-		}
-
-		// convert counts to probabilities
-		double[] probs = new double[counts.length];
-		for (int i = 0; i < counts.length; i++) {
-			probs[i] = (double)counts[i] / reps;
-		}
-		return probs;
-	}
-
-
-	// filter an array 
-	private double[] filterArray(double[] in, long[] indices) {
-		double[] out = new double[indices.length];
-		for (int i = 0; i < indices.length; i++) {
-			out[i] = in[(int)indices[i]];
-		}
-		return out;
 	}
 
 	//

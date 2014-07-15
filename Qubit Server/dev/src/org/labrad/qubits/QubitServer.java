@@ -42,7 +42,8 @@ import org.labrad.qubits.resources.Resources;
 			+ "you to specify which channel or channels the command should affect.  "
 			+ "Channels are identified either by a pair of strings "
 			+ "(<device name>, <channel name>), or a single string <device name> "
-			+ "if the device has only one channel of the type needed for the command.")
+			+ "if the device has only one channel of the type needed for the command."
+			+ "\n\nVersion 0.4.9.")
 			public class QubitServer extends AbstractServer {
 
 	private Context wiringContext;

@@ -37,6 +37,8 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 	int demodChannel;		// which demod channel are we (demod mode only)
 	int dPhi, phi0;			// passed to "ADC Demod Phase" setting of FPGA server (demod mode only)
 	int ampSin, ampCos;		// passed to "ADC Trig Magnitude" setting (demod mode only)
+	Data triggerTable;		// passed to "ADC Trigger Table"
+	Data mixerTable;		// passed to "ADC Mixer Table"
 
 	private boolean reverseCriticalPhase;
 
@@ -101,6 +103,8 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 				"Conflicting modes for ADC board %s", this.board.getName());
 		Preconditions.checkArgument(this.getStartDelay() == other.getStartDelay(),
 				"Conflicting start delays for ADC board %s", this.board.getName());
+		Preconditions.checkArgument(this.triggerTable.equals(other.triggerTable),
+				"Conflicting trigger tables for ADC board %s", this.board.getName());
 		if (this.mode == AdcMode.DEMODULATE) {
 			Preconditions.checkArgument(this.filterFunction.equals(other.filterFunction),
 					"Conflicting filter functions for ADC board %s", this.board.getName());
@@ -136,6 +140,9 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 		} else {
 			Preconditions.checkArgument(false, "ADC channel %s has no mode (avg/demod) set!", this.name);
 		}
+		if (this.triggerTable != null) {
+			runRequest.add("ADC Trigger Table", this.triggerTable);
+		}
 	}
 	
 	// add local packets. only really applicable for demod mode
@@ -144,6 +151,9 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 			Preconditions.checkState(ampSin > -1 && ampCos > -1, "ADC Trig Magnitude not set on demod channel %s on channel '%s'", this.demodChannel, this.name);
 			runRequest.add("ADC Demod Phase", Data.valueOf((long)this.demodChannel), Data.valueOf(dPhi), Data.valueOf(phi0));
 			runRequest.add("ADC Trig Magnitude", Data.valueOf((long)this.demodChannel), Data.valueOf((long)ampSin), Data.valueOf((long)ampCos));
+		}
+		if (this.mixerTable != null) {
+			runRequest.add("ADC Mixer Table", Data.valueOf((long)this.demodChannel), this.mixerTable);
 		}
 	}
 	
@@ -225,6 +235,16 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 		int phi0 = (int)(phase * Math.pow(2, LOOKUP_ACCUMULATOR_BITS) / (2 * Math.PI));
 		setPhase(dPhi, phi0); 
 	}
+	
+	//
+	// For ADC build 7
+	//
+	public void setTriggerTable(Data data) {
+		this.triggerTable = data;
+	}
+	public void setMixerTable(Data data) {
+		this.mixerTable = data;
+	}
 
 	@Override
 	public void clearConfig() {
@@ -234,6 +254,8 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
 		this.reverseCriticalPhase = false;
 		this.offsetI = 0;
 		this.offsetQ = 0;
+		this.triggerTable = null;
+		this.mixerTable = null;
 	}
 
 	@Override
