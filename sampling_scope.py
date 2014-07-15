@@ -172,7 +172,7 @@ class SamplingScope(GPIBManagedServer):
  
     @setting(101, 'Record Length',
                   data=['w: Record Length 512, 1024, 2048 or 4096, 5120'],
-                  returns=['v[s]: Start Time'])
+                  returns=['w: Record Length'])
     def record_length(self, c, data):
         """Sets the start time of the trace."""
         dev = self.selectedDevice(c)
@@ -206,7 +206,8 @@ class SamplingScope(GPIBManagedServer):
         """Sets the start time of the trace."""
         dev = self.selectedDevice(c)
         if data is not None:
-            yield dev.write('MAINP %g' % data.value)
+            dataS = data['s']
+            yield dev.write('MAINP %g' % dataS)
         resp = yield dev.query('MAINP?')
         print resp
         returnValue(data)
@@ -217,9 +218,8 @@ class SamplingScope(GPIBManagedServer):
     def time_step(self, c, data):
         """Sets the time/div for of the trace."""
         dev = self.selectedDevice(c)
-        yield dev.write('TBM TIM:%g' % data.value)
-        #yield dev.write('TBW TIM:%g' % data.value)
-        #yield dev.write('TBM TIM:%g' % data.value)
+        dataS = data['s']
+        yield dev.write('TBM TIM:%g' % dataS)
         returnValue(data)
 
 
@@ -229,7 +229,8 @@ class SamplingScope(GPIBManagedServer):
     def offset(self, c, data):
         """Set offset, i.e. the voltage at the center of the screen."""
         dev = self.selectedDevice(c)
-        yield dev.write('CHM%d OFFS:%g' % (self.getchannel(c), data.value))
+        dataV = data['V']
+        yield dev.write('CHM%d OFFS:%g' % (self.getchannel(c), dataV))
         returnValue(data)
 
 
@@ -239,7 +240,8 @@ class SamplingScope(GPIBManagedServer):
     def sensitivity(self, c, data):
         """Set sensitivity (V/div)."""
         dev = self.selectedDevice(c)
-        yield dev.write('CHM%d SENS:%g' % (self.getchannel(c), data))
+        dataV = data['V']
+        yield dev.write('CHM%d SENS:%g' % (self.getchannel(c), dataV))
         returnValue(data)
 
         
@@ -289,7 +291,8 @@ class SamplingScope(GPIBManagedServer):
     def trigger_level(self, c, data):
         """Set trigger level."""
         dev = self.selectedDevice(c)
-        yield dev.write('TRI LEV:%g' % data.value)
+        dataV = data['V']
+        yield dev.write('TRI LEV:%g' % dataV)
         returnValue(data)
    
     @setting(16, 'Trigger positive', returns=[''])
