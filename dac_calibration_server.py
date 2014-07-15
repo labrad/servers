@@ -173,7 +173,8 @@ class CalibrationServer(LabradServer):
         
         This also implicitly selects I/Q mode for the correction.
         """
-        c['Frequency'] = float(frequency)
+        # c['Frequency'] = float(frequency)
+        c['Frequency'] = frequency['GHz']
         c['DAC'] = None
         return frequency
 
@@ -184,7 +185,8 @@ class CalibrationServer(LabradServer):
     
     @setting(12, 'Time Offset', t0=['v[ns]'], returns=['v[ns]'])
     def set_time_offset(self, c, t0):
-        c['t0'] = float(t0)
+        # c['t0'] = float(t0)
+        c['t0'] = t0['ns']
         return t0
     
     @setting(13, 'deconvIQ', deconvIQ=['b'], returns=['b'])

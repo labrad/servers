@@ -32,7 +32,8 @@ from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 import labrad
-# from labrad.thread import blockingCallFromThread as block, startReactor
+# from labrad.thread import blockingCallFromThread as block
+from labrad.thread import startReactor
 
 from correction import (DACcorrection, IQcorrection,
      cosinefilter, gaussfilter, flatfilter)
@@ -137,9 +138,7 @@ def IQcorrector(fpganame, cxn=None,
         print 'It is only there for backwards compatibility.'
 
     startReactor()
-    # corrector = block(IQcorrectorAsync, fpganame, None, zerocor,
-                      # pulsecor, iqcor, lowpass, bandwidth)    
-    corrector = IQcorrectorAsync(fpganame, None, zerocor,
+    corrector = block(IQcorrectorAsync, fpganame, None, zerocor,
                       pulsecor, iqcor, lowpass, bandwidth)
     corrector.recalibrationRoutine = recalibrate
     return corrector
@@ -191,9 +190,7 @@ def DACcorrector(fpganame, channel, cxn=None,
         print 'Warning: cxn argument is obsolete and is not being used.'
         print 'It is only there for backwards compatibility'
     startReactor()
-    # return block(DACcorrectorAsync, fpganame, channel, None,
-                 # lowpass, bandwidth)    
-    return DACcorrectorAsync(fpganame, channel, None,
+    return block(DACcorrectorAsync, fpganame, channel, None,
                  lowpass, bandwidth)
 
 import calibrate
@@ -284,10 +281,7 @@ def recalibrate(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
                 sidebandCarrierStep=0.05, sidebandMax=0.35,
                 sidebandStep=0.05, corrector=None):
     startReactor()
-    # block(recalibrateAsync, boardname, carrierMin, carrierMax,
-          # zeroCarrierStep, sidebandCarrierStep, sidebandMax,
-                # sidebandStep, corrector)    
-    recalibrateAsync(boardname, carrierMin, carrierMax,
+    block(recalibrateAsync, boardname, carrierMin, carrierMax,
           zeroCarrierStep, sidebandCarrierStep, sidebandMax,
                 sidebandStep, corrector)
 

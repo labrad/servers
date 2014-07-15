@@ -134,7 +134,7 @@ class LoggingPacket(object):
         
     def send(self):
         global DUMP_NUM
-        packetType = '-'.join([DIRECT_ETHERNET_SETTINGS[x[0]] for x in self._packet._packet])
+        packetType = '-'.join([DIRECT_ETHERNET_SETTINGS[x[0]] for x in self._packet._packet])[0:100]
         fname = os.path.join(DEBUG_PATH, 'dac_packet_%d_%s.txt' %(DUMP_NUM, packetType))
         with open(fname, 'wb') as f:
             dumpPacketWithHash(f, self._packet, self._name)

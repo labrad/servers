@@ -961,7 +961,7 @@ public class QubitContext extends AbstractServerContext {
 		if (configDirty || memDirty || sramDirty) {
 			build_sequence();
 		}
-
+		nextRequest.getRecord(runIndex).getData().setWord(reps, 0);
 		lastData = getConnection().sendAndWait(nextRequest).get(runIndex);
 	}
 
@@ -1003,7 +1003,7 @@ public class QubitContext extends AbstractServerContext {
 	@Setting(id = 1100,
 			name = "Get Data Raw",
 			doc = "Gets the raw timing data from the previous run. Given a deinterlace argument, only DAC data are returned")
-			@Returns("*4w")
+			@Returns("*4i")
 			public Data get_data_raw() {
 		return lastData;
 	}

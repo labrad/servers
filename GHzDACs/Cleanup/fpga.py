@@ -12,18 +12,11 @@ from servers.GHzDACs.util import LoggingPacket
 # for each detected hardware board.
 REGISTRY = {} #(Board type, build number) -> Class
 
-LOGGING_PACKET_PATH = os.path.join("U:\\", "daniel", "datataking", "labrad",
-                                   "servers", "ghzdacs", "packetLog.txt")
 
 # Safety factor for timeout estimates
-TIMEOUT_FACTOR = 10 #seconds
+TIMEOUT_FACTOR = 10
 
 USE_LOGGING_PACKETS = False
-# if USE_LOGGING_PACKETS:
-    # LOGGING_FILE = open(LOGGING_PACKET_PATH, 'w')
-# else:
-    # LOGGING_FILE = None
-
 
 class FPGA(DeviceWrapper):
     """Manages communication with a single GHz FPGA board.
@@ -116,6 +109,7 @@ class FPGA(DeviceWrapper):
         Note that if the collect times out, the triggers are NOT sent.
         """
         p = self.makePacket()
+        # print('fpga.py: collect: timeout = %s, waiting for nPackets: %s'%(timeout,nPackets))
         p.timeout(Value(timeout, 's'))
         p.collect(nPackets)
         # If a timeout error occurs the remaining records in the direct

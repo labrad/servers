@@ -60,15 +60,21 @@ import org.labrad.qubits.resources.Resources;
 		// automatically reload the wiring configuration when it changes
 		cxn.addMessageListener(new MessageListener() {
 			@Override
-			public void messageReceived(MessageEvent e) {
+			public void messageReceived(MessageEvent e)  {
 				if (e.getMessageID() == 55443322L) {
 					String serverName = e.getData().getClusterAsList().get(1).getString();
 					if (serverName.equals(Constants.GHZ_DAC_SERVER)) {
 						System.out.println("Server connected: " + Constants.GHZ_DAC_SERVER + " -- refreshing wiring.");
+						try {
+							Thread.sleep(1000);
+						} catch (InterruptedException e1) {
+							e1.printStackTrace();
+						}
 						loadWiringConfiguration();
 					}
 				}
 				else if (e.getContext().equals(wiringContext)) {
+					wiringContext = getConnection().newContext();
 					loadWiringConfiguration();
 				}
 			}
@@ -153,8 +159,22 @@ import org.labrad.qubits.resources.Resources;
 			Request req = Request.to(Constants.GHZ_DAC_SERVER, wiringContext);
 			req.add("Select Device", Data.valueOf(myBoard.getName()));
 			req.add("Build Number");
-			getConnection().send(req, this);
+			
+			// TODO: let's temporarily try doing this synchronously
+			// to see if we can figure out why neither onSuccess or onFailure
+			// is being called when the FPGA server is restarted.
+			//getConnection().send(req, this);
+			List<Data> resp;
+			try {
+				resp = getConnection().sendAndWait(req);
+				onSuccess(req, resp);
+			} catch (InterruptedException | ExecutionException e) {
+				onFailure(req, e);
+			}
+			
 			//System.out.println("Sent request for board " + myBoard.getName());
+			//System.out.println(req.getServerName() + " (" + req.getServerID() + ")");
+			
 		}
 
 		@Override
@@ -186,7 +206,7 @@ import org.labrad.qubits.resources.Resources;
 				sendRegistryRequest();
 			} else {
 				// we failed to get the build details from the registry
-				System.out.println("Exception when looking up ADC/DAC build properties. Using default values.");
+				System.out.println("Exception when looking up ADC/DAC build properties: " + cause.getMessage() + ". Using default values.");
 				if (myBoard instanceof AdcBoard)
 					myBoard.loadProperties(Constants.DEFAULT_ADC_PROPERTIES_DATA);
 				else
@@ -203,7 +223,17 @@ import org.labrad.qubits.resources.Resources;
 			else if (number.equals("-1"))
 				number = "5";
 			regReq.add("get", Data.valueOf(myBoard.getBuildType() + number));
-			getConnection().send(regReq, this);
+			
+			// TODO: synchronous as above
+			//getConnection().send(regReq, this);
+			List<Data> resp;
+			try {
+				resp = getConnection().sendAndWait(regReq);
+				onSuccess(regReq, resp);
+			} catch (InterruptedException | ExecutionException e) {
+				onFailure(regReq, e);
+			}
+			
 		}
 	}
 
@@ -216,11 +246,13 @@ import org.labrad.qubits.resources.Resources;
 		System.out.println("Load DAC/ADC build properties...");
 		Resources current = Resources.getCurrent();
 		List<DacBoard> dacs = current.getAll(DacBoard.class);
+		System.out.println("dacs.size() = " + dacs.size());
 		// make and start a request to do look up build numbers and properties for each board
 		for (DacBoard board : dacs) {
 			BuildLoader bl = new BuildLoader(board);
 			bl.run();
 		}
+
 		// check to see that we've set build properties
 		while (dacs.size() > 0) {
 			for (Iterator<DacBoard> it = dacs.iterator(); it.hasNext();) {
@@ -238,7 +270,7 @@ import org.labrad.qubits.resources.Resources;
 						dacs.clear();
 					}
 				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
+					System.err.println("Error while waiting for DAC board info!");
 					e.printStackTrace();
 				}
 			} else {
