@@ -224,7 +224,7 @@ import servers.GHzDACs.Cleanup.adc as adc
 import servers.GHzDACs.Cleanup.fpga as fpga
 
 from util import TimedLock, LoggingPacket
-LOGGING_PACKET=True
+LOGGING_PACKET=False
 
 from matplotlib import pyplot as plt
 
@@ -679,7 +679,7 @@ class BoardGroup(object):
                     # able to run.
                     # XXX How does this work? Why is r['nTriggers'] the wait
                     # time?
-                    print "fpga server: r['nTriggers']: %s" % (r['nTriggers'])
+                    # print "fpga server: r['nTriggers']: %s" % (r['nTriggers'])
                     self.runWaitTimes.append(r['nTriggers']['s'])
                     if len(self.runWaitTimes) > 100:
                         self.runWaitTimes.pop(0)

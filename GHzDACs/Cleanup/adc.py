@@ -781,7 +781,7 @@ class ADC_Branch2(ADC):
         """
 
         for idx,demod in enumerate(demods):
-            data = np.zeros(cls.SRAM_MIXER_PKT_LEN, dtype='<u1')
+            data = np.zeros(cls.SRAM_MIXER_PKT_LEN, dtype='<i1')
             # retrigger table is page 0, mixer tables are pages 1-13, factor of 4 from stripping least significant bits
             data[0:2] = littleEndian((idx+1),2) # SRAM page address
             mixerTable = demod['mixerTable']
@@ -789,6 +789,7 @@ class ADC_Branch2(ADC):
                 I, Q = row
                 data[(tidx*2)+2] = I
                 data[(tidx*2+1)+2] = Q
+                
             p.write(data.tostring())
         
     # board communication (can be called from within test mode)
