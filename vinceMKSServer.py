@@ -100,8 +100,9 @@ class MKSServer(LabradServer):
         try:
             res = yield ser.open(port, context=ctx)
             ready = G['ready'] = res==port
-        except:
+        except Exception as e:
             ready = False
+            raise e
         if ready:
             # set up baudrate
             p = ser.packet(context=ctx)\

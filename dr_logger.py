@@ -236,6 +236,9 @@ class DRLogger(DeviceWrapper):
         for w in self.watchers:
             r = yield w.get_variables()
             deps.extend(r)
+        print "Indep vars: %s" % str(indeps)
+        print "Dependent vars: %s" % str(deps)
+        
         yield self.data_vault.new(name, indeps, deps, context=self.ctx)
         
     @inlineCallbacks
@@ -247,7 +250,7 @@ class DRLogger(DeviceWrapper):
                 r = yield w.take_point()
                 data.extend(r)
             # strip units
-            data = [x.value for x in data]
+            data = [x._value for x in data]
             # did the day roll over?
             if self.currentDay != time.strftime("%d"):
                 self.new_dataset()

@@ -39,6 +39,7 @@ from twisted.python import log
 from twisted.internet import defer
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet import reactor
+import twisted
 
 from datetime import datetime
 
@@ -67,7 +68,7 @@ class MKSServer(LabradServer):
             dictentry = {gaugeentry[0][0]:gaugeentry[0][1],gaugeentry[1][0]:gaugeentry[1][1],gaugeentry[2][0]:gaugeentry[2][1]}
             gauges.append(dictentry)
         self.gaugeServers = [{'server' : serial_server, 'ID':None, 'gauges':gauges}]
-        lc = twisted.internet.task.loopingCall(self.update_readings)
+        lc = twisted.internet.task.LoopingCall(self.update_readings)
         lc.start(1.0)
         self.gauges = []
         yield self.findGauges()
@@ -188,8 +189,14 @@ class MKSServer(LabradServer):
                     (rdg1, rdg2) = result.pressure.split()
                 except Exception:
                     (rdg1, rdg2) = ('Off', 'Off')
-                try: data1 = float(rdg1) except Exception: data1 = float('NaN')
-                try: data2 = float(rdg2) except Exception: data2 = float('NaN')
+                try: 
+                    data1 = float(rdg1) 
+                except Exception: 
+                    data1 = float('NaN')
+                try: 
+                    data2 = float(rdg2) 
+                except Exception: 
+                    data2 = float('NaN')
                 if G[0] and math.isnan(data1): print 'gauge %s returns NaN (%s:ch1)' % (G[0], G['port'])
                 if G[1] and math.isnan(data2): print 'gauge %s returns NaN (%s:ch2)' % (G[1], G['port'])
                 G['reading'] = T.Value(data1, 'Torr'), T.Value(data2, 'Torr')
@@ -203,7 +210,7 @@ class MKSServer(LabradServer):
                 if G[ch]:
                     readings += [G['reading'][ch]]
         return readings
-    @setting(2, 'Get Named Readings', returns=['*(s, v[Torr])'])
+    @setting(12, 'Get Named Readings', returns=['*(s, v[Torr])'])
     def get_named_readings(self, c):
         result = []
         for G in self.gauges:
