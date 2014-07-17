@@ -40,6 +40,7 @@ from labrad.server import LabradServer, setting
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.reactor import callLater
 from twisted.internet.task import LoopingCall
+import labrad.units as units
 
 from pyvisa import visa, vpp43
 
@@ -66,7 +67,7 @@ class GPIBBusServer(LabradServer):
     name = '%LABRADNODE% GPIB Bus'
 
     refreshInterval = 10
-    defaultTimeout = 1.0
+    defaultTimeout = 1.0*units.s
 
     def initServer(self):
         self.devices = {}
