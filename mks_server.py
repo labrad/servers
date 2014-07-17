@@ -31,7 +31,7 @@ timeout = 20
 """
 
 import labrad 
-
+import math
 from labrad import types as T, util
 from labrad.server import LabradServer, setting
 
@@ -39,7 +39,7 @@ from twisted.python import log
 from twisted.internet import defer
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet import reactor
-import twisted
+import twisted.internet.task
 
 from datetime import datetime
 
@@ -52,26 +52,26 @@ class MKSServer(LabradServer):
     @inlineCallbacks
     def initServer(self):
         cxn = yield self.client
-        self.name = 'mks_server_2'
+        self.name = 'mks_server'
         self.fridge = self.fridgeAutoDetect()
-
+        print "MKS server init for fridge: ", self.fridge
         reg = cxn.registry
         reg.cd(['','Servers','MKS_Gauge_Server',self.fridge])
-        gauge_list = reg.get('gauge_list')
+        gauge_list = yield reg.get('gauge_list')
         serial_server = yield reg.get('serial_server')
         yield reg.cd('gauges')
         gauges = []
-        
         loopvar = yield reg.dir()
         for key in loopvar[1]:
             gaugeentry = yield reg.get(key)
             dictentry = {gaugeentry[0][0]:gaugeentry[0][1],gaugeentry[1][0]:gaugeentry[1][1],gaugeentry[2][0]:gaugeentry[2][1]}
             gauges.append(dictentry)
         self.gaugeServers = [{'server' : serial_server, 'ID':None, 'gauges':gauges}]
-        lc = twisted.internet.task.LoopingCall(self.update_readings)
-        lc.start(1.0)
         self.gauges = []
         yield self.findGauges()
+        lc = twisted.internet.task.LoopingCall(self.update_readings)
+        lc.start(1.0)
+
 
         
     def fridgeAutoDetect(self):
@@ -83,8 +83,8 @@ class MKSServer(LabradServer):
         elif attributeList.has_key('node_dr'):
             myFridge = 'Jules'
             return myFridge
-        elif attributeList.has_key('node_trench'):
-            myFridge = 'DryDR'
+        elif attributeList.has_key('node_ivan'):
+            myFridge = 'Ivan'
             return myFridge
 
     def serverConnected(self, ID, name):
@@ -107,7 +107,6 @@ class MKSServer(LabradServer):
         cxn = self.client
         yield cxn.refresh()
         log.msg('findGauges')
-        log.msg(self.gaugeServers)
         for S in self.gaugeServers:
             if S['ID'] is not None:
                 continue
@@ -189,37 +188,32 @@ class MKSServer(LabradServer):
                     (rdg1, rdg2) = result.pressure.split()
                 except Exception:
                     (rdg1, rdg2) = ('Off', 'Off')
-                try: 
-                    data1 = float(rdg1) 
-                except Exception: 
-                    data1 = float('NaN')
-                try: 
-                    data2 = float(rdg2) 
-                except Exception: 
-                    data2 = float('NaN')
-                if G[0] and math.isnan(data1): print 'gauge %s returns NaN (%s:ch1)' % (G[0], G['port'])
-                if G[1] and math.isnan(data2): print 'gauge %s returns NaN (%s:ch2)' % (G[1], G['port'])
+                try: data1 = float(rdg1) 
+                except Exception: data1 = float('NaN')
+                try: data2 = float(rdg2) 
+                except Exception: data2 = float('NaN')
+                if G['ch1'] and math.isnan(data1): print 'gauge %s returns NaN (%s:ch1)' % (G['ch1'], G['port'])
+                if G['ch2'] and math.isnan(data2): print 'gauge %s returns NaN (%s:ch2)' % (G['ch2'], G['port'])
                 G['reading'] = T.Value(data1, 'Torr'), T.Value(data2, 'Torr')
                 
     @setting(1, 'Get Readings', returns=['*v[Torr]: Readings'])
     def get_readings(self, c):
         """Request current readings."""
-        result = []
+        readings = []
         for G in self.gauges:
-            for ch in CHANNELS:
-                if G[ch]:
-                    readings += [G['reading'][ch]]
+            for ch_idx, ch_name in enumerate(CHANNELS):
+                if G[ch_name]:
+                    readings += [G['reading'][ch_idx]]
         return readings
-    @setting(12, 'Get Named Readings', returns=['*(s, v[Torr])'])
+    @setting(3, 'Get Named Readings', returns=['*(s, v[Torr])'])
     def get_named_readings(self, c):
-        result = []
+        readings = []
         for G in self.gauges:
-            for ch in CHANNELS:
-                if G[ch]:
-                    readings += [(G[ch], G['reading'][ch])]
-    
-        packagedreadings = zip(gauge_list,readings)#@#
-        returnValue(packagedreadings)#@#
+            for ch_idx, ch_name in enumerate(CHANNELS):
+                if G[ch_name]:
+                    readings += [(G[ch_name], G['reading'][ch_idx])]
+        print "readings: ", readings
+        return readings
         
 __server__ = MKSServer()
 
