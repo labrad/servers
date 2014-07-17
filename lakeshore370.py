@@ -309,7 +309,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
     @inlineCallbacks
     def getHeaterOutput(self):
         ans = yield self.query('HTR?')
-        returnValue(float(ans))
+        returnValue(U.Value(float(ans), '%'))
     
     @inlineCallbacks
     def setHeaterRange(self, value):
@@ -317,13 +317,13 @@ class RuOxWrapper(GPIBDeviceWrapper):
             yield self.write('HTRRNG 0')
             returnValue(None)
         else:
-            value = float(value)
+            value = value['mA']
             val = 8
             for limit in [31.6, 10, 3.16, 1, 0.316, 0.1, 0.0316]:
                 if value <= limit:
                     val -= 1
             yield self.write('HTRRNG %d' % val)
-            returnValue([0.0316, 0.1, 0.316, 1.0, 3.16, 10.0, 31.6, 100.0][val-1])
+            returnValue([0.0316, 0.1, 0.316, 1.0, 3.16, 10.0, 31.6, 100.0][val-1]*U.mA)
     
     @inlineCallbacks
     def controlTemperature(self, channel, resistance, loadresistor):
@@ -403,7 +403,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
                     return res2temp(self.readings[channel][0]) * K
         except Exception, e:
             print e
-            return 0.0
+            return 0.0 * K
     
     def getTemperatures(self):
         # we now do this channel by channel. oh yeah.
