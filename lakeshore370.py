@@ -315,13 +315,13 @@ class RuOxWrapper(GPIBDeviceWrapper):
             yield self.write('HTRRNG 0')
             returnValue(None)
         else:
-            value = float(value)
+            value = value['mA']
             val = 8
             for limit in [31.6, 10, 3.16, 1, 0.316, 0.1, 0.0316]:
                 if value <= limit:
                     val -= 1
             yield self.write('HTRRNG %d' % val)
-            returnValue([0.0316, 0.1, 0.316, 1.0, 3.16, 10.0, 31.6, 100.0][val-1])
+            returnValue([0.0316, 0.1, 0.316, 1.0, 3.16, 10.0, 31.6, 100.0][val-1] * units.mA)
     
     @inlineCallbacks
     def controlTemperature(self, channel, resistance, loadresistor):
