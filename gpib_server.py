@@ -40,7 +40,7 @@ from labrad.server import LabradServer, setting
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.reactor import callLater
 from twisted.internet.task import LoopingCall
-
+import labrad.units as units
 from pyvisa import visa, vpp43
 
 """
@@ -65,8 +65,8 @@ class GPIBBusServer(LabradServer):
     """Provides direct access to GPIB-enabled devices."""
     name = '%LABRADNODE% GPIB Bus'
 
-    refreshInterval = 10
-    defaultTimeout = 1.0
+    refreshInterval = 10*units.s
+    defaultTimeout = 1.0*units.s
 
     def initServer(self):
         self.devices = {}
@@ -157,7 +157,7 @@ class GPIBBusServer(LabradServer):
         if c['addr'] not in self.devices:
             raise Exception('Could not find device ' + c['addr'])
         instr = self.devices[c['addr']]
-        instr.timeout = c['timeout']
+        instr.timeout = c['timeout']['s']
         return instr
         
     @setting(0, addr='s', returns='s')

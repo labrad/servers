@@ -103,7 +103,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad import types as T, util
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
-
+import labrad.units as units
 import numpy as np
 
 READ_ORDER = [1, 2, 1, 3, 1, 4, 1, 5]
@@ -111,17 +111,18 @@ READ_ORDER = [1, 2, 1, 3, 1, 4, 1, 5]
 SETTLE_TIME = 8
 DEFAULT, FUNCTION, INTERPOLATION, VRHOPPING = range(4)
 
+# These functions suck.
 def res2temp(r):
     try:
-        return ((math.log(r) - 6.02) / 1.76) ** (-1/.345)
+        return units.K * ((math.log(r) - 6.02) / 1.76) ** (-1/.345)
     except Exception:
-        return 0.0
+        return units.K*0.0
 
 def temp2res(t):
     try:
-        return math.exp(1.76*(t**(-0.345)) + 6.02)
+        return units.Ohm * math.exp(1.76*(t**(-0.345)) + 6.02)
     except Exception:
-        return 0.0
+        return units.Ohm * 0.0
 
 class RuOxWrapper(GPIBDeviceWrapper):
     
@@ -265,7 +266,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
         # len(set(x)) gets the number of unique elements in x
         self.readings = {}
         for channel in self.readOrder:
-            self.readings[channel] = (0, datetime.now())
+            self.readings[channel] = (0*units.K, datetime.now())
         
         # now start with the calibrations
         # first get the default one
@@ -340,7 +341,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 chan = self.onlyChannel
                 yield util.wakeupCall(SETTLE_TIME)
                 r = yield self.query('RDGR? %d' % chan)
-                self.readings[chan] = float(r), datetime.now()
+                self.readings[chan] = units.Ohm * float(r), datetime.now()
             # scan over channels
             else:
                 if len(self.readOrder) > 0:
@@ -351,7 +352,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 yield self.selectChannel(chan)
                 yield util.wakeupCall(SETTLE_TIME)
                 r = yield self.query('RDGR? %d' % chan)
-                self.readings[chan] = float(r), datetime.now()
+                self.readings[chan] = units.Ohm * float(r), datetime.now()
                 idx = (idx + 1) % len(self.readOrder)
     
     def getSingleTemp(self, channel, calIndex=-1):
@@ -371,15 +372,16 @@ class RuOxWrapper(GPIBDeviceWrapper):
             #print("Resistance is %f"%self.readings[channel][0])
             if self.calibrations[calIndex][0] == INTERPOLATION:
                 # log-log interpolation
-                return (np.exp(np.interp(np.log(self.readings[channel][0]),
+                return units.K * (np.exp(np.interp(np.log(self.readings[channel][0]),
                               np.log(np.array(self.calibrations[calIndex][1])),
                               np.log(np.array(self.calibrations[calIndex][2]))
                               )))
             elif self.calibrations[calIndex][0] == VRHOPPING:
                 T0 = self.calibrations[calIndex][2]
                 R0 = self.calibrations[calIndex][1]
-                res = self.readings[channel][0]
-                T = T0['K'] / (np.log(R0['Ohm']/res)**4)
+                res = self.readings[channel][0]*units.Ohm
+                T = T0 / (np.log(R0/res)**4)
+                print "temperature for VRHopping model: %s" % T
                 return T
             elif self.calibrations[calIndex][0] == FUNCTION:
                 # hack alert--using eval is bad:
@@ -390,7 +392,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 # (3) very unsafe if anyone ever hacks the registry. of course,
                 #     then we have bigger problems
                 r = self.readings[channel][0]
-                return eval(self.calibrations[calIndex][1])
+                return eval(self.calibrations[calIndex][1]) * units.K
             elif self.calibrations[calIndex][0] == DEFAULT:
                 if calIndex > 0:
                     # use calibration 0--the device calibration
@@ -399,8 +401,8 @@ class RuOxWrapper(GPIBDeviceWrapper):
                     #If there is no calibration at all use res2temp
                     return res2temp(self.readings[channel][0])
         except Exception, e:
-            print e
-            return 0.0
+            print "Exception gettings temperature: ", e
+            return 0.0*units.K
     
     def getTemperatures(self):
         # we now do this channel by channel. oh yeah.
