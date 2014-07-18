@@ -381,7 +381,6 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 R0 = self.calibrations[calIndex][1]
                 res = self.readings[channel][0]*units.Ohm
                 T = T0 / (np.log(R0/res)**4)
-                print "temperature for VRHopping model: %s" % T
                 return T
             elif self.calibrations[calIndex][0] == FUNCTION:
                 # hack alert--using eval is bad:
