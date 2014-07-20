@@ -209,6 +209,26 @@ class GPIBBusServer(LabradServer):
         ans = instr.read()
         return ans
 
+    @setting(6, returns='')
+    def clear(self, c):
+        """Clear GPIB interface"""
+        instr = self.getDevice(c)
+        instr.clear()
+        return
+    
+    @setting(7, term_chars='s', returns='s')
+    def term_chars(self, c, term_chars=None):
+        '''
+        Get or set the line termination characters for the selected device.
+        
+        To set termination characters to the pyvisa default use '\\r\\n' 
+        rather than None.
+        '''
+        instr = self.getDevice(c)
+        if term_chars is not None:
+           instr.term_chars = term_chars
+        return instr.term_chars
+        
     @setting(20, returns='*s')
     def list_devices(self, c):
         """Get a list of devices on this bus."""
