@@ -82,7 +82,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Lakeshore RuOx
-version = 2.6
+version = 2.6.1
 description = 
 
 [startup]
@@ -371,10 +371,11 @@ class RuOxWrapper(GPIBDeviceWrapper):
             calIndex = channel
         try:
             #print("lakeshore370: Computing temperature for channel %d"%channel)
-            #print("Resistance is %f"%self.readings[channel][0])
+            #print("Resistance is %s"%str(self.readings[channel][0]))
+            #print self.calibrations[calIndex]
             if self.calibrations[calIndex][0] == INTERPOLATION:
                 # log-log interpolation
-                return (np.exp(np.interp(np.log(self.readings[channel][0]),
+                return (np.exp(np.interp(np.log(self.readings[channel][0]['Ohm']),
                               np.log(np.array(self.calibrations[calIndex][1])),
                               np.log(np.array(self.calibrations[calIndex][2]))
                               ))) * K
@@ -401,9 +402,10 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 else:
                     #If there is no calibration at all use res2temp
                     return res2temp(self.readings[channel][0]) * K
-        except Exception, e:
+        except ValueError: #Exception, e:
+            raise e
             print e
-            return 0.0 * K
+            return 0.0*K
     
     def getTemperatures(self):
         # we now do this channel by channel. oh yeah.
