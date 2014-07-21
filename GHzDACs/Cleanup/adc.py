@@ -1067,12 +1067,14 @@ class ADC_Build7(ADC_Branch2):
         
         demodData is a 3-index numpy array with the following indices:
             0: channel
-            1: trigger event
-            2: I or Q
+            1: stat
+            2: trigger event
+            3: I or Q
         
         Index 0 runs from 0 to rchans-1
-        Index 1 runs from 0 to number of trigger events - 1
-        Index 2 runs from 0(I) to 1(Q)
+        Index 1 runs from 0 to stats-1
+        Index 2 runs from 0 to number of trigger events - 1
+        Index 3 runs from 0(I) to 1(Q)
         
         After demodulation is done on each retrigger, demodulator output is put
         into a FIFO from channel 0 to numchan[7..0]-1.  Once 11 channels are
@@ -1133,9 +1135,11 @@ class ADC_Build7(ADC_Branch2):
             rchan = rchans[0]
         
         totalTriggers = np.sum(nTrigger)
-        pkt_per_stat = int(np.ceil((totalTriggers * rchan * 2.0)/cls.DEMOD_CHANNELS_PER_PACKET))
+        # pkt_per_stat = int(np.ceil((totalTriggers * rchan * 2.0)/cls.DEMOD_CHANNELS_PER_PACKET))
+        pkt_per_stat = int(np.ceil((totalTriggers * rchan)/float(cls.DEMOD_CHANNELS_PER_PACKET)))
+        # print 'totalTriggers: %s, rchan: %s, DEMOD_CHANNELS_PER_PACKET: %s' % (totalTriggers, rchan, cls.DEMOD_CHANNELS_PER_PACKET)
         reps = len(packets)//pkt_per_stat
-        if len(packets)% pkt_per_stat:
+        if len(packets) % pkt_per_stat:
             raise RuntimeError("wrong number of packets: %d not a multiple of pkt_per_stat: %d" % (len(packets), pkt_per_stat))
 
         
@@ -1144,10 +1148,10 @@ class ADC_Build7(ADC_Branch2):
         #for p in packets:
         #    print "len: %d" % (len(p),)
         #    print labrad.support.hexdump(p)
-        #print "total packets: %s, packets_per_stat: %s, reps: %s" % (len(packets), pkt_per_stat, reps)
+        # print "total packets: %s, packets_per_stat: %s, reps: %s" % (len(packets), pkt_per_stat, reps)
         
         stat_pkt_list = [packets[idx*pkt_per_stat:pkt_per_stat*(idx+1)] for idx in range(reps)]
-        #print "len of stat_pkt_list: %d, len stat_packet 0: %d" % (len(stat_pkt_list),len(stat_pkt_list[0]))
+        # print "len of stat_pkt_list: %d, len stat_packet 0: %d" % (len(stat_pkt_list),len(stat_pkt_list[0]))
         all_data = []
         for stat_packet in stat_pkt_list:
             data = np.fromstring(''.join(data[:44] for data in stat_packet), dtype='<u1')
