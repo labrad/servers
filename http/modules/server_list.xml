@@ -131,8 +131,22 @@ article.tabs section:target h2
 
 
 <body>
+  <p id = "foo"> click p </p>
+  <p id = "bar"> another message </p>
+  <script type="text/javascript">
+   $('#foo').click(function(){
+    $.ajax({type: "POST",
+            url: "http://localhost:8881/test",
+            data: {name: $("#foo").text()},
+            success: function(data) { alert("Success: " + data); }
+    
+    });
+   });
+  </script>
+ 
+<!--
 <article class="tabs">
-  <h3> Server List <span t:render='name'/></h3>
+  <h3> Server List </h3>
 	<section id="tab1">
 		<h2><a href="#tab1">Whitelisted Servers</a></h2>
         <table border="1">
@@ -141,22 +155,33 @@ article.tabs section:target h2
             </tr>
         </table>
 	</section>
+-->
 	
 	<section id="tab2">
 		<h2><a href="#tab2">All Servers</a></h2>
         <table border="1">
-            <tr t:render='serverentries'>
-                <td><t:slot name='servername'/></td>
-            </tr>
+            <tr  t:render='serverentries'>
+                <td><t:attr name="id"><t:slot name='divid'/></t:attr><t:slot name='servername' /></td>
+                <script type="text/javascript">
+                    $("#<t:slot name='divid'/>").click(function(){
+                    $.ajax({type: "POST",
+                            url: "http://localhost:8881/test",
+                            data: {name: $("#<t:slot name='divid'/>").text()},
+                            success: function(data) {}
+        
+                            });
+                        });
+                </script>
+                </tr>
         </table>
 	</section>
-	
+<!--	
 	<section id="tab3">
 		<h2><a href="#tab3">Something else</a></h2>
 		<p>um</p>
 	</section>
 
 </article>
-
+-->
 </body>
 </html>

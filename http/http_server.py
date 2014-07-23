@@ -2,6 +2,7 @@
 from __future__ import division
 
 from twisted.web.server import Site, NOT_DONE_YET
+from twisted.web import static
 from twisted.internet import reactor
 from twisted.web.resource import Resource, IResource, NoResource
 from twisted.internet.defer import inlineCallbacks, returnValue, Deferred
@@ -11,6 +12,7 @@ import functools
 import inspect
 import labrad
 from zope.interface import implements
+
 
 """
 ### BEGIN NODE INFO
@@ -110,10 +112,29 @@ class StatusResource(Resource):
         d = flattenString(None, self.factory(self.cxn, request))
         d.addCallback(lambda data: self._delayedRender(request, data))
         return NOT_DONE_YET
+        
+class TestHandler(Resource):
+    '''
+    Code for handling AJAX commands from javascript frontend
+    '''
+    
+    isLeaf = True
 
+    def __init__(self):
+        Resource.__init__(self)
+    def render_GET(self, request):
+        print "GET rec'd" 
+        return self.render_POST(request)
+    def render_POST(self, request):
+        serverStr = request.content.read()
+        serverStr = serverStr.replace('+',' ').strip('name=')
+        print "POST rec'D ",serverStr
+        return "hello world! DATA"
+        
+        
 class HTTPServer(LabradServer):
     """
-    HTTP server to provide cryo status information
+    HTTP server to provide information
 
     Currently there are no exported labrad settings.  This is only a server to allow it to
     be easily started and stopped by the node.  
@@ -122,6 +143,10 @@ class HTTPServer(LabradServer):
 
     def initServer(self):
         root = RootStatusResource(self.client)
+        # root = static.File('/Josh/labrad-servers/servers/http/modules')
+        testHandler = TestHandler()
+        root.putChild('test', testHandler)
+        # root.putChild('styles', static.File("./modules"))
         factory = Site(root)
         reactor.listenTCP(8881, factory)
 

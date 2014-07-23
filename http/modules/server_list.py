@@ -43,10 +43,11 @@ class ServerListPage(Element):
     @inlineCallbacks
     def serverentries(self, request, tag):
         serverdata = yield self.get_all_servers()
-        rv = [tag.clone().fillSlots(servername=tags.b("Server"))]
-        for entry in serverdata:
+        rv = [tag.clone().fillSlots(servername=tags.b("Server"),divid="something")]
+        for idx,entry in enumerate(serverdata):
             servername = entry
-            rv.append(tag.clone().fillSlots(servername=servername))
+            rv.append(tag.clone().fillSlots(servername=servername,divid = "srv%d"%(idx)))
+            print "srv%d"%(idx)
         returnValue(rv)
         
     @render_safe
@@ -58,4 +59,8 @@ class ServerListPage(Element):
             whitelistname = entry
             rv.append(tag.clone().fillSlots(whitelistname=whitelistname))
         returnValue(rv)
+        
+
+        
+        
 page_factory = ServerListPage
