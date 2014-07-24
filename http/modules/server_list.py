@@ -2,6 +2,7 @@
 
 from twisted.internet.defer import inlineCallbacks, returnValue, Deferred
 from twisted.web.template import flattenString, Element, renderer, XMLFile, tags
+from twisted.web.client import getPage
 import datetime
 
 
@@ -87,23 +88,33 @@ class ServerListFuncs():
     This is the class that handles the backend functions
     '''
     def __init__(self):
+        # self.agent =Agent()
         pass
     
+    @inlineCallbacks
     def get_request(self,request,cxn):
         self._cxn = cxn
         self.req_uri = request.uri.split('/')[2]
-        
         serverStr = request.content.read()
         serverStr = serverStr.replace('+',' ').split('=')[1]
         print "\n>>>>>>>>Request at: %s, for: %s \n"%(self.req_uri,serverStr)
-        result = getattr(self,'handle_'+self.req_uri)(cxn,serverStr)
+        result = yield getattr(self,'handle_'+self.req_uri)(cxn,serverStr) #launches a method based on uri name
     
     @inlineCallbacks
     def handle_start(self,cxn,serverStr):
         name = yield self._cxn.manager.node_name()
         node = self._cxn["node_%s" % name.lower()+'_laptop']
-        print "\n Running in handle_start! ooooooooh yeah! ", serverStr
-        node.start(serverStr)
+        print "\n RUNNING handle_start"
+        rv = yield node.start(serverStr)
+        # req = Request('GET','http://localhost:8881/server_list')
+        req = getPage('http://localhost:8881/server_list')
+        print "\n Ran it"
+        returnValue(rv)
+        
+    @inlineCallbacks
+    def handle_stop(self,cxn,serverStr):
+        name = yield self._cxn.manager.node_name()
+        node = self._cxn["node_%s" % name.lower()+'_laptop']
         
 page_funcs = ServerListFuncs()       
 page_factory = ServerListPage
