@@ -133,6 +133,7 @@ article.tabs section:target h2
 <body>
   <p id = "foo"> click p </p>
   <p id = "bar"> another message </p>
+  <p t:render="topstuff"><h1><t:slot name="topcont"/></h1></p>
   <script type="text/javascript">
    $('#foo').click(function(){
     $.ajax({type: "POST",
@@ -165,12 +166,15 @@ article.tabs section:target h2
                 <td><t:attr name="id"><t:slot name='srvstart'/></t:attr>start</td>
                 <script type="text/javascript">
                     $("#<t:slot name='srvstart'/>").click(function(){
+                    
                     $.ajax({type: "POST",
                             url: "http://localhost:8881/server_list/start",
                             data: {srv: $("#<t:slot name='srvname'/>").text()},
                             success: function(data) {}
         
                             });
+                        
+                        window.location.reload();
                         });
                 </script>
                 </tr>

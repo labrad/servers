@@ -4,6 +4,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue, Deferred
 from twisted.web.template import flattenString, Element, renderer, XMLFile, tags
 from twisted.web.client import getPage
 import datetime
+import time
 
 
 import sys
@@ -72,6 +73,13 @@ class ServerListPage(Element):
             rv.append(tag.clone().fillSlots(servername=servername,srvname = "nm%d"%(idx),srvstart="strt%d"%(idx)))
             # print "srv%d"%(idx)
         returnValue(rv)
+    
+    @render_safe        
+    # @inlineCallbacks
+    def topstuff(self, request, tag):    
+        tnow = str(time.time())
+        rv = [tag.clone().fillSlots(topcont=tnow)]
+        return(rv)
         
     @render_safe
     @inlineCallbacks
@@ -107,7 +115,8 @@ class ServerListFuncs():
         print "\n RUNNING handle_start"
         rv = yield node.start(serverStr)
         # req = Request('GET','http://localhost:8881/server_list')
-        req = getPage('http://localhost:8881/server_list')
+        # rv = Deferred()
+        req =  yield getPage('http://localhost:8881/server_list')
         print "\n Ran it"
         returnValue(rv)
         
