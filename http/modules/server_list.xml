@@ -136,7 +136,7 @@ article.tabs section:target h2
   <script type="text/javascript">
    $('#foo').click(function(){
     $.ajax({type: "POST",
-            url: "http://localhost:8881/test",
+            url: "http://localhost:8881/server_list/blah",
             data: {name: $("#foo").text()},
             success: function(data) { alert("Success: " + data); }
     
@@ -161,12 +161,13 @@ article.tabs section:target h2
 		<h2><a href="#tab2">All Servers</a></h2>
         <table border="1">
             <tr  t:render='serverentries'>
-                <td><t:attr name="id"><t:slot name='divid'/></t:attr><t:slot name='servername' /></td>
+                <td><t:attr name="id"><t:slot name='srvname'/></t:attr><t:slot name='servername' /></td>
+                <td><t:attr name="id"><t:slot name='srvstart'/></t:attr>start</td>
                 <script type="text/javascript">
-                    $("#<t:slot name='divid'/>").click(function(){
+                    $("#<t:slot name='srvstart'/>").click(function(){
                     $.ajax({type: "POST",
-                            url: "http://localhost:8881/test",
-                            data: {name: $("#<t:slot name='divid'/>").text()},
+                            url: "http://localhost:8881/server_list/start",
+                            data: {srv: $("#<t:slot name='srvname'/>").text()},
                             success: function(data) {}
         
                             });
