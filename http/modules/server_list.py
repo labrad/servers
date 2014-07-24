@@ -29,7 +29,7 @@ class ServerListPage(Element):
     @inlineCallbacks
     def get_server(self):
         name = yield self._cxn.manager.node_name()
-        self.node = self._cxn["node_%s" % name.lower()]
+        self.node = self._cxn["node_%s" % name.lower()+'_laptop']
         
     @inlineCallbacks
     def get_whitelist(self):
@@ -88,14 +88,22 @@ class ServerListFuncs():
     '''
     def __init__(self):
         pass
-        
     
     def get_request(self,request,cxn):
         self._cxn = cxn
-        self.req_uri = request.uri
+        self.req_uri = request.uri.split('/')[2]
+        
         serverStr = request.content.read()
-        serverStr = serverStr.replace('+',' ').strip('srv=')
-        print "\n>>>>>>>>Request at: %s, for: %s \n"%(request.uri,serverStr)
+        serverStr = serverStr.replace('+',' ').split('=')[1]
+        print "\n>>>>>>>>Request at: %s, for: %s \n"%(self.req_uri,serverStr)
+        result = getattr(self,'handle_'+self.req_uri)(cxn,serverStr)
+    
+    @inlineCallbacks
+    def handle_start(self,cxn,serverStr):
+        name = yield self._cxn.manager.node_name()
+        node = self._cxn["node_%s" % name.lower()+'_laptop']
+        print "\n Running in handle_start! ooooooooh yeah! ", serverStr
+        node.start(serverStr)
         
 page_funcs = ServerListFuncs()       
 page_factory = ServerListPage
