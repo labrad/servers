@@ -52,26 +52,34 @@ class ServerListPage(Element):
         print "Will Run Server"
     
     @inlineCallbacks
-    def foo(self,request):
-        d  = Deferred()
-        print "\nI AM IN FOO\n"
-        return d
-        
-    @inlineCallbacks
-    def bar(self,request):
-        print "\nI AM IN BAR\n"
-        return request
-        
+    def get_running_servers(self):
+        running_servers_tuple = yield self.node.running_servers()
+        running_servers = []
+        for entry in map(list,running_servers_tuple):
+            running_servers.append(entry[0])
+        returnValue(running_servers)
+     
+    # @inlineCallbacks
+    # def func(self):
+
+                
     @render_safe
     @inlineCallbacks
     def serverentries(self, request, tag):
         yield self.get_server()
         serverdata = yield self.get_all_servers()
-        rv = [tag.clone().fillSlots(servername=tags.b("Server"),srvname="s",srvstart="s")]
+        runningservers = yield self.get_running_servers()
+        # running_servers = []
+        # for entry in map(list,runningservers):
+            # running_servers.append(entry[0])
+        print "\nRUNNING SERVERS ARE: ",runningservers
+        rv = [tag.clone().fillSlots(servername=tags.b("Server"),srvname="s",srvstart="s",starter='start')]
         for idx,entry in enumerate(serverdata):
             servername = entry
-            rv.append(tag.clone().fillSlots(servername=servername,srvname = "nm%d"%(idx),srvstart="strt%d"%(idx)))
-            # print "srv%d"%(idx)
+            if entry in runningservers:
+                rv.append(tag.clone().fillSlots(servername=servername,srvname = "nm%d"%(idx),srvstart="strt%d"%(idx),starter='Started'))
+            else:
+                rv.append(tag.clone().fillSlots(servername=servername,srvname = "nm%d"%(idx),srvstart="strt%d"%(idx),starter='Start'))
         returnValue(rv)
     
     @render_safe        

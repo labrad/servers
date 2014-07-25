@@ -163,7 +163,7 @@ article.tabs section:target h2
         <table border="1">
             <tr  t:render='serverentries'>
                 <td><t:attr name="id"><t:slot name='srvname'/></t:attr><t:slot name='servername' /></td>
-                <td><t:attr name="id"><t:slot name='srvstart'/></t:attr>start</td>
+                <td><t:attr name="id"><t:slot name='srvstart'/></t:attr><t:slot name='starter' /></td>
                 <script type="text/javascript">
                     $("#<t:slot name='srvstart'/>").click(function(){
                     
@@ -173,13 +173,15 @@ article.tabs section:target h2
                             success: function(data) {}
         
                             });
-                        
+                        $("#<t:slot name='srvstart'/>").hide();
+                        $("#loading").show();
                         window.location.reload();
                         });
                 </script>
                 </tr>
         </table>
 	</section>
+    <div id="loading">loading</div>
 <!--	
 	<section id="tab3">
 		<h2><a href="#tab3">Something else</a></h2>
