@@ -18,7 +18,7 @@ from http_server import render_safe
 #
 
 class ServerListPage(Element):
-    loader = XMLFile('modules\\server_list.xml')
+    loader = XMLFile('modules/server_list.xml')
     
     def __init__(self, cxn, request):
         super(ServerListPage, self).__init__()
@@ -31,7 +31,7 @@ class ServerListPage(Element):
     @inlineCallbacks
     def get_server(self):
         name = yield self._cxn.manager.node_name()
-        self.node = self._cxn["node_%s" % name.lower()]
+        self.node = self._cxn["node_dr"]#"node_%s" % name.lower()]
         
     @inlineCallbacks
     def get_whitelist(self):
