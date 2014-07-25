@@ -106,6 +106,7 @@ class StatusResource(Resource):
         self.funcs = page_funcs
         print "\n PAGE FUNCS: ", page_funcs
         self.cxn = cxn
+        Resource.__init__(self)
     def _delayedRender(self, request, data):
         request.write(data)
         request.finish()
@@ -155,6 +156,8 @@ class HTTPServer(LabradServer):
 
     def initServer(self):
         root = RootStatusResource(self.client)
+        staticResource = static.File("static")
+        root.putChild("static", staticResource)
         # root = static.File('/Josh/labrad-servers/servers/http/modules')
         # testHandler = TestHandler()
         # root.putChild('test', testHandler)
