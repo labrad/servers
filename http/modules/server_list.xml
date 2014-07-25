@@ -164,6 +164,7 @@ article.tabs section:target h2
             <tr  t:render='serverentries'>
                 <td><t:attr name="id"><t:slot name='srvname'/></t:attr><t:slot name='servername' /></td>
                 <td><t:attr name="id"><t:slot name='srvstart'/></t:attr><t:slot name='starter' /></td>
+                <td><t:attr name="id"><t:slot name='srvstop'/></t:attr>Stop</td>
                 <script type="text/javascript">
                     $("#<t:slot name='srvstart'/>").click(function(){
                     
@@ -175,6 +176,18 @@ article.tabs section:target h2
                             });
                         $("#<t:slot name='srvstart'/>").hide();
                         $("#loading").show();
+                        window.location.reload();
+                        });
+                </script>
+                <script type="text/javascript">
+                    $("#<t:slot name='srvstop'/>").click(function(){
+                    
+                    $.ajax({type: "POST",
+                            url: "http://localhost:8881/server_list/stop",
+                            data: {srv: $("#<t:slot name='srvname'/>").text()},
+                            success: function(data) {}
+                            });
+                        $("#<t:slot name='srvstart'/>").hide();
                         window.location.reload();
                         });
                 </script>

@@ -31,7 +31,7 @@ class ServerListPage(Element):
     @inlineCallbacks
     def get_server(self):
         name = yield self._cxn.manager.node_name()
-        self.node = self._cxn["node_%s" % name.lower()+'_laptop']
+        self.node = self._cxn["node_%s" % name.lower()]
         
     @inlineCallbacks
     def get_whitelist(self):
@@ -73,13 +73,13 @@ class ServerListPage(Element):
         # for entry in map(list,runningservers):
             # running_servers.append(entry[0])
         print "\nRUNNING SERVERS ARE: ",runningservers
-        rv = [tag.clone().fillSlots(servername=tags.b("Server"),srvname="s",srvstart="s",starter='start')]
+        rv = [tag.clone().fillSlots(servername=tags.b("Server"),srvname="s",srvstart="s",starter='start',srvstop='stop')]
         for idx,entry in enumerate(serverdata):
             servername = entry
             if entry in runningservers:
-                rv.append(tag.clone().fillSlots(servername=servername,srvname = "nm%d"%(idx),srvstart="strt%d"%(idx),starter='Started'))
+                rv.append(tag.clone().fillSlots(servername=servername,srvname = "nm%d"%(idx),srvstart="strt%d"%(idx),starter='Started',srvstop="stp%d"%(idx)))
             else:
-                rv.append(tag.clone().fillSlots(servername=servername,srvname = "nm%d"%(idx),srvstart="strt%d"%(idx),starter='Start'))
+                rv.append(tag.clone().fillSlots(servername=servername,srvname = "nm%d"%(idx),srvstart="strt%d"%(idx),starter='Start',srvstop="stp%d"%(idx)))
         returnValue(rv)
     
     @render_safe        
@@ -119,19 +119,24 @@ class ServerListFuncs():
     @inlineCallbacks
     def handle_start(self,cxn,serverStr):
         name = yield self._cxn.manager.node_name()
-        node = self._cxn["node_%s" % name.lower()+'_laptop']
+        node = self._cxn["node_%s" % name.lower()]
         print "\n RUNNING handle_start"
         rv = yield node.start(serverStr)
         # req = Request('GET','http://localhost:8881/server_list')
         # rv = Deferred()
         req =  yield getPage('http://localhost:8881/server_list')
-        print "\n Ran it"
+        print "\n Ran start"
         returnValue(rv)
         
     @inlineCallbacks
     def handle_stop(self,cxn,serverStr):
+        print "/n<<<<<<<<<<<<< in handle_stop"
         name = yield self._cxn.manager.node_name()
         node = self._cxn["node_%s" % name.lower()+'_laptop']
+        rv = yield node.stop(serverStr)
+        req =  yield getPage('http://localhost:8881/server_list')
+        print "\n Ran stop"
+        returnValue(rv)
         
 page_funcs = ServerListFuncs()       
 page_factory = ServerListPage
