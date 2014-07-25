@@ -4,8 +4,10 @@ from twisted.internet.defer import inlineCallbacks, returnValue, Deferred
 from twisted.web.template import flattenString, Element, renderer, XMLFile, tags
 import datetime
 
-from http_server import render_safe
 
+import sys
+sys.path.insert(1,'U:\\Josh\\labrad-servers\\servers\\http')
+from http_server import render_safe
 #
 # This file can be used as a template for new status pages.  All you need to is
 # to create a class which can be flattened by twisted.web.template.flattenString
