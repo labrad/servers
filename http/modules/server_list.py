@@ -26,12 +26,13 @@ class ServerListPage(Element):
         self.cryo_name = request.args.get('cryo', [''])[-1]
         self.max_entries = int(request.args.get('maxentries', ['25'])[-1])
         self.white_list_path = ['', 'Servers', 'Server List' ]
-        
+        # print "FOUND SERVER NAME AT: ",find_node_server(cxn)
+        self.node = self._cxn[find_node_server(cxn)]
 
-    @inlineCallbacks
-    def get_server(self):
-        name = yield self._cxn.manager.node_name()
-        self.node = self._cxn["node_dr"]#"node_%s" % name.lower()]
+    # @inlineCallbacks
+    # def get_server(self):
+        # name = yield self._cxn.manager.node_name()
+        # self.node = self._cxn["node_%s" % name.lower()+"_laptop"]
         
     @inlineCallbacks
     def get_whitelist(self):
@@ -66,7 +67,7 @@ class ServerListPage(Element):
     @render_safe
     @inlineCallbacks
     def serverentries(self, request, tag):
-        yield self.get_server()
+        # yield self.get_server()
         serverdata = yield self.get_all_servers()
         runningservers = yield self.get_running_servers()
         # running_servers = []
@@ -106,6 +107,9 @@ class ServerListFuncs():
     def __init__(self):
         # self.agent =Agent()
         pass
+        # self._cxn = cxn
+        # self.node = self._cxn[find_node_server(cxn)]
+        # print "\nTHE NODE SERVER IS CALLED: ", find_node_server(cxn)
     
     @inlineCallbacks
     def get_request(self,request,cxn):
@@ -118,8 +122,10 @@ class ServerListFuncs():
     
     @inlineCallbacks
     def handle_start(self,cxn,serverStr):
-        name = yield self._cxn.manager.node_name()
-        node = self._cxn["node_%s" % name.lower()]
+        # name = yield self._cxn.manager.node_name()
+        # name = yield self._cxn.manager.node_name()
+        # node = self._cxn["node_%s" % name.lower()]
+        node = self._cxn[find_node_server(cxn)]
         print "\n RUNNING handle_start"
         rv = yield node.start(serverStr)
         # req = Request('GET','http://localhost:8881/server_list')
@@ -130,13 +136,24 @@ class ServerListFuncs():
         
     @inlineCallbacks
     def handle_stop(self,cxn,serverStr):
-        print "/n<<<<<<<<<<<<< in handle_stop"
-        name = yield self._cxn.manager.node_name()
-        node = self._cxn["node_%s" % name.lower()+'_laptop']
+        node = self._cxn[find_node_server(cxn)]
+        # print "/n<<<<<<<<<<<<< in handle_stop"
+        # name = yield self._cxn.manager.node_name()
+        # node = self._cxn["node_%s" % name.lower()+'_laptop']
         rv = yield node.stop(serverStr)
         req =  yield getPage('http://localhost:8881/server_list')
         print "\n Ran stop"
         returnValue(rv)
+
         
-page_funcs = ServerListFuncs()       
+def find_node_server(cxn):
+    for server in cxn.servers:
+        print "\n CXN.SERVERS:, ", server
+        if server.startswith("node"):
+            print "\n IN NODE SERVER FINDER, FOUND: ",server
+            server = server.replace(' ','_')
+            server = server.replace('-','_')
+            return(server)
+        
+page_funcs = ServerListFuncs()     
 page_factory = ServerListPage

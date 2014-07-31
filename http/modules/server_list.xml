@@ -6,20 +6,7 @@
 
 
 <body>
-  <p id = "foo"> click p </p>
-  <p id = "bar"> another message </p>
-  <p t:render="topstuff"><h1><t:slot name="topcont"/></h1></p>
-  <script type="text/javascript">
-   $('#foo').click(function(){
-    $.ajax({type: "POST",
-            url: "http://localhost:8881/server_list/blah",
-            data: {name: $("#foo").text()},
-            success: function(data) { alert("Success: " + data); }
-    
-    });
-   });
-  </script>
- 
+
 <!--
 <article class="tabs">
   <h3> Server List </h3>
