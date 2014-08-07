@@ -1,0 +1,1061 @@
+2014-08-07 11:22:56 -- Set ruoxCoefsHigh to (-0.31994119999999998, 5.74884e-08, -8.8408999999999999e-11)
+2014-08-07 11:22:56 -- Set ruoxCoefsLow to (-0.77127000000000001, 0.00010068000000000001, -1.072e-09)
+2014-08-07 11:22:56 -- Set highTempRuoxCurve to <function <lambda> at 0x033CBB70>
+2014-08-07 11:22:56 -- Set lowTempRuoxCurve to <function <lambda> at 0x033CBDB0>
+2014-08-07 11:22:56 -- Set voltToResCalibs to (0.26000000000000001, 26.030000000000001, 37.5, 30.0, 10.0, 26.530000000000001)
+2014-08-07 11:22:56 -- Set resistanceCutoff to 1725.78
+2014-08-07 11:22:56 -- Set ruoxChannel to 3
+2014-08-07 11:22:56 -- Set PIDintLimit to 0.4
+2014-08-07 11:22:56 -- Set voltageStepUp to 0.004
+2014-08-07 11:22:56 -- Set loglimit to 20
+2014-08-07 11:22:56 -- Set autoRecord to True
+2014-08-07 11:22:56 -- Set recordingTemp to 250
+2014-08-07 11:22:56 -- Set cooldownLimit to 3.9
+2014-08-07 11:22:56 -- Set switchPosition to 5
+2014-08-07 11:22:56 -- Set quenchLimit to 4.0
+2014-08-07 11:22:56 -- Set PIDsetTemp to 0.1
+2014-08-07 11:22:56 -- Set PIDcd to 25
+2014-08-07 11:22:56 -- Set PIDstepTimeout to 5
+2014-08-07 11:22:56 -- Set autoControl to False
+2014-08-07 11:22:56 -- Set fieldWaitTime to 45
+2014-08-07 11:22:56 -- Set ruoxInterpolation to <scipy.interpolate.fitpack2.InterpolatedUnivariateSpline object at 0x033D0FD0>
+2014-08-07 11:22:56 -- Set useRuoxInterpolation to True
+2014-08-07 11:22:56 -- Set targetCurrent to 8.0
+2014-08-07 11:22:56 -- Set rampWaitTime to 0.2
+2014-08-07 11:22:56 -- Set PIDci to 0.4
+2014-08-07 11:22:56 -- Set PIDcp to 1.0
+2014-08-07 11:22:56 -- Set recordTemp to False
+2014-08-07 11:22:56 -- Set voltageLimit to 0.14
+2014-08-07 11:22:56 -- Set lockinCurrent to 1e-09
+2014-08-07 11:22:56 -- Set maxCurrent to 9.0
+2014-08-07 11:22:56 -- Set tempRecordDelay to 10
+2014-08-07 11:22:56 -- Set voltageStepDown to 0.004
+2014-08-07 11:22:56 -- Initialization completed. Beginning cycle.
+2014-08-07 11:22:56 -- cycled
+2014-08-07 11:22:56 -- Set alive to True
+2014-08-07 11:22:56 -- Now cycling.
+2014-08-07 11:22:57 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:22:59 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:01 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:03 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:05 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:07 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:09 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:11 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:13 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:15 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:17 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:19 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:21 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:23 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:25 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:27 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:29 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:31 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:33 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:35 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:37 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:39 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:41 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:43 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:45 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:47 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:49 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:51 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:53 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:55 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:57 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:23:59 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:01 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:03 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:05 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:07 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:09 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:12 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:14 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:16 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:18 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:20 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:22 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:24 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:26 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:28 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:30 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:32 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:34 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:36 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:38 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:40 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:42 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:44 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:46 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:48 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:50 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:52 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:54 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:56 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:24:58 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:00 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:02 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:04 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:06 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:08 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:10 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:12 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:14 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:16 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:18 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:20 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:22 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:24 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:26 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:28 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:30 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:32 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:34 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:36 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:38 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:40 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:42 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:44 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:46 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:48 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:50 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:52 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:54 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:56 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:25:58 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:00 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:02 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:04 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:06 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:08 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:10 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:12 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:14 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:16 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:18 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:20 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:22 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:24 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:26 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:28 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:30 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:32 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:34 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:36 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:38 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:40 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:42 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:44 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:46 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:48 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:50 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:52 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:26:59 -- Set ruoxCoefsHigh to (-0.31994119999999998, 5.74884e-08, -8.8408999999999999e-11)
+2014-08-07 11:26:59 -- Set ruoxCoefsLow to (-0.77127000000000001, 0.00010068000000000001, -1.072e-09)
+2014-08-07 11:26:59 -- Set highTempRuoxCurve to <function <lambda> at 0x0322EB70>
+2014-08-07 11:26:59 -- Set lowTempRuoxCurve to <function <lambda> at 0x0322EDB0>
+2014-08-07 11:26:59 -- Set voltToResCalibs to (0.26000000000000001, 26.030000000000001, 37.5, 30.0, 10.0, 26.530000000000001)
+2014-08-07 11:26:59 -- Set resistanceCutoff to 1725.78
+2014-08-07 11:26:59 -- Set ruoxChannel to 3
+2014-08-07 11:26:59 -- Set PIDintLimit to 0.4
+2014-08-07 11:26:59 -- Set voltageStepUp to 0.004
+2014-08-07 11:26:59 -- Set loglimit to 20
+2014-08-07 11:26:59 -- Set autoRecord to True
+2014-08-07 11:26:59 -- Set recordingTemp to 250
+2014-08-07 11:26:59 -- Set cooldownLimit to 3.9
+2014-08-07 11:26:59 -- Set switchPosition to 5
+2014-08-07 11:26:59 -- Set ruoxInterpolation to <scipy.interpolate.fitpack2.InterpolatedUnivariateSpline object at 0x0335E530>
+2014-08-07 11:26:59 -- Set useRuoxInterpolation to True
+2014-08-07 11:26:59 -- Set quenchLimit to 4.0
+2014-08-07 11:26:59 -- Set PIDsetTemp to 0.1
+2014-08-07 11:26:59 -- Set PIDcd to 25
+2014-08-07 11:26:59 -- Set PIDstepTimeout to 5
+2014-08-07 11:26:59 -- Set autoControl to False
+2014-08-07 11:26:59 -- Set fieldWaitTime to 45
+2014-08-07 11:26:59 -- Set targetCurrent to 8.0
+2014-08-07 11:26:59 -- Set rampWaitTime to 0.2
+2014-08-07 11:26:59 -- Set PIDci to 0.4
+2014-08-07 11:26:59 -- Set PIDcp to 1.0
+2014-08-07 11:26:59 -- Set recordTemp to False
+2014-08-07 11:26:59 -- Set voltageLimit to 0.14
+2014-08-07 11:26:59 -- Set lockinCurrent to 1e-09
+2014-08-07 11:26:59 -- Set maxCurrent to 9.0
+2014-08-07 11:26:59 -- Set tempRecordDelay to 10
+2014-08-07 11:26:59 -- Set voltageStepDown to 0.004
+2014-08-07 11:26:59 -- Initialization completed. Beginning cycle.
+2014-08-07 11:26:59 -- cycled
+2014-08-07 11:27:00 -- Set alive to True
+2014-08-07 11:27:00 -- Now cycling.
+2014-08-07 11:27:01 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:27:01 -- None
+2014-08-07 11:27:03 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:27:03 -- None
+2014-08-07 11:27:05 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:27:05 -- None
+2014-08-07 11:28:07 -- Set ruoxCoefsHigh to (-0.31994119999999998, 5.74884e-08, -8.8408999999999999e-11)
+2014-08-07 11:28:07 -- Set ruoxCoefsLow to (-0.77127000000000001, 0.00010068000000000001, -1.072e-09)
+2014-08-07 11:28:07 -- Set highTempRuoxCurve to <function <lambda> at 0x03327B70>
+2014-08-07 11:28:07 -- Set lowTempRuoxCurve to <function <lambda> at 0x03327DB0>
+2014-08-07 11:28:07 -- Set voltToResCalibs to (0.26000000000000001, 26.030000000000001, 37.5, 30.0, 10.0, 26.530000000000001)
+2014-08-07 11:28:07 -- Set resistanceCutoff to 1725.78
+2014-08-07 11:28:07 -- Set ruoxChannel to 3
+2014-08-07 11:28:08 -- Set PIDintLimit to 0.4
+2014-08-07 11:28:08 -- Set voltageStepUp to 0.004
+2014-08-07 11:28:08 -- Set ruoxInterpolation to <scipy.interpolate.fitpack2.InterpolatedUnivariateSpline object at 0x03473390>
+2014-08-07 11:28:08 -- Set useRuoxInterpolation to True
+2014-08-07 11:28:08 -- Set loglimit to 20
+2014-08-07 11:28:08 -- Set autoRecord to True
+2014-08-07 11:28:08 -- Set recordingTemp to 250
+2014-08-07 11:28:08 -- Set cooldownLimit to 3.9
+2014-08-07 11:28:08 -- Set switchPosition to 5
+2014-08-07 11:28:08 -- Set quenchLimit to 4.0
+2014-08-07 11:28:08 -- Set PIDsetTemp to 0.1
+2014-08-07 11:28:08 -- Set PIDcd to 25
+2014-08-07 11:28:08 -- Set PIDstepTimeout to 5
+2014-08-07 11:28:08 -- Set autoControl to False
+2014-08-07 11:28:08 -- Set fieldWaitTime to 45
+2014-08-07 11:28:08 -- Set targetCurrent to 8.0
+2014-08-07 11:28:08 -- Set rampWaitTime to 0.2
+2014-08-07 11:28:08 -- Set PIDci to 0.4
+2014-08-07 11:28:08 -- Set PIDcp to 1.0
+2014-08-07 11:28:08 -- Set recordTemp to False
+2014-08-07 11:28:08 -- Set voltageLimit to 0.14
+2014-08-07 11:28:08 -- Set lockinCurrent to 1e-09
+2014-08-07 11:28:08 -- Set maxCurrent to 9.0
+2014-08-07 11:28:08 -- Set tempRecordDelay to 10
+2014-08-07 11:28:08 -- Set voltageStepDown to 0.004
+2014-08-07 11:28:08 -- Initialization completed. Beginning cycle.
+2014-08-07 11:28:08 -- cycled
+2014-08-07 11:28:08 -- Set alive to True
+2014-08-07 11:28:08 -- Now cycling.
+2014-08-07 11:28:09 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:09 -- None
+2014-08-07 11:28:11 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:11 -- None
+2014-08-07 11:28:13 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:13 -- None
+2014-08-07 11:28:15 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:15 -- None
+2014-08-07 11:28:17 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:17 -- None
+2014-08-07 11:28:19 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:19 -- None
+2014-08-07 11:28:21 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:21 -- None
+2014-08-07 11:28:23 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:23 -- None
+2014-08-07 11:28:25 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:25 -- None
+2014-08-07 11:28:27 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:27 -- None
+2014-08-07 11:28:29 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:29 -- None
+2014-08-07 11:28:31 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:31 -- None
+2014-08-07 11:28:33 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:33 -- None
+2014-08-07 11:28:35 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:35 -- None
+2014-08-07 11:28:37 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:37 -- None
+2014-08-07 11:28:39 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:39 -- None
+2014-08-07 11:28:41 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:41 -- None
+2014-08-07 11:28:43 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:43 -- None
+2014-08-07 11:28:45 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:45 -- None
+2014-08-07 11:28:47 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:47 -- None
+2014-08-07 11:28:49 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:49 -- None
+2014-08-07 11:28:51 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:51 -- None
+2014-08-07 11:28:53 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:53 -- None
+2014-08-07 11:28:55 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:55 -- None
+2014-08-07 11:28:57 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:57 -- None
+2014-08-07 11:28:59 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:28:59 -- None
+2014-08-07 11:29:01 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:01 -- None
+2014-08-07 11:29:03 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:03 -- None
+2014-08-07 11:29:05 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:05 -- None
+2014-08-07 11:29:07 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:07 -- None
+2014-08-07 11:29:09 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:09 -- None
+2014-08-07 11:29:11 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:11 -- None
+2014-08-07 11:29:13 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:13 -- None
+2014-08-07 11:29:15 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:15 -- None
+2014-08-07 11:29:17 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:17 -- None
+2014-08-07 11:29:19 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:19 -- None
+2014-08-07 11:29:21 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:21 -- None
+2014-08-07 11:29:23 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:23 -- None
+2014-08-07 11:29:25 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:25 -- None
+2014-08-07 11:29:27 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:27 -- None
+2014-08-07 11:29:29 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:29 -- None
+2014-08-07 11:29:31 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:31 -- None
+2014-08-07 11:29:33 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:33 -- None
+2014-08-07 11:29:35 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:35 -- None
+2014-08-07 11:29:37 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:37 -- None
+2014-08-07 11:29:39 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:39 -- None
+2014-08-07 11:29:41 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:41 -- None
+2014-08-07 11:29:43 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:44 -- None
+2014-08-07 11:29:46 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:46 -- None
+2014-08-07 11:29:48 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 11:29:48 -- None
+2014-08-07 11:31:37 -- Set ruoxCoefsHigh to (-0.31994119999999998, 5.74884e-08, -8.8408999999999999e-11)
+2014-08-07 11:31:37 -- Set ruoxCoefsLow to (-0.77127000000000001, 0.00010068000000000001, -1.072e-09)
+2014-08-07 11:31:37 -- Set highTempRuoxCurve to <function <lambda> at 0x03362B70>
+2014-08-07 11:31:37 -- Set lowTempRuoxCurve to <function <lambda> at 0x03362DB0>
+2014-08-07 11:31:37 -- Set voltToResCalibs to (0.26000000000000001, 26.030000000000001, 37.5, 30.0, 10.0, 26.530000000000001)
+2014-08-07 11:31:37 -- Set resistanceCutoff to 1725.78
+2014-08-07 11:31:37 -- Set ruoxChannel to 3
+2014-08-07 11:31:37 -- Set PIDintLimit to 0.4
+2014-08-07 11:31:37 -- Set voltageStepUp to 0.004
+2014-08-07 11:31:37 -- Set ruoxInterpolation to <scipy.interpolate.fitpack2.InterpolatedUnivariateSpline object at 0x034B0390>
+2014-08-07 11:31:37 -- Set useRuoxInterpolation to True
+2014-08-07 11:31:37 -- Set loglimit to 20
+2014-08-07 11:31:37 -- Set autoRecord to True
+2014-08-07 11:31:37 -- Set recordingTemp to 250
+2014-08-07 11:31:37 -- Set cooldownLimit to 3.9 K
+2014-08-07 11:31:37 -- Set switchPosition to 5
+2014-08-07 11:31:37 -- Set quenchLimit to 4.0
+2014-08-07 11:31:37 -- Set PIDsetTemp to 0.1
+2014-08-07 11:31:37 -- Set PIDcd to 25
+2014-08-07 11:31:37 -- Set PIDstepTimeout to 5
+2014-08-07 11:31:37 -- Set autoControl to False
+2014-08-07 11:31:37 -- Set fieldWaitTime to 45
+2014-08-07 11:31:37 -- Set targetCurrent to 8.0
+2014-08-07 11:31:37 -- Set rampWaitTime to 0.2
+2014-08-07 11:31:37 -- Set PIDci to 0.4
+2014-08-07 11:31:37 -- Set PIDcp to 1.0
+2014-08-07 11:31:37 -- Set recordTemp to False
+2014-08-07 11:31:37 -- Set voltageLimit to 0.14
+2014-08-07 11:31:37 -- Set lockinCurrent to 1e-09
+2014-08-07 11:31:37 -- Set maxCurrent to 9.0
+2014-08-07 11:31:37 -- Set tempRecordDelay to 10
+2014-08-07 11:31:37 -- Set voltageStepDown to 0.004
+2014-08-07 11:31:37 -- Initialization completed. Beginning cycle.
+2014-08-07 11:31:37 -- cycled
+2014-08-07 11:31:37 -- Set alive to True
+2014-08-07 11:31:37 -- Now cycling.
+2014-08-07 11:31:38 -- ADR victor status is now: ready
+2014-08-07 11:31:38 -- Set PIDloopCount to 0
+2014-08-07 11:32:08 -- Set ruoxCoefsHigh to (-0.31994119999999998, 5.74884e-08, -8.8408999999999999e-11)
+2014-08-07 11:32:08 -- Set ruoxCoefsLow to (-0.77127000000000001, 0.00010068000000000001, -1.072e-09)
+2014-08-07 11:32:08 -- Set highTempRuoxCurve to <function <lambda> at 0x0344BB70>
+2014-08-07 11:32:08 -- Set lowTempRuoxCurve to <function <lambda> at 0x0344BDB0>
+2014-08-07 11:32:08 -- Set voltToResCalibs to (0.26000000000000001, 26.030000000000001, 37.5, 30.0, 10.0, 26.530000000000001)
+2014-08-07 11:32:08 -- Set resistanceCutoff to 1725.78
+2014-08-07 11:32:08 -- Set ruoxChannel to 3
+2014-08-07 11:32:08 -- Set PIDintLimit to 0.4
+2014-08-07 11:32:08 -- Set voltageStepUp to 0.004
+2014-08-07 11:32:08 -- Set ruoxInterpolation to <scipy.interpolate.fitpack2.InterpolatedUnivariateSpline object at 0x03583330>
+2014-08-07 11:32:08 -- Set useRuoxInterpolation to True
+2014-08-07 11:32:08 -- Set loglimit to 20
+2014-08-07 11:32:08 -- Set autoRecord to True
+2014-08-07 11:32:08 -- Set recordingTemp to 250
+2014-08-07 11:32:08 -- Set cooldownLimit to 3.9 K
+2014-08-07 11:32:08 -- Set switchPosition to 5
+2014-08-07 11:32:08 -- Set quenchLimit to 4.0
+2014-08-07 11:32:08 -- Set PIDsetTemp to 0.1
+2014-08-07 11:32:08 -- Set PIDcd to 25
+2014-08-07 11:32:08 -- Set PIDstepTimeout to 5
+2014-08-07 11:32:08 -- Set autoControl to False
+2014-08-07 11:32:08 -- Set fieldWaitTime to 45
+2014-08-07 11:32:08 -- Set targetCurrent to 8.0
+2014-08-07 11:32:08 -- Set rampWaitTime to 0.2
+2014-08-07 11:32:08 -- Set PIDci to 0.4
+2014-08-07 11:32:08 -- Set PIDcp to 1.0
+2014-08-07 11:32:08 -- Set recordTemp to False
+2014-08-07 11:32:08 -- Set voltageLimit to 0.14
+2014-08-07 11:32:08 -- Set lockinCurrent to 1e-09
+2014-08-07 11:32:09 -- Set maxCurrent to 9.0
+2014-08-07 11:32:09 -- Set tempRecordDelay to 10
+2014-08-07 11:32:09 -- Set voltageStepDown to 0.004
+2014-08-07 11:32:09 -- Initialization completed. Beginning cycle.
+2014-08-07 11:32:09 -- cycled
+2014-08-07 11:32:09 -- Set alive to True
+2014-08-07 11:32:09 -- Now cycling.
+2014-08-07 11:32:10 -- ADR victor status is now: ready
+2014-08-07 11:32:10 -- Set PIDloopCount to 0
+2014-08-07 11:39:41 -- Set ruoxCoefsHigh to (-0.31994119999999998, 5.74884e-08, -8.8408999999999999e-11)
+2014-08-07 11:39:41 -- Set ruoxCoefsLow to (-0.77127000000000001, 0.00010068000000000001, -1.072e-09)
+2014-08-07 11:39:41 -- Set highTempRuoxCurve to <function <lambda> at 0x0333AB70>
+2014-08-07 11:39:41 -- Set lowTempRuoxCurve to <function <lambda> at 0x0333ADB0>
+2014-08-07 11:39:41 -- Set voltToResCalibs to (0.26000000000000001, 26.030000000000001, 37.5, 30.0, 10.0, 26.530000000000001)
+2014-08-07 11:39:41 -- Set resistanceCutoff to 1725.78
+2014-08-07 11:39:41 -- Set ruoxChannel to 3
+2014-08-07 11:39:41 -- Set PIDintLimit to 0.4
+2014-08-07 11:39:41 -- Set voltageStepUp to 0.004
+2014-08-07 11:39:41 -- Set ruoxInterpolation to <scipy.interpolate.fitpack2.InterpolatedUnivariateSpline object at 0x03473330>
+2014-08-07 11:39:41 -- Set useRuoxInterpolation to True
+2014-08-07 11:39:41 -- Set loglimit to 20
+2014-08-07 11:39:41 -- Set autoRecord to True
+2014-08-07 11:39:41 -- Set recordingTemp to 250
+2014-08-07 11:39:41 -- Set cooldownLimit to 3.9 K
+2014-08-07 11:39:41 -- Set switchPosition to 5
+2014-08-07 11:39:41 -- Set quenchLimit to 4.0
+2014-08-07 11:39:41 -- Set PIDsetTemp to 0.1
+2014-08-07 11:39:41 -- Set PIDcd to 25
+2014-08-07 11:39:41 -- Set PIDstepTimeout to 5
+2014-08-07 11:39:41 -- Set autoControl to False
+2014-08-07 11:39:41 -- Set fieldWaitTime to 45
+2014-08-07 11:39:41 -- Set targetCurrent to 8.0
+2014-08-07 11:39:42 -- Set rampWaitTime to 0.2
+2014-08-07 11:39:42 -- Set PIDci to 0.4
+2014-08-07 11:39:42 -- Set PIDcp to 1.0
+2014-08-07 11:39:42 -- Set recordTemp to False
+2014-08-07 11:39:42 -- Set voltageLimit to 0.14
+2014-08-07 11:39:42 -- Set lockinCurrent to 1e-09
+2014-08-07 11:39:42 -- Set maxCurrent to 9.0
+2014-08-07 11:39:42 -- Set tempRecordDelay to 10
+2014-08-07 11:39:42 -- Set voltageStepDown to 0.004
+2014-08-07 11:39:42 -- Initialization completed. Beginning cycle.
+2014-08-07 11:39:42 -- cycled
+2014-08-07 11:39:42 -- Set alive to True
+2014-08-07 11:39:42 -- Now cycling.
+2014-08-07 11:39:43 -- ADR victor status is now: ready
+2014-08-07 11:39:43 -- Set PIDloopCount to 0
+2014-08-07 11:40:19 -- Set ruoxCoefsHigh to (-0.31994119999999998, 5.74884e-08, -8.8408999999999999e-11)
+2014-08-07 11:40:19 -- Set ruoxCoefsLow to (-0.77127000000000001, 0.00010068000000000001, -1.072e-09)
+2014-08-07 11:40:19 -- Set highTempRuoxCurve to <function <lambda> at 0x0338BB70>
+2014-08-07 11:40:19 -- Set lowTempRuoxCurve to <function <lambda> at 0x0338BDB0>
+2014-08-07 11:40:19 -- Set voltToResCalibs to (0.26000000000000001, 26.030000000000001, 37.5, 30.0, 10.0, 26.530000000000001)
+2014-08-07 11:40:19 -- Set resistanceCutoff to 1725.78
+2014-08-07 11:40:19 -- Set ruoxChannel to 3
+2014-08-07 11:40:19 -- Set PIDintLimit to 0.4
+2014-08-07 11:40:19 -- Set voltageStepUp to 0.004
+2014-08-07 11:40:19 -- Set ruoxInterpolation to <scipy.interpolate.fitpack2.InterpolatedUnivariateSpline object at 0x034C3330>
+2014-08-07 11:40:19 -- Set useRuoxInterpolation to True
+2014-08-07 11:40:19 -- Set loglimit to 20
+2014-08-07 11:40:19 -- Set autoRecord to True
+2014-08-07 11:40:19 -- Set recordingTemp to 250
+2014-08-07 11:40:19 -- Set cooldownLimit to 3.9 K
+2014-08-07 11:40:19 -- Set switchPosition to 5
+2014-08-07 11:40:19 -- Set quenchLimit to 4.0
+2014-08-07 11:40:19 -- Set PIDsetTemp to 0.1
+2014-08-07 11:40:19 -- Set PIDcd to 25
+2014-08-07 11:40:19 -- Set PIDstepTimeout to 5
+2014-08-07 11:40:19 -- Set autoControl to False
+2014-08-07 11:40:19 -- Set fieldWaitTime to 45
+2014-08-07 11:40:19 -- Set targetCurrent to 8.0
+2014-08-07 11:40:19 -- Set rampWaitTime to 0.2
+2014-08-07 11:40:19 -- Set PIDci to 0.4
+2014-08-07 11:40:19 -- Set PIDcp to 1.0
+2014-08-07 11:40:19 -- Set recordTemp to False
+2014-08-07 11:40:19 -- Set voltageLimit to 0.14
+2014-08-07 11:40:19 -- Set lockinCurrent to 1e-09
+2014-08-07 11:40:19 -- Set maxCurrent to 9.0
+2014-08-07 11:40:19 -- Set tempRecordDelay to 10
+2014-08-07 11:40:19 -- Set voltageStepDown to 0.004
+2014-08-07 11:40:19 -- Initialization completed. Beginning cycle.
+2014-08-07 11:40:19 -- cycled
+2014-08-07 11:40:19 -- Set alive to True
+2014-08-07 11:40:19 -- Now cycling.
+2014-08-07 11:40:20 -- ADR victor status is now: ready
+2014-08-07 11:40:20 -- Set PIDloopCount to 0
+2014-08-07 11:40:29 -- Set ruoxCoefsHigh to (-0.31994119999999998, 5.74884e-08, -8.8408999999999999e-11)
+2014-08-07 11:40:29 -- Set ruoxCoefsLow to (-0.77127000000000001, 0.00010068000000000001, -1.072e-09)
+2014-08-07 11:40:29 -- Set highTempRuoxCurve to <function <lambda> at 0x0326AB70>
+2014-08-07 11:40:29 -- Set lowTempRuoxCurve to <function <lambda> at 0x0326ADB0>
+2014-08-07 11:40:29 -- Set voltToResCalibs to (0.26000000000000001, 26.030000000000001, 37.5, 30.0, 10.0, 26.530000000000001)
+2014-08-07 11:40:29 -- Set resistanceCutoff to 1725.78
+2014-08-07 11:40:29 -- Set ruoxChannel to 3
+2014-08-07 11:40:29 -- Set PIDintLimit to 0.4
+2014-08-07 11:40:29 -- Set voltageStepUp to 0.004
+2014-08-07 11:40:29 -- Set ruoxInterpolation to <scipy.interpolate.fitpack2.InterpolatedUnivariateSpline object at 0x033A3330>
+2014-08-07 11:40:29 -- Set useRuoxInterpolation to True
+2014-08-07 11:40:29 -- Set loglimit to 20
+2014-08-07 11:40:29 -- Set autoRecord to True
+2014-08-07 11:40:30 -- Set recordingTemp to 250
+2014-08-07 11:40:30 -- Set cooldownLimit to 3.9 K
+2014-08-07 11:40:30 -- Set switchPosition to 5
+2014-08-07 11:40:30 -- Set quenchLimit to 4.0
+2014-08-07 11:40:30 -- Set PIDsetTemp to 0.1
+2014-08-07 11:40:30 -- Set PIDcd to 25
+2014-08-07 11:40:30 -- Set PIDstepTimeout to 5
+2014-08-07 11:40:30 -- Set autoControl to False
+2014-08-07 11:40:30 -- Set fieldWaitTime to 45
+2014-08-07 11:40:30 -- Set targetCurrent to 8.0
+2014-08-07 11:40:30 -- Set rampWaitTime to 0.2
+2014-08-07 11:40:30 -- Set PIDci to 0.4
+2014-08-07 11:40:30 -- Set PIDcp to 1.0
+2014-08-07 11:40:30 -- Set recordTemp to False
+2014-08-07 11:40:30 -- Set voltageLimit to 0.14
+2014-08-07 11:40:30 -- Set lockinCurrent to 1e-09
+2014-08-07 11:40:30 -- Set maxCurrent to 9.0
+2014-08-07 11:40:30 -- Set tempRecordDelay to 10
+2014-08-07 11:40:30 -- Set voltageStepDown to 0.004
+2014-08-07 11:40:30 -- Initialization completed. Beginning cycle.
+2014-08-07 11:40:30 -- cycled
+2014-08-07 11:40:30 -- Set alive to True
+2014-08-07 11:40:30 -- Now cycling.
+2014-08-07 11:40:31 -- ADR victor status is now: ready
+2014-08-07 11:40:31 -- Set PIDloopCount to 0
+2014-08-07 11:51:32 -- Set ruoxCoefsHigh to (-0.31994119999999998, 5.74884e-08, -8.8408999999999999e-11)
+2014-08-07 11:51:32 -- Set ruoxCoefsLow to (-0.77127000000000001, 0.00010068000000000001, -1.072e-09)
+2014-08-07 11:51:32 -- Set highTempRuoxCurve to <function <lambda> at 0x0324EEB0>
+2014-08-07 11:51:32 -- Set lowTempRuoxCurve to <function <lambda> at 0x0324EDB0>
+2014-08-07 11:51:32 -- Set voltToResCalibs to (Value(0.26000000000000001, 'V/Ohm'), Value(26.030000000000001, 'V/Ohm'), Value(37.5, 'V/Ohm'), Value(30.0, 'V/Ohm'), Value(10.0, 'V/Ohm'), Value(26.530000000000001, 'V/Ohm'))
+2014-08-07 11:51:32 -- Set resistanceCutoff to 1725.78
+2014-08-07 11:51:32 -- Set ruoxChannel to 3
+2014-08-07 11:51:32 -- Set PIDintLimit to 0.4
+2014-08-07 11:51:32 -- Set voltageStepUp to 0.004
+2014-08-07 11:51:32 -- Set ruoxInterpolation to <scipy.interpolate.fitpack2.InterpolatedUnivariateSpline object at 0x03385510>
+2014-08-07 11:51:32 -- Set useRuoxInterpolation to True
+2014-08-07 11:51:32 -- Set loglimit to 20
+2014-08-07 11:51:32 -- Set autoRecord to True
+2014-08-07 11:51:32 -- Set recordingTemp to 250
+2014-08-07 11:51:32 -- Set cooldownLimit to 3.9 K
+2014-08-07 11:51:32 -- Set switchPosition to 5
+2014-08-07 11:51:32 -- Set quenchLimit to 4.0
+2014-08-07 11:51:32 -- Set PIDsetTemp to 0.1
+2014-08-07 11:51:32 -- Set PIDcd to 25
+2014-08-07 11:51:32 -- Set PIDstepTimeout to 5
+2014-08-07 11:51:32 -- Set autoControl to False
+2014-08-07 11:51:32 -- Set fieldWaitTime to 45
+2014-08-07 11:51:32 -- Set targetCurrent to 8.0
+2014-08-07 11:51:32 -- Set rampWaitTime to 0.2
+2014-08-07 11:51:32 -- Set PIDci to 0.4
+2014-08-07 11:51:32 -- Set PIDcp to 1.0
+2014-08-07 11:51:32 -- Set recordTemp to False
+2014-08-07 11:51:32 -- Set voltageLimit to 0.14
+2014-08-07 11:51:32 -- Set lockinCurrent to 1.0 nA
+2014-08-07 11:51:32 -- Set maxCurrent to 9.0
+2014-08-07 11:51:32 -- Set tempRecordDelay to 10
+2014-08-07 11:51:32 -- Set voltageStepDown to 0.004
+2014-08-07 11:51:32 -- Initialization completed. Beginning cycle.
+2014-08-07 11:51:32 -- cycled
+2014-08-07 11:51:32 -- Set alive to True
+2014-08-07 11:51:32 -- Now cycling.
+2014-08-07 11:51:33 -- ADR victor status is now: ready
+2014-08-07 11:51:33 -- Set PIDloopCount to 0
+2014-08-07 11:54:04 -- Set ruoxCoefsHigh to (-0.31994119999999998, 5.74884e-08, -8.8408999999999999e-11)
+2014-08-07 11:54:04 -- Set ruoxCoefsLow to (-0.77127000000000001, 0.00010068000000000001, -1.072e-09)
+2014-08-07 11:54:04 -- Set highTempRuoxCurve to <function <lambda> at 0x03223EB0>
+2014-08-07 11:54:04 -- Set lowTempRuoxCurve to <function <lambda> at 0x03223DB0>
+2014-08-07 11:54:04 -- Set voltToResCalibs to (Value(0.26000000000000001, 'V/Ohm'), Value(26.030000000000001, 'V/Ohm'), Value(37.5, 'V/Ohm'), Value(30.0, 'V/Ohm'), Value(10.0, 'V/Ohm'), Value(26.530000000000001, 'V/Ohm'))
+2014-08-07 11:54:04 -- Set resistanceCutoff to 1725.78
+2014-08-07 11:54:04 -- Set ruoxChannel to 3
+2014-08-07 11:54:04 -- Set PIDintLimit to 0.4
+2014-08-07 11:54:04 -- Set voltageStepUp to 0.004
+2014-08-07 11:54:04 -- Set loglimit to 20
+2014-08-07 11:54:04 -- Set autoRecord to True
+2014-08-07 11:54:04 -- Set recordingTemp to 250
+2014-08-07 11:54:04 -- Set cooldownLimit to 3.9 K
+2014-08-07 11:54:04 -- Set ruoxInterpolation to <scipy.interpolate.fitpack2.InterpolatedUnivariateSpline object at 0x03353690>
+2014-08-07 11:54:04 -- Set useRuoxInterpolation to True
+2014-08-07 11:54:04 -- Set switchPosition to 5
+2014-08-07 11:54:04 -- Set quenchLimit to 4.0
+2014-08-07 11:54:04 -- Set PIDsetTemp to 0.1
+2014-08-07 11:54:04 -- Set PIDcd to 25
+2014-08-07 11:54:04 -- Set PIDstepTimeout to 5
+2014-08-07 11:54:04 -- Set autoControl to False
+2014-08-07 11:54:04 -- Set fieldWaitTime to 45
+2014-08-07 11:54:04 -- Set targetCurrent to 8.0
+2014-08-07 11:54:04 -- Set rampWaitTime to 0.2
+2014-08-07 11:54:04 -- Set PIDci to 0.4
+2014-08-07 11:54:04 -- Set PIDcp to 1.0
+2014-08-07 11:54:04 -- Set recordTemp to False
+2014-08-07 11:54:04 -- Set voltageLimit to 0.14
+2014-08-07 11:54:04 -- Set lockinCurrent to 1.0 nA
+2014-08-07 11:54:04 -- Set maxCurrent to 9.0
+2014-08-07 11:54:04 -- Set tempRecordDelay to 10
+2014-08-07 11:54:04 -- Set voltageStepDown to 0.004
+2014-08-07 11:54:04 -- Initialization completed. Beginning cycle.
+2014-08-07 11:54:04 -- cycled
+2014-08-07 11:54:04 -- Set alive to True
+2014-08-07 11:54:04 -- Now cycling.
+2014-08-07 11:54:05 -- ADR victor status is now: ready
+2014-08-07 11:54:05 -- Set PIDloopCount to 0
+2014-08-07 11:55:09 -- Set ruoxCoefsHigh to (-0.31994119999999998, 5.74884e-08, -8.8408999999999999e-11)
+2014-08-07 11:55:09 -- Set ruoxCoefsLow to (-0.77127000000000001, 0.00010068000000000001, -1.072e-09)
+2014-08-07 11:55:09 -- Set highTempRuoxCurve to <function <lambda> at 0x0327FEB0>
+2014-08-07 11:55:09 -- Set lowTempRuoxCurve to <function <lambda> at 0x0327FDB0>
+2014-08-07 11:55:09 -- Set voltToResCalibs to (Value(0.26000000000000001, 'V/Ohm'), Value(26.030000000000001, 'V/Ohm'), Value(37.5, 'V/Ohm'), Value(30.0, 'V/Ohm'), Value(10.0, 'V/Ohm'), Value(26.530000000000001, 'V/Ohm'))
+2014-08-07 11:55:09 -- Set resistanceCutoff to 1725.78
+2014-08-07 11:55:09 -- Set ruoxChannel to 3
+2014-08-07 11:55:09 -- Set PIDintLimit to 0.4
+2014-08-07 11:55:09 -- Set voltageStepUp to 0.004
+2014-08-07 11:55:09 -- Set ruoxInterpolation to <scipy.interpolate.fitpack2.InterpolatedUnivariateSpline object at 0x0339F510>
+2014-08-07 11:55:09 -- Set useRuoxInterpolation to True
+2014-08-07 11:55:09 -- Set loglimit to 20
+2014-08-07 11:55:09 -- Set autoRecord to True
+2014-08-07 11:55:09 -- Set recordingTemp to 250
+2014-08-07 11:55:09 -- Set cooldownLimit to 3.9 K
+2014-08-07 11:55:09 -- Set switchPosition to 5
+2014-08-07 11:55:09 -- Set quenchLimit to 4.0
+2014-08-07 11:55:09 -- Set PIDsetTemp to 0.1
+2014-08-07 11:55:09 -- Set PIDcd to 25
+2014-08-07 11:55:09 -- Set PIDstepTimeout to 5
+2014-08-07 11:55:09 -- Set autoControl to False
+2014-08-07 11:55:09 -- Set fieldWaitTime to 45
+2014-08-07 11:55:09 -- Set targetCurrent to 8.0
+2014-08-07 11:55:09 -- Set rampWaitTime to 0.2
+2014-08-07 11:55:09 -- Set PIDci to 0.4
+2014-08-07 11:55:09 -- Set PIDcp to 1.0
+2014-08-07 11:55:09 -- Set recordTemp to False
+2014-08-07 11:55:09 -- Set voltageLimit to 0.14
+2014-08-07 11:55:09 -- Set lockinCurrent to 1.0 nA
+2014-08-07 11:55:09 -- Set maxCurrent to 9.0
+2014-08-07 11:55:09 -- Set tempRecordDelay to 10
+2014-08-07 11:55:09 -- Set voltageStepDown to 0.004
+2014-08-07 11:55:09 -- Initialization completed. Beginning cycle.
+2014-08-07 11:55:09 -- cycled
+2014-08-07 11:55:09 -- Set alive to True
+2014-08-07 11:55:09 -- Now cycling.
+2014-08-07 11:55:10 -- ADR victor status is now: ready
+2014-08-07 11:55:10 -- Set PIDloopCount to 0
+2014-08-07 11:56:57 -- Set ruoxCoefsHigh to (-0.31994119999999998, 5.74884e-08, -8.8408999999999999e-11)
+2014-08-07 11:56:57 -- Set ruoxCoefsLow to (-0.77127000000000001, 0.00010068000000000001, -1.072e-09)
+2014-08-07 11:56:57 -- Set highTempRuoxCurve to <function <lambda> at 0x0326FEB0>
+2014-08-07 11:56:57 -- Set lowTempRuoxCurve to <function <lambda> at 0x0326FDB0>
+2014-08-07 11:56:57 -- Set voltToResCalibs to (Value(0.26000000000000001, 'V/Ohm'), Value(26.030000000000001, 'V/Ohm'), Value(37.5, 'V/Ohm'), Value(30.0, 'V/Ohm'), Value(10.0, 'V/Ohm'), Value(26.530000000000001, 'V/Ohm'))
+2014-08-07 11:56:57 -- Set resistanceCutoff to 1725.78
+2014-08-07 11:56:57 -- Set ruoxChannel to 3
+2014-08-07 11:56:57 -- Set PIDintLimit to 0.4
+2014-08-07 11:56:57 -- Set voltageStepUp to 0.004
+2014-08-07 11:56:57 -- Set ruoxInterpolation to <scipy.interpolate.fitpack2.InterpolatedUnivariateSpline object at 0x0338F510>
+2014-08-07 11:56:57 -- Set useRuoxInterpolation to True
+2014-08-07 11:56:57 -- Set loglimit to 20
+2014-08-07 11:56:57 -- Set autoRecord to True
+2014-08-07 11:56:57 -- Set recordingTemp to 250
+2014-08-07 11:56:57 -- Set cooldownLimit to 3.9 K
+2014-08-07 11:56:57 -- Set switchPosition to 5
+2014-08-07 11:56:57 -- Set quenchLimit to 4.0
+2014-08-07 11:56:57 -- Set PIDsetTemp to 0.1
+2014-08-07 11:56:57 -- Set PIDcd to 25
+2014-08-07 11:56:57 -- Set PIDstepTimeout to 5
+2014-08-07 11:56:57 -- Set autoControl to False
+2014-08-07 11:56:57 -- Set fieldWaitTime to 45
+2014-08-07 11:56:57 -- Set targetCurrent to 8.0
+2014-08-07 11:56:57 -- Set rampWaitTime to 0.2
+2014-08-07 11:56:57 -- Set PIDci to 0.4
+2014-08-07 11:56:57 -- Set PIDcp to 1.0
+2014-08-07 11:56:57 -- Set recordTemp to False
+2014-08-07 11:56:57 -- Set voltageLimit to 0.14
+2014-08-07 11:56:57 -- Set lockinCurrent to 1.0 nA
+2014-08-07 11:56:57 -- Set maxCurrent to 9.0
+2014-08-07 11:56:57 -- Set tempRecordDelay to 10
+2014-08-07 11:56:57 -- Set voltageStepDown to 0.004
+2014-08-07 11:56:57 -- Initialization completed. Beginning cycle.
+2014-08-07 11:56:57 -- cycled
+2014-08-07 11:56:57 -- Set alive to True
+2014-08-07 11:56:57 -- Now cycling.
+2014-08-07 11:56:58 -- ADR victor status is now: ready
+2014-08-07 11:56:58 -- Set PIDloopCount to 0
+2014-08-07 11:57:11 -- Set ruoxCoefsHigh to (-0.31994119999999998, 5.74884e-08, -8.8408999999999999e-11)
+2014-08-07 11:57:11 -- Set ruoxCoefsLow to (-0.77127000000000001, 0.00010068000000000001, -1.072e-09)
+2014-08-07 11:57:11 -- Set highTempRuoxCurve to <function <lambda> at 0x032B9270>
+2014-08-07 11:57:11 -- Set lowTempRuoxCurve to <function <lambda> at 0x032B9470>
+2014-08-07 11:57:11 -- Set voltToResCalibs to (Value(0.26000000000000001, 'V/Ohm'), Value(26.030000000000001, 'V/Ohm'), Value(37.5, 'V/Ohm'), Value(30.0, 'V/Ohm'), Value(10.0, 'V/Ohm'), Value(26.530000000000001, 'V/Ohm'))
+2014-08-07 11:57:11 -- Set resistanceCutoff to 1725.78
+2014-08-07 11:57:11 -- Set ruoxChannel to 3
+2014-08-07 11:57:11 -- Set PIDintLimit to 0.4
+2014-08-07 11:57:11 -- Set voltageStepUp to 0.004
+2014-08-07 11:57:11 -- Set ruoxInterpolation to <scipy.interpolate.fitpack2.InterpolatedUnivariateSpline object at 0x03403190>
+2014-08-07 11:57:11 -- Set useRuoxInterpolation to True
+2014-08-07 11:57:11 -- Set loglimit to 20
+2014-08-07 11:57:11 -- Set autoRecord to True
+2014-08-07 11:57:11 -- Set recordingTemp to 250
+2014-08-07 11:57:11 -- Set cooldownLimit to 3.9 K
+2014-08-07 11:57:11 -- Set switchPosition to 5
+2014-08-07 11:57:11 -- Set quenchLimit to 4.0
+2014-08-07 11:57:11 -- Set PIDsetTemp to 0.1
+2014-08-07 11:57:11 -- Set PIDcd to 25
+2014-08-07 11:57:11 -- Set PIDstepTimeout to 5
+2014-08-07 11:57:11 -- Set autoControl to False
+2014-08-07 11:57:11 -- Set fieldWaitTime to 45
+2014-08-07 11:57:11 -- Set targetCurrent to 8.0
+2014-08-07 11:57:11 -- Set rampWaitTime to 0.2
+2014-08-07 11:57:11 -- Set PIDci to 0.4
+2014-08-07 11:57:11 -- Set PIDcp to 1.0
+2014-08-07 11:57:11 -- Set recordTemp to False
+2014-08-07 11:57:11 -- Set voltageLimit to 0.14
+2014-08-07 11:57:11 -- Set lockinCurrent to 1.0 nA
+2014-08-07 11:57:11 -- Set maxCurrent to 9.0
+2014-08-07 11:57:11 -- Set tempRecordDelay to 10
+2014-08-07 11:57:11 -- Set voltageStepDown to 0.004
+2014-08-07 11:57:11 -- Initialization completed. Beginning cycle.
+2014-08-07 11:57:11 -- cycled
+2014-08-07 11:57:11 -- Set alive to True
+2014-08-07 11:57:11 -- Now cycling.
+2014-08-07 11:57:12 -- ADR victor status is now: ready
+2014-08-07 11:57:12 -- Set PIDloopCount to 0
+2014-08-07 12:04:18 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:18 -- None
+2014-08-07 12:04:19 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:19 -- None
+2014-08-07 12:04:20 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:20 -- None
+2014-08-07 12:04:21 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:21 -- None
+2014-08-07 12:04:22 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:22 -- None
+2014-08-07 12:04:23 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:23 -- None
+2014-08-07 12:04:24 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:24 -- None
+2014-08-07 12:04:25 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:25 -- None
+2014-08-07 12:04:26 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:26 -- None
+2014-08-07 12:04:27 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:27 -- None
+2014-08-07 12:04:28 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:28 -- None
+2014-08-07 12:04:29 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:29 -- None
+2014-08-07 12:04:30 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:30 -- None
+2014-08-07 12:04:31 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:31 -- None
+2014-08-07 12:04:33 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:33 -- None
+2014-08-07 12:04:34 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:34 -- None
+2014-08-07 12:04:35 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:35 -- None
+2014-08-07 12:04:36 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:36 -- None
+2014-08-07 12:04:37 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:37 -- None
+2014-08-07 12:04:38 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:38 -- None
+2014-08-07 12:04:39 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:39 -- None
+2014-08-07 12:04:40 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:40 -- None
+2014-08-07 12:04:41 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:41 -- None
+2014-08-07 12:04:42 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:42 -- None
+2014-08-07 12:04:43 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:43 -- None
+2014-08-07 12:04:44 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:44 -- None
+2014-08-07 12:04:45 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:45 -- None
+2014-08-07 12:04:46 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:46 -- None
+2014-08-07 12:04:47 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:47 -- None
+2014-08-07 12:04:48 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:48 -- None
+2014-08-07 12:04:49 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:49 -- None
+2014-08-07 12:04:50 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:50 -- None
+2014-08-07 12:04:51 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:51 -- None
+2014-08-07 12:04:52 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:52 -- None
+2014-08-07 12:04:53 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:53 -- None
+2014-08-07 12:04:54 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:54 -- None
+2014-08-07 12:04:55 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:55 -- None
+2014-08-07 12:04:56 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:56 -- None
+2014-08-07 12:04:57 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:57 -- None
+2014-08-07 12:04:58 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:58 -- None
+2014-08-07 12:04:59 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:04:59 -- None
+2014-08-07 12:05:00 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:05:00 -- None
+2014-08-07 12:05:02 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:05:02 -- None
+2014-08-07 12:05:03 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:05:03 -- None
+2014-08-07 12:05:04 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:05:04 -- None
+2014-08-07 12:05:05 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:05:05 -- None
+2014-08-07 12:05:06 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:05:06 -- None
+2014-08-07 12:05:07 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:05:07 -- None
+2014-08-07 12:05:08 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:05:08 -- None
+2014-08-07 12:05:09 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:05:09 -- None
+2014-08-07 12:05:10 -- Exception in cycle loop: Connection lost.
+2014-08-07 12:05:10 -- None
+2014-08-07 12:07:02 -- Set ruoxCoefsHigh to (-0.31994119999999998, 5.74884e-08, -8.8408999999999999e-11)
+2014-08-07 12:07:02 -- Set ruoxCoefsLow to (-0.77127000000000001, 0.00010068000000000001, -1.072e-09)
+2014-08-07 12:07:02 -- Set highTempRuoxCurve to <function <lambda> at 0x033E1830>
+2014-08-07 12:07:02 -- Set lowTempRuoxCurve to <function <lambda> at 0x033E18B0>
+2014-08-07 12:07:02 -- Set voltToResCalibs to (Value(0.26000000000000001, 'V/Ohm'), Value(26.030000000000001, 'V/Ohm'), Value(37.5, 'V/Ohm'), Value(30.0, 'V/Ohm'), Value(10.0, 'V/Ohm'), Value(26.530000000000001, 'V/Ohm'))
+2014-08-07 12:07:02 -- Set resistanceCutoff to 1725.78
+2014-08-07 12:07:02 -- Set ruoxChannel to 3
+2014-08-07 12:07:02 -- Set PIDintLimit to 0.4
+2014-08-07 12:07:02 -- Set voltageStepUp to 0.004
+2014-08-07 12:07:02 -- Set ruoxInterpolation to <scipy.interpolate.fitpack2.InterpolatedUnivariateSpline object at 0x03508610>
+2014-08-07 12:07:02 -- Set useRuoxInterpolation to True
+2014-08-07 12:07:02 -- Set loglimit to 20
+2014-08-07 12:07:02 -- Set autoRecord to True
+2014-08-07 12:07:02 -- Set recordingTemp to 250
+2014-08-07 12:07:02 -- Set cooldownLimit to 3.9 K
+2014-08-07 12:07:02 -- Set switchPosition to 5
+2014-08-07 12:07:02 -- Set quenchLimit to 4.0
+2014-08-07 12:07:02 -- Set PIDsetTemp to 0.1
+2014-08-07 12:07:02 -- Set PIDcd to 25
+2014-08-07 12:07:02 -- Set PIDstepTimeout to 5
+2014-08-07 12:07:02 -- Set autoControl to False
+2014-08-07 12:07:02 -- Set fieldWaitTime to 45
+2014-08-07 12:07:02 -- Set targetCurrent to 8.0
+2014-08-07 12:07:02 -- Set rampWaitTime to 0.2
+2014-08-07 12:07:02 -- Set PIDci to 0.4
+2014-08-07 12:07:02 -- Set PIDcp to 1.0
+2014-08-07 12:07:02 -- Set recordTemp to False
+2014-08-07 12:07:02 -- Set voltageLimit to 0.14
+2014-08-07 12:07:02 -- Set lockinCurrent to 1.0 nA
+2014-08-07 12:07:02 -- Set maxCurrent to 9.0
+2014-08-07 12:07:02 -- Set tempRecordDelay to 10
+2014-08-07 12:07:02 -- Set voltageStepDown to 0.004
+2014-08-07 12:07:02 -- Initialization completed. Beginning cycle.
+2014-08-07 12:07:02 -- cycled
+2014-08-07 12:07:02 -- Set alive to True
+2014-08-07 12:07:02 -- Now cycling.
+2014-08-07 12:07:02 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:02 -- None
+2014-08-07 12:07:03 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:03 -- None
+2014-08-07 12:07:04 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:04 -- None
+2014-08-07 12:07:05 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:05 -- None
+2014-08-07 12:07:06 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:06 -- None
+2014-08-07 12:07:07 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:07 -- None
+2014-08-07 12:07:08 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:08 -- None
+2014-08-07 12:07:09 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:09 -- None
+2014-08-07 12:07:10 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:10 -- None
+2014-08-07 12:07:11 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:11 -- None
+2014-08-07 12:07:12 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:12 -- None
+2014-08-07 12:07:13 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:13 -- None
+2014-08-07 12:07:14 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:14 -- None
+2014-08-07 12:07:15 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:15 -- None
+2014-08-07 12:07:16 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:16 -- None
+2014-08-07 12:07:18 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:18 -- None
+2014-08-07 12:07:19 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:19 -- None
+2014-08-07 12:07:20 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:20 -- None
+2014-08-07 12:07:21 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:21 -- None
+2014-08-07 12:07:22 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:22 -- None
+2014-08-07 12:07:23 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:23 -- None
+2014-08-07 12:07:24 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:24 -- None
+2014-08-07 12:07:25 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:25 -- None
+2014-08-07 12:07:26 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:26 -- None
+2014-08-07 12:07:27 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:27 -- None
+2014-08-07 12:07:28 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:28 -- None
+2014-08-07 12:07:29 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:29 -- None
+2014-08-07 12:07:30 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:30 -- None
+2014-08-07 12:07:31 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:31 -- None
+2014-08-07 12:07:32 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:32 -- None
+2014-08-07 12:07:33 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:33 -- None
+2014-08-07 12:07:34 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:34 -- None
+2014-08-07 12:07:35 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:35 -- None
+2014-08-07 12:07:36 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:36 -- None
+2014-08-07 12:07:37 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:37 -- None
+2014-08-07 12:07:38 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:38 -- None
+2014-08-07 12:07:39 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:39 -- None
+2014-08-07 12:07:40 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:40 -- None
+2014-08-07 12:07:41 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:41 -- None
+2014-08-07 12:07:42 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:42 -- None
+2014-08-07 12:07:43 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:43 -- None
+2014-08-07 12:07:44 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:44 -- None
+2014-08-07 12:07:45 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:45 -- None
+2014-08-07 12:07:47 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:47 -- None
+2014-08-07 12:07:48 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:48 -- None
+2014-08-07 12:07:49 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:49 -- None
+2014-08-07 12:07:50 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:50 -- None
+2014-08-07 12:07:51 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:51 -- None
+2014-08-07 12:07:52 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:52 -- None
+2014-08-07 12:07:53 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:53 -- None
+2014-08-07 12:07:54 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:54 -- None
+2014-08-07 12:07:55 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:55 -- None
+2014-08-07 12:07:56 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:56 -- None
+2014-08-07 12:07:57 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 12:07:57 -- None
+2014-08-07 12:07:58 -- Exception in cycle loop: Connection lost.
+2014-08-07 12:07:58 -- None
+2014-08-07 12:08:01 -- Set ruoxCoefsHigh to (-0.31994119999999998, 5.74884e-08, -8.8408999999999999e-11)
+2014-08-07 12:08:01 -- Set ruoxCoefsLow to (-0.77127000000000001, 0.00010068000000000001, -1.072e-09)
+2014-08-07 12:08:01 -- Set highTempRuoxCurve to <function <lambda> at 0x03263FB0>
+2014-08-07 12:08:01 -- Set lowTempRuoxCurve to <function <lambda> at 0x031EB470>
+2014-08-07 12:08:01 -- Set voltToResCalibs to (Value(0.26000000000000001, 'V/Ohm'), Value(26.030000000000001, 'V/Ohm'), Value(37.5, 'V/Ohm'), Value(30.0, 'V/Ohm'), Value(10.0, 'V/Ohm'), Value(26.530000000000001, 'V/Ohm'))
+2014-08-07 12:08:01 -- Set resistanceCutoff to 1725.78
+2014-08-07 12:08:01 -- Set ruoxChannel to 3
+2014-08-07 12:08:01 -- Set PIDintLimit to 0.4
+2014-08-07 12:08:01 -- Set voltageStepUp to 0.004
+2014-08-07 12:08:01 -- Set ruoxInterpolation to <scipy.interpolate.fitpack2.InterpolatedUnivariateSpline object at 0x033DC610>
+2014-08-07 12:08:01 -- Set useRuoxInterpolation to True
+2014-08-07 12:08:01 -- Set loglimit to 20
+2014-08-07 12:08:02 -- Set autoRecord to True
+2014-08-07 12:08:02 -- Set recordingTemp to 250.0 K
+2014-08-07 12:08:02 -- Set cooldownLimit to 3.9 K
+2014-08-07 12:08:02 -- Set switchPosition to 5
+2014-08-07 12:08:02 -- Set quenchLimit to 4.0
+2014-08-07 12:08:02 -- Set PIDsetTemp to 0.1
+2014-08-07 12:08:02 -- Set PIDcd to 25
+2014-08-07 12:08:02 -- Set PIDstepTimeout to 5
+2014-08-07 12:08:02 -- Set autoControl to False
+2014-08-07 12:08:02 -- Set fieldWaitTime to 45
+2014-08-07 12:08:02 -- Set targetCurrent to 8.0
+2014-08-07 12:08:02 -- Set rampWaitTime to 0.2
+2014-08-07 12:08:02 -- Set PIDci to 0.4
+2014-08-07 12:08:02 -- Set PIDcp to 1.0
+2014-08-07 12:08:02 -- Set recordTemp to False
+2014-08-07 12:08:02 -- Set voltageLimit to 0.14
+2014-08-07 12:08:02 -- Set lockinCurrent to 1.0 nA
+2014-08-07 12:08:02 -- Set maxCurrent to 9.0
+2014-08-07 12:08:02 -- Set tempRecordDelay to 10
+2014-08-07 12:08:02 -- Set voltageStepDown to 0.004
+2014-08-07 12:08:02 -- Initialization completed. Beginning cycle.
+2014-08-07 12:08:02 -- cycled
+2014-08-07 12:08:02 -- Set alive to True
+2014-08-07 12:08:02 -- Now cycling.
+2014-08-07 12:08:02 -- Set recordTemp to True
+2014-08-07 12:08:02 -- Set tempDatasetName to ADR Log - 2014-08-07 12:08
+2014-08-07 12:08:03 -- ADR victor status is now: ready
+2014-08-07 12:08:03 -- Set PIDloopCount to 0
+2014-08-07 12:09:06 -- Set heatSwitched to False
+2014-08-07 12:09:06 -- ADR victor status is now: magging up
+2014-08-07 12:09:06 -- Set PIDloopCount to 0
+2014-08-07 12:09:06 -- Missing peripheral! Cannot mag! Check lakeshore and magnet!
+2014-08-07 12:09:07 -- victor mag step! Quenched: False -- Target Reached: False
+2014-08-07 12:09:07 -- Missing peripheral! Cannot mag! Check lakeshore and magnet!
+2014-08-07 12:09:08 -- victor mag step! Quenched: False -- Target Reached: False
+2014-08-07 12:09:09 -- Missing peripheral! Cannot mag! Check lakeshore and magnet!
+2014-08-07 12:09:10 -- victor mag step! Quenched: False -- Target Reached: False
+2014-08-07 12:09:10 -- Missing peripheral! Cannot mag! Check lakeshore and magnet!
+2014-08-07 12:09:11 -- victor mag step! Quenched: False -- Target Reached: False
+2014-08-07 12:09:11 -- Missing peripheral! Cannot mag! Check lakeshore and magnet!
+2014-08-07 12:09:12 -- victor mag step! Quenched: False -- Target Reached: False
+2014-08-07 12:09:12 -- Missing peripheral! Cannot mag! Check lakeshore and magnet!
+2014-08-07 12:09:13 -- victor mag step! Quenched: False -- Target Reached: False
+2014-08-07 12:09:14 -- Missing peripheral! Cannot mag! Check lakeshore and magnet!
+2014-08-07 12:09:15 -- victor mag step! Quenched: False -- Target Reached: False
+2014-08-07 12:09:15 -- Missing peripheral! Cannot mag! Check lakeshore and magnet!
+2014-08-07 12:09:16 -- ADR victor status is now: ready
+2014-08-07 12:09:16 -- Set PIDloopCount to 0
+2014-08-07 12:09:16 -- victor mag step! Quenched: False -- Target Reached: False
+2014-08-07 15:29:07 -- Set ruoxCoefsHigh to (-0.31994119999999998, 5.74884e-08, -8.8408999999999999e-11)
+2014-08-07 15:29:07 -- Set ruoxCoefsLow to (-0.77127000000000001, 0.00010068000000000001, -1.072e-09)
+2014-08-07 15:29:07 -- Set highTempRuoxCurve to <function <lambda> at 0x032AEEB0>
+2014-08-07 15:29:07 -- Set lowTempRuoxCurve to <function <lambda> at 0x032F7330>
+2014-08-07 15:29:07 -- Set voltToResCalibs to (Value(0.26000000000000001, 'V/Ohm'), Value(26.030000000000001, 'V/Ohm'), Value(37.5, 'V/Ohm'), Value(30.0, 'V/Ohm'), Value(10.0, 'V/Ohm'), Value(26.530000000000001, 'V/Ohm'))
+2014-08-07 15:29:07 -- Set resistanceCutoff to 1725.78
+2014-08-07 15:29:07 -- Set ruoxChannel to 3
+2014-08-07 15:29:07 -- Set PIDintLimit to 0.4
+2014-08-07 15:29:07 -- Set voltageStepUp to 0.004
+2014-08-07 15:29:07 -- Set ruoxInterpolation to <scipy.interpolate.fitpack2.InterpolatedUnivariateSpline object at 0x03425450>
+2014-08-07 15:29:07 -- Set useRuoxInterpolation to True
+2014-08-07 15:29:07 -- Set loglimit to 20
+2014-08-07 15:29:07 -- Set autoRecord to True
+2014-08-07 15:29:07 -- Set recordingTemp to 250.0 K
+2014-08-07 15:29:07 -- Set cooldownLimit to 3.9 K
+2014-08-07 15:29:07 -- Set switchPosition to 5
+2014-08-07 15:29:07 -- Set quenchLimit to 4.0
+2014-08-07 15:29:07 -- Set PIDsetTemp to 0.1
+2014-08-07 15:29:07 -- Set PIDcd to 25
+2014-08-07 15:29:07 -- Set PIDstepTimeout to 5
+2014-08-07 15:29:07 -- Set autoControl to False
+2014-08-07 15:29:07 -- Set fieldWaitTime to 45
+2014-08-07 15:29:07 -- Set targetCurrent to 8.0
+2014-08-07 15:29:07 -- Set rampWaitTime to 0.2
+2014-08-07 15:29:07 -- Set PIDci to 0.4
+2014-08-07 15:29:07 -- Set PIDcp to 1.0
+2014-08-07 15:29:07 -- Set recordTemp to False
+2014-08-07 15:29:07 -- Set voltageLimit to 0.14
+2014-08-07 15:29:07 -- Set lockinCurrent to 1.0 nA
+2014-08-07 15:29:07 -- Set maxCurrent to 9.0
+2014-08-07 15:29:07 -- Set tempRecordDelay to 10
+2014-08-07 15:29:07 -- Set voltageStepDown to 0.004
+2014-08-07 15:29:07 -- Initialization completed. Beginning cycle.
+2014-08-07 15:29:07 -- cycled
+2014-08-07 15:29:07 -- Set alive to True
+2014-08-07 15:29:07 -- Now cycling.
+2014-08-07 15:29:07 -- Set recordTemp to True
+2014-08-07 15:29:08 -- Set tempDatasetName to ADR Log - 2014-08-07 15:29
+2014-08-07 15:29:08 -- ADR victor status is now: ready
+2014-08-07 15:29:08 -- Set PIDloopCount to 0

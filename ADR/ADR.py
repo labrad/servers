@@ -44,7 +44,7 @@ from labrad.units import Unit
 from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 import twisted.internet.error
-
+import traceback
 import numpy as np
 import time, exceptions, labrad.util, labrad.units
 
@@ -89,20 +89,20 @@ class ADRWrapper(DeviceWrapper):
         # many of these will get overwritten with defaults from the registry.
         self.stateVars= {	# FROM THE REGISTRY
                             # magging variables
-                            'quenchLimit': 4.0,			# K -- if we get above this temp when magging we are considered to have quenched
-                            'cooldownLimit': 3.9,		# K -- below this temp we are ready to rock and roll
-                            'rampWaitTime': 0.2,		# s -- min waiting time between voltage ramps (mag steps) during a mag
-                            'voltageStepUp': 0.004, 	# V -- voltage ramp amount during mag up
-                            'voltageStepDown': 0.004,	# V -- ... during mag down
-                            'voltageLimit': 0.28,		# V -- don't do a mag step when mag diode voltages are > this
-                            'targetCurrent': 8,			# A -- stop magging when we hit this current (will continue to drift up)
-                            'maxCurrent': 9,			# A -- hard limit the power supply to this current
-                            'fieldWaitTime': 45,		# min -- how long to wait at field before magging down (when autocontrolled)
-                            'autoControl': False,		# whether to auto control the heat switch
-                            'switchPosition': 2,		# switch position on the lock in amplifier box
-                            'lockinCurrent': 1e-9,      # current being put through Ruox (for use with lockin)
+                            'quenchLimit': 4.0,			    # K -- if we get above this temp when magging we are considered to have quenched
+                            'cooldownLimit': 3.9*Unit('K'), # K -- below this temp we are ready to rock and roll
+                            'rampWaitTime': 0.2,		    # s -- min waiting time between voltage ramps (mag steps) during a mag
+                            'voltageStepUp': 0.004, 	    # V -- voltage ramp amount during mag up
+                            'voltageStepDown': 0.004,	    # V -- ... during mag down
+                            'voltageLimit': 0.28,		    # V -- don't do a mag step when mag diode voltages are > this
+                            'targetCurrent': 8,			    # A -- stop magging when we hit this current (will continue to drift up)
+                            'maxCurrent': 9,			    # A -- hard limit the power supply to this current
+                            'fieldWaitTime': 45,		    # min -- how long to wait at field before magging down (when autocontrolled)
+                            'autoControl': False,		    # whether to auto control the heat switch
+                            'switchPosition': 2,		    # switch position on the lock in amplifier box
+                            'lockinCurrent': 1*Unit('nA'),  # current being put through Ruox (for use with lockin)
                             'delayHeatSwitchClose': True,   # don't close the heat switch until cold stage temp > 4K stage temp
-                            'heatSwitched': False,      # whether we've closed the heat switch for this mag-up. (internal use only)
+                            'heatSwitched': False,          # whether we've closed the heat switch for this mag-up. (internal use only)
                             # PID variables
                             'PIDsetTemp': 0.0 * labrad.units.K,		# setTemp is the temperature goal for PID control
                             'PIDcp': 2.0 * labrad.units.V / labrad.units.K,
@@ -112,7 +112,7 @@ class ADRWrapper(DeviceWrapper):
                             'PIDstepTimeout': 5,		# max amount of time we will remain in PID stepping loop
                             # temperature recording variables
                             'recordTemp': False,		# whether we're recording right now
-                            'recordingTemp': 250,		# start recording temps below this value
+                            'recordingTemp': 250*Unit('K'),	# start recording temps below this value
                             'autoRecord': True,			# whether to start recording automatically
                             'tempRecordDelay':	10,		# every X seconds we record temp
                             # NOT FROM REGISTRY
@@ -210,12 +210,12 @@ class ADRWrapper(DeviceWrapper):
         if 'interpolation data' in keys:
             p.get('interpolation data', key='iData')
         ans = yield p.send()
-        self.state('ruoxCoefsHigh', map(lambda x: x.value, ans.rch))
-        self.state('ruoxCoefsLow', map(lambda x: x.value, ans.rcl))
+        self.state('ruoxCoefsHigh', ans.rch)
+        self.state('ruoxCoefsLow', ans.rcl)
         self.state('highTempRuoxCurve', lambda r, p: eval(ans.htrc))
         self.state('lowTempRuoxCurve', lambda r, p: eval(ans.ltrc))
-        self.state('voltToResCalibs', map(lambda x: x.value, ans.vtr))
-        self.state('resistanceCutoff', ans.rescut.value)
+        self.state('voltToResCalibs', ans.vtr)
+        self.state('resistanceCutoff', ans.rescut)
         self.state('ruoxChannel', ans.ruoxchan - 1)
         if 'interpolation data' in keys:
             iPath, iName = ans.iData
@@ -226,7 +226,7 @@ class ADRWrapper(DeviceWrapper):
         for key in keys:
             val = yield reg.get(key, context=self.ctxt)
             if isinstance(val, labrad.units.Value):
-                val = val.value
+                val = val
             self.state(key, val)
     
     @inlineCallbacks
@@ -448,9 +448,10 @@ class ADRWrapper(DeviceWrapper):
             except KeyboardInterrupt:#, SystemExit):
                 self.state('alive', False)
                 
-            except Exception, e:
+            except Exception as e:
                 print "Exception in cycle loop: %s" % e.__str__()
                 self.log("Exception in cycle loop: %s" % e.__str__())
+                self.log(traceback.print_exc())
                 yield util.wakeupCall(self.sleepTime)
         # end of while loop
         self.state('alive', False)
@@ -524,12 +525,12 @@ class ADRWrapper(DeviceWrapper):
             returnValue((False, False))
         temps = self.state('temperatures')
         volts = self.state('voltages')
-        current = self.state('magCurrent').value
-        voltage = self.state('magVoltage').value
+        current = self.state('magCurrent')
+        voltage = self.state('magVoltage')
         quenched = temps[1] > self.state('quenchLimit') and current > 0.5
         targetReached = (up and self.state('targetCurrent') - current < 0.001) or (not up and 0.01 > current)
         newVoltage = voltage
-        #print "  volts[6]: %s\n  volts[7]: %s\n  voltageLimit: %s" % (volts[6].value, volts[7].value, self.state('voltageLimit'))
+        #print "  volts[6]: %s\n  volts[7]: %s\n  voltageLimit: %s" % (volts[6], volts[7], self.state('voltageLimit'))
         if (not quenched) and (not targetReached) and abs(volts[6]) < self.state('voltageLimit') and abs(volts[7]) < self.state('voltageLimit'):
             #print "changing voltage"
             if up:
@@ -562,7 +563,7 @@ class ADRWrapper(DeviceWrapper):
             self.state('magVoltage', (yield mag.server.voltage(context=self.ctxt)), False)
             volts = self.state('voltages')
             if abs(volts[6]) < self.state('voltageLimit') and abs(volts[7]) < self.state('voltageLimit'):
-                verr = setV - self.state('magVoltage').value
+                verr = setV - self.state('magVoltage')
                 if abs(verr) > max(self.state('voltageStepUp'), self.state('voltageStepDown')):
                     vnew = self.state('magVoltage') + np.sign(verr) * max(self.state('voltageStepUp'), self.state('voltageStepDown'))
                     yield mag.server.voltage(vnew, context = self.ctxt)
@@ -655,7 +656,7 @@ class ADRWrapper(DeviceWrapper):
                     self.setHeatSwitch(True)
                 self.state('schedulingActive', False)
             elif newStatus == 'pid control':
-                self.state('PIDout', self.state('magVoltage').value)
+                self.state('PIDout', self.state('magVoltage'))
                 self.state('PIDint', 0)
                 self.psOutputOn()
             self.log("ADR %s status is now: %s" % (self.name, self.currentStatus))
@@ -667,28 +668,27 @@ class ADRWrapper(DeviceWrapper):
     # the voltage reading is from lakeshore channel 4 (i.e. index 3)
     def ruoxStatus(self):
         lsTemps = self.state('temperatures')
-        
         lockin = self.state('lockinVoltage')
         if lockin is None:
             calib = self.state('voltToResCalibs')[self.state('switchPosition') - 1]
-            voltage = self.state('voltages')[self.state('ruoxChannel')].value
+            voltage = self.state('voltages')[self.state('ruoxChannel')]
             resistance = voltage / (calib)* 10**6 # may or may not need this factor of 10^6
         else:
             if lockin.units == 'Ohm':
-                resistance = lockin['Ohm']
+                resistance = lockin
             else:
-                resistance = lockin['V'] / float(self.state('lockinCurrent'))
-        if lsTemps[1]['K'] > self.state('ruoxTempCutoff'):
+                resistance = lockin/ self.state('lockinCurrent')
+        if lsTemps[1] > self.state('ruoxTempCutoff'):
             return (lsTemps[1], resistance)
-        temp = 0.0
+        temp = 0.0*labrad.units.K
         if self.state('useRuoxInterpolation'):
-            temp = self.state('ruoxInterpolation')(resistance)
+            temp = self.state('ruoxInterpolation')(resistance)*labrad.units.K
         elif resistance < self.state('resistanceCutoff'):
             # high temp (2 to 20 K)
-            temp = self.state('highTempRuoxCurve')(resistance, self.state('ruoxCoefsHigh'))
+            temp = self.state('highTempRuoxCurve')(resistance['Ohm'], self.state('ruoxCoefsHigh'))*labrad.units.K
         else:
             # low temp (0.05 to 2 K)
-            temp = self.state('lowTempRuoxCurve')(resistance, self.state('ruoxCoefsLow'))
+            temp = self.state('lowTempRuoxCurve')(resistance['Ohm'], self.state('ruoxCoefsLow'))*labrad.units.K
         return (temp, resistance)
             
     ###################################
@@ -1070,7 +1070,7 @@ class ADRServer(DeviceServer):
         dev = self.selectedDevice(c)
         return dev.state('temperatures')
             
-    @setting(42, 'Magnet Status', returns=['(v[V] v[A])'])
+    @setting(42, 'Magnet Status', returns=['(v[A] v[V])'])
     def magnet_status(self, c):
         """ Returns the voltage and current from the magnet power supply. """
         dev = self.selectedDevice(c)
