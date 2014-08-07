@@ -942,15 +942,15 @@ class ADRWrapper(DeviceWrapper):
     # LOGGING FUNCTIONS #
     #####################
     
-    def log(self, str):
+    def log(self, data):
         # write to log file
         try:
             f = open(self.state('logfile'), 'a')
-            f.write('%s -- %s\n' % (time.strftime("%Y-%m-%d %H:%M:%S"), str))
+            f.write('%s -- %s\n' % (time.strftime("%Y-%m-%d %H:%M:%S"), data))
         finally:
             f.close()
         # append to log variable
-        self.logData.append((time.strftime("%Y-%m-%d %H:%M:%S"), str))
+        self.logData.append((time.strftime("%Y-%m-%d %H:%M:%S"), data))
         # check to truncate log to last X entries
         if len(self.logData) > self.state('loglimit'):
             self.logData = self.logData[-self.state('loglimit'):]

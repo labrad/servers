@@ -1059,3 +1059,2098 @@
 2014-08-07 15:29:08 -- Set tempDatasetName to ADR Log - 2014-08-07 15:29
 2014-08-07 15:29:08 -- ADR victor status is now: ready
 2014-08-07 15:29:08 -- Set PIDloopCount to 0
+2014-08-07 15:52:53 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:52:53 -- None
+2014-08-07 15:52:54 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:52:54 -- None
+2014-08-07 15:52:55 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:52:55 -- None
+2014-08-07 15:52:57 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:52:57 -- None
+2014-08-07 15:52:58 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:52:58 -- None
+2014-08-07 15:52:59 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:52:59 -- None
+2014-08-07 15:53:00 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:00 -- None
+2014-08-07 15:53:01 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:01 -- None
+2014-08-07 15:53:02 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:02 -- None
+2014-08-07 15:53:03 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:03 -- None
+2014-08-07 15:53:04 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:04 -- None
+2014-08-07 15:53:05 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:05 -- None
+2014-08-07 15:53:06 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:06 -- None
+2014-08-07 15:53:07 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:07 -- None
+2014-08-07 15:53:09 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:09 -- None
+2014-08-07 15:53:10 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:10 -- None
+2014-08-07 15:53:11 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:11 -- None
+2014-08-07 15:53:12 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:12 -- None
+2014-08-07 15:53:13 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:13 -- None
+2014-08-07 15:53:14 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:14 -- None
+2014-08-07 15:53:15 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:15 -- None
+2014-08-07 15:53:16 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:16 -- None
+2014-08-07 15:53:17 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:17 -- None
+2014-08-07 15:53:18 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:18 -- None
+2014-08-07 15:53:19 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:19 -- None
+2014-08-07 15:53:20 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:20 -- None
+2014-08-07 15:53:22 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:22 -- None
+2014-08-07 15:53:23 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:23 -- None
+2014-08-07 15:53:24 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:24 -- None
+2014-08-07 15:53:25 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:25 -- None
+2014-08-07 15:53:26 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:26 -- None
+2014-08-07 15:53:27 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:27 -- None
+2014-08-07 15:53:28 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:28 -- None
+2014-08-07 15:53:29 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:29 -- None
+2014-08-07 15:53:30 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:30 -- None
+2014-08-07 15:53:31 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:31 -- None
+2014-08-07 15:53:32 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:32 -- None
+2014-08-07 15:53:34 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:34 -- None
+2014-08-07 15:53:35 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:35 -- None
+2014-08-07 15:53:36 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:36 -- None
+2014-08-07 15:53:37 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:37 -- None
+2014-08-07 15:53:38 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:38 -- None
+2014-08-07 15:53:39 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:39 -- None
+2014-08-07 15:53:40 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:40 -- None
+2014-08-07 15:53:41 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:41 -- None
+2014-08-07 15:53:44 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:44 -- None
+2014-08-07 15:53:45 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:45 -- None
+2014-08-07 15:53:46 -- Set ruoxCoefsHigh to (-0.31994119999999998, 5.74884e-08, -8.8408999999999999e-11)
+2014-08-07 15:53:46 -- Set ruoxCoefsLow to (-0.77127000000000001, 0.00010068000000000001, -1.072e-09)
+2014-08-07 15:53:46 -- Set highTempRuoxCurve to <function <lambda> at 0x032BB630>
+2014-08-07 15:53:46 -- Set lowTempRuoxCurve to <function <lambda> at 0x032AEEB0>
+2014-08-07 15:53:46 -- Set voltToResCalibs to (Value(0.26000000000000001, 'V/Ohm'), Value(26.030000000000001, 'V/Ohm'), Value(37.5, 'V/Ohm'), Value(30.0, 'V/Ohm'), Value(10.0, 'V/Ohm'), Value(26.530000000000001, 'V/Ohm'))
+2014-08-07 15:53:46 -- Set resistanceCutoff to 1725.78
+2014-08-07 15:53:46 -- Set ruoxChannel to 3
+2014-08-07 15:53:46 -- Set PIDintLimit to 0.4
+2014-08-07 15:53:46 -- Set ruoxInterpolation to <scipy.interpolate.fitpack2.InterpolatedUnivariateSpline object at 0x040D4B90>
+2014-08-07 15:53:46 -- Set useRuoxInterpolation to True
+2014-08-07 15:53:46 -- Set voltageStepUp to 0.004
+2014-08-07 15:53:46 -- Set loglimit to 20
+2014-08-07 15:53:46 -- Set autoRecord to True
+2014-08-07 15:53:46 -- Set recordingTemp to 250.0 K
+2014-08-07 15:53:46 -- Set cooldownLimit to 3.9 K
+2014-08-07 15:53:46 -- Set switchPosition to 5
+2014-08-07 15:53:46 -- Set quenchLimit to 4.0
+2014-08-07 15:53:46 -- Set PIDsetTemp to 0.1
+2014-08-07 15:53:46 -- Set PIDcd to 25
+2014-08-07 15:53:46 -- Set PIDstepTimeout to 5
+2014-08-07 15:53:46 -- Set autoControl to False
+2014-08-07 15:53:46 -- Set fieldWaitTime to 45
+2014-08-07 15:53:46 -- Set targetCurrent to 8.0
+2014-08-07 15:53:46 -- Set rampWaitTime to 0.2
+2014-08-07 15:53:46 -- Set PIDci to 0.4
+2014-08-07 15:53:46 -- Set PIDcp to 1.0
+2014-08-07 15:53:46 -- Set recordTemp to False
+2014-08-07 15:53:46 -- Set voltageLimit to 0.14
+2014-08-07 15:53:46 -- Set lockinCurrent to 1.0 nA
+2014-08-07 15:53:46 -- Set maxCurrent to 9.0
+2014-08-07 15:53:46 -- Set tempRecordDelay to 10
+2014-08-07 15:53:46 -- Set voltageStepDown to 0.004
+2014-08-07 15:53:46 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:46 -- None
+2014-08-07 15:53:47 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:47 -- None
+2014-08-07 15:53:48 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:49 -- None
+2014-08-07 15:53:50 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:50 -- None
+2014-08-07 15:53:51 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:51 -- None
+2014-08-07 15:53:52 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:52 -- None
+2014-08-07 15:53:53 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:53 -- None
+2014-08-07 15:53:54 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:54 -- None
+2014-08-07 15:53:55 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:55 -- None
+2014-08-07 15:53:56 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:56 -- None
+2014-08-07 15:53:57 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:57 -- None
+2014-08-07 15:53:58 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:58 -- None
+2014-08-07 15:53:59 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:53:59 -- None
+2014-08-07 15:54:00 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:00 -- None
+2014-08-07 15:54:02 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:02 -- None
+2014-08-07 15:54:03 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:03 -- None
+2014-08-07 15:54:04 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:04 -- None
+2014-08-07 15:54:05 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:05 -- None
+2014-08-07 15:54:06 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:06 -- None
+2014-08-07 15:54:07 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:07 -- None
+2014-08-07 15:54:08 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:08 -- None
+2014-08-07 15:54:09 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:09 -- None
+2014-08-07 15:54:10 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:10 -- None
+2014-08-07 15:54:11 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:11 -- None
+2014-08-07 15:54:12 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:12 -- None
+2014-08-07 15:54:14 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:14 -- None
+2014-08-07 15:54:15 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:15 -- None
+2014-08-07 15:54:16 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:16 -- None
+2014-08-07 15:54:17 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:17 -- None
+2014-08-07 15:54:18 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:18 -- None
+2014-08-07 15:54:19 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:19 -- None
+2014-08-07 15:54:20 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:20 -- None
+2014-08-07 15:54:21 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:21 -- None
+2014-08-07 15:54:22 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:22 -- None
+2014-08-07 15:54:23 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:23 -- None
+2014-08-07 15:54:25 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:25 -- None
+2014-08-07 15:54:26 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:26 -- None
+2014-08-07 15:54:27 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:27 -- None
+2014-08-07 15:54:28 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:28 -- None
+2014-08-07 15:54:29 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:29 -- None
+2014-08-07 15:54:30 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:30 -- None
+2014-08-07 15:54:31 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:31 -- None
+2014-08-07 15:54:32 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:32 -- None
+2014-08-07 15:54:33 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:33 -- None
+2014-08-07 15:54:34 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:34 -- None
+2014-08-07 15:54:35 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:35 -- None
+2014-08-07 15:54:37 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:37 -- None
+2014-08-07 15:54:38 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:38 -- None
+2014-08-07 15:54:39 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:39 -- None
+2014-08-07 15:54:40 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:40 -- None
+2014-08-07 15:54:41 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:41 -- None
+2014-08-07 15:54:42 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:42 -- None
+2014-08-07 15:54:43 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:43 -- None
+2014-08-07 15:54:44 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:44 -- None
+2014-08-07 15:54:45 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:45 -- None
+2014-08-07 15:54:46 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:46 -- None
+2014-08-07 15:54:47 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:47 -- None
+2014-08-07 15:54:49 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:49 -- None
+2014-08-07 15:54:50 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:50 -- None
+2014-08-07 15:54:51 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:51 -- None
+2014-08-07 15:54:52 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:52 -- None
+2014-08-07 15:54:53 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:53 -- None
+2014-08-07 15:54:54 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:54 -- None
+2014-08-07 15:54:55 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:55 -- None
+2014-08-07 15:54:56 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:56 -- None
+2014-08-07 15:54:57 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:57 -- None
+2014-08-07 15:54:58 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:58 -- None
+2014-08-07 15:54:59 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:54:59 -- None
+2014-08-07 15:55:01 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:01 -- None
+2014-08-07 15:55:02 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:02 -- None
+2014-08-07 15:55:03 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:03 -- None
+2014-08-07 15:55:04 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:04 -- None
+2014-08-07 15:55:05 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:05 -- None
+2014-08-07 15:55:06 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:06 -- None
+2014-08-07 15:55:07 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:07 -- None
+2014-08-07 15:55:08 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:08 -- None
+2014-08-07 15:55:09 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:09 -- None
+2014-08-07 15:55:10 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:10 -- None
+2014-08-07 15:55:11 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:11 -- None
+2014-08-07 15:55:12 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:12 -- None
+2014-08-07 15:55:14 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:14 -- None
+2014-08-07 15:55:15 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:15 -- None
+2014-08-07 15:55:16 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:16 -- None
+2014-08-07 15:55:17 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:17 -- None
+2014-08-07 15:55:18 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:18 -- None
+2014-08-07 15:55:19 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:19 -- None
+2014-08-07 15:55:20 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:20 -- None
+2014-08-07 15:55:21 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:21 -- None
+2014-08-07 15:55:22 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:22 -- None
+2014-08-07 15:55:23 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:23 -- None
+2014-08-07 15:55:24 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:24 -- None
+2014-08-07 15:55:26 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:26 -- None
+2014-08-07 15:55:27 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:27 -- None
+2014-08-07 15:55:28 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:28 -- None
+2014-08-07 15:55:29 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:29 -- None
+2014-08-07 15:55:30 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:30 -- None
+2014-08-07 15:55:31 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:31 -- None
+2014-08-07 15:55:32 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:32 -- None
+2014-08-07 15:55:33 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:33 -- None
+2014-08-07 15:55:34 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:34 -- None
+2014-08-07 15:55:35 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:35 -- None
+2014-08-07 15:55:37 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:37 -- None
+2014-08-07 15:55:38 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:38 -- None
+2014-08-07 15:55:39 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:39 -- None
+2014-08-07 15:55:40 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:40 -- None
+2014-08-07 15:55:41 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:41 -- None
+2014-08-07 15:55:42 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:42 -- None
+2014-08-07 15:55:43 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:43 -- None
+2014-08-07 15:55:44 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:44 -- None
+2014-08-07 15:55:45 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:45 -- None
+2014-08-07 15:55:46 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:46 -- None
+2014-08-07 15:55:47 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:47 -- None
+2014-08-07 15:55:49 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:49 -- None
+2014-08-07 15:55:50 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:50 -- None
+2014-08-07 15:55:51 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:51 -- None
+2014-08-07 15:55:52 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:52 -- None
+2014-08-07 15:55:53 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:53 -- None
+2014-08-07 15:55:54 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:54 -- None
+2014-08-07 15:55:55 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:55 -- None
+2014-08-07 15:55:56 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:56 -- None
+2014-08-07 15:55:57 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:57 -- None
+2014-08-07 15:55:58 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:58 -- None
+2014-08-07 15:55:59 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:55:59 -- None
+2014-08-07 15:56:00 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:00 -- None
+2014-08-07 15:56:02 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:02 -- None
+2014-08-07 15:56:03 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:03 -- None
+2014-08-07 15:56:04 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:04 -- None
+2014-08-07 15:56:05 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:05 -- None
+2014-08-07 15:56:06 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:06 -- None
+2014-08-07 15:56:07 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:07 -- None
+2014-08-07 15:56:08 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:08 -- None
+2014-08-07 15:56:09 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:09 -- None
+2014-08-07 15:56:10 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:10 -- None
+2014-08-07 15:56:11 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:11 -- None
+2014-08-07 15:56:12 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:13 -- None
+2014-08-07 15:56:14 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:14 -- None
+2014-08-07 15:56:15 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:15 -- None
+2014-08-07 15:56:16 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:16 -- None
+2014-08-07 15:56:17 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:17 -- None
+2014-08-07 15:56:18 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:18 -- None
+2014-08-07 15:56:19 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:19 -- None
+2014-08-07 15:56:20 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:20 -- None
+2014-08-07 15:56:21 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:21 -- None
+2014-08-07 15:56:22 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:22 -- None
+2014-08-07 15:56:23 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:23 -- None
+2014-08-07 15:56:24 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:24 -- None
+2014-08-07 15:56:26 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:26 -- None
+2014-08-07 15:56:27 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:27 -- None
+2014-08-07 15:56:28 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:28 -- None
+2014-08-07 15:56:29 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:29 -- None
+2014-08-07 15:56:30 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:30 -- None
+2014-08-07 15:56:31 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:31 -- None
+2014-08-07 15:56:32 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:32 -- None
+2014-08-07 15:56:33 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:33 -- None
+2014-08-07 15:56:34 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:34 -- None
+2014-08-07 15:56:35 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:35 -- None
+2014-08-07 15:56:36 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:36 -- None
+2014-08-07 15:56:38 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:38 -- None
+2014-08-07 15:56:39 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:39 -- None
+2014-08-07 15:56:40 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:40 -- None
+2014-08-07 15:56:41 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:41 -- None
+2014-08-07 15:56:42 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:42 -- None
+2014-08-07 15:56:43 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:43 -- None
+2014-08-07 15:56:44 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:44 -- None
+2014-08-07 15:56:45 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:45 -- None
+2014-08-07 15:56:46 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:46 -- None
+2014-08-07 15:56:47 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:47 -- None
+2014-08-07 15:56:48 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:48 -- None
+2014-08-07 15:56:50 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:50 -- None
+2014-08-07 15:56:51 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:51 -- None
+2014-08-07 15:56:52 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:52 -- None
+2014-08-07 15:56:53 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:53 -- None
+2014-08-07 15:56:54 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:54 -- None
+2014-08-07 15:56:55 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:55 -- None
+2014-08-07 15:56:56 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:56 -- None
+2014-08-07 15:56:57 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:57 -- None
+2014-08-07 15:56:58 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:58 -- None
+2014-08-07 15:56:59 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:56:59 -- None
+2014-08-07 15:57:00 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:00 -- None
+2014-08-07 15:57:02 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:02 -- None
+2014-08-07 15:57:03 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:03 -- None
+2014-08-07 15:57:04 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:04 -- None
+2014-08-07 15:57:05 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:05 -- None
+2014-08-07 15:57:06 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:06 -- None
+2014-08-07 15:57:07 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:07 -- None
+2014-08-07 15:57:08 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:08 -- None
+2014-08-07 15:57:09 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:09 -- None
+2014-08-07 15:57:10 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:10 -- None
+2014-08-07 15:57:11 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:11 -- None
+2014-08-07 15:57:12 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:13 -- None
+2014-08-07 15:57:14 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:14 -- None
+2014-08-07 15:57:15 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:15 -- None
+2014-08-07 15:57:16 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:16 -- None
+2014-08-07 15:57:17 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:17 -- None
+2014-08-07 15:57:18 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:18 -- None
+2014-08-07 15:57:19 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:19 -- None
+2014-08-07 15:57:20 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:20 -- None
+2014-08-07 15:57:21 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:21 -- None
+2014-08-07 15:57:22 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:22 -- None
+2014-08-07 15:57:23 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:23 -- None
+2014-08-07 15:57:24 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:24 -- None
+2014-08-07 15:57:26 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:26 -- None
+2014-08-07 15:57:27 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:27 -- None
+2014-08-07 15:57:28 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:28 -- None
+2014-08-07 15:57:29 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:29 -- None
+2014-08-07 15:57:30 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:30 -- None
+2014-08-07 15:57:31 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:31 -- None
+2014-08-07 15:57:32 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:32 -- None
+2014-08-07 15:57:33 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:33 -- None
+2014-08-07 15:57:34 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:34 -- None
+2014-08-07 15:57:35 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:35 -- None
+2014-08-07 15:57:36 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:36 -- None
+2014-08-07 15:57:38 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:38 -- None
+2014-08-07 15:57:39 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:39 -- None
+2014-08-07 15:57:40 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:40 -- None
+2014-08-07 15:57:41 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:41 -- None
+2014-08-07 15:57:42 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:42 -- None
+2014-08-07 15:57:43 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:43 -- None
+2014-08-07 15:57:44 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:44 -- None
+2014-08-07 15:57:45 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:45 -- None
+2014-08-07 15:57:46 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:46 -- None
+2014-08-07 15:57:47 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:47 -- None
+2014-08-07 15:57:48 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:48 -- None
+2014-08-07 15:57:50 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:50 -- None
+2014-08-07 15:57:51 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:51 -- None
+2014-08-07 15:57:52 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:52 -- None
+2014-08-07 15:57:53 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:53 -- None
+2014-08-07 15:57:54 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:54 -- None
+2014-08-07 15:57:55 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:55 -- None
+2014-08-07 15:57:56 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:56 -- None
+2014-08-07 15:57:57 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:57 -- None
+2014-08-07 15:57:58 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:58 -- None
+2014-08-07 15:57:59 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:57:59 -- None
+2014-08-07 15:58:00 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:00 -- None
+2014-08-07 15:58:02 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:02 -- None
+2014-08-07 15:58:03 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:03 -- None
+2014-08-07 15:58:04 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:04 -- None
+2014-08-07 15:58:05 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:05 -- None
+2014-08-07 15:58:06 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:06 -- None
+2014-08-07 15:58:07 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:07 -- None
+2014-08-07 15:58:08 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:08 -- None
+2014-08-07 15:58:09 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:09 -- None
+2014-08-07 15:58:10 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:10 -- None
+2014-08-07 15:58:11 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:11 -- None
+2014-08-07 15:58:12 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:12 -- None
+2014-08-07 15:58:14 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:14 -- None
+2014-08-07 15:58:15 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:15 -- None
+2014-08-07 15:58:16 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:16 -- None
+2014-08-07 15:58:17 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:17 -- None
+2014-08-07 15:58:18 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:18 -- None
+2014-08-07 15:58:19 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:19 -- None
+2014-08-07 15:58:20 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:20 -- None
+2014-08-07 15:58:21 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:21 -- None
+2014-08-07 15:58:22 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:22 -- None
+2014-08-07 15:58:23 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:23 -- None
+2014-08-07 15:58:24 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:24 -- None
+2014-08-07 15:58:26 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:26 -- None
+2014-08-07 15:58:27 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:27 -- None
+2014-08-07 15:58:28 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:28 -- None
+2014-08-07 15:58:29 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:29 -- None
+2014-08-07 15:58:30 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:30 -- None
+2014-08-07 15:58:31 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:31 -- None
+2014-08-07 15:58:32 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:32 -- None
+2014-08-07 15:58:33 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:33 -- None
+2014-08-07 15:58:34 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:34 -- None
+2014-08-07 15:58:35 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:35 -- None
+2014-08-07 15:58:36 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:36 -- None
+2014-08-07 15:58:38 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:38 -- None
+2014-08-07 15:58:39 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:39 -- None
+2014-08-07 15:58:40 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:40 -- None
+2014-08-07 15:58:41 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:41 -- None
+2014-08-07 15:58:42 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:42 -- None
+2014-08-07 15:58:43 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:43 -- None
+2014-08-07 15:58:44 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:44 -- None
+2014-08-07 15:58:45 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:45 -- None
+2014-08-07 15:58:46 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:46 -- None
+2014-08-07 15:58:47 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:47 -- None
+2014-08-07 15:58:48 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:49 -- None
+2014-08-07 15:58:50 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:50 -- None
+2014-08-07 15:58:51 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:51 -- None
+2014-08-07 15:58:52 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:52 -- None
+2014-08-07 15:58:53 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:53 -- None
+2014-08-07 15:58:54 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:54 -- None
+2014-08-07 15:58:55 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:55 -- None
+2014-08-07 15:58:56 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:56 -- None
+2014-08-07 15:58:57 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:57 -- None
+2014-08-07 15:58:58 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:58 -- None
+2014-08-07 15:58:59 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:58:59 -- None
+2014-08-07 15:59:00 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:00 -- None
+2014-08-07 15:59:02 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:02 -- None
+2014-08-07 15:59:03 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:03 -- None
+2014-08-07 15:59:04 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:04 -- None
+2014-08-07 15:59:05 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:05 -- None
+2014-08-07 15:59:06 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:06 -- None
+2014-08-07 15:59:07 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:07 -- None
+2014-08-07 15:59:08 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:08 -- None
+2014-08-07 15:59:09 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:09 -- None
+2014-08-07 15:59:10 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:10 -- None
+2014-08-07 15:59:11 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:11 -- None
+2014-08-07 15:59:12 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:12 -- None
+2014-08-07 15:59:14 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:14 -- None
+2014-08-07 15:59:15 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:15 -- None
+2014-08-07 15:59:16 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:16 -- None
+2014-08-07 15:59:17 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:17 -- None
+2014-08-07 15:59:18 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:18 -- None
+2014-08-07 15:59:19 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:19 -- None
+2014-08-07 15:59:20 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:20 -- None
+2014-08-07 15:59:21 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:21 -- None
+2014-08-07 15:59:22 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:22 -- None
+2014-08-07 15:59:23 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:23 -- None
+2014-08-07 15:59:24 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:24 -- None
+2014-08-07 15:59:26 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:26 -- None
+2014-08-07 15:59:27 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:27 -- None
+2014-08-07 15:59:28 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:28 -- None
+2014-08-07 15:59:29 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:29 -- None
+2014-08-07 15:59:30 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:30 -- None
+2014-08-07 15:59:31 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:31 -- None
+2014-08-07 15:59:32 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:32 -- None
+2014-08-07 15:59:33 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:33 -- None
+2014-08-07 15:59:34 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:34 -- None
+2014-08-07 15:59:35 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:35 -- None
+2014-08-07 15:59:36 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:36 -- None
+2014-08-07 15:59:38 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:38 -- None
+2014-08-07 15:59:39 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:39 -- None
+2014-08-07 15:59:40 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:40 -- None
+2014-08-07 15:59:41 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:41 -- None
+2014-08-07 15:59:42 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:42 -- None
+2014-08-07 15:59:43 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:43 -- None
+2014-08-07 15:59:44 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:44 -- None
+2014-08-07 15:59:45 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:45 -- None
+2014-08-07 15:59:46 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:46 -- None
+2014-08-07 15:59:47 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:47 -- None
+2014-08-07 15:59:48 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:48 -- None
+2014-08-07 15:59:50 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:50 -- None
+2014-08-07 15:59:51 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:51 -- None
+2014-08-07 15:59:52 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:52 -- None
+2014-08-07 15:59:53 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:53 -- None
+2014-08-07 15:59:54 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:54 -- None
+2014-08-07 15:59:55 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:55 -- None
+2014-08-07 15:59:56 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:56 -- None
+2014-08-07 15:59:57 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:57 -- None
+2014-08-07 15:59:58 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:58 -- None
+2014-08-07 15:59:59 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 15:59:59 -- None
+2014-08-07 16:00:00 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:00 -- None
+2014-08-07 16:00:02 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:02 -- None
+2014-08-07 16:00:03 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:03 -- None
+2014-08-07 16:00:04 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:04 -- None
+2014-08-07 16:00:05 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:05 -- None
+2014-08-07 16:00:06 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:06 -- None
+2014-08-07 16:00:07 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:07 -- None
+2014-08-07 16:00:08 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:08 -- None
+2014-08-07 16:00:09 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:09 -- None
+2014-08-07 16:00:10 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:10 -- None
+2014-08-07 16:00:11 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:11 -- None
+2014-08-07 16:00:12 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:12 -- None
+2014-08-07 16:00:14 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:14 -- None
+2014-08-07 16:00:15 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:15 -- None
+2014-08-07 16:00:16 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:16 -- None
+2014-08-07 16:00:17 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:17 -- None
+2014-08-07 16:00:18 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:18 -- None
+2014-08-07 16:00:19 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:19 -- None
+2014-08-07 16:00:20 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:20 -- None
+2014-08-07 16:00:21 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:21 -- None
+2014-08-07 16:00:22 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:22 -- None
+2014-08-07 16:00:23 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:23 -- None
+2014-08-07 16:00:24 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:24 -- None
+2014-08-07 16:00:26 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:26 -- None
+2014-08-07 16:00:27 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:27 -- None
+2014-08-07 16:00:28 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:28 -- None
+2014-08-07 16:00:29 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:29 -- None
+2014-08-07 16:00:30 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:30 -- None
+2014-08-07 16:00:31 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:31 -- None
+2014-08-07 16:00:32 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:32 -- None
+2014-08-07 16:00:33 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:33 -- None
+2014-08-07 16:00:34 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:34 -- None
+2014-08-07 16:00:35 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:35 -- None
+2014-08-07 16:00:36 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:36 -- None
+2014-08-07 16:00:38 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:38 -- None
+2014-08-07 16:00:39 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:39 -- None
+2014-08-07 16:00:40 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:40 -- None
+2014-08-07 16:00:41 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:41 -- None
+2014-08-07 16:00:42 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:42 -- None
+2014-08-07 16:00:43 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:43 -- None
+2014-08-07 16:00:44 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:44 -- None
+2014-08-07 16:00:45 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:45 -- None
+2014-08-07 16:00:46 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:46 -- None
+2014-08-07 16:00:47 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:47 -- None
+2014-08-07 16:00:48 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:48 -- None
+2014-08-07 16:00:50 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:50 -- None
+2014-08-07 16:00:51 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:51 -- None
+2014-08-07 16:00:52 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:52 -- None
+2014-08-07 16:00:53 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:53 -- None
+2014-08-07 16:00:56 -- Set ruoxCoefsHigh to (-0.31994119999999998, 5.74884e-08, -8.8408999999999999e-11)
+2014-08-07 16:00:56 -- Set ruoxCoefsLow to (-0.77127000000000001, 0.00010068000000000001, -1.072e-09)
+2014-08-07 16:00:56 -- Set highTempRuoxCurve to <function <lambda> at 0x032136B0>
+2014-08-07 16:00:56 -- Set lowTempRuoxCurve to <function <lambda> at 0x03213370>
+2014-08-07 16:00:56 -- Set voltToResCalibs to (Value(0.26000000000000001, 'V/Ohm'), Value(26.030000000000001, 'V/Ohm'), Value(37.5, 'V/Ohm'), Value(30.0, 'V/Ohm'), Value(10.0, 'V/Ohm'), Value(26.530000000000001, 'V/Ohm'))
+2014-08-07 16:00:56 -- Set resistanceCutoff to 1725.78
+2014-08-07 16:00:56 -- Set ruoxChannel to 3
+2014-08-07 16:00:56 -- Set PIDintLimit to 0.4
+2014-08-07 16:00:56 -- Set voltageStepUp to 0.004
+2014-08-07 16:00:56 -- Set ruoxInterpolation to <scipy.interpolate.fitpack2.InterpolatedUnivariateSpline object at 0x033798F0>
+2014-08-07 16:00:56 -- Set useRuoxInterpolation to True
+2014-08-07 16:00:56 -- Set loglimit to 20
+2014-08-07 16:00:56 -- Set autoRecord to True
+2014-08-07 16:00:56 -- Set recordingTemp to 250.0 K
+2014-08-07 16:00:56 -- Set cooldownLimit to 3.9 K
+2014-08-07 16:00:56 -- Set switchPosition to 5
+2014-08-07 16:00:56 -- Set quenchLimit to 4.0
+2014-08-07 16:00:56 -- Set PIDsetTemp to 0.1
+2014-08-07 16:00:56 -- Set PIDcd to 25
+2014-08-07 16:00:56 -- Set PIDstepTimeout to 5
+2014-08-07 16:00:56 -- Set autoControl to False
+2014-08-07 16:00:56 -- Set fieldWaitTime to 45
+2014-08-07 16:00:56 -- Set targetCurrent to 8.0
+2014-08-07 16:00:56 -- Set rampWaitTime to 0.2
+2014-08-07 16:00:56 -- Set PIDci to 0.4
+2014-08-07 16:00:56 -- Set PIDcp to 1.0
+2014-08-07 16:00:56 -- Set recordTemp to False
+2014-08-07 16:00:56 -- Set voltageLimit to 0.14
+2014-08-07 16:00:56 -- Set lockinCurrent to 1.0 nA
+2014-08-07 16:00:56 -- Set maxCurrent to 9.0
+2014-08-07 16:00:57 -- Set tempRecordDelay to 10
+2014-08-07 16:00:57 -- Set voltageStepDown to 0.004
+2014-08-07 16:00:57 -- Initialization completed. Beginning cycle.
+2014-08-07 16:00:57 -- cycled
+2014-08-07 16:00:57 -- Set alive to True
+2014-08-07 16:00:57 -- Now cycling.
+2014-08-07 16:00:57 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:57 -- None
+2014-08-07 16:00:58 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:58 -- None
+2014-08-07 16:00:59 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:00:59 -- None
+2014-08-07 16:01:00 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:00 -- None
+2014-08-07 16:01:01 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:01 -- None
+2014-08-07 16:01:02 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:02 -- None
+2014-08-07 16:01:03 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:03 -- None
+2014-08-07 16:01:04 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:04 -- None
+2014-08-07 16:01:05 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:05 -- None
+2014-08-07 16:01:07 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:07 -- None
+2014-08-07 16:01:08 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:08 -- None
+2014-08-07 16:01:09 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:09 -- None
+2014-08-07 16:01:10 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:10 -- None
+2014-08-07 16:01:11 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:11 -- None
+2014-08-07 16:01:12 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:12 -- None
+2014-08-07 16:01:13 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:13 -- None
+2014-08-07 16:01:14 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:14 -- None
+2014-08-07 16:01:15 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:15 -- None
+2014-08-07 16:01:16 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:16 -- None
+2014-08-07 16:01:17 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:18 -- None
+2014-08-07 16:01:19 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:19 -- None
+2014-08-07 16:01:20 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:20 -- None
+2014-08-07 16:01:21 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:21 -- None
+2014-08-07 16:01:22 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:22 -- None
+2014-08-07 16:01:23 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:23 -- None
+2014-08-07 16:01:24 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:24 -- None
+2014-08-07 16:01:25 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:25 -- None
+2014-08-07 16:01:26 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:26 -- None
+2014-08-07 16:01:27 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:27 -- None
+2014-08-07 16:01:28 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:28 -- None
+2014-08-07 16:01:30 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:30 -- None
+2014-08-07 16:01:31 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:31 -- None
+2014-08-07 16:01:32 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:32 -- None
+2014-08-07 16:01:33 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:33 -- None
+2014-08-07 16:01:34 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:34 -- None
+2014-08-07 16:01:35 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:35 -- None
+2014-08-07 16:01:36 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:36 -- None
+2014-08-07 16:01:37 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:37 -- None
+2014-08-07 16:01:38 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:38 -- None
+2014-08-07 16:01:39 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:39 -- None
+2014-08-07 16:01:40 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:40 -- None
+2014-08-07 16:01:42 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:42 -- None
+2014-08-07 16:01:43 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:43 -- None
+2014-08-07 16:01:44 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:44 -- None
+2014-08-07 16:01:45 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:45 -- None
+2014-08-07 16:01:46 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:46 -- None
+2014-08-07 16:01:47 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:47 -- None
+2014-08-07 16:01:48 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:48 -- None
+2014-08-07 16:01:49 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:49 -- None
+2014-08-07 16:01:50 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:50 -- None
+2014-08-07 16:01:51 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:51 -- None
+2014-08-07 16:01:53 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:53 -- None
+2014-08-07 16:01:54 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:54 -- None
+2014-08-07 16:01:55 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:55 -- None
+2014-08-07 16:01:56 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:56 -- None
+2014-08-07 16:01:57 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:57 -- None
+2014-08-07 16:01:58 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:58 -- None
+2014-08-07 16:01:59 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:01:59 -- None
+2014-08-07 16:02:00 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:00 -- None
+2014-08-07 16:02:01 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:01 -- None
+2014-08-07 16:02:02 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:02 -- None
+2014-08-07 16:02:03 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:03 -- None
+2014-08-07 16:02:05 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:05 -- None
+2014-08-07 16:02:06 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:06 -- None
+2014-08-07 16:02:07 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:07 -- None
+2014-08-07 16:02:08 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:08 -- None
+2014-08-07 16:02:09 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:09 -- None
+2014-08-07 16:02:10 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:10 -- None
+2014-08-07 16:02:11 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:11 -- None
+2014-08-07 16:02:12 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:12 -- None
+2014-08-07 16:02:13 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:13 -- None
+2014-08-07 16:02:14 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:14 -- None
+2014-08-07 16:02:16 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:16 -- None
+2014-08-07 16:02:17 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:17 -- None
+2014-08-07 16:02:18 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:18 -- None
+2014-08-07 16:02:19 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:19 -- None
+2014-08-07 16:02:20 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:20 -- None
+2014-08-07 16:02:21 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:21 -- None
+2014-08-07 16:02:22 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:22 -- None
+2014-08-07 16:02:23 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:23 -- None
+2014-08-07 16:02:24 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:24 -- None
+2014-08-07 16:02:25 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:25 -- None
+2014-08-07 16:02:26 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:26 -- None
+2014-08-07 16:02:28 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:28 -- None
+2014-08-07 16:02:29 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:29 -- None
+2014-08-07 16:02:30 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:30 -- None
+2014-08-07 16:02:31 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:31 -- None
+2014-08-07 16:02:32 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:32 -- None
+2014-08-07 16:02:33 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:33 -- None
+2014-08-07 16:02:34 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:34 -- None
+2014-08-07 16:02:35 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:35 -- None
+2014-08-07 16:02:36 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:36 -- None
+2014-08-07 16:02:37 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:37 -- None
+2014-08-07 16:02:38 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:38 -- None
+2014-08-07 16:02:40 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:40 -- None
+2014-08-07 16:02:41 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:41 -- None
+2014-08-07 16:02:42 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:42 -- None
+2014-08-07 16:02:43 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:43 -- None
+2014-08-07 16:02:44 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:44 -- None
+2014-08-07 16:02:45 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:45 -- None
+2014-08-07 16:02:46 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:46 -- None
+2014-08-07 16:02:47 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:47 -- None
+2014-08-07 16:02:48 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:48 -- None
+2014-08-07 16:02:49 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:49 -- None
+2014-08-07 16:02:50 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:50 -- None
+2014-08-07 16:02:52 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:52 -- None
+2014-08-07 16:02:53 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:53 -- None
+2014-08-07 16:02:54 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:54 -- None
+2014-08-07 16:02:55 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:55 -- None
+2014-08-07 16:02:56 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:56 -- None
+2014-08-07 16:02:57 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:57 -- None
+2014-08-07 16:02:58 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:58 -- None
+2014-08-07 16:02:59 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:02:59 -- None
+2014-08-07 16:03:00 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:03:00 -- None
+2014-08-07 16:03:01 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:03:01 -- None
+2014-08-07 16:03:03 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:03:03 -- None
+2014-08-07 16:03:04 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:03:04 -- None
+2014-08-07 16:03:05 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:03:05 -- None
+2014-08-07 16:03:06 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:03:06 -- None
+2014-08-07 16:03:07 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:03:07 -- None
+2014-08-07 16:03:08 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:03:08 -- None
+2014-08-07 16:03:09 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:03:09 -- None
+2014-08-07 16:03:10 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:03:10 -- None
+2014-08-07 16:03:11 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:03:11 -- None
+2014-08-07 16:03:12 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:03:12 -- None
+2014-08-07 16:03:13 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:03:13 -- None
+2014-08-07 16:03:15 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:03:15 -- None
+2014-08-07 16:03:16 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:03:16 -- None
+2014-08-07 16:03:17 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:03:17 -- None
+2014-08-07 16:03:18 -- Exception in cycle loop: (12345) Could not flatten 0.081992300000000004 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:03:18 -- None
+2014-08-07 16:03:19 -- Exception in cycle loop: (12345) Could not flatten 0.079801300000000006 to v[V].
+Setting ID 10002. [payload=None]
+2014-08-07 16:03:19 -- None
+2014-08-07 16:03:20 -- Set recordTemp to True
+2014-08-07 16:03:20 -- Set tempDatasetName to ADR Log - 2014-08-07 16:03
+2014-08-07 16:03:21 -- ADR victor status is now: ready
+2014-08-07 16:03:21 -- Set PIDloopCount to 0
+2014-08-07 16:03:21 -- Exception in cycle loop: (0) [Agilent 6641A PS] Remote Traceback (most recent call last):
+  File "C:\pylabrad\labrad\server.py", line 262, in handleRequest
+    result = yield setting.handleRequest(self, c.data, data)
+  File "C:\Python26\lib\site-packages\twisted\internet\defer.py", line 746, in _inlineCallbacks
+    result = g.send(result)
+  File "C:\servers\agilent_6641A.py", line 69, in voltage
+    v = float(resp)*units.V
+exceptions.NameError: global name 'units' is not defined
+ [payload=None]
+2014-08-07 16:03:21 -- None
+2014-08-07 16:03:22 -- Exception in cycle loop: (0) [Agilent 6641A PS] Remote Traceback (most recent call last):
+  File "C:\pylabrad\labrad\server.py", line 262, in handleRequest
+    result = yield setting.handleRequest(self, c.data, data)
+  File "C:\Python26\lib\site-packages\twisted\internet\defer.py", line 746, in _inlineCallbacks
+    result = g.send(result)
+  File "C:\servers\agilent_6641A.py", line 69, in voltage
+    v = float(resp)*units.V
+exceptions.NameError: global name 'units' is not defined
+ [payload=None]
+2014-08-07 16:03:22 -- None
+2014-08-07 16:03:23 -- Exception in cycle loop: (0) [Agilent 6641A PS] Remote Traceback (most recent call last):
+  File "C:\pylabrad\labrad\server.py", line 262, in handleRequest
+    result = yield setting.handleRequest(self, c.data, data)
+  File "C:\Python26\lib\site-packages\twisted\internet\defer.py", line 746, in _inlineCallbacks
+    result = g.send(result)
+  File "C:\servers\agilent_6641A.py", line 69, in voltage
+    v = float(resp)*units.V
+exceptions.NameError: global name 'units' is not defined
+ [payload=None]
+2014-08-07 16:03:23 -- None
+2014-08-07 16:03:24 -- Exception in cycle loop: (0) [Agilent 6641A PS] Remote Traceback (most recent call last):
+  File "C:\pylabrad\labrad\server.py", line 262, in handleRequest
+    result = yield setting.handleRequest(self, c.data, data)
+  File "C:\Python26\lib\site-packages\twisted\internet\defer.py", line 746, in _inlineCallbacks
+    result = g.send(result)
+  File "C:\servers\agilent_6641A.py", line 69, in voltage
+    v = float(resp)*units.V
+exceptions.NameError: global name 'units' is not defined
+ [payload=None]
+2014-08-07 16:03:24 -- None
+2014-08-07 16:03:25 -- Exception in cycle loop: (0) [Agilent 6641A PS] Remote Traceback (most recent call last):
+  File "C:\pylabrad\labrad\server.py", line 262, in handleRequest
+    result = yield setting.handleRequest(self, c.data, data)
+  File "C:\Python26\lib\site-packages\twisted\internet\defer.py", line 746, in _inlineCallbacks
+    result = g.send(result)
+  File "C:\servers\agilent_6641A.py", line 69, in voltage
+    v = float(resp)*units.V
+exceptions.NameError: global name 'units' is not defined
+ [payload=None]
+2014-08-07 16:03:25 -- None
+2014-08-07 16:03:26 -- Exception in cycle loop: (0) [Agilent 6641A PS] Remote Traceback (most recent call last):
+  File "C:\pylabrad\labrad\server.py", line 262, in handleRequest
+    result = yield setting.handleRequest(self, c.data, data)
+  File "C:\Python26\lib\site-packages\twisted\internet\defer.py", line 746, in _inlineCallbacks
+    result = g.send(result)
+  File "C:\servers\agilent_6641A.py", line 69, in voltage
+    v = float(resp)*units.V
+exceptions.NameError: global name 'units' is not defined
+ [payload=None]
+2014-08-07 16:03:26 -- None
+2014-08-07 16:03:27 -- Exception in cycle loop: (0) [Agilent 6641A PS] Remote Traceback (most recent call last):
+  File "C:\pylabrad\labrad\server.py", line 262, in handleRequest
+    result = yield setting.handleRequest(self, c.data, data)
+  File "C:\Python26\lib\site-packages\twisted\internet\defer.py", line 746, in _inlineCallbacks
+    result = g.send(result)
+  File "C:\servers\agilent_6641A.py", line 69, in voltage
+    v = float(resp)*units.V
+exceptions.NameError: global name 'units' is not defined
+ [payload=None]
+2014-08-07 16:03:27 -- None
+2014-08-07 16:03:28 -- Exception in cycle loop: (0) [Agilent 6641A PS] Remote Traceback (most recent call last):
+  File "C:\pylabrad\labrad\server.py", line 262, in handleRequest
+    result = yield setting.handleRequest(self, c.data, data)
+  File "C:\Python26\lib\site-packages\twisted\internet\defer.py", line 746, in _inlineCallbacks
+    result = g.send(result)
+  File "C:\servers\agilent_6641A.py", line 69, in voltage
+    v = float(resp)*units.V
+exceptions.NameError: global name 'units' is not defined
+ [payload=None]
+2014-08-07 16:03:28 -- None
+2014-08-07 16:03:30 -- Exception in cycle loop: (0) [Agilent 6641A PS] Remote Traceback (most recent call last):
+  File "C:\pylabrad\labrad\server.py", line 262, in handleRequest
+    result = yield setting.handleRequest(self, c.data, data)
+  File "C:\Python26\lib\site-packages\twisted\internet\defer.py", line 746, in _inlineCallbacks
+    result = g.send(result)
+  File "C:\servers\agilent_6641A.py", line 69, in voltage
+    v = float(resp)*units.V
+exceptions.NameError: global name 'units' is not defined
+ [payload=None]
+2014-08-07 16:03:30 -- None
+2014-08-07 16:03:31 -- Exception in cycle loop: (0) [Agilent 6641A PS] Remote Traceback (most recent call last):
+  File "C:\pylabrad\labrad\server.py", line 262, in handleRequest
+    result = yield setting.handleRequest(self, c.data, data)
+  File "C:\Python26\lib\site-packages\twisted\internet\defer.py", line 746, in _inlineCallbacks
+    result = g.send(result)
+  File "C:\servers\agilent_6641A.py", line 69, in voltage
+    v = float(resp)*units.V
+exceptions.NameError: global name 'units' is not defined
+ [payload=None]
+2014-08-07 16:03:31 -- None
+2014-08-07 16:03:32 -- Exception in cycle loop: (0) [Agilent 6641A PS] Remote Traceback (most recent call last):
+  File "C:\pylabrad\labrad\server.py", line 262, in handleRequest
+    result = yield setting.handleRequest(self, c.data, data)
+  File "C:\Python26\lib\site-packages\twisted\internet\defer.py", line 746, in _inlineCallbacks
+    result = g.send(result)
+  File "C:\servers\agilent_6641A.py", line 69, in voltage
+    v = float(resp)*units.V
+exceptions.NameError: global name 'units' is not defined
+ [payload=None]
+2014-08-07 16:03:32 -- None
+2014-08-07 16:03:33 -- Exception in cycle loop: (0) [Agilent 6641A PS] Remote Traceback (most recent call last):
+  File "C:\pylabrad\labrad\server.py", line 262, in handleRequest
+    result = yield setting.handleRequest(self, c.data, data)
+  File "C:\Python26\lib\site-packages\twisted\internet\defer.py", line 746, in _inlineCallbacks
+    result = g.send(result)
+  File "C:\servers\agilent_6641A.py", line 69, in voltage
+    v = float(resp)*units.V
+exceptions.NameError: global name 'units' is not defined
+ [payload=None]
+2014-08-07 16:03:33 -- None
+2014-08-07 16:03:34 -- Exception in cycle loop: (0) [Agilent 6641A PS] Remote Traceback (most recent call last):
+  File "C:\pylabrad\labrad\server.py", line 262, in handleRequest
+    result = yield setting.handleRequest(self, c.data, data)
+  File "C:\Python26\lib\site-packages\twisted\internet\defer.py", line 746, in _inlineCallbacks
+    result = g.send(result)
+  File "C:\servers\agilent_6641A.py", line 69, in voltage
+    v = float(resp)*units.V
+exceptions.NameError: global name 'units' is not defined
+ [payload=None]
+2014-08-07 16:03:34 -- None
+2014-08-07 16:03:35 -- Exception in cycle loop: (0) [Agilent 6641A PS] Remote Traceback (most recent call last):
+  File "C:\pylabrad\labrad\server.py", line 262, in handleRequest
+    result = yield setting.handleRequest(self, c.data, data)
+  File "C:\Python26\lib\site-packages\twisted\internet\defer.py", line 746, in _inlineCallbacks
+    result = g.send(result)
+  File "C:\servers\agilent_6641A.py", line 69, in voltage
+    v = float(resp)*units.V
+exceptions.NameError: global name 'units' is not defined
+ [payload=None]
+2014-08-07 16:03:35 -- None
+2014-08-07 16:07:46 -- Set ruoxCoefsHigh to (-0.31994119999999998, 5.74884e-08, -8.8408999999999999e-11)
+2014-08-07 16:07:46 -- Set ruoxCoefsLow to (-0.77127000000000001, 0.00010068000000000001, -1.072e-09)
+2014-08-07 16:07:46 -- Set highTempRuoxCurve to <function <lambda> at 0x033C26B0>
+2014-08-07 16:07:46 -- Set lowTempRuoxCurve to <function <lambda> at 0x033C2370>
+2014-08-07 16:07:46 -- Set voltToResCalibs to (Value(0.26000000000000001, 'V/Ohm'), Value(26.030000000000001, 'V/Ohm'), Value(37.5, 'V/Ohm'), Value(30.0, 'V/Ohm'), Value(10.0, 'V/Ohm'), Value(26.530000000000001, 'V/Ohm'))
+2014-08-07 16:07:46 -- Set resistanceCutoff to 1725.78
+2014-08-07 16:07:46 -- Set ruoxChannel to 3
+2014-08-07 16:07:46 -- Set PIDintLimit to 0.4
+2014-08-07 16:07:46 -- Set voltageStepUp to 0.004
+2014-08-07 16:07:46 -- Set loglimit to 20
+2014-08-07 16:07:46 -- Set ruoxInterpolation to <scipy.interpolate.fitpack2.InterpolatedUnivariateSpline object at 0x035289D0>
+2014-08-07 16:07:46 -- Set useRuoxInterpolation to True
+2014-08-07 16:07:46 -- Set autoRecord to True
+2014-08-07 16:07:46 -- Set recordingTemp to 250.0 K
+2014-08-07 16:07:46 -- Set cooldownLimit to 3.9 K
+2014-08-07 16:07:46 -- Set switchPosition to 5
+2014-08-07 16:07:46 -- Set quenchLimit to 4.0
+2014-08-07 16:07:46 -- Set PIDsetTemp to 0.1
+2014-08-07 16:07:46 -- Set PIDcd to 25
+2014-08-07 16:07:46 -- Set PIDstepTimeout to 5
+2014-08-07 16:07:46 -- Set autoControl to False
+2014-08-07 16:07:46 -- Set fieldWaitTime to 45
+2014-08-07 16:07:46 -- Set targetCurrent to 8.0
+2014-08-07 16:07:46 -- Set rampWaitTime to 0.2
+2014-08-07 16:07:46 -- Set PIDci to 0.4
+2014-08-07 16:07:46 -- Set PIDcp to 1.0
+2014-08-07 16:07:46 -- Set recordTemp to False
+2014-08-07 16:07:46 -- Set voltageLimit to 0.14
+2014-08-07 16:07:46 -- Set lockinCurrent to 1.0 nA
+2014-08-07 16:07:47 -- Set maxCurrent to 9.0
+2014-08-07 16:07:47 -- Set tempRecordDelay to 10
+2014-08-07 16:07:47 -- Set voltageStepDown to 0.004
+2014-08-07 16:07:47 -- Initialization completed. Beginning cycle.
+2014-08-07 16:07:47 -- cycled
+2014-08-07 16:07:47 -- Set alive to True
+2014-08-07 16:07:47 -- Now cycling.
+2014-08-07 16:07:47 -- Set recordTemp to True
+2014-08-07 16:07:47 -- Set tempDatasetName to ADR Log - 2014-08-07 16:07
+2014-08-07 16:07:48 -- ADR victor status is now: ready
+2014-08-07 16:07:48 -- Set PIDloopCount to 0
+2014-08-07 16:08:29 -- Set ruoxCoefsHigh to (-0.31994119999999998, 5.74884e-08, -8.8408999999999999e-11)
+2014-08-07 16:08:29 -- Set ruoxCoefsLow to (-0.77127000000000001, 0.00010068000000000001, -1.072e-09)
+2014-08-07 16:08:29 -- Set highTempRuoxCurve to <function <lambda> at 0x034BBAB0>
+2014-08-07 16:08:29 -- Set lowTempRuoxCurve to <function <lambda> at 0x034BB6B0>
+2014-08-07 16:08:29 -- Set voltToResCalibs to (Value(0.26000000000000001, 'V/Ohm'), Value(26.030000000000001, 'V/Ohm'), Value(37.5, 'V/Ohm'), Value(30.0, 'V/Ohm'), Value(10.0, 'V/Ohm'), Value(26.530000000000001, 'V/Ohm'))
+2014-08-07 16:08:29 -- Set resistanceCutoff to 1725.78
+2014-08-07 16:08:29 -- Set ruoxChannel to 3
+2014-08-07 16:08:29 -- Set PIDintLimit to 0.4
+2014-08-07 16:08:29 -- Set voltageStepUp to 0.004
+2014-08-07 16:08:29 -- Set ruoxInterpolation to <scipy.interpolate.fitpack2.InterpolatedUnivariateSpline object at 0x035D64D0>
+2014-08-07 16:08:29 -- Set useRuoxInterpolation to True
+2014-08-07 16:08:29 -- Set loglimit to 20
+2014-08-07 16:08:29 -- Set autoRecord to True
+2014-08-07 16:08:29 -- Set recordingTemp to 250.0 K
+2014-08-07 16:08:29 -- Set cooldownLimit to 3.9 K
+2014-08-07 16:08:29 -- Set switchPosition to 5
+2014-08-07 16:08:29 -- Set quenchLimit to 4.0
+2014-08-07 16:08:29 -- Set PIDsetTemp to 0.1
+2014-08-07 16:08:29 -- Set PIDcd to 25
+2014-08-07 16:08:29 -- Set PIDstepTimeout to 5
+2014-08-07 16:08:29 -- Set autoControl to False
+2014-08-07 16:08:29 -- Set fieldWaitTime to 45
+2014-08-07 16:08:29 -- Set targetCurrent to 8.0
+2014-08-07 16:08:29 -- Set rampWaitTime to 0.2
+2014-08-07 16:08:29 -- Set PIDci to 0.4
+2014-08-07 16:08:29 -- Set PIDcp to 1.0
+2014-08-07 16:08:29 -- Set recordTemp to False
+2014-08-07 16:08:29 -- Set voltageLimit to 0.14
+2014-08-07 16:08:29 -- Set lockinCurrent to 1.0 nA
+2014-08-07 16:08:29 -- Set maxCurrent to 9.0
+2014-08-07 16:08:29 -- Set tempRecordDelay to 10
+2014-08-07 16:08:29 -- Set voltageStepDown to 0.004
+2014-08-07 16:08:29 -- Initialization completed. Beginning cycle.
+2014-08-07 16:08:29 -- cycled
+2014-08-07 16:08:29 -- Set alive to True
+2014-08-07 16:08:29 -- Now cycling.
+2014-08-07 16:08:29 -- Set recordTemp to True
+2014-08-07 16:08:29 -- Set tempDatasetName to ADR Log - 2014-08-07 16:08
+2014-08-07 16:08:30 -- ADR victor status is now: ready
+2014-08-07 16:08:30 -- Set PIDloopCount to 0
+2014-08-07 16:18:10 -- Set schedulingActive to False
+2014-08-07 16:18:10 -- ADR victor status is now: magging down
+2014-08-07 16:18:10 -- Set PIDloopCount to 0
+2014-08-07 16:18:10 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:10 -- None
+2014-08-07 16:18:11 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:11 -- None
+2014-08-07 16:18:12 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:12 -- None
+2014-08-07 16:18:13 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:13 -- None
+2014-08-07 16:18:15 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:15 -- None
+2014-08-07 16:18:16 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:16 -- None
+2014-08-07 16:18:17 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:17 -- None
+2014-08-07 16:18:18 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:18 -- None
+2014-08-07 16:18:19 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:19 -- None
+2014-08-07 16:18:20 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:20 -- None
+2014-08-07 16:18:21 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:21 -- None
+2014-08-07 16:18:22 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:22 -- None
+2014-08-07 16:18:23 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:23 -- None
+2014-08-07 16:18:25 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:25 -- None
+2014-08-07 16:18:26 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:26 -- None
+2014-08-07 16:18:27 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:27 -- None
+2014-08-07 16:18:28 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:28 -- None
+2014-08-07 16:18:29 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:29 -- None
+2014-08-07 16:18:30 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:30 -- None
+2014-08-07 16:18:31 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:31 -- None
+2014-08-07 16:18:32 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:32 -- None
+2014-08-07 16:18:33 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:33 -- None
+2014-08-07 16:18:34 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:34 -- None
+2014-08-07 16:18:36 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:36 -- None
+2014-08-07 16:18:37 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:37 -- None
+2014-08-07 16:18:38 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:38 -- None
+2014-08-07 16:18:39 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:39 -- None
+2014-08-07 16:18:40 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:40 -- None
+2014-08-07 16:18:41 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:41 -- None
+2014-08-07 16:18:42 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:42 -- None
+2014-08-07 16:18:43 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:43 -- None
+2014-08-07 16:18:44 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:44 -- None
+2014-08-07 16:18:46 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:46 -- None
+2014-08-07 16:18:47 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:47 -- None
+2014-08-07 16:18:48 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:48 -- None
+2014-08-07 16:18:49 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:49 -- None
+2014-08-07 16:18:50 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:50 -- None
+2014-08-07 16:18:51 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:51 -- None
+2014-08-07 16:18:52 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:52 -- None
+2014-08-07 16:18:53 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:53 -- None
+2014-08-07 16:18:55 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:55 -- None
+2014-08-07 16:18:56 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:56 -- None
+2014-08-07 16:18:57 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:57 -- None
+2014-08-07 16:18:58 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:58 -- None
+2014-08-07 16:18:59 -- Exception in cycle loop: Incompatible Units K, ''
+2014-08-07 16:18:59 -- None
