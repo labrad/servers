@@ -64,7 +64,7 @@ class AnritsuWrapper(GPIBDeviceWrapper):
     @inlineCallbacks
     def setAmplitude(self, a):
         if self.amplitude != a:
-            yield self.write('L1 %fDM' % a)
+            yield self.write('L1 %fDM' % a['dBm'])
             self.amplitude = a
 
     @inlineCallbacks
