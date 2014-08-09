@@ -51,7 +51,7 @@ import time, exceptions, labrad.util, labrad.units
 #Registry path to ADR configurations
 CONFIG_PATH = ['','Servers','ADR']
 # 18 Amps is the max, ladies and gentlemen
-PS_MAX_CURRENT = 18.8
+PS_MAX_CURRENT = 18.8*Unit('A')
 # if HANDSOFF, don't actually do anything
 HANDSOFF = False
 
@@ -89,15 +89,15 @@ class ADRWrapper(DeviceWrapper):
         # many of these will get overwritten with defaults from the registry.
         self.stateVars= {	# FROM THE REGISTRY
                             # magging variables
-                            'quenchLimit': 4.0,			    # K -- if we get above this temp when magging we are considered to have quenched
+                            'quenchLimit': 4.0*Unit('K'),			    # K -- if we get above this temp when magging we are considered to have quenched
                             'cooldownLimit': 3.9*Unit('K'), # K -- below this temp we are ready to rock and roll
-                            'rampWaitTime': 0.2,		    # s -- min waiting time between voltage ramps (mag steps) during a mag
-                            'voltageStepUp': 0.004, 	    # V -- voltage ramp amount during mag up
-                            'voltageStepDown': 0.004,	    # V -- ... during mag down
-                            'voltageLimit': 0.28,		    # V -- don't do a mag step when mag diode voltages are > this
-                            'targetCurrent': 8,			    # A -- stop magging when we hit this current (will continue to drift up)
-                            'maxCurrent': 9,			    # A -- hard limit the power supply to this current
-                            'fieldWaitTime': 45,		    # min -- how long to wait at field before magging down (when autocontrolled)
+                            'rampWaitTime': 0.2*Unit('s'),		    # s -- min waiting time between voltage ramps (mag steps) during a mag
+                            'voltageStepUp': 0.004*Unit('V'), 	    # V -- voltage ramp amount during mag up
+                            'voltageStepDown': 0.004*Unit('V'),	    # V -- ... during mag down
+                            'voltageLimit': 0.28*Unit('V'),		    # V -- don't do a mag step when mag diode voltages are > this
+                            'targetCurrent': 8*Unit('A'),			    # A -- stop magging when we hit this current (will continue to drift up)
+                            'maxCurrent': 9*Unit('A'),			    # A -- hard limit the power supply to this current
+                            'fieldWaitTime': 45*Unit('min'),		    # min -- how long to wait at field before magging down (when autocontrolled)
                             'autoControl': False,		    # whether to auto control the heat switch
                             'switchPosition': 2,		    # switch position on the lock in amplifier box
                             'lockinCurrent': 1*Unit('nA'),  # current being put through Ruox (for use with lockin)
@@ -108,13 +108,13 @@ class ADRWrapper(DeviceWrapper):
                             'PIDcp': 2.0 * labrad.units.V / labrad.units.K,
                             'PIDcd': 70.0 * labrad.units.V * labrad.units.s / labrad.units.K,
                             'PIDci': 2.0,
-                            'PIDintLimit': 0.4,
-                            'PIDstepTimeout': 5,		# max amount of time we will remain in PID stepping loop
+                            'PIDintLimit': 0.4*labrad.units.K,
+                            'PIDstepTimeout': 5*labrad.units.s,	# max amount of time we will remain in PID stepping loop
                             # temperature recording variables
                             'recordTemp': False,		# whether we're recording right now
                             'recordingTemp': 250*Unit('K'),	# start recording temps below this value
                             'autoRecord': True,			# whether to start recording automatically
-                            'tempRecordDelay':	10,		# every X seconds we record temp
+                            'tempRecordDelay':	10*Unit('s'),	# every X seconds we record temp
                             # NOT FROM REGISTRY
                             'PIDint': 0,
                             'PIDterr': 0,
@@ -369,6 +369,7 @@ class ADRWrapper(DeviceWrapper):
                         self.status('magging up')
                                 
                 elif self.currentStatus == 'magging up':
+                    print "Magging up..."
                     self.clear('magDownCompletedTime')
                     self.clear('magUpCompletedTime')
                     self.clear('scheduledMagDownTime')
@@ -388,7 +389,7 @@ class ADRWrapper(DeviceWrapper):
                         self.state('scheduledMagDownTime', time.time() + self.state('fieldWaitTime')*60)
                     else:
                         pass # if at first we don't succeed, mag, mag again
-                    yield util.wakeupCall(self.state('rampWaitTime'))
+                    yield util.wakeupCall(self.state('rampWaitTime')['s'])
                                 
                 elif self.currentStatus == 'waiting at field':
                     yield util.wakeupCall(self.sleepTime)
@@ -413,7 +414,7 @@ class ADRWrapper(DeviceWrapper):
                         self.status('ready')
                         self.state('magDownCompletedTime', time.time())
                         self.psOutputOff()
-                    yield util.wakeupCall(self.state('rampWaitTime'))
+                    yield util.wakeupCall(self.state('rampWaitTime')['s'])
                     
                 elif self.currentStatus == 'pid control':
                     # try to get to the setTemp state variable with a PID control loop
@@ -421,6 +422,8 @@ class ADRWrapper(DeviceWrapper):
                     terrOld = self.state('PIDterr')
                     # set current t error
                     self.state('PIDterr', self.state('PIDsetTemp') - self.ruoxStatus()[0], False)
+                    print "PIDint: ", self.state("PIDint")
+                    print "PIDterr: ", self.state("PIDterr")
                     self.state('PIDint', self.state('PIDint') + self.state('PIDterr')*self.sleepTime, False)
                     if abs(self.state('PIDint')) > self.state('PIDintLimit'):
                         self.state('PIDint', self.state('PIDintLimit')*np.sign(self.state('PIDint')/self.state('PIDci')), False)
@@ -481,8 +484,8 @@ class ADRWrapper(DeviceWrapper):
         """ Turns off the magnet power supply, basically. """
         ps = self.peripheralsConnected['magnet']
         p = ps.server.packet(context=ps.ctxt)
-        p.voltage(0)
-        p.current(0)
+        p.voltage(0*labrad.units.V)
+        p.current(0*labrad.units.A)
         if HANDSOFF:
             print "would set %s magnet voltage, current -> 0" % self.name
             self.log("would set %s magnet voltage, current -> 0" % self.name)
@@ -527,8 +530,8 @@ class ADRWrapper(DeviceWrapper):
         volts = self.state('voltages')
         current = self.state('magCurrent')
         voltage = self.state('magVoltage')
-        quenched = temps[1] > self.state('quenchLimit') and current > 0.5
-        targetReached = (up and self.state('targetCurrent') - current < 0.001) or (not up and 0.01 > current)
+        quenched = temps[1] > self.state('quenchLimit') and current > 0.5*Unit('A')
+        targetReached = (up and self.state('targetCurrent') - current < 1*Unit('mA')) or (not up and 10*Unit('mA') > current)
         newVoltage = voltage
         #print "  volts[6]: %s\n  volts[7]: %s\n  voltageLimit: %s" % (volts[6], volts[7], self.state('voltageLimit'))
         if (not quenched) and (not targetReached) and abs(volts[6]) < self.state('voltageLimit') and abs(volts[7]) < self.state('voltageLimit'):
@@ -565,14 +568,14 @@ class ADRWrapper(DeviceWrapper):
             if abs(volts[6]) < self.state('voltageLimit') and abs(volts[7]) < self.state('voltageLimit'):
                 verr = setV - self.state('magVoltage')
                 if abs(verr) > max(self.state('voltageStepUp'), self.state('voltageStepDown')):
-                    vnew = self.state('magVoltage') + np.sign(verr) * max(self.state('voltageStepUp'), self.state('voltageStepDown'))
+                    vnew = self.state('magVoltage') + max(self.state('voltageStepUp'), self.state('voltageStepDown')) * np.sign(verr)
                     yield mag.server.voltage(vnew, context = self.ctxt)
                 else:
                     doneStepping = True
                 dt = time.time() - startTime
-                if dt > self.state('PIDstepTimeout'):
+                if dt > self.state('PIDstepTimeout')['s']:
                     doneStepping = True
-            yield util.wakeupCall(self.state('rampWaitTime'))
+            yield util.wakeupCall(self.state('rampWaitTime')['s'])
             
     
     @inlineCallbacks
@@ -785,7 +788,7 @@ class ADRWrapper(DeviceWrapper):
                 break
 
             d = defer.Deferred()	# we use a blank deferred, so nothing will actually happen when we finish
-            e = reactor.callLater(self.state('tempRecordDelay'), d.callback, None)
+            e = reactor.callLater(self.state('tempRecordDelay')['s'], d.callback, None)
             self.state('tempDelayedCall', e, False)
             # and now, we wait.
             yield d
@@ -950,6 +953,7 @@ class ADRWrapper(DeviceWrapper):
         finally:
             f.close()
         # append to log variable
+        print "appending %s, %s to log" % (time.strftime("%Y-%m-%d %H:%M:%S"), data)
         self.logData.append((time.strftime("%Y-%m-%d %H:%M:%S"), data))
         # check to truncate log to last X entries
         if len(self.logData) > self.state('loglimit'):
