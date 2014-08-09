@@ -35,7 +35,7 @@ timeout = 5
 
 from labrad.devices import DeviceServer, DeviceWrapper
 from labrad.server import setting, inlineCallbacks, returnValue
-from labrad.units import degC, K, psi, torr, min as minutes, A
+from labrad.units import s, degC, K, psi, torr, min as minutes, A
 import time
 
 CACHE_TIME = 0.8
@@ -291,7 +291,7 @@ ADDR = 0x10
 CR = ord('\r')
 CMD_RSP = 0x80
 RESP_LEN = 14 # 3 bytes SMDP header, 8 bytes data, 2 bytes checksum, CR
-TIMEOUT = 1 # serial read timeout
+TIMEOUT = 1*s # serial read timeout
 
 # codes for compressor variables
 HASHCODES = {
