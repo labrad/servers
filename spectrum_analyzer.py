@@ -35,7 +35,7 @@ timeout = 20
 
 from labrad import types as T, errors
 from labrad.server import setting
-from labrad.gpib import GPIBManagedServer
+from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from struct import unpack
 from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad import util
@@ -48,6 +48,7 @@ __QUERY__ = """\
 class SpectrumAnalyzer(GPIBManagedServer):
     name = 'Spectrum Analyzer Server'
     deviceName = ['Hewlett-Packard E4407B', 'Agilent Technologies N9010A']
+    deviceWrapper = GPIBDeviceWrapper
 
     @setting(10, 'Get Trace',
                  data=['{Query TRACE1}',
