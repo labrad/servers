@@ -39,6 +39,7 @@ from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from struct import unpack
 from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad import util
+from labrad.units import MHz
 
 __QUERY__ = """\
 :FORM INT,32
@@ -75,7 +76,7 @@ class SpectrumAnalyzer(GPIBManagedServer):
             else:
                 raise Exception("Failed to get trace")
         n = len(vals)
-        returnValue((start/1.0e6, span/1.0e6/(n-1), vals))
+        returnValue((start/1.0e6*MHz, span/1.0e6/(n-1)*MHz, vals))
         
     @setting(12, 'Get Averaged Trace',
                  data=['{Query TRACE1}',
