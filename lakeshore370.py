@@ -373,6 +373,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
         try:
             #print("lakeshore370: Computing temperature for channel %d"%channel)
             #print("Resistance is %s"%str(self.readings[channel][0]))
+            #print("Calibration type %s" % (self.calibrations[calIndex][0],))
             #print self.calibrations[calIndex]
             if self.calibrations[calIndex][0] == INTERPOLATION:
                 # log-log interpolation
@@ -402,8 +403,8 @@ class RuOxWrapper(GPIBDeviceWrapper):
                     return self.getSingleTemp(channel, 0) 
                 else:
                     #If there is no calibration at all use res2temp
-                    return res2temp(self.readings[channel][0]) * K
-        except Exception, e:
+                    return res2temp(self.readings[channel][0])
+        except Exception as e:
             print "Exception getting temperature: ", e
             return 0.0*K
     
