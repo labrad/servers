@@ -35,6 +35,7 @@ from labrad.units import K, V
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
+import labrad.units as units
 
 def parse(val):
     ''' Parse function to account for the occasional GPIB glitches where we get extra characters in front of the numbers. '''
