@@ -30,13 +30,15 @@ timeout = 5
 ### END NODE INFO
 """
 
-from labrad.gpib import GPIBManagedServer
+from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from labrad.server import setting, returnValue
+import labrad.units as units
 
 class AgilentPSServer(GPIBManagedServer):
     name = 'Agilent 6641A PS'
     deviceName = 'HEWLETT-PACKARD 6641A'
-
+    deviceWrapper = GPIBDeviceWrapper
+    
     @setting(10000, 'Output State', os=['b'], returns=['b'])
     def output_state(self, c, os=None):
         """Get or set the output state, on or off."""
@@ -54,9 +56,9 @@ class AgilentPSServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if cur is None:
             resp = yield dev.query('MEAS:CURR?')
-            cur = float(resp)
+            cur = float(resp)*units.A
         else:
-            yield dev.write('CURR %f' % cur)
+            yield dev.write('CURR %f' % cur['A'])
         returnValue(cur)
 
     @setting(10002, 'Voltage', v=['v[V]'], returns=['v[V]'])
@@ -65,9 +67,9 @@ class AgilentPSServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if v is None:
             resp = yield dev.query('MEAS:VOLT?')
-            v = float(resp)
+            v = float(resp)*units.V
         else:
-            yield dev.write('VOLT %f' % v)
+            yield dev.write('VOLT %f' % v['V'])
         returnValue(v)
 
 __server__ = AgilentPSServer()

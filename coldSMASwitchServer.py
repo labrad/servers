@@ -34,6 +34,7 @@ from labrad.types import Value
 from labrad.devices import DeviceServer, DeviceWrapper
 from labrad.server import LabradServer, setting
 from labrad.errors import Error
+import labrad.units as units
 from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad import util
 
@@ -363,7 +364,7 @@ class ColdSwitchServer(DeviceServer):
             yield dev.updateRegistry(reg)
     
 
-TIMEOUT = 1
+TIMEOUT = 1*units.s
 
 __server__ = ColdSwitchServer()
 
