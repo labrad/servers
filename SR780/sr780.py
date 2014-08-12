@@ -86,7 +86,7 @@ def inverseDict(d):
 
 class SR780Wrapper(GPIBDeviceWrapper):
     SETTLING_TIME = T.Value(5, 's')
-    AVERAGING_TIME = T.Value(1, 's')
+    AVERAGING_TIME = T.Value(5, 's')
     
     @inlineCallbacks
     def initialize(self):

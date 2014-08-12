@@ -158,6 +158,7 @@ class GPIBBusServer(LabradServer):
             raise Exception('Could not find device ' + c['addr'])
         instr = self.devices[c['addr']]
         instr.timeout = c['timeout']['s']
+        print "getDevice timeout set to: ", instr.timeout
         return instr
         
     @setting(0, addr='s', returns='s')
@@ -181,6 +182,7 @@ class GPIBBusServer(LabradServer):
     @setting(3, data='s', returns='')
     def write(self, c, data):
         """Write a string to the GPIB bus."""
+        print "GPIB bus WRITE: ", data
         self.getDevice(c).write(data)
 
     @setting(4, bytes='w', returns='s')
@@ -195,6 +197,7 @@ class GPIBBusServer(LabradServer):
             ans = instr.read()
         else:
             ans = vpp43.read(instr.vi, bytes)
+        print "GPIB bus READ RESP: ", ans
         return ans
 
     @setting(5, data='s', returns='s')
@@ -205,8 +208,10 @@ class GPIBBusServer(LabradServer):
         device will occur while the query is in progress.
         """
         instr = self.getDevice(c)
+        print "GPIB bus QUERY: ", data
         instr.write(data)
         ans = instr.read()
+        print "GPIB bus QUERY RESP: ", ans
         return ans
 
     @setting(6, returns='')
