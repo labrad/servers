@@ -29,7 +29,6 @@
                 <td class="button"><t:attr name="id"><t:slot name='srvstop'/></t:attr>Stop</td>
                 <script type="text/javascript">
                     $("#<t:slot name='srvstart'/>").click(function(){
-                    
                     $.ajax({type: "POST",
                             url: "http://localhost:8881/server_list/start",
                             data: {srv: $("#<t:slot name='srvname'/>").text()},
@@ -42,7 +41,6 @@
                 </script>
                 <script type="text/javascript">
                     $("#<t:slot name='srvstop'/>").click(function(){
-                    
                     $.ajax({type: "POST",
                             url: "http://localhost:8881/server_list/stop",
                             data: {srv: $("#<t:slot name='srvname'/>").text()},
