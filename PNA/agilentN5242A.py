@@ -93,7 +93,7 @@ class AgilentPNAServer(GPIBManagedServer):
             resp = yield dev.query('SENS:BAND?')
             bw = T.Value(float(resp), 'Hz')
         elif isinstance(bw, T.Value):
-            yield dev.write('SENS:BAND %f' % bw.value)
+            yield dev.write('SENS:BAND %f' % bw['Hz'])
         returnValue(bw)
 
     @setting(11, f=['v[Hz]'], returns=['v[Hz]'])
@@ -116,7 +116,7 @@ class AgilentPNAServer(GPIBManagedServer):
             resp = yield dev.query('SENS:FREQ:STAR?; STOP?')
             fs = tuple(T.Value(float(f), 'Hz') for f in resp.split(';'))
         else:
-            yield dev.write('SENS:FREQ:STAR %f; STOP %f' % (fs[0], fs[1]))
+            yield dev.write('SENS:FREQ:STAR %f; STOP %f' % (fs[0]['Hz'], fs[1]['Hz']))
         returnValue(fs)
 
     @setting(13, p=['v[dBm]'], returns=['v[dBm]'])
@@ -127,7 +127,7 @@ class AgilentPNAServer(GPIBManagedServer):
             resp = yield dev.query('SOUR:POW?')
             p = T.Value(float(resp), 'dBm')
         elif isinstance(p, T.Value):
-            yield dev.write('SOUR:POW %f' % p.value)
+            yield dev.write('SOUR:POW %f' % p['dBm'])
         returnValue(p)
 
     @setting(14, state = '?', returns = 's')
