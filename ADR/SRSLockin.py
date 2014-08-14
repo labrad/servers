@@ -33,20 +33,28 @@ timeout = 20
 
 from labrad import types as T, errors
 from labrad.server import setting
-from labrad.gpib import GPIBManagedServer
+from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from struct import unpack
 from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad import util
-from labrad.units import V
+from labrad.units import V,s
 
-__QUERY__ = """\
-:FORM INT,32
-:FORM:BORD NORM
-:TRAC? TRACE%s"""
+
+
+class SRSLockinWrapper(GPIBDeviceWrapper):
+    @inlineCallbacks
+    def returnVoltage(self):
+        """Gets the current amplitude from the peak detector"""
+        yield self.write('CONN 7, "xyz"')
+        data =  yield self.query('RVAL?')
+        value = float(data)*V
+        yield self.write("xyz")
+        returnValue(value)
 
 class SRSLockin(GPIBManagedServer):
     name = 'SRS lockin'
     deviceName = ['Stanford_Research_Systems SIM900']
+    deviceWrapper = SRSLockinWrapper
 
 
         
@@ -54,10 +62,7 @@ class SRSLockin(GPIBManagedServer):
     def r(self, c):
         """Gets the current amplitude from the peak detector"""
         dev = self.selectedDevice(c)
-        yield dev.write('CONN 7, "xyz"')
-        data =  yield dev.query('RVAL?')
-        value = float(data)*V
-        yield dev.write('xyz')
+        value = yield dev.returnVoltage()
         returnValue(value)
 
     @setting(25, 'auto sensitivity')

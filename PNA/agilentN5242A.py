@@ -93,7 +93,7 @@ class AgilentPNAServer(GPIBManagedServer):
             resp = yield dev.query('SENS:BAND?')
             bw = T.Value(float(resp), 'Hz')
         elif isinstance(bw, T.Value):
-            yield dev.write('SENS:BAND %f' % bw.value)
+            yield dev.write('SENS:BAND %f' % bw['Hz'])
         returnValue(bw)
 
     @setting(11, f=['v[Hz]'], returns=['v[Hz]'])
@@ -116,7 +116,7 @@ class AgilentPNAServer(GPIBManagedServer):
             resp = yield dev.query('SENS:FREQ:STAR?; STOP?')
             fs = tuple(T.Value(float(f), 'Hz') for f in resp.split(';'))
         else:
-            yield dev.write('SENS:FREQ:STAR %f; STOP %f' % (fs[0], fs[1]))
+            yield dev.write('SENS:FREQ:STAR %f; STOP %f' % (fs[0]['Hz'], fs[1]['Hz']))
         returnValue(fs)
 
     @setting(13, p=['v[dBm]'], returns=['v[dBm]'])
@@ -127,7 +127,7 @@ class AgilentPNAServer(GPIBManagedServer):
             resp = yield dev.query('SOUR:POW?')
             p = T.Value(float(resp), 'dBm')
         elif isinstance(p, T.Value):
-            yield dev.write('SOUR:POW %f' % p.value)
+            yield dev.write('SOUR:POW %f' % p['dBm'])
         returnValue(p)
 
     @setting(14, state = '?', returns = 's')
@@ -187,7 +187,8 @@ class AgilentPNAServer(GPIBManagedServer):
             av = long(resp) # and return that number to you
         elif isinstance(av, long): # if you send in a number
             yield dev.write('SENS:AVER:COUN %u' % av) # sets the averaging number
-            yield dev.write('SENS:AVER:MODE SWEEP') # turns average mode to SWEEP
+            yield dev.write('SENS:SWE:GRO:COUN %u' % av) # sets the triggering number
+            # yield dev.write('SENS:AVER:MODE SWEEP') # turns average mode to SWEEP
             if av > 1:
                 yield dev.write('SENS:AVER ON') # turns averaging on
             else:
@@ -262,7 +263,8 @@ class AgilentPNAServer(GPIBManagedServer):
         sweeptime, npoints = yield self.startSweep(dev, sweepType)
         if sweeptime > 1:
             sweeptime *= self.sweepFactor(c)
-            yield util.wakeupCall(2*sweeptime)  #needs factor of 2 since it runs both forward and backward 
+            print "sweeptime = ", sweeptime
+            yield util.wakeupCall(sweeptime)  #needs factor of 2 since it runs both forward and backward 
 
         if log:
             ## hack: should use numpy.logspace, but it seems to be broken
@@ -465,9 +467,35 @@ class AgilentPNAServer(GPIBManagedServer):
 
     # helper methods
 
+    @setting(300, returns='*v[Hz]*2c')
+    def cw_measurement(self, c):
+        """Initiate a continuous wave measurement.
+
+        """
+
+        dev = self.selectedDevice(c)
+
+        resp = yield dev.query('SENS:FREQ:STAR?; STOP?')
+        fstar, fstop = [float(f) for f in resp.split(';')]
+
+        sweeptime, npoints = yield self.startSweep(dev, 'CW')
+        if sweeptime > 1:
+            sweeptime *= self.sweepFactor(c)
+            print sweeptime
+            yield util.wakeupCall(sweeptime)    
+
+
+        time = numpy.linspace(fstar, fstop, npoints)
+        
+        # wait for sweep to finish
+        sparams = yield self.getSweepData(dev, c['meas'])
+        returnValue((numpy.append(time, sweeptime), sparams))
+
+    
+    
     @inlineCallbacks
     def startSweep(self, dev, sweeptype):
-        yield dev.write('SENS:SWE:TIME:AUTO ON; :INIT:CONT OFF; :OUTP ON')
+        yield dev.write('SENS:SWE:TIME:AUTO ON; :INIT:CONT ON; :OUTP ON')
 
         resp = yield dev.query('SENS:SWE:TIME?; POIN?')
         sweeptime, npoints = resp.split(';')
@@ -475,7 +503,10 @@ class AgilentPNAServer(GPIBManagedServer):
         npoints = int(npoints)
 
         yield dev.write('SENS:SWE:TYPE %s' % sweeptype)
-        yield dev.write('ABORT;INIT:IMM')
+        # yield dev.write('ABORT;INIT:IMM')
+        resp = yield dev.query('SENS:AVER:COUN?')
+        sweeptime *= long(resp)
+        yield dev.write('ABORT;SENS:SWE:MODE GRO')
 
         returnValue((sweeptime, npoints))
 
