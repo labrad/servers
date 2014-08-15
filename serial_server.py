@@ -238,7 +238,7 @@ class SerialServer(LabradServer):
     def write(self, c, data):
         """Sends data over the port."""
         ser = self.getPort(c)
-        if isinstance(data, list):
+        if not isinstance(data, str):
             data = ''.join(chr(x&255) for x in data)
         ser.write(data)
         return long(len(data))
