@@ -288,14 +288,23 @@ class ColdSwitchServer(DeviceServer):
         commandList =[{'1':'a','2':'b','3':'c','4':'d','5':'e','6':'f'},
               {'1':'g','2':'h','3':'i','4':'j','5':'k','6':'l'},
               {'1':'m','2':'n','3':'o','4':'p','5':'q','6':'r'}]
+        print 'cs1'
         dev = self.selectedDevice(c)
+        print 'cs2'
         reg = self.client.registry
+        print 'cs3'
         if dev.state[0]== 'null':
+            print 'cs4'
             returnValue('null')
+            print 'cs5'
         else:
+            print 'cs6'
             channel =  yield dev.setFirstSwitchChannel(data, commandList[0])
+            print 'cs7'
             yield dev.updateRegistry(reg)
+            print 'cs8'
             returnValue(channel)
+            print 'cs9'
     
     @setting(458, 'set switch2', data='w', returns='s')
     def set_switch2(self, c, data):

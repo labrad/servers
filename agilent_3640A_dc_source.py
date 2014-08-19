@@ -37,6 +37,7 @@ CURRENT = 0.020
 
 import time
 from labrad import types as T, util
+import labrad.units as U
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -77,7 +78,7 @@ class AgilentDCSource(GPIBManagedServer):
         if not dev.psMode and curr is not None:
             yield dev.write('CURR %g' % float(curr))
         ans = yield dev.query('MEAS:CURR?')
-        returnValue(float(ans))
+        returnValue(float(ans)*U.A)
         
     @setting(21, curr='v[A]', returns='v[A]')
     def set_current(self, c, curr=None):
@@ -85,7 +86,7 @@ class AgilentDCSource(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if not dev.psMode and curr is not None:
             yield self.current(c, curr)
-        returnValue(float( (yield self.selectedDevice(c).query('CURR?')) ))
+        returnValue(float( (yield self.selectedDevice(c).query('CURR?')) )*U.A)
 
     @setting(30, volt='v[V]', returns='v[V]')
     def voltage(self, c, volt=None):
@@ -99,7 +100,7 @@ class AgilentDCSource(GPIBManagedServer):
         if not dev.psMode and volt is not None:
             yield dev.write('VOLT %g' % float(volt))
         ans = yield dev.query('MEAS:VOLT?')
-        returnValue(float(ans))
+        returnValue(float(ans)*U.V)
         
     @setting(31, volt='v[V]', returns='v[V]')
     def set_voltage(self, c, volt=None):
@@ -107,7 +108,7 @@ class AgilentDCSource(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if not dev.psMode and volt is not None:
             yield self.voltage(c, volt)
-        returnValue(float( (yield dev.query('VOLT?')) ))
+        returnValue(float( (yield dev.query('VOLT?')) )*U.V)
         
     @setting(40, mode='b', returns='b')
     def persistent_switch_mode(self, c, mode=None):
