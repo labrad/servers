@@ -33,6 +33,7 @@ timeout = 20
 
 
 from labrad.types import Value
+from labrad.units import s
 from labrad.devices import DeviceServer, DeviceWrapper
 from labrad.server import LabradServer, setting
 from labrad.errors import Error
@@ -203,7 +204,7 @@ class DcRackWrapper(DeviceWrapper):
         returnValue(data & 7)
 
     @inlineCallbacks
-    def identSelf(self, timeout=Value(1, 's')):
+    def identSelf(self, timeout=1):
         """Sends an identification command."""
         p = self.packet()
         p.timeout()
@@ -547,7 +548,7 @@ class Monitor:
         return state
 
         
-TIMEOUT = 1
+TIMEOUT = 1*s
 
 __server__ = DcRackServer()
 
