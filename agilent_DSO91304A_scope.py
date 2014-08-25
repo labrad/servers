@@ -16,9 +16,9 @@
 """
 ### BEGIN NODE INFO
 [info]
-name = Agilent 13GHz DSO91304A Oscilloscope
+name = Agilent Infiniium Fast Scope
 version = 0.2
-description = Talks to the Agilent DSO91304A 13GHz oscilloscope
+description = Talks to the Agilent Infiniium Fast Scope
 
 [startup]
 cmdline = %PYTHON% %FILE%
@@ -48,8 +48,8 @@ HORZ_DIVISIONS = 10.0
 SCALES = []
 
 class AgilentDSO91304AServer(GPIBManagedServer):
-    name = 'AGILENT DSO91304A OSCILLOSCOPE'
-    deviceName = 'Agilent Technologies DSO91304A'
+    name = 'Agilent Infiniium Fast Scope'
+    deviceName = ['Agilent Technologies DSO91304A','Agilent Technologies DSO80604B']
         
     @setting(11, returns=[])
     def reset(self, c):
