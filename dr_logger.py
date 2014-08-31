@@ -157,20 +157,29 @@ class Ruox(WatchedServer):
     server_name = 'lakeshore_ruox'
     @inlineCallbacks
     def _take_point(self):
-        r = yield self.server.temperatures(context=self.ctx)
-        returnValue([x[0] for x in r])
+        p = self.server.packet(context=self.ctx)
+        p.temperatures()
+        p.resistances()
+        result = yield p.send()
+        temps = [x[0] for x in result.temperatures]
+        res = [x[0] for x in result.resistances]
+        returnValue(temps + res)
+        
     @inlineCallbacks
     def get_variables(self):
         yield self.take_point()   # make sure we're connected
-        r = yield self.server.named_temperatures(context=self.ctx)
-        returnValue(['%s (Ruox) [%s]' % (x[0], str(x[1][0].unit)) for x in r])
+        t = yield self.server.named_temperatures(context=self.ctx)
+        temp_vars = ['%s (Ruox) [%s]' % (x[0], str(x[1][0].unit)) for x in t]
+        r = yield self.server.named_resistances(context=self.ctx)
+        res_vars = ['%s (Ruox Res) [%s]' % (x[0], str(x[1][0].unit)) for x in r]
+        returnValue(temp_vars+res_vars)
 
 WATCHERS = [MKS, MKSHack, Diodes, Ruox]
 
 class DRLogger(DeviceWrapper):
     #@inlineCallbacks
     def connect(self, *args, **kwargs):
-        ''' args: cxn (e.g. vince, jules, danko)
+        ''' args: cxn (e.g. vince, jules, ivan)
             kwargs: values from registry under that name. '''
         #self.name = assigned by LabRAD stuff
         print "Creating DR Logger for %s" % self.name

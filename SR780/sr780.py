@@ -52,7 +52,10 @@ WINDOWS = {
             'UNIFORM': 0,
             'FLATTOP': 1,
             'HANNING': 2,
-            'BLACKMANHARRIS': 3
+            'BLACKMANHARRIS': 3,
+            'T2T2':8,
+            '0T2':9,
+            'T4T4':10
             }
               
 SPANS = {0:0.191,
@@ -83,25 +86,32 @@ def inverseDict(d):
 
 class SR780Wrapper(GPIBDeviceWrapper):
     SETTLING_TIME = T.Value(5, 's')
-    AVERAGING_TIME = T.Value(1, 's')
+    AVERAGING_TIME = T.Value(5, 's')
     
     @inlineCallbacks
+    def initialize(self):
+        p = self._packet()
+        p.clear()
+        p.term_chars('\n')
+        yield p.send()
+
+    @inlineCallbacks
     def clearStatusBytes(self):
-        yield self.write("*CLS\n")
+        yield self.write("*CLS")
     
     @inlineCallbacks
     def doneSettling(self):
-        #yield self.write("*CLS\n")
-        respa = yield self.query("DSPS? 2\n")
-        #respb = yield self.query("DSPS? 10\n")
+        #yield self.write("*CLS")
+        respa = yield self.query("DSPS? 2")
+        #respb = yield self.query("DSPS? 10")
         returnValue(bool(int(respa)))# and int(respb))
         
     @inlineCallbacks
     def waitForSettling(self, minSettle=T.Value(0,'s')):
-        yield self.write("*CLS\n")
-        yield self.write("UNST 0\n")
+        yield self.write("*CLS")
+        yield self.write("UNST 0")
         # wait for 1 / (5 * bandwidth)
-        span = yield self.query("FSPN? 0\n")
+        span = yield self.query("FSPN? 0")
         time = 0.2 / float(span)
         yield util.wakeupCall(max(time, minSettle['s']))
         done = yield self.doneSettling()
@@ -131,7 +141,7 @@ class SR780Wrapper(GPIBDeviceWrapper):
     @inlineCallbacks
     def overlapPercentage(self, ov):
         if ov is not None:
-            yield self.write("FOVL 0 %s\n" % ov)
+            yield self.write("FOVL 0 %s" % ov)
         resp = yield self.query("FOVL? 0")
         returnValue(resp)
         
@@ -145,10 +155,10 @@ class SR780Wrapper(GPIBDeviceWrapper):
                     raise Exception('Input range must be an even number in [-60,34]')
             else:
                 raise Exception('Input range must be an integer')
-            yield self.write('I1RG%d\n' %range)
-            yield self.write('I2RG%d\n' %range)
+            yield self.write('I1RG%d' %range)
+            yield self.write('I2RG%d' %range)
         #Readback input range
-        resp = yield self.query('I1RG?\n')
+        resp = yield self.query('I1RG?')
         resp = int(resp)
         returnValue(resp)
         
@@ -164,9 +174,9 @@ class SR780Wrapper(GPIBDeviceWrapper):
                 coupling = inverseDict(COUPLINGS)[coupling.upper()]
             else:
                 raise Exception('Coupling not recognized')
-            yield self.write('I1CP%d\n' %coupling)
-            yield self.write('I2CP%d\n' %coupling)
-        resp = yield self.query('I1CP?\n')
+            yield self.write('I1CP%d' %coupling)
+            yield self.write('I2CP%d' %coupling)
+        resp = yield self.query('I1CP?')
         returnValue(COUPLINGS[int(resp)])
 
     @inlineCallbacks
@@ -178,9 +188,9 @@ class SR780Wrapper(GPIBDeviceWrapper):
                 if grounding.upper() not in GROUNDINGS.values():
                     raise Exception('Grounding specified as string must be %s or %s' %tuple([u for u in GROUNDINGS.values()]))
                 grounding = inverseDict(GROUNDINGS)[grounding.upper()]
-            yield self.write('I1GD%d\n' %grounding)
-            yield self.write('I2GD%d\n' %grounding)
-        resp = yield self.query('I1GD?\n')
+            yield self.write('I1GD%d' %grounding)
+            yield self.write('I2GD%d' %grounding)
+        resp = yield self.query('I1GD?')
         returnValue(GROUNDINGS[int(resp)])
         
 
@@ -200,7 +210,7 @@ class SR780Server(GPIBManagedServer):
             s = self.client[server]
             p = s.packet()
             p.address(address)
-            p.write('*IDN?\n')
+            p.write('*IDN?')
             p.read()
             ans = yield p.send()
             resp = ans.read
@@ -215,8 +225,8 @@ class SR780Server(GPIBManagedServer):
         """Get or set the current frequency span for display A."""
         dev = self.selectedDevice(c)
         if sp is not None:
-            yield dev.write('FSPN2, %f\n' % sp['Hz'])
-        resp = yield dev.query('FSPN?0\n')
+            yield dev.write('FSPN2, %f' % sp['Hz'])
+        resp = yield dev.query('FSPN?0')
         sp = T.Value(float(resp), 'Hz')
         returnValue(sp)
 
@@ -225,10 +235,10 @@ class SR780Server(GPIBManagedServer):
         """Get or set the center frequency."""
         dev = self.selectedDevice(c)
         if cf is None:
-            resp = yield dev.query('FCTR?0\n')
+            resp = yield dev.query('FCTR?0')
             cf = T.Value(float(resp), 'Hz')
         elif isinstance(cf, T.Value):
-            yield dev.write('FCTR0, %f\n' % cf.value)
+            yield dev.write('FCTR0, %f' % cf.value)
         returnValue(cf)
 
     @setting(12, fs=['v[Hz]'], returns=['v[Hz]'])
@@ -236,8 +246,8 @@ class SR780Server(GPIBManagedServer):
         """Get or set the start frequency. Must be between 0 and 100kHz"""
         dev = self.selectedDevice(c)
         if fs is not None:
-            yield dev.write('FSTR 2,%f\n' % fs['Hz'])
-        resp = yield dev.query('FSTR?0\n')
+            yield dev.write('FSTR 2,%f' % fs['Hz'])
+        resp = yield dev.query('FSTR?0')
         fs = T.Value(float(resp), 'Hz')
         returnValue(fs)
 
@@ -246,10 +256,10 @@ class SR780Server(GPIBManagedServer):
         """Get or set the end frequency. Must be between 0 and 100kHz"""
         dev = self.selectedDevice(c)
         if fe is None:
-            resp = yield dev.query('FEND?0\n')
+            resp = yield dev.query('FEND?0')
             fe = T.Value(float(resp), 'Hz')
         else:
-            yield dev.write('FEND0,%f\n' % fe.value)
+            yield dev.write('FEND0,%f' % fe.value)
         returnValue(fe)
         
     @setting(14, sp='v[Hz]', fs='v[Hz]', minSettle='v[s]', returns='(v[Hz]v[Hz])')
@@ -277,14 +287,14 @@ class SR780Server(GPIBManagedServer):
             '800': 3,
             }
         if nl is None:
-            resp = yield dev.query('FLIN?0\n')
+            resp = yield dev.query('FLIN?0')
             nl = long(resp)
         else:
             if isinstance(nl, str):
                 if nl not in units:
                     raise Exception('Choose number of lines 100, 200, 400, or 800.')
                 nl = units[nl]
-            yield dev.write('FLIN0,%u \n' % nl)
+            yield dev.write('FLIN0,%u ' % nl)
         returnValue(nl)    
 
     @setting(17, avg=['w', 's'], returns=['w'])
@@ -296,14 +306,14 @@ class SR780Server(GPIBManagedServer):
             'ON': 1,
             }
         if avg is None:
-            resp = yield dev.query('FAVG?0\n')
+            resp = yield dev.query('FAVG?0')
             avg = long(resp)
         else:
             if isinstance(avg, str):
                 if avg.upper() not in units:
                     raise Exception('Can only turn ON or OFF.')
                 avg = units[avg.upper()]
-            yield dev.write('FAVG0, %u ' % avg)
+            yield dev.write('FAVG0, %u' % avg)
         returnValue(avg)
 
     @setting(18, av=['w'], returns=['w'])
@@ -311,7 +321,7 @@ class SR780Server(GPIBManagedServer):
         """Get or set the number of averages."""
         dev = self.selectedDevice(c)
         if av is None:
-            resp = yield dev.query('FAVN?0\n')
+            resp = yield dev.query('FAVN?0')
             av = long(resp)
         elif isinstance(av, long):
             yield dev.write('FAVN0, %u' % av)
@@ -351,10 +361,10 @@ class SR780Server(GPIBManagedServer):
             ms = measureNames[ms.upper()]
         dev = self.selectedDevice(c)
         if ms is None:
-            resp = yield dev.query('MEAS?%d\n' % disp)
+            resp = yield dev.query('MEAS?%d' % disp)
             ms = long(resp)
         elif isinstance(ms, long):
-            yield dev.write('MEAS%d, %u ' % (disp,ms))
+            yield dev.write('MEAS%d, %u' % (disp,ms))
         returnValue((ms,inverseDict(measureNames)[ms]))
 
     @setting(31, disp='w{display}', mv=['w', 's'], returns=['ws'])
@@ -383,14 +393,14 @@ class SR780Server(GPIBManagedServer):
             'NICHOLS': 8L,
             }
         if mv is None:
-            resp = yield dev.query('VIEW?%d\n' % disp)
+            resp = yield dev.query('VIEW?%d' % disp)
             mv = long(resp)
         else:
             if isinstance(mv, str):
                 if mv.upper() not in views:
                     raise ValueError('Invalid View Name.')
                 mv = views[mv.upper()]
-            yield dev.write('VIEW%d, %u ' % (disp, mv))
+            yield dev.write('VIEW%d, %u' % (disp, mv))
         returnValue((mv, inverseDict(views)[mv]))
 
     @setting(32, disp='w{display}', un=['w', 's'], returns=['ws'])
@@ -417,14 +427,14 @@ class SR780Server(GPIBManagedServer):
             'DBSPL': 7L,
             }
         if un is None:
-            resp = yield dev.query('UNIT?%d\n' % disp)
+            resp = yield dev.query('UNIT?%d' % disp)
             un = long(resp)
         else:
             if isinstance(un, str):
                 if un.upper() not in units:
                     raise Exception('Invalid Unit.')
                 un = units[un.upper()]
-            yield dev.write('UNIT%d, %u ' % (un,disp))
+            yield dev.write('UNIT%d, %u' % (un,disp))
         returnValue((un,inverseDict(units)[un]))
         
     @setting(33, psd=['w', 's'], returns=['w'])
@@ -436,14 +446,14 @@ class SR780Server(GPIBManagedServer):
             'ON': 1,
             }
         if psd is None:
-            resp = yield dev.query('PSDU?0\n')
+            resp = yield dev.query('PSDU?0')
             psd = long(resp)
         else:
             if isinstance(psd, str):
                 if psd.upper() not in units:
                     raise Exception('Can only turn ON or OFF.')
                 psd = units[psd.upper()]
-            yield dev.write('PSDU0, %u ' % psd)
+            yield dev.write('PSDU0, %u' % psd)
         returnValue(psd)
         
     @setting(49, trace='i', window=['i','s'], returns=['s{Window type}'])
@@ -452,10 +462,10 @@ class SR780Server(GPIBManagedServer):
         if window is not None:
             if isinstance(window,str):
                 window = WINDOWS[window.upper()]
-            elif isinstance(window,int) and window not in [0,1,2,3]:
-                raise Exception('Window specified as integer must be in range 0 to 3')
-            yield dev.write('FWIN%d,%d\n' %(trace,window))
-        resp = yield dev.query('FWIN?%d\n' %trace)
+            elif isinstance(window,int) and window not in [0,1,2,3,8]:
+                raise Exception('Window specified as integer must be in range 0 to 3 and 8')
+            yield dev.write('FWIN%d,%d' %(trace,window))
+        resp = yield dev.query('FWIN?%d' %trace)
         answer = inverseDict(WINDOWS)[int(resp)]
         returnValue(answer)
 
@@ -509,10 +519,10 @@ class SR780Server(GPIBManagedServer):
         """Initiate a frequency sweep."""
         dev = self.selectedDevice(c)
 
-        length = yield dev.query("DSPN? 0\n")
+        length = yield dev.query("DSPN? 0")
         length = int(length)
         print length
-        data = yield dev.query("DSPB? 0\n")
+        data = yield dev.query("DSPB? 0")
         print len(data)
 
         if len(data) != length*4:
@@ -522,9 +532,9 @@ class SR780Server(GPIBManagedServer):
 
         data = [unpack('<f', data[i*4:i*4+4])[0] for i in range(length)]
         #Calculate frequencies from current span
-        resp = yield dev.query('FSTR?0\n')
+        resp = yield dev.query('FSTR?0')
         fs = T.Value(float(resp), 'Hz')
-        resp = yield dev.query('FEND?0\n')
+        resp = yield dev.query('FEND?0')
         fe = T.Value(float(resp), 'Hz')
         freq = util.linspace(fs, fe, length)
         
@@ -541,10 +551,10 @@ class SR780Server(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
 
-        length = yield dev.query("DSPN? 0\n")
+        length = yield dev.query("DSPN? 0")
         length = int(length)
         print length
-        data = yield dev.query("DSPB? 0\n")
+        data = yield dev.query("DSPB? 0")
         print len(data)
 
         if len(data) != length*4:
@@ -555,9 +565,9 @@ class SR780Server(GPIBManagedServer):
         data = [unpack('<f', data[i*4:i*4+4])[0] for i in range(length)]
         data = np.array(data)
         #Calculate frequencies from current span
-        resp = yield dev.query('FSTR?0\n')
+        resp = yield dev.query('FSTR?0')
         fs = T.Value(float(resp), 'Hz')
-        resp = yield dev.query('FEND?0\n')
+        resp = yield dev.query('FEND?0')
         fe = T.Value(float(resp), 'Hz')
         freq = np.linspace(fs, fe, length)
         
@@ -580,7 +590,7 @@ class SR780Server(GPIBManagedServer):
     @setting(150)
     def startsweep(self, c):
         dev = self.selectedDevice(c)
-        yield dev.write('STRT\n')
+        yield dev.write('STRT')
     
 
 __server__ = SR780Server()
