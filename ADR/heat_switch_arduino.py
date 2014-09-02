@@ -69,8 +69,13 @@ timeout = 5
 ### END NODE INFO
 """
 
+from labrad.types import Value
 from labrad.devices import DeviceServer, DeviceWrapper
-from labrad.server import setting, inlineCallbacks, returnValue
+from labrad.server import LabradServer, setting
+from labrad.errors import Error
+import labrad.units as units
+from twisted.internet.defer import inlineCallbacks, returnValue
+from labrad import util
 
 class HeatSwitchDevice(DeviceWrapper):
     @inlineCallbacks
@@ -120,38 +125,59 @@ class HeatSwitchDevice(DeviceWrapper):
         returnValue(ans.read_line)
 
 class HeatSwitchServer(DeviceServer):
+    deviceName = 'Heat Switch Arduino'
     name = 'Heat Switch Arduino'
     deviceWrapper = HeatSwitchDevice
 
     @inlineCallbacks
     def initServer(self):
         print 'loading config info...',
+        self.reg = self.client.registry()
         yield self.loadConfigInfo()
         print 'done.'
+        print self.serialLinks
         yield DeviceServer.initServer(self)
 
     @inlineCallbacks
     def loadConfigInfo(self):
         """Load configuration information from the registry."""
-        reg = self.client.registry
+        # reg = self.client.registry
+        # p = reg.packet()
+        # p.cd(['', 'Servers', 'Heat Switch'], True)
+        # p.get('Serial Links', '*(ss)', key='links')
+        # ans = yield p.send()
+        # self.serialLinks = ans['links']
+        reg = self.reg
+        yield reg.cd(['', 'Servers', 'Heat Switch', 'Links'], True)
+        dirs, keys = yield reg.dir()
         p = reg.packet()
-        p.cd(['', 'Servers', 'Heat Switch'], True)
-        p.get('Serial Links', '*(ss)', key='links')
+        for k in keys:
+            p.get(k, key=k)
         ans = yield p.send()
-        self.serialLinks = ans['links']
-
+        self.serialLinks = dict((k, ans[k]) for k in keys)
+        
     @inlineCallbacks
     def findDevices(self):
         """Find available devices from list stored in the registry."""
         devs = []
-        for name, port in self.serialLinks:
-            if name not in self.client.servers:
+        # for name, port in self.serialLinks:
+            # if name not in self.client.servers:
+                # continue
+            # server = self.client[name]
+            # ports = yield server.list_serial_ports()
+            # if port not in ports:
+                # continue
+            # devName = '%s - %s' % (name, port)
+            # devs += [(devName, (server, port))]
+        # returnValue(devs)
+        for name, (serServer, port) in self.serialLinks.items():
+            if serServer not in self.client.servers:
                 continue
-            server = self.client[name]
+            server = self.client[serServer]
             ports = yield server.list_serial_ports()
             if port not in ports:
                 continue
-            devName = '%s - %s' % (name, port)
+            devName = '%s - %s' % (serServer, port)
             devs += [(devName, (server, port))]
         returnValue(devs)
     
@@ -191,7 +217,7 @@ class HeatSwitchServer(DeviceServer):
         returnValue(int(ans.split(',')[2]))
 
 
-TIMEOUT = 1.0 # serial read timeout
+TIMEOUT = 1*units.s # serial read timeout
 
 #####
 # Create a server instance and run it
