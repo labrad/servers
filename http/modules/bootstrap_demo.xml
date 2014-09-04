@@ -45,11 +45,10 @@
         <h1>Bootstrap starter template</h1>
         <p class="lead" id="doc">Use this document as a way to quickly start any new project.All you get is this text and a mostly barebones HTML document.</p>
       </div>
-      <div class="btn-group">
-        <button type = "button" class="btn btn-default" value="some long server string">one</button>
-        <button type = "button" class="btn btn-default" value="and another one">And another one</button>
+      <div class="btn-group-vertical">
+        <button type = "button" class="btn btn-lg btn-success" value="some long server string">one</button>
+        <button type = "button" class="btn btn-default" value="and another one" for="inputSucess3">And another one</button>
       </div>
-
     </div><!-- /.container -->
 
     <!-- Bootstrap core JavaScript

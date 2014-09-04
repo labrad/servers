@@ -1,4 +1,4 @@
-$(".btn.btn-default").click(function(){
+$(".btn.btn").click(function(){
 // $.ajax({type: "POST",
         // url: "http://localhost:8881/server_list/start",
         // data: {string},
