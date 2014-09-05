@@ -74,13 +74,13 @@ class ServerListPage(Element):
         # for entry in map(list,runningservers):
             # running_servers.append(entry[0])
         print "\nRUNNING SERVERS ARE: ",runningservers
-        rv = [tag.clone().fillSlots(servername=tags.b("Server"),srvname="s",srvstart="s",starter='start',srvstop='stop')]
+        rv = [tag.clone().fillSlots(servername=tags.b("Server"),stopper_class="btn btn-inverse",starter_text="s",starter_class='btn btn-success',srvstop='stop')]
         for idx,entry in enumerate(serverdata):
             servername = entry
             if entry in runningservers:
-                rv.append(tag.clone().fillSlots(servername=servername,srvname = "nm%d"%(idx),srvstart="strt%d"%(idx),starter='Started',srvstop="stp%d"%(idx)))
+                rv.append(tag.clone().fillSlots(servername=servername,stopper_class = "btn btn-danger",starter_text="Started",starter_class='btn btn-success',srvstop="stp%d"%(idx)))
             else:
-                rv.append(tag.clone().fillSlots(servername=servername,srvname = "nm%d"%(idx),srvstart="strt%d"%(idx),starter='Start',srvstop="stp%d"%(idx)))
+                rv.append(tag.clone().fillSlots(servername=servername,stopper_class = "btn btn-inverse",starter_text="Start",starter_class='btn btn-default',srvstop="stp%d"%(idx)))
         returnValue(rv)
     
     @render_safe        
@@ -150,9 +150,9 @@ def find_node_server(cxn):
     for server in cxn.servers:
         print "\n CXN.SERVERS:, ", server
         if server.startswith("node"):
-            print "\n IN NODE SERVER FINDER, FOUND: ",server
             server = server.replace(' ','_')
             server = server.replace('-','_')
+            print "\n IN NODE SERVER FINDER, FOUND: ",server
             return(server)
         
 page_funcs = ServerListFuncs()     
