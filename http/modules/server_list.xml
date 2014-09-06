@@ -16,27 +16,44 @@
 
 
 <body>
+  <div class="container">
+    <div class="tabbable">
+        <ul class="nav nav-tabs">
+            <li class="active"><a href="#all_servers" data-toggle="tab">All Servers</a></li>
+            <li><a href="#favourite_servers" data-toggle="tab">Favourite Servers</a></li>
+		</ul>
+        <div class="tab-content">
+            <div id="all_servers" class="tab-pane active">
+                <h2>All Servers</h2>
+                    <ul class="list-group">
+                    <li  class="list-group-item" t:render='server_entries'>
+                        <t:slot name='servername'/>
+                        <div class="pull-right"><span class="btn-group">
+                            <button type = "button"><t:attr name = "class"><t:slot name="starter_class"/></t:attr><t:attr name="value"><t:slot name='servername'/></t:attr><t:slot name='starter_text' /></button>
+                            <button type = "button"><t:attr name = "class"><t:slot name="stopper_class"/></t:attr><t:attr name="value"><t:slot name='servername'/></t:attr>Stop</button>
+                        </span></div>
+                    </li>
+                    </ul>
+            </div>
+            <div id="favourite_servers" class="tab-pane">
+                <h2>Favourite Servers</h2>
+                <p>Placed as key: node_name in ['','Servers','Server List']</p>
+                <ul class="list-group">
+                    <li  class="list-group-item" t:render='favourite_entries'>
+                        <t:slot name='favourite_name'/>
+                        <div class="pull-right"><span class="btn-group">
+                            <button type = "button"><t:attr name = "class"><t:slot name="starter_class"/></t:attr><t:attr name="value"><t:slot name='favourite_name'/></t:attr><t:slot name='starter_text' /></button>
+                            <button type = "button"><t:attr name = "class"><t:slot name="stopper_class"/></t:attr><t:attr name="value"><t:slot name='favourite_name'/></t:attr>Stop</button>
+                        </span></div>
+                    </li>
+                </ul>
 
-
-	
-	<section id="tab2">
-		<p><h2><a href="#tab2">All Servers</a></h2></p>
-            <p  t:render='serverentries'>
-                <t:slot name='servername'/>
-                <span class="btn-group">
-                <button type = "button"><t:attr name = "class"><t:slot name="starter_class"/></t:attr><t:attr name="value"><t:slot name='servername'/></t:attr><t:slot name='starter_text' /></button>
-                <button type = "button"><t:attr name = "class"><t:slot name="stopper_class"/></t:attr><t:attr name="value"><t:slot name='servername'/></t:attr>Stop</button>
-            </span></p>
-	</section>
-    <div id="loading">loading</div>
-<!--	
-	<section id="tab3">
-		<h2><a href="#tab3">Something else</a></h2>
-		<p>um</p>
-	</section>
-
-</article>
---> <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+                </div>
+        </div><!-- /.tab-content--> 
+    </div><!-- /.tabbabble -->
+  </div>
+    <!-- Importing of Stuff-->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
     <script src="../static/bootstrap-3.2.0-dist/js/bootstrap.min.js"></script>
     <!-- IE10 viewport hack for Surface/desktop Windows 8 bug -->
     <script src="../../assets/js/ie10-viewport-bug-workaround.js"></script>

@@ -25,7 +25,7 @@ class ServerListPage(Element):
         self._cxn = cxn
         self.cryo_name = request.args.get('cryo', [''])[-1]
         self.max_entries = int(request.args.get('maxentries', ['25'])[-1])
-        self.white_list_path = ['', 'Servers', 'Server List' ]
+        self.favs_path = ['', 'Servers', 'Server List']
         # print "FOUND SERVER NAME AT: ",find_node_server(cxn)
         self.node = self._cxn[find_node_server(cxn)]
 
@@ -35,10 +35,10 @@ class ServerListPage(Element):
         # self.node = self._cxn["node_%s" % name.lower()+"_laptop"]
         
     @inlineCallbacks
-    def get_whitelist(self):
+    def get_favourites(self):
         p = self._cxn.registry.packet()
-        p.cd(self.white_list_path)
-        p.get('Ivan')
+        p.cd(self.favs_path)
+        p.get('josh_laptop')
         rv = yield p.send()
         print "THE WHITELIST IS!!!!! ",rv.get
         returnValue(rv.get)
@@ -66,7 +66,7 @@ class ServerListPage(Element):
                 
     @render_safe
     @inlineCallbacks
-    def serverentries(self, request, tag):
+    def server_entries(self, request, tag):
         # yield self.get_server()
         serverdata = yield self.get_all_servers()
         runningservers = yield self.get_running_servers()
@@ -74,13 +74,13 @@ class ServerListPage(Element):
         # for entry in map(list,runningservers):
             # running_servers.append(entry[0])
         print "\nRUNNING SERVERS ARE: ",runningservers
-        rv = [tag.clone().fillSlots(servername=tags.b("Server"),stopper_class="btn btn-inverse",starter_text="s",starter_class='btn btn-success',srvstop='stop')]
+        rv = [tag.clone().fillSlots(servername=tags.b("Server Name"),stopper_class="btn btn-inverse",starter_text="s",starter_class='btn btn-default',srvstop='stop')]
         for idx,entry in enumerate(serverdata):
             servername = entry
             if entry in runningservers:
                 rv.append(tag.clone().fillSlots(servername=servername,stopper_class = "btn btn-danger",starter_text="Started",starter_class='btn btn-success',srvstop="stp%d"%(idx)))
             else:
-                rv.append(tag.clone().fillSlots(servername=servername,stopper_class = "btn btn-inverse",starter_text="Start",starter_class='btn btn-default',srvstop="stp%d"%(idx)))
+                rv.append(tag.clone().fillSlots(servername=servername,stopper_class = "btn btn-inverse",starter_text="Start",starter_class='btn btn-primary',srvstop="stp%d"%(idx)))
         returnValue(rv)
     
     @render_safe        
@@ -92,12 +92,16 @@ class ServerListPage(Element):
         
     @render_safe
     @inlineCallbacks
-    def whitelistentries(self, request, tag):
-        whitelistdata = yield self.get_whitelist()
-        rv = [tag.clone().fillSlots(whitelistname=tags.b("Server"))]
-        for entry in whitelistdata:
+    def favourite_entries(self, request, tag):
+        favourite_data = yield self.get_favourites()
+        runningservers = yield self.get_running_servers()
+        rv = [tag.clone().fillSlots(favourite_name=tags.b("Server Name"),stopper_class="btn btn-inverse",starter_text="s",starter_class='btn btn-default')]
+        for entry in favourite_data:
             whitelistname = entry
-            rv.append(tag.clone().fillSlots(whitelistname=whitelistname))
+            if entry in runningservers:
+                rv.append(tag.clone().fillSlots(favourite_name=entry,stopper_class = "btn btn-danger",starter_text="Started",starter_class='btn btn-success'))
+            else:
+                rv.append(tag.clone().fillSlots(favourite_name=entry,stopper_class = "btn btn-inverse",starter_text="Start",starter_class='btn btn-primary'))
         returnValue(rv)
         
 class ServerListFuncs():
