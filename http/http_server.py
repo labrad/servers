@@ -3,7 +3,7 @@ from __future__ import division
 
 from twisted.web.server import Site, NOT_DONE_YET
 from twisted.web import static
-from twisted.internet import reactor
+from twisted.internet import reactor, ssl
 from twisted.web.resource import Resource, IResource, NoResource
 from twisted.internet.defer import inlineCallbacks, returnValue, Deferred
 from twisted.web.template import flattenString, renderer
@@ -12,7 +12,8 @@ import functools
 import inspect
 import labrad
 from zope.interface import implements
-
+from twisted.python.modules import getModule
+import os
 
 """
 ### BEGIN NODE INFO
@@ -121,8 +122,9 @@ class StatusResource(Resource):
         d.addCallback(lambda data: self._delayedRender(request, data))
         return NOT_DONE_YET
     def render_POST(self, request):
-        self.funcs.get_request(request,self.cxn)
         print "Got POST: from", request.uri
+        self.funcs.get_request(request,self.cxn)
+        
 
         
 # class TestHandler(Resource):
@@ -155,6 +157,10 @@ class HTTPServer(LabradServer):
     name = 'HTTP Server 2'
 
     def initServer(self):
+        p = os.getcwd()
+        my_cert = p+'\\server.pem'
+        certData = open(my_cert,'r').read()
+        certificate = ssl.PrivateCertificate.loadPEM(certData)
         root = RootStatusResource(self.client)
         staticResource = static.File("static")
         root.putChild("static", staticResource)
@@ -163,7 +169,8 @@ class HTTPServer(LabradServer):
         # root.putChild('test', testHandler)
         # root.putChild('styles', static.File("./modules"))
         factory = Site(root)
-        reactor.listenTCP(8881, factory)
+        # reactor.listenTCP(8881, factory)
+        reactor.listenSSL(8881, factory,certificate.options())
 
 __server__ = HTTPServer()
 
