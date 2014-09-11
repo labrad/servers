@@ -383,10 +383,11 @@ class ADRWrapper(DeviceWrapper):
                         self.log("QUENCHED!")
                         self.status('cooling down')
                     elif targetReached:
+                        print "got it"
                         self.status('waiting at field')
                         self.psMaxCurrent()
-                        self.state('magUpCompletedTime', time.time())
-                        self.state('scheduledMagDownTime', time.time() + self.state('fieldWaitTime')*60)
+                        self.state('magUpCompletedTime', (time.time()/60)*Unit('min'))
+                        self.state('scheduledMagDownTime', (time.time()/60)*Unit('min') + self.state('fieldWaitTime'))
                     else:
                         pass # if at first we don't succeed, mag, mag again
                     yield util.wakeupCall(self.state('rampWaitTime')['s'])
@@ -394,7 +395,7 @@ class ADRWrapper(DeviceWrapper):
                 elif self.currentStatus == 'waiting at field':
                     yield util.wakeupCall(self.sleepTime)
                     # is it time to mag down?
-                    if time.time() > self.state('scheduledMagDownTime'):
+                    if (time.time()/60)*Unit('min') > self.state('scheduledMagDownTime'):
                         if not self.state('schedulingActive'):
                             self.status('ready to mag down')
                         else:
@@ -540,17 +541,17 @@ class ADRWrapper(DeviceWrapper):
                 newVoltage += self.state('voltageStepUp')
             else:
                 newVoltage -= self.state('voltageStepDown')
+            print newVoltage
+            if HANDSOFF:
+                print "would set %s magnet voltage -> %s" % (self.name, newVoltage)
+                self.log("would set %s magnet voltage -> %s" % (self.name, newVoltage))
+            else:
+                self.log("%s magnet voltage -> %s" % (self.name, newVoltage))
+                ps = self.peripheralsConnected['magnet']
+                yield ps.server.voltage(newVoltage, context=ps.ctxt)
         else:
             pass
             #print "not changing voltage"
-                        
-        if HANDSOFF:
-            print "would set %s magnet voltage -> %s" % (self.name, newVoltage)
-            self.log("would set %s magnet voltage -> %s" % (self.name, newVoltage))
-        else:
-            self.log("%s magnet voltage -> %s" % (self.name, newVoltage))
-            ps = self.peripheralsConnected['magnet']
-            yield ps.server.voltage(newVoltage, context=ps.ctxt)
         returnValue((quenched, targetReached))
         
     @inlineCallbacks
