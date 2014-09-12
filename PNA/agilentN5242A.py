@@ -30,10 +30,11 @@ timeout = 30
 ### END NODE INFO
 """
 
-from labrad import types as T, util
+from labrad import util
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
+import labrad.units as units
 
 from struct import unpack
 import time
@@ -91,8 +92,8 @@ class AgilentPNAServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if bw is None:
             resp = yield dev.query('SENS:BAND?')
-            bw = T.Value(float(resp), 'Hz')
-        elif isinstance(bw, T.Value):
+            bw = units.Value(float(resp), 'Hz')
+        elif isinstance(bw, units.Value):
             yield dev.write('SENS:BAND %f' % bw['Hz'])
         returnValue(bw)
 
@@ -102,8 +103,8 @@ class AgilentPNAServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if f is None:
             resp = yield dev.query('SENS:FREQ:CW?')
-            f = T.Value(float(resp), 'Hz')
-        elif isinstance(f, T.Value):
+            f = units.Value(float(resp), 'Hz')
+        elif isinstance(f, units.Value):
             yield dev.write('SENS:FREQ:CW %f' % f.value)
         returnValue(f)
 
@@ -114,7 +115,7 @@ class AgilentPNAServer(GPIBManagedServer):
         dev.write('SENS:SWE:TYPE LIN')
         if fs is None:
             resp = yield dev.query('SENS:FREQ:STAR?; STOP?')
-            fs = tuple(T.Value(float(f), 'Hz') for f in resp.split(';'))
+            fs = tuple(units.Value(float(f), 'Hz') for f in resp.split(';'))
         else:
             yield dev.write('SENS:FREQ:STAR %f; STOP %f' % (fs[0]['Hz'], fs[1]['Hz']))
         returnValue(fs)
@@ -125,8 +126,8 @@ class AgilentPNAServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if p is None:
             resp = yield dev.query('SOUR:POW?')
-            p = T.Value(float(resp), 'dBm')
-        elif isinstance(p, T.Value):
+            p = units.Value(float(resp), 'dBm')
+        elif isinstance(p, units.Value):
             yield dev.write('SOUR:POW %f' % p['dBm'])
         returnValue(p)
 
@@ -155,7 +156,7 @@ class AgilentPNAServer(GPIBManagedServer):
         dev.write('SENS:SWE:TYPE POW')
         if ps is None:
             resp = yield dev.query('SOUR:POW:STAR?; STOP?')
-            ps = tuple(T.Value(float(p), 'dBm') for p in resp.split(';'))
+            ps = tuple(units.Value(float(p), 'dBm') for p in resp.split(';'))
         else:
             good_atten = None
             for attn in [0, 10, 20, 30, 40, 50, 60]:
@@ -188,7 +189,7 @@ class AgilentPNAServer(GPIBManagedServer):
         elif isinstance(av, long): # if you send in a number
             yield dev.write('SENS:AVER:COUN %u' % av) # sets the averaging number
             yield dev.write('SENS:SWE:GRO:COUN %u' % av) # sets the triggering number
-            # yield dev.write('SENS:AVER:MODE SWEEP') # turns average mode to SWEEP
+            yield dev.write('SENS:AVER:MODE SWEEP') # turns average mode to SWEEP
             if av > 1:
                 yield dev.write('SENS:AVER ON') # turns averaging on
             else:
@@ -206,8 +207,8 @@ class AgilentPNAServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if corr is None:
             resp = yield dev.query('CALC:CORR:EDEL:TIME?')
-            corr = T.Value(float(resp), 'ns')
-        elif isinstance(corr, T.Value):
+            corr = units.Value(float(resp), 'ns')
+        elif isinstance(corr, units.Value):
             yield dev.write('CALC:CORR:EDEL:TIME %fNS' % corr)
         returnValue(corr)
         
@@ -270,9 +271,9 @@ class AgilentPNAServer(GPIBManagedServer):
             ## hack: should use numpy.logspace, but it seems to be broken
             ## for now, this works instead.
             lim1, lim2 = numpy.log10(fstar), numpy.log10(fstop)
-            freq = 10**numpy.linspace(lim1, lim2, npoints)
+            freq = 10**numpy.linspace(lim1, lim2, npoints) * units.Hz
         else:
-            freq = numpy.linspace(fstar, fstop, npoints)
+            freq = numpy.linspace(fstar, fstop, npoints) * units.Hz
             
         # wait for sweep to finish
         sparams = yield self.getSweepData(dev, c['meas'])
@@ -326,10 +327,10 @@ class AgilentPNAServer(GPIBManagedServer):
         sparams = yield self.getSweepData(dev, c['meas'])
 
         power = util.linspace(pstar, pstop, npoints)
-        power = [T.Value(p, 'dBm') for p in power]
+        power = [units.Value(p, 'dBm') for p in power]
         for s in sparams:
             for i, c in enumerate(s):
-                s[i] = T.Complex(c)
+                s[i] = units.Complex(c)
         returnValue((power, sparams))
         
     @setting(189)
@@ -345,7 +346,7 @@ class AgilentPNAServer(GPIBManagedServer):
             sweeptime *= self.sweepFactor(c)
             yield util.wakeupCall(sweeptime)
         power = util.linspace(pstar, pstop, npoints)
-        power = [T.Value(p, 'dBm') for p in power]
+        power = [units.Value(p, 'dBm') for p in power]
         phase = yield self.getSweepDataPhase(dev, c['meas'])
         returnValue((power, phase))
         
@@ -370,10 +371,10 @@ class AgilentPNAServer(GPIBManagedServer):
         sparams = yield self.getSweepData(dev, c['meas'])
 
         power = util.linspace(pstar, pstop, npoints)
-        power = [T.Value(p, 'dBm') for p in power]
+        power = [units.Value(p, 'dBm') for p in power]
         for s in sparams:
             for i, cplx in enumerate(s):
-                s[i] = T.Complex(cplx)
+                s[i] = units.Complex(cplx)
 
         p = numpy.array(power)
         s = 20*numpy.log10(abs(numpy.array(sparams)))
@@ -419,10 +420,10 @@ class AgilentPNAServer(GPIBManagedServer):
         sparams = yield self.getSweepData(dev, c['meas'])
 
         freq = util.linspace(fstar, fstop, npoints)
-        freq = [T.Value(f, 'Hz') for f in freq]
+        freq = [units.Value(f, 'Hz') for f in freq]
         for s in sparams:
             for i, cplx in enumerate(s):
-                s[i] = T.Complex(cplx)
+                s[i] = units.Complex(cplx)
 
         f = numpy.array(freq)
         s = 20*numpy.log10(abs(numpy.array(sparams)))
