@@ -1,0 +1,47 @@
+<html xmlns:t="http://twistedmatrix.com/ns/twisted.web.template/0.1">
+<head>
+  <title>LAbRAD Browser Interface</title>
+
+    <!-- Bootstrap core CSS -->
+    <link href="../static/bootstrap-3.2.0-dist/css/bootstrap.min.css" rel="stylesheet"/>
+
+    <!-- Custom styles for this template -->
+    <link href="../static/starter-template.css" rel="stylesheet"/>
+
+    <!-- Just for debugging purposes. Don't actually copy these 2 lines! -->
+    <!--[if lt IE 9]><script src="../../assets/js/ie8-responsive-file-warning.js"></script><![endif]-->
+    <script src="../static/bootstrap-3.2.0-dist/js/ie-emulation-modes-warning.js"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+
+  <script type="text/javascript">
+  (function() {
+    var po = document.createElement('script');
+    po.type = 'text/javascript'; po.async = true;
+    po.src = 'https://plus.google.com/js/client:plusone.js';
+    var s = document.getElementsByTagName('script')[0];
+    s.parentNode.insertBefore(po, s);
+  })();
+  </script>
+  <!-- JavaScript specific to this application that is not related to API
+     calls -->
+  <script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js" ></script>
+</head>
+<body>
+    <div class= "jumbotron">
+      <h1>Welcome to the LabRAD browser interface</h1>
+      <p> You can log in with your Google Account (in theory) </p>
+      <p> You can make more web modules and put them in /modules. This should be pretty great eventually.</p>
+      <div id="gConnect">
+        <button class="g-signin"
+            data-scope="https://www.googleapis.com/auth/plus.login"
+            data-requestvisibleactions="http://schemas.google.com/AddActivity"
+            data-clientId="'827194290656-krkqh44peteval39id3bjg77mqicaqug.apps.googleusercontent.com'"
+            data-accesstype="offline"
+            data-callback="onSignInCallback"
+            data-theme="dark"
+            data-cookiepolicy="single_host_origin">
+        </button>
+      </div>
+    </div>  
+</body>
+</html>
