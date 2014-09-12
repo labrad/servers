@@ -35,6 +35,7 @@ from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 import labrad.units as units
+from labrad.units import dBm
 
 from struct import unpack
 import time
@@ -160,7 +161,7 @@ class AgilentPNAServer(GPIBManagedServer):
         else:
             good_atten = None
             for attn in [0, 10, 20, 30, 40, 50, 60]:
-                if -attn-30 <= ps[0] and -attn+20 >= ps[1]:
+                if (-attn-30)*dBm <= ps[0] and (-attn+20)*dBm >= ps[1]:
                     good_atten = attn
                     break
             if good_atten is None:
@@ -311,7 +312,7 @@ class AgilentPNAServer(GPIBManagedServer):
         phase = yield self.getSweepDataPhase(dev, c['meas'])
         returnValue((freq, phase))
 
-    @setting(101, returns='*v[Hz]*2c')
+    @setting(101, returns='*v[dBm]*2c')
     def power_sweep(self, c):
         """Initiate a power sweep."""
         dev = self.selectedDevice(c)

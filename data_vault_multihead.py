@@ -1026,6 +1026,7 @@ class DataVault(LabradServer):
             path, create = target
         else:
             path = target
+            create = False
 
         temp = c['path'][:] # copy the current path
         if isinstance(path, (int, long)):
