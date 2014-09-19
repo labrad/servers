@@ -66,7 +66,7 @@ from matplotlib.mlab import find
 #
 # Removed a tab
 
-DITHER = True
+DITHER = False
 
 def cosinefilter(n, width=0.4):
     """cosinefilter(n,width) cosine lowpass filter

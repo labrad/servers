@@ -65,6 +65,7 @@ class FPGADevice(DeviceWrapper):
         self.seqTime = 0 # estimated sequence runtime in seconds
         self.DACclocks = 0
         self.timeout = T.Value(1000, 'ms')
+        print 'board timeout: ',T.Value(1000, 'ms')
 
         # set up the direct ethernet server for this board
         # in our own context
@@ -112,6 +113,7 @@ class FPGADevice(DeviceWrapper):
         totalTime = 2 * (self.seqTime * reps + 1)
         p = server.packet()
         p.timeout(T.Value(totalTime * 1000, 'ms'))
+        print 'runSequence timeout:', T.Value(totalTime * 1000, 'ms')
         p.read(npackets)
         ans = yield p.send(context=ctx)
         sdata = [ord(data[j*2+3]) + (ord(data[j*2+4]) << 8)

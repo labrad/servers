@@ -738,8 +738,7 @@ class BoardGroup(object):
             #This line scales really badly with incrasing stats
             #At 9600 stats the next line takes 10s out of 20s per
             #sequence.
-            results = yield readAll # wait for read to complete
-            
+            results = yield readAll # wait for read to complete	    
             if getTimingData:
                 # print("fpga server: run: %s"%(timingOrder,))
                 answers = []
