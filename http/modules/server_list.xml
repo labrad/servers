@@ -1,0 +1,66 @@
+<html xmlns:t="http://twistedmatrix.com/ns/twisted.web.template/0.1">
+<head>
+  <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+  <link rel="stylesheet" href="../static/style.css" type="text/css" />
+</head>
+
+
+<body>
+
+<!--
+<article class="tabs">
+  <h3> Server List </h3>
+	<section id="tab1">
+		<h2><a href="#tab1">Whitelisted Servers</a></h2>
+        <table border="1">
+            <tr t:render='whitelistentries'>
+                <td><t:slot name='whitelistname'/></td>
+            </tr>
+        </table>
+	</section>
+-->
+	
+	<section id="tab2">
+		<p><h2><a href="#tab2">All Servers</a></h2></p>
+        <table border="1">
+            <tr  t:render='serverentries'>
+                <td><t:attr name="id"><t:slot name='srvname'/></t:attr><t:slot name='servername' /></td>
+                <td class="button"><t:attr name="id"><t:slot name='srvstart'/></t:attr><t:slot name='starter' /></td>
+                <td class="button"><t:attr name="id"><t:slot name='srvstop'/></t:attr>Stop</td>
+                <script type="text/javascript">
+                    $("#<t:slot name='srvstart'/>").click(function(){
+                    $.ajax({type: "POST",
+                            url: "http://localhost:8881/server_list/start",
+                            data: {srv: $("#<t:slot name='srvname'/>").text()},
+                            success: function(data) {}
+                            });
+                        $("#<t:slot name='srvstart'/>").hide();
+                        $("#loading").show();
+                        window.location.reload();
+                        });
+                </script>
+                <script type="text/javascript">
+                    $("#<t:slot name='srvstop'/>").click(function(){
+                    $.ajax({type: "POST",
+                            url: "http://localhost:8881/server_list/stop",
+                            data: {srv: $("#<t:slot name='srvname'/>").text()},
+                            success: function(data) {}
+                            });
+                        $("#<t:slot name='srvstart'/>").hide();
+                        window.location.reload();
+                        });
+                </script>
+                </tr>
+        </table>
+	</section>
+    <div id="loading">loading</div>
+<!--	
+	<section id="tab3">
+		<h2><a href="#tab3">Something else</a></h2>
+		<p>um</p>
+	</section>
+
+</article>
+-->
+</body>
+</html>

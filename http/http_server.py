@@ -2,6 +2,7 @@
 from __future__ import division
 
 from twisted.web.server import Site, NOT_DONE_YET
+from twisted.web import static
 from twisted.internet import reactor
 from twisted.web.resource import Resource, IResource, NoResource
 from twisted.internet.defer import inlineCallbacks, returnValue, Deferred
@@ -11,6 +12,7 @@ import functools
 import inspect
 import labrad
 from zope.interface import implements
+
 
 """
 ### BEGIN NODE INFO
@@ -79,7 +81,10 @@ class RootStatusResource(Resource):
         # if name=="" we should instead return a dictionary of all known modules
         try:
             page_factory = __import__("modules.%s"%name, globals=globals(), fromlist=['page_factory']).page_factory
-            child = StatusResource(page_factory, self.cxn)
+            page_funcs = __import__("modules.%s"%name, globals=globals(), fromlist=['page_funcs']).page_funcs
+            print "\n RESOURCE PAGE FUNCS: ", page_funcs
+            print "\n RESOURCE PAGE FACOTRY: ", page_factory
+            child = StatusResource(page_factory,page_funcs, self.cxn)
             self.putChild(name, child)
             print "successfully registered resource %s" % name
             return child
@@ -96,24 +101,53 @@ class StatusResource(Resource):
     can return deferreds, so they work well with LabRAD calls.
     '''
     isLeaf=True
-    def __init__(self, page_factory, cxn=None):
+    def __init__(self, page_factory,page_funcs, cxn=None):
         self.factory = page_factory
+        self.funcs = page_funcs
+        print "\n PAGE FUNCS: ", page_funcs
         self.cxn = cxn
+        Resource.__init__(self)
     def _delayedRender(self, request, data):
         request.write(data)
         request.finish()
     def set_cxn(self, cxn):
         self.cxn = cxn
+    def bar(self, request):
+        print "\n IN StatusResource.BAR()\n"
     def render_GET(self, request):
         if self.cxn is None:
             return "Unable to connect to labrad.  Sorry"
         d = flattenString(None, self.factory(self.cxn, request))
         d.addCallback(lambda data: self._delayedRender(request, data))
         return NOT_DONE_YET
+    def render_POST(self, request):
+        self.funcs.get_request(request,self.cxn)
+        print "Got POST: from", request.uri
 
+        
+# class TestHandler(Resource):
+    # '''
+    # Code for handling AJAX commands from javascript frontend
+    # '''
+    
+    # isLeaf = True
+
+    # def __init__(self):
+        # Resource.__init__(self)
+    # def render_GET(self, request):
+        # print "GET rec'd" 
+        # return self.render_POST(request)
+    # def render_POST(self, request):
+        # serverStr = request.content.read()
+        # serverStr = serverStr.replace('+',' ').strip('name=')
+        # sl.page_factory.run_server()
+        # print "POST rec'D ",serverStr
+        # return "hello world! DATA"
+        
+        
 class HTTPServer(LabradServer):
     """
-    HTTP server to provide cryo status information
+    HTTP server to provide information
 
     Currently there are no exported labrad settings.  This is only a server to allow it to
     be easily started and stopped by the node.  
@@ -122,6 +156,12 @@ class HTTPServer(LabradServer):
 
     def initServer(self):
         root = RootStatusResource(self.client)
+        staticResource = static.File("static")
+        root.putChild("static", staticResource)
+        # root = static.File('/Josh/labrad-servers/servers/http/modules')
+        # testHandler = TestHandler()
+        # root.putChild('test', testHandler)
+        # root.putChild('styles', static.File("./modules"))
         factory = Site(root)
         reactor.listenTCP(8881, factory)
 
