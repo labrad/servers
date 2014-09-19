@@ -1,0 +1,21 @@
+<html xmlns:t="http://twistedmatrix.com/ns/twisted.web.template/0.1">
+<head>
+    <title>Authentication Error</title>
+
+    <!-- Bootstrap core CSS -->
+    <link href="../static/bootstrap-3.2.0-dist/css/bootstrap.min.css" rel="stylesheet"/>
+
+    <!-- Custom styles for this template -->
+    <link href="../static/starter-template.css" rel="stylesheet"/>
+
+    <!-- Just for debugging purposes. Don't actually copy these 2 lines! -->
+    <!--[if lt IE 9]><script src="../../assets/js/ie8-responsive-file-warning.js"></script><![endif]-->
+    <script src="../static/bootstrap-3.2.0-dist/js/ie-emulation-modes-warning.js"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+</head>
+
+
+<body>
+  <p>You do not have sufficient priviledges to view this page</p>
+</body>
+</html>

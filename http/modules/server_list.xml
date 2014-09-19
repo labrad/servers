@@ -1,66 +1,62 @@
 <html xmlns:t="http://twistedmatrix.com/ns/twisted.web.template/0.1">
 <head>
-  <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
-  <link rel="stylesheet" href="../static/style.css" type="text/css" />
+    <title>Server Starting and Stopping site</title>
+
+    <!-- Bootstrap core CSS -->
+    <link href="../static/bootstrap-3.2.0-dist/css/bootstrap.min.css" rel="stylesheet"/>
+
+    <!-- Custom styles for this template -->
+    <link href="../static/starter-template.css" rel="stylesheet"/>
+
+    <!-- Just for debugging purposes. Don't actually copy these 2 lines! -->
+    <!--[if lt IE 9]><script src="../../assets/js/ie8-responsive-file-warning.js"></script><![endif]-->
+    <script src="../static/bootstrap-3.2.0-dist/js/ie-emulation-modes-warning.js"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
 </head>
 
 
 <body>
+  <div class="container">
+    <div class="tabbable">
+        <ul class="nav nav-tabs">
+            <li class="active"><a href="#all_servers" data-toggle="tab">All Servers</a></li>
+            <li><a href="#favourite_servers" data-toggle="tab">Favourite Servers</a></li>
+		</ul>
+        <div class="tab-content">
+            <div id="all_servers" class="tab-pane active">
+                <h2>All Servers</h2>
+                    <ul class="list-group">
+                    <li  class="list-group-item" t:render='server_entries'>
+                        <t:slot name='servername'/>
+                        <div class="pull-right"><span class="btn-group">
+                            <button type = "button"><t:attr name = "class"><t:slot name="starter_class"/></t:attr><t:attr name="value"><t:slot name='servername'/></t:attr><t:slot name='starter_text' /></button>
+                            <button type = "button"><t:attr name = "class"><t:slot name="stopper_class"/></t:attr><t:attr name="value"><t:slot name='servername'/></t:attr>Stop</button>
+                        </span></div>
+                    </li>
+                    </ul>
+            </div>
+            <div id="favourite_servers" class="tab-pane">
+                <h2>Favourite Servers</h2>
+                <p>Placed as key: node_name in ['','Servers','Server List']</p>
+                <ul class="list-group">
+                    <li  class="list-group-item" t:render='favourite_entries'>
+                        <t:slot name='favourite_name'/>
+                        <div class="pull-right"><span class="btn-group">
+                            <button type = "button"><t:attr name = "class"><t:slot name="starter_class"/></t:attr><t:attr name="value"><t:slot name='favourite_name'/></t:attr><t:slot name='starter_text' /></button>
+                            <button type = "button"><t:attr name = "class"><t:slot name="stopper_class"/></t:attr><t:attr name="value"><t:slot name='favourite_name'/></t:attr>Stop</button>
+                        </span></div>
+                    </li>
+                </ul>
 
-<!--
-<article class="tabs">
-  <h3> Server List </h3>
-	<section id="tab1">
-		<h2><a href="#tab1">Whitelisted Servers</a></h2>
-        <table border="1">
-            <tr t:render='whitelistentries'>
-                <td><t:slot name='whitelistname'/></td>
-            </tr>
-        </table>
-	</section>
--->
-	
-	<section id="tab2">
-		<p><h2><a href="#tab2">All Servers</a></h2></p>
-        <table border="1">
-            <tr  t:render='serverentries'>
-                <td><t:attr name="id"><t:slot name='srvname'/></t:attr><t:slot name='servername' /></td>
-                <td class="button"><t:attr name="id"><t:slot name='srvstart'/></t:attr><t:slot name='starter' /></td>
-                <td class="button"><t:attr name="id"><t:slot name='srvstop'/></t:attr>Stop</td>
-                <script type="text/javascript">
-                    $("#<t:slot name='srvstart'/>").click(function(){
-                    $.ajax({type: "POST",
-                            url: "http://localhost:8881/server_list/start",
-                            data: {srv: $("#<t:slot name='srvname'/>").text()},
-                            success: function(data) {}
-                            });
-                        $("#<t:slot name='srvstart'/>").hide();
-                        $("#loading").show();
-                        window.location.reload();
-                        });
-                </script>
-                <script type="text/javascript">
-                    $("#<t:slot name='srvstop'/>").click(function(){
-                    $.ajax({type: "POST",
-                            url: "http://localhost:8881/server_list/stop",
-                            data: {srv: $("#<t:slot name='srvname'/>").text()},
-                            success: function(data) {}
-                            });
-                        $("#<t:slot name='srvstart'/>").hide();
-                        window.location.reload();
-                        });
-                </script>
-                </tr>
-        </table>
-	</section>
-    <div id="loading">loading</div>
-<!--	
-	<section id="tab3">
-		<h2><a href="#tab3">Something else</a></h2>
-		<p>um</p>
-	</section>
-
-</article>
--->
+                </div>
+        </div><!-- /.tab-content--> 
+    </div><!-- /.tabbabble -->
+  </div>
+    <!-- Importing of Stuff-->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+    <script src="../static/bootstrap-3.2.0-dist/js/bootstrap.min.js"></script>
+    <!-- IE10 viewport hack for Surface/desktop Windows 8 bug -->
+    <script src="../../assets/js/ie10-viewport-bug-workaround.js"></script>
+    <script src="../static/custom_server_buttons.js"></script>
 </body>
 </html>

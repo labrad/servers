@@ -1,0 +1,130 @@
+<html xmlns:t="http://twistedmatrix.com/ns/twisted.web.template/0.1">
+<head>
+  <title>LAbRAD Browser Interface</title>
+
+    <!-- Bootstrap core CSS -->
+    <link href="../static/bootstrap-3.2.0-dist/css/bootstrap.min.css" rel="stylesheet"/>
+
+    <!-- Custom styles for this template -->
+    <link href="../static/starter-template.css" rel="stylesheet"/>
+
+    <!-- Just for debugging purposes. Don't actually copy these 2 lines! -->
+    <!--[if lt IE 9]><script src="../../assets/js/ie8-responsive-file-warning.js"></script><![endif]-->
+    <script src="../static/bootstrap-3.2.0-dist/js/ie-emulation-modes-warning.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+
+  <script type="text/javascript">
+  (function() {
+    var po = document.createElement('script');
+    po.type = 'text/javascript'; po.async = true;
+    po.src = 'https://plus.google.com/js/client:plusone.js';
+    var s = document.getElementsByTagName('script')[0];
+    s.parentNode.insertBefore(po, s);
+  })();
+  </script>
+ <!-- JavaScript specific to this application that is not related to API
+     calls -->
+  <script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js" ></script>
+</head>
+<body>
+    <div class= "jumbotron">
+      <h1>Welcome to the LabRAD browser interface</h1>
+      <p> You can log in with your Google Account (in theory) </p>
+      <p> You can make more web modules and put them in /modules. This should be pretty great eventually.</p>
+      <div t:render = "client_stuff">
+          <t:slot name="state"/><t:slot name="APPLICATION_NAME"/> 
+        
+        <div id="gConnect">
+            <button class="g-signin"
+                data-scope="https://www.googleapis.com/auth/plus.login"
+                data-requestvisibleactions="http://schemas.google.com/AddActivity"
+                data-accesstype="offline"
+                data-callback="onSignInCallback"
+                data-theme="dark"
+                data-cookiepolicy="single_host_origin">
+                <t:attr name = "data-clientId"><t:slot name="CLIENT_ID"/></t:attr>
+            </button>
+        </div>
+        <button class="btn btn-primary" id="revokeButton">Disconnect or something</button>
+        <button class="btn btn-primary" id="test_button">Run Test</button>
+      </div>
+    <pre id="authResult"></pre>
+    </div> 
+</body>
+
+    
+    <script type="text/javascript">
+    //The Google+ Buttons has a callback call onSignInCallback which I think will
+    //run this function
+    
+    function onSignInCallback(authResult){
+        for (var field in authResult) {
+            $('#authResult').append(' ' + field + ': ' + authResult[field] + '<br/>');
+        }
+        //this post will kickstart the authentication
+        $.ajax({type: "POST",
+        url: "https://localhost:8881/login/connect",
+        contentType: 'application/octet-stream; charset=utf-8',
+        data: authResult.code,
+        success: function(data) {}
+        });
+    }
+    //var helper = (function() {
+    //    var authResult = undefined;
+    //    return {
+    //        onSignInCallback: function(authResult) {
+    //          alert("Callback Called");
+    //        }
+    //    }
+    //    }
+    //)
+    </script>
+    <script type="text/javascript">
+    
+    //This test will only run if the user is authenticated
+    $('#test_button').click(function(){
+    $.ajax({type: "POST",
+       url: "https://localhost:8881/login/test",
+       data: {srv:4},
+       success: function(data) {}
+      });
+    //window.location.reload();
+    // alert($( this ).attr("value"));
+    });
+    </script>
+    <script type="text/javascript">
+    // This script handles the disconnect the user from the server.
+    // It does this by sending the appriate token to the revokeUrl.
+    // The access_token has to be filled in
+    // from the backend so it GETs the right URL
+    
+    function disconnectUser(access_token) {
+      var revokeUrl = 'https://accounts.google.com/o/oauth2/revoke?token=' +
+          access_token;
+
+      // Perform an asynchronous GET request.
+      $.ajax({
+        type: 'GET',
+        url: revokeUrl,
+        async: false,
+        contentType: "application/json",
+        dataType: 'jsonp',
+        success: function(nullResponse) {
+            alert("The user is disconnected");
+        },
+        error: function(e) {
+            alert("It didn't work. Gog to https://plus.google.com/apps and disconnect manually")
+          // Handle the error
+          // console.log(e);
+          // You could point users to manually disconnect if unsuccessful
+          // https://plus.google.com/apps
+        }
+      });
+    }
+    // Could trigger the disconnect on a button click
+    $('#revokeButton').click(disconnectUser);
+    //$('#revokeButton').click(function(){
+    //    alert("At least the button has been clicked"); 
+    //});
+    </script>
+</html>
