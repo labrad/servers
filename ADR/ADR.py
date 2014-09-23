@@ -383,10 +383,11 @@ class ADRWrapper(DeviceWrapper):
                         self.log("QUENCHED!")
                         self.status('cooling down')
                     elif targetReached:
+                        print "got it"
                         self.status('waiting at field')
                         self.psMaxCurrent()
-                        self.state('magUpCompletedTime', time.time())
-                        self.state('scheduledMagDownTime', time.time() + self.state('fieldWaitTime')*60)
+                        self.state('magUpCompletedTime', (time.time()/60)*Unit('min'))
+                        self.state('scheduledMagDownTime', (time.time()/60)*Unit('min') + self.state('fieldWaitTime'))
                     else:
                         pass # if at first we don't succeed, mag, mag again
                     yield util.wakeupCall(self.state('rampWaitTime')['s'])
@@ -394,7 +395,7 @@ class ADRWrapper(DeviceWrapper):
                 elif self.currentStatus == 'waiting at field':
                     yield util.wakeupCall(self.sleepTime)
                     # is it time to mag down?
-                    if time.time() > self.state('scheduledMagDownTime'):
+                    if (time.time()/60)*Unit('min') > self.state('scheduledMagDownTime'):
                         if not self.state('schedulingActive'):
                             self.status('ready to mag down')
                         else:
@@ -538,7 +539,6 @@ class ADRWrapper(DeviceWrapper):
             #print "changing voltage"
             if up:
                 newVoltage += self.state('voltageStepUp')
-                
             else:
                 newVoltage -= self.state('voltageStepDown')
             if HANDSOFF:

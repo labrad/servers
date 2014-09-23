@@ -384,7 +384,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
             elif self.calibrations[calIndex][0] == VRHOPPING:
                 T0 = self.calibrations[calIndex][2]
                 R0 = self.calibrations[calIndex][1]
-                res = self.readings[channel][0]*units.Ohm
+                res = self.readings[channel][0]
                 T = T0 / (np.log(R0/res)**4)
                 return T
             elif self.calibrations[calIndex][0] == FUNCTION:
