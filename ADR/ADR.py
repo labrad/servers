@@ -538,19 +538,19 @@ class ADRWrapper(DeviceWrapper):
             #print "changing voltage"
             if up:
                 newVoltage += self.state('voltageStepUp')
+                
             else:
                 newVoltage -= self.state('voltageStepDown')
+            if HANDSOFF:
+                print "would set %s magnet voltage -> %s" % (self.name, newVoltage)
+                self.log("would set %s magnet voltage -> %s" % (self.name, newVoltage))
+            else:
+                self.log("%s magnet voltage -> %s" % (self.name, newVoltage))
+                ps = self.peripheralsConnected['magnet']
+                yield ps.server.voltage(newVoltage, context=ps.ctxt)
         else:
             pass
             #print "not changing voltage"
-                        
-        if HANDSOFF:
-            print "would set %s magnet voltage -> %s" % (self.name, newVoltage)
-            self.log("would set %s magnet voltage -> %s" % (self.name, newVoltage))
-        else:
-            self.log("%s magnet voltage -> %s" % (self.name, newVoltage))
-            ps = self.peripheralsConnected['magnet']
-            yield ps.server.voltage(newVoltage, context=ps.ctxt)
         returnValue((quenched, targetReached))
         
     @inlineCallbacks
