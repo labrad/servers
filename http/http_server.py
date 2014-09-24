@@ -88,7 +88,7 @@ class RootStatusResource(Resource):
             self.putChild(name, child)
             print "successfully registered resource %s" % name
             return child
-        except ImportError as e:
+        except (ImportError, AttributeError) as e:
             return NoResource("No such child resource '%s'.  Error: %s" % (name, e))
     #def render_GET(self, request):
         # Generate a directory of known status pages
