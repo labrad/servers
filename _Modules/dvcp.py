@@ -84,7 +84,7 @@ def recreate_open_dataset(dv_from, dv_to):
     
     # read data and parameters
     data = dv_from.get()
-    if not data[0]:
+    if not len(data) or not len(data[0]):
         print("No data received from " + dv_from.get_name() + " in " + str(dv_from.cd()) + ".")
         print("Did not copy dataset.")
         return False
@@ -126,6 +126,9 @@ def recreate_datasets(dv_from, dv_to, exclude = [], write=True):
     num_datasets_present = len(datasets_present)
     num_datasets_included = len(datasets_included)
     num_datasets_created = 0
+
+    datasets_included = list(datasets_included)
+    datasets_included.sort()
 
     for x in datasets_included:
         if write:
@@ -324,13 +327,13 @@ def auto_copy(wrap_from, wrap_to, copy_subdirs=True, exclude=[]):
                             print "Copy operation aborted."
                             return
             
-            except: # can't connect to machine_to
+            except TypeError: # can't connect to machine_to
                 print('Unable to connect to LabRAD manager on "' + 
                 str(machine_to) + '".\nCheck that we are on the LabRAD whitelist for "' + 
                 str(machine_to) + '".')
                 return
     
-    except: # can't connect to machine_from
+    except TypeError: # can't connect to machine_from
         print('Unable to connect to LabRAD manager on "' + 
         str(machine_from) + '".\nCheck that we are on the LabRAD whitelist for "' + 
         str(machine_from) + '".')
