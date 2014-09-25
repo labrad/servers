@@ -24,31 +24,40 @@
 		</ul>
         <div class="tab-content">
             <div id="all_servers" class="tab-pane active">
-                <h2>All Servers</h2>
-                    <ul class="list-group">
-                    <li  class="list-group-item" t:render='server_entries'>
-                        <t:slot name='servername'/>
-                        <div class="pull-right"><span class="btn-group">
+                <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <tr><th class="col-sm-1"></th><th class="col-sm-1"></th><th>Server Name</th></tr>
+                    <tr t:render='server_entries'>
+                        <td>
                             <button type = "button"><t:attr name = "class"><t:slot name="starter_class"/></t:attr><t:attr name="value"><t:slot name='servername'/></t:attr><t:slot name='starter_text' /></button>
+                        </td><td>
                             <button type = "button"><t:attr name = "class"><t:slot name="stopper_class"/></t:attr><t:attr name="value"><t:slot name='servername'/></t:attr>Stop</button>
-                        </span></div>
-                    </li>
-                    </ul>
+                        </td>
+                        <td>
+                            <t:slot name='servername'/>
+                        </td>
+                    </tr>
+                </table>
+                </div>
             </div>
             <div id="favourite_servers" class="tab-pane">
-                <h2>Favourite Servers</h2>
                 <p>Placed as key: node_name in ['','Servers','Server List']</p>
-                <ul class="list-group">
-                    <li  class="list-group-item" t:render='favourite_entries'>
-                        <t:slot name='favourite_name'/>
-                        <div class="pull-right"><span class="btn-group">
+                <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <tr><th class="col-sm-1"></th><th class="col-sm-1"></th><th>Server Name</th></tr>
+                    <tr t:render='favourite_entries'>
+                        <td>
                             <button type = "button"><t:attr name = "class"><t:slot name="starter_class"/></t:attr><t:attr name="value"><t:slot name='favourite_name'/></t:attr><t:slot name='starter_text' /></button>
+                        </td><td>
                             <button type = "button"><t:attr name = "class"><t:slot name="stopper_class"/></t:attr><t:attr name="value"><t:slot name='favourite_name'/></t:attr>Stop</button>
-                        </span></div>
-                    </li>
-                </ul>
-
+                        </td>
+                        <td>
+                            <t:slot name='favourite_name'/>
+                        </td>
+                    </tr>
+                </table>
                 </div>
+            </div>
         </div><!-- /.tab-content--> 
     </div><!-- /.tabbabble -->
   </div>
