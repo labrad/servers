@@ -154,8 +154,7 @@ def find_node_server(cxn):
     for server in cxn.servers:
         print "\n CXN.SERVERS:, ", server
         if server.startswith("node"):
-            server = server.replace(' ','_')
-            server = server.replace('-','_')
+            server = server.replace(' ','_').replace('-','_').lower()
             print "\n IN NODE SERVER FINDER, FOUND: ",server
             return(server)
         
