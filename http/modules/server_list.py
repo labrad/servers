@@ -36,9 +36,10 @@ class ServerListPage(Element):
         
     @inlineCallbacks
     def get_favourites(self):
+        node = find_node_name(self._cxn)
         p = self._cxn.registry.packet()
         p.cd(self.favs_path)
-        p.get('josh_laptop')
+        p.get(node, False, False)
         rv = yield p.send()
         print "THE WHITELIST IS!!!!! ",rv.get
         returnValue(rv.get)
@@ -94,6 +95,11 @@ class ServerListPage(Element):
     @inlineCallbacks
     def favourite_entries(self, request, tag):
         favourite_data = yield self.get_favourites()
+        if not favourite_data:
+            error_string = "Entry for '%s' not found in registry under path %s" % (find_node_name(self._cxn), str(self.favs_path))
+            print error_string
+            rv = [tag.clone().fillSlots(favourite_name=tags.b(error_string))]
+            returnValue(rv)
         runningservers = yield self.get_running_servers()
         rv = [tag.clone().fillSlots(favourite_name=tags.b("Server Name"),stopper_class="btn btn-inverse",starter_text="s",starter_class='btn btn-default')]
         for entry in favourite_data:
@@ -157,6 +163,9 @@ def find_node_server(cxn):
             server = server.replace(' ','_').replace('-','_').lower()
             print "\n IN NODE SERVER FINDER, FOUND: ",server
             return(server)
+            
+def find_node_name(cxn):
+    return find_node_server(cxn)[5:]
         
 page_funcs = ServerListFuncs()     
 page_factory = ServerListPage
