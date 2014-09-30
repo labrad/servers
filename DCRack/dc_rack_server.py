@@ -49,7 +49,7 @@ class DcRackWrapper(DeviceWrapper):
     @inlineCallbacks
     def connect(self, server, port, cards):
         """Connect to a dc rack device."""
-        print 'connecting to "%s" on port "%s"...' % (server.name, port),
+        print 'connecting to "%s" on port "%s"...' % (server.name, port)
         self.rackCards = {}
         self.rackMonitor = Monitor()
         self.activeCard = 100
@@ -67,7 +67,6 @@ class DcRackWrapper(DeviceWrapper):
                 self.rackCards[card[0]] = Preamp()
             else:
                 self.rackCards[card[0]] = 'fastbias'
-                
         print 'done.'
     
     def packet(self):
@@ -106,7 +105,7 @@ class DcRackWrapper(DeviceWrapper):
         preamp.updateChannel(channel,data,lp,pol,off)
         hp = yield self.sendChannelPacket(channel,data,lp,pol,off)
         returnValue(hp)
-        
+
 
     @inlineCallbacks
     def changeLowPassFilter(self, channel, data):
@@ -284,21 +283,21 @@ class DcRackWrapper(DeviceWrapper):
         else:
             print 'card is not a preamp'
 
-        
+
     @inlineCallbacks
     def triggerChannel(self, channel):
         """Tells selected channel to pull data from registry and update DAC value"""
         ChannelID = {'A':0, 'B':1, 'C':2, 'D':3}[channel]
-        
         #Bitwise OR with 11000000
         yield self.write([192|ChannelID])
-        
-    
+
+
     @inlineCallbacks
-    def pushRegistryValue(self, dac, slow, num):
+    def pushRegistryValue(self, dac, slow, voltage):
         """Pushes 18 bits of data into 18 bit shift register. First bit is fine(0) or coarse(1) DAC, 
         last bit is fast(0) or slow(1) slew rate, and middle 16 bits are voltage value"""
         #Conversion of voltage value into 16-bit number, plus bits for DAC selection and slew rate
+        num = voltage['V']
         if num > 2.5:
             num = 2.5
         elif num < 0 and not dac:
@@ -319,7 +318,7 @@ class DcRackWrapper(DeviceWrapper):
         #Push bits to proper positions
         Byte1 = long(intNum)
         Byte2 = long(intNum>>6)
-        Byte3 = long(intNum>>12)  
+        Byte3 = long(intNum>>12)
 
         #Write 8 bit sequences
         yield self.write([128|(Byte3&63)])
@@ -334,22 +333,22 @@ class DcRackWrapper(DeviceWrapper):
         yield self.triggerChannel(channel)
 
         
-    @inlineCallbacks    
+    @inlineCallbacks
     def streamChannel(self, channel):
         """Command to set channel to take streaming data from GHz DAC"""
         ChannelID = {'A':0, 'B':1, 'C':2, 'D':3}[channel]
         #Bitwise OR with 11001000
         long(ChannelID)
-        yield self.write([200|ChannelID])   
+        yield self.write([200|ChannelID])
 
     @inlineCallbacks
     def setChannelStream(self, card, channel):
         """Executes sequence of commands to set channel to streaming mode"""
         yield self.selectCard(card)
         yield self.streamChannel(channel)
-        
 
-class DcRackServer(DeviceServer): 
+
+class DcRackServer(DeviceServer):
     deviceName = 'DC Rack Server'
     name = 'DC Rack Server'
     deviceWrapper = DcRackWrapper
@@ -405,30 +404,45 @@ class DcRackServer(DeviceServer):
 
     @setting(60, 'Change High Pass Filter',channel = 's', data = 's')
     def change_high_pass_filter(self, c, channel, data):
+        """
+        Change high pass filter settings for preamp channel on selected card.
+        """
         dev = self.selectedDevice(c)
         hp = yield dev.changeHighPassFilter(channel, data)
         returnValue(hp)
 
     @setting(34, 'Change Low Pass Filter',channel = 's', data = 's')
     def change_low_pass_filter(self, c, channel, data):
+        """
+        Change low pass filter settings for preamp channel on selected card.
+        """
         dev = self.selectedDevice(c)
         lp = yield dev.changeLowPassFilter(channel, data)
         returnValue(lp)
 
     @setting(400, 'Change Polarity',channel = 's', data = 's')
     def change_polarity(self, c, channel, data):
+        """
+        Change polarity of preamp channel on selected card.
+        """
         dev = self.selectedDevice(c)
         pol = yield dev.changePolarity(channel, data)
         returnValue(pol)
 
     @setting(123, 'change_dc_offset', channel = 's', data ='w')
     def change_dc_offset(self, c, channel, data): 
+        """
+        Change DC offset for preamp channel on selected card.
+        """
         dev = self.selectedDevice(c)
         offset = yield dev.changeDCOffset(channel, data)
         returnValue(offset)
 
     @setting(130, 'change monitor', channel = 's', command = 's')
     def change_monitor(self, c, channel, command=None):
+        """
+        Change monitor output.
+        """
         dev = self.selectedDevice(c)
         change = yield dev.changeMonitor(channel, command)
         returnValue(change)
@@ -452,6 +466,9 @@ class DcRackServer(DeviceServer):
 
     @setting(565, 'list_cards')
     def list_cards(self, c):
+        """
+        List cards configured in the registry (does not query cards directly)
+        """
         dev = self.selectedDevice(c)
         cards = yield dev.returnCardList()
         returnValue(cards)
@@ -462,27 +479,33 @@ class DcRackServer(DeviceServer):
         state = yield dev.preampState(cardNumber, channel)
         returnValue(state)
 
-    @setting(423, 'get_monitor_state')                                            
+    @setting(423, 'get_monitor_state')
     def getMonitorState(self, c):
         dev = self.selectedDevice(c)
         state = yield dev.getMonitorState()
         returnValue(state)
     
-    @setting(867, 'commit_to_registry')                                            
+    @setting(867, 'commit_to_registry')
     def commit_to_registry(self, c):
         dev = self.selectedDevice(c)
         reg = self.client.registry()
         yield dev.commitToRegistry(reg)
     
-    @setting(868, 'load_from_registry')                                            
+    @setting(868, 'load_from_registry')      
     def load_from_registry(self, c):
         dev = self.selectedDevice(c)
         reg = self.client.registry()
         yield dev.loadFromRegistry(reg)
       
-    @setting(874, 'channel_set_voltage')
+    @setting(874, 'channel_set_voltage', card='w', channel='s', dac='w{0=Fine (unipolar), 1=Coarse (bipolar)}', slow='w', value='v[V]')
     def channel_set_voltage(self, c, card, channel, dac, slow, value):
-        """Executes sequence of commands to set a voltage value"""
+        """Executes sequence of commands to set a voltage value.
+        card: the card ID (according to DIP switches on the PCB)
+        channel: A, B, C, or D
+        dac: 0 for FINE (unipolar 0..2.5 V) , 1 for COARSE (bipolar -2.5V to +2.5V)
+        slow: always 1 with FINE.  For coarse, set the RC time constant
+        value: set voltage.  Will be coerced into range for the selected DAC
+        """
         dev = self.selectedDevice(c)
         yield dev.setVoltage(card, channel, dac, slow, value)
     
