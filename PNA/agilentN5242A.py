@@ -208,7 +208,7 @@ class AgilentPNAServer(GPIBManagedServer):
             resp = yield dev.query('CALC:CORR:EDEL:TIME?')
             corr = T.Value(float(resp), 'ns')
         elif isinstance(corr, T.Value):
-            yield dev.write('CALC:CORR:EDEL:TIME %fNS' % corr)
+            yield dev.write('CALC:CORR:EDEL:TIME %fNS' % corr['ns'])
         returnValue(corr)
         
     @setting(225, bw = ['w'], returns = ['s'])
