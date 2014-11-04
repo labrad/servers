@@ -104,7 +104,7 @@ class AgilentPNAServer(GPIBManagedServer):
             resp = yield dev.query('SENS:FREQ:CW?')
             f = T.Value(float(resp), 'Hz')
         elif isinstance(f, T.Value):
-            yield dev.write('SENS:FREQ:CW %f' % f.value)
+            yield dev.write('SENS:FREQ:CW %f' % f['Hz'])
         returnValue(f)
 
     @setting(12, fs=['(v[Hz], v[Hz])'], returns=['(v[Hz], v[Hz])'])
