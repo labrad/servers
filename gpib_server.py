@@ -37,11 +37,12 @@
 # connections work, and should be improved.
 
 from labrad.server import LabradServer, setting
-from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.defer import inlineCallbacks
 from twisted.internet.reactor import callLater
-from twisted.internet.task import LoopingCall
+from labrad.errors import DeviceNotSelectedError
 import labrad.units as units
-from pyvisa import visa, vpp43
+import visa
+
 
 """
 ### BEGIN NODE INFO
@@ -61,12 +62,13 @@ timeout = 20
 ### END NODE INFO
 """
 
+
 class GPIBBusServer(LabradServer):
     """Provides direct access to GPIB-enabled devices."""
     name = '%LABRADNODE% GPIB Bus'
 
     refreshInterval = 10
-    defaultTimeout = 1.0*units.s
+    defaultTimeout = 1.0 * units.s
 
     def initServer(self):
         self.devices = {}
@@ -82,29 +84,25 @@ class GPIBBusServer(LabradServer):
         When the refresh loop is shutdown, we will wait for this
         deferred to fire to indicate that it has terminated.
         """
-        #self.refresher = LoopingCall(self.refreshDevices)
+        # self.refresher = LoopingCall(self.refreshDevices)
         #self.refresherDone = self.refresher.start(self.refreshInterval, now=True)
         self.refreshDevices()
-        
+
     @inlineCallbacks
     def stopServer(self):
         """Kill the device refresh loop and wait for it to terminate."""
         if hasattr(self, 'refresher'):
             self.refresher.stop()
             yield self.refresherDone
-        
+
     def refreshDevices(self):
         """Refresh the list of known devices on this bus.
 
         Currently supported are GPIB devices and GPIB over USB.
         """
         try:
-            addresses = visa.get_instruments_list()
-            #try:
-            #    sockets = self.getSocketsList()
-            #    addresses = addresses + sockets
-            #except:
-            #    pass
+            rm = visa.ResourceManager()
+            addresses = [str(x) for x in rm.list_resources()]
             additions = set(addresses) - set(self.devices.keys())
             deletions = set(self.devices.keys()) - set(addresses)
             for addr in additions:
@@ -117,10 +115,11 @@ class GPIBBusServer(LabradServer):
                         instName = addr + '::INSTR'
                     else:
                         continue
-                    instr = visa.instrument(instName, timeout=1.0, term_chars='')
+                    instr = rm.get_instrument(instName)
+                    instr.write_termination = ''
                     instr.clear()
                     if addr.endswith('SOCKET'):
-                        instr.term_chars = '\n'
+                        instr.write_termination = '\n'
                     self.devices[addr] = instr
                     self.sendDeviceMessage('GPIB Device Connect', addr)
                 except Exception, e:
@@ -130,36 +129,22 @@ class GPIBBusServer(LabradServer):
                 self.sendDeviceMessage('GPIB Device Disconnect', addr)
         except Exception, e:
             print 'Problem while refreshing devices:', str(e)
-		
-    def getSocketsList(self):
-        """Get a list of all connected devices.
 
-        Return value:
-        A list of strings with the names of all connected devices, ready for being
-        used to open each of them.
-        """
-        # Phase I: Get all standard resource names (no aliases here)
-        resource_names = []
-        find_list, return_counter, instrument_description = vpp43.find_resources(visa.resource_manager.session, "?*::SOCKET")
-        resource_names.append(instrument_description)
-        for i in xrange(return_counter - 1):
-            resource_names.append(vpp43.find_next(find_list))
-        return resource_names
-            
     def sendDeviceMessage(self, msg, addr):
         print msg + ': ' + addr
         self.client.manager.send_named_message(msg, (self.name, addr))
-            
+
     def initContext(self, c):
         c['timeout'] = self.defaultTimeout
 
     def getDevice(self, c):
+        if 'addr' not in c:
+            raise DeviceNotSelectedError("No GPIB address selected")
         if c['addr'] not in self.devices:
             raise Exception('Could not find device ' + c['addr'])
         instr = self.devices[c['addr']]
-        instr.timeout = c['timeout']['s']
         return instr
-        
+
     @setting(0, addr='s', returns='s')
     def address(self, c, addr=None):
         """Get or set the GPIB address for this context.
@@ -176,26 +161,26 @@ class GPIBBusServer(LabradServer):
         """Get or set the GPIB timeout."""
         if time is not None:
             c['timeout'] = time
-        return c['timeout'] 
+        return c['timeout']
 
     @setting(3, data='s', returns='')
     def write(self, c, data):
         """Write a string to the GPIB bus."""
         self.getDevice(c).write(data)
 
-    @setting(4, bytes='w', returns='s')
-    def read(self, c, bytes=None):
+    @setting(4, n_bytes='w', returns='s')
+    def read(self, c, n_bytes=None):
         """Read from the GPIB bus.
 
         If specified, reads only the given number of bytes.
         Otherwise, reads until the device stops sending.
         """
         instr = self.getDevice(c)
-        if bytes is None:
+        if n_bytes is None:
             ans = instr.read()
         else:
-            ans = vpp43.read(instr.vi, bytes)
-        return ans
+            ans = instr.read_raw(n_bytes)
+        return str(ans).strip()
 
     @setting(5, data='s', returns='s')
     def query(self, c, data):
@@ -205,9 +190,10 @@ class GPIBBusServer(LabradServer):
         device will occur while the query is in progress.
         """
         instr = self.getDevice(c)
-        instr.write(data)
-        ans = instr.read()
-        return ans
+        #instr.write(data)
+        #ans = instr.read()
+        ans = instr.query(data)
+        return str(ans).strip()
 
     @setting(20, returns='*s')
     def list_devices(self, c):
@@ -216,11 +202,13 @@ class GPIBBusServer(LabradServer):
 
     @setting(21)
     def refresh_devices(self, c):
-        ''' manually refresh devices '''
+        """ manually refresh devices """
         self.refreshDevices()
+
 
 __server__ = GPIBBusServer()
 
 if __name__ == '__main__':
     from labrad import util
+
     util.runServer(__server__)
