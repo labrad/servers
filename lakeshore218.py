@@ -37,8 +37,11 @@ from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 import labrad.units as units
 
+
 def parse(val):
-    ''' Parse function to account for the occasional GPIB glitches where we get extra characters in front of the numbers. '''
+    """
+    Parse function to account for the occasional GPIB glitches where we get extra characters in front of the numbers.
+    """
     if len(val):
         try:
             return float(val)
@@ -46,6 +49,7 @@ def parse(val):
             return parse(val[1:])
     else:
         return 0.0
+
 
 class LakeshoreDiodeServer(GPIBManagedServer):
     name = 'Lakeshore Diodes'
@@ -60,7 +64,7 @@ class LakeshoreDiodeServer(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         resp = yield dev.query('KRDG? 0')
-        vals = [parse(val)*K for val in resp.split(',')]
+        vals = [parse(val) * K for val in resp.split(',')]
         returnValue(vals)
 
     @setting(11, 'Voltages', returns=['*v[V]'])
@@ -71,11 +75,13 @@ class LakeshoreDiodeServer(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         resp = yield dev.query('SRDG? 0')
-        vals = [parse(val)*V for val in resp.split(',')]
+        vals = [parse(val) * V for val in resp.split(',')]
         returnValue(vals)
+
 
 __server__ = LakeshoreDiodeServer()
 
 if __name__ == '__main__':
     from labrad import util
+
     util.runServer(__server__)
