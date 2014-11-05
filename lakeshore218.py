@@ -30,12 +30,10 @@ timeout = 20
 ### END NODE INFO
 """
 
-from labrad import types as T, gpib
 from labrad.units import K, V
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
-from twisted.internet.defer import inlineCallbacks, returnValue
-import labrad.units as units
+from twisted.internet.defer import returnValue
 
 
 def parse(val):
