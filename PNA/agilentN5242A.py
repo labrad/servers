@@ -560,18 +560,18 @@ class AgilentPNAServer(GPIBManagedServer):
         """
         yield dev.write("CALC:PAR:SEL '%s'" % _parName(meas))
         yield dev.write("CALC:DATA? SDATA")
-        yield dev.read(bytes=1L) # throw away first byte
+        yield dev.read(n_bytes=1L) # throw away first byte
         
-        headerLen = long((yield dev.read(bytes=1L)))
-        dataLen = long((yield dev.read(bytes=headerLen)))
+        headerLen = long((yield dev.read(n_bytes=1L)))
+        dataLen = long((yield dev.read(n_bytes=headerLen)))
 
         # read data in chunks
         dataStr = ''
         while len(dataStr) < dataLen:
             chunk = min(10000, dataLen - len(dataStr))
-            dataStr += yield dev.read(bytes=long(chunk))
+            dataStr += yield dev.read(n_bytes=long(chunk))
             
-        yield dev.read(bytes=1L) # read last byte and discard
+        yield dev.read(n_bytes=1L) # read last byte and discard
 
         nPoints = dataLen / 16
         
@@ -598,18 +598,18 @@ class AgilentPNAServer(GPIBManagedServer):
         yield dev.write("CALC:PAR:SEL '%s'" % _parName(meas))
         yield dev.write("CALC:FORM PHAS")
         yield dev.write("CALC:DATA? FDATA")
-        yield dev.read(bytes=1L) # throw away first byte
+        yield dev.read(n_bytes=1L) # throw away first byte
         
-        headerLen = long((yield dev.read(bytes=1L)))
-        dataLen = long((yield dev.read(bytes=headerLen)))
+        headerLen = long((yield dev.read(n_bytes=1L)))
+        dataLen = long((yield dev.read(n_bytes=headerLen)))
 
         # read data in chunks
         dataStr = ''
         while len(dataStr) < dataLen:
             chunk = min(10000, dataLen - len(dataStr))
-            dataStr += yield dev.read(bytes=long(chunk))
+            dataStr += yield dev.read(n_bytes=long(chunk))
             
-        yield dev.read(bytes=1L) # read last byte and discard
+        yield dev.read(n_bytes=1L) # read last byte and discard
 
         nPoints = dataLen / 8
         
