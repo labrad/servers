@@ -42,17 +42,19 @@ from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 
+
 class AgilentDCWrapper(GPIBDeviceWrapper):
     def initialize(self):
         self.psMode = False
         self.psChangeTime = 0
-            
+
+
 class AgilentDCSource(GPIBManagedServer):
     """Controls the Agilent 3640A DC Power Supply."""
     name = 'Agilent 3640A DC Source'
     deviceName = 'Agilent Technologies E3640A'
     deviceWrapper = AgilentDCWrapper
-        
+
     @setting(10, state='b', returns='b')
     def output(self, c, state=None):
         """Get or set the output state."""
@@ -61,7 +63,7 @@ class AgilentDCSource(GPIBManagedServer):
             ans = yield dev.query('OUTP?')
             state = bool(int(ans))
         else:
-            if state != bool(int( (yield dev.query('OUTP?')) )):
+            if state != bool(int((yield dev.query('OUTP?')))):
                 dev.psChangeTime = time.time()
             yield dev.write('OUTP %d' % state)
         returnValue(state)
@@ -78,15 +80,15 @@ class AgilentDCSource(GPIBManagedServer):
         if not dev.psMode and curr is not None:
             yield dev.write('CURR %g' % float(curr))
         ans = yield dev.query('MEAS:CURR?')
-        returnValue(float(ans)*U.A)
-        
+        returnValue(float(ans) * U.A)
+
     @setting(21, curr='v[A]', returns='v[A]')
     def set_current(self, c, curr=None):
         """ Identical to current(curr), but returns the set value of current, not the measured value. """
         dev = self.selectedDevice(c)
         if not dev.psMode and curr is not None:
             yield self.current(c, curr)
-        returnValue(float( (yield self.selectedDevice(c).query('CURR?')) )*U.A)
+        returnValue(float((yield self.selectedDevice(c).query('CURR?'))) * U.A)
 
     @setting(30, volt='v[V]', returns='v[V]')
     def voltage(self, c, volt=None):
@@ -100,22 +102,22 @@ class AgilentDCSource(GPIBManagedServer):
         if not dev.psMode and volt is not None:
             yield dev.write('VOLT %g' % float(volt))
         ans = yield dev.query('MEAS:VOLT?')
-        returnValue(float(ans)*U.V)
-        
+        returnValue(float(ans) * U.V)
+
     @setting(31, volt='v[V]', returns='v[V]')
     def set_voltage(self, c, volt=None):
         """ Identical to voltage(volt), but returns the set value of current, not the measured value. """
         dev = self.selectedDevice(c)
         if not dev.psMode and volt is not None:
             yield self.voltage(c, volt)
-        returnValue(float( (yield dev.query('VOLT?')) )*U.V)
-        
+        returnValue(float((yield dev.query('VOLT?'))) * U.V)
+
     @setting(40, mode='b', returns='b')
     def persistent_switch_mode(self, c, mode=None):
-        '''
+        """
         Gets/sets whether this device is in "persistent switch mode".
         If so, it is fixed to 47 mA, and the only operation allowed is output on/off.
-        '''
+        """
         dev = self.selectedDevice(c)
         if mode is not None:
             if mode:
@@ -125,21 +127,23 @@ class AgilentDCSource(GPIBManagedServer):
                     dev.psChangeTime = time.time()
             dev.psMode = mode
         returnValue(dev.psMode)
-        
+
     @setting(41, returns='v[s]')
     def persistent_switch_time_elapsed(self, c):
-        ''' 
+        """
         returns the amount of time since the mode changed (on/off).
         only valid in persistent switch mode (returns 0 if not).
-        '''
+        """
         dev = self.selectedDevice(c)
         if dev.psMode:
             return time.time() - dev.psChangeTime
         else:
             return 0
 
+
 __server__ = AgilentDCSource()
 
 if __name__ == '__main__':
     from labrad import util
+
     util.runServer(__server__)
