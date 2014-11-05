@@ -13,44 +13,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-
 # note: every time the communication with the arduino, it resets.
 # this means it loses its memory of the state (open/closed).
 # to avoid this, open serialwin32.py, and change
-#   self._dtrState = win32file.RTS_CONTROL_ENSABLE
+# self._dtrState = win32file.RTS_CONTROL_ENSABLE
 # to
-#   self._dtrState = win32file.RTS_CONTROL_DISABLE
+# self._dtrState = win32file.RTS_CONTROL_DISABLE
 # (this was line 63 in my copy.)
 # then delete the pyc and pyo files and restart the serial server.
-
-# documentation below copied from the arduino sketch.
-
-# ---PINOUT---
-# Arduino  Heat Switch Box  purpose
-# 2        1                interrupt to detect switch opening
-# 3        3                interrupt to detect switch closing
-# 4        2                open control pin
-# 5        9                close control
-# 6        4                4K - 1K touch detector
-# 7        7                1K - 50mK touch
-# 8        6                4K - 50mK touch
-# GND      11               signal ground
-# (before wiring, double check that the heat switch pin functions are correct)
-
-# ---PROTOCOL---
-# We communicate with the computer over serial.
-# Commands end with \n, \r is ignored.
-# Timeout = 1 second.
-
-# Command    Response
-# *IDN?      MARTINISGROUP,HEATSWITCH,[version]
-# STATUS?    [0,1,2] for [unknown, open, closed]
-# TOUCH? n   [0, 1] for [touch, no touch] for n=[1,2,3]->[4K-1K, 1K-50mK, 4k-50mK]
-#            Returns E for n != [1,2,3]
-# OPEN!      open the heat switch
-# CLOSE!     close the heat switch
-
-
 
 """
 ### BEGIN NODE INFO
@@ -71,11 +41,11 @@ timeout = 5
 
 from labrad.types import Value
 from labrad.devices import DeviceServer, DeviceWrapper
-from labrad.server import LabradServer, setting
-from labrad.errors import Error
-import labrad.units as units
+from labrad.server import setting
 from twisted.internet.defer import inlineCallbacks, returnValue
-from labrad import util
+
+TIMEOUT = Value(5, 's')  # serial read timeout
+
 
 class HeatSwitchDevice(DeviceWrapper):
     @inlineCallbacks
@@ -88,24 +58,14 @@ class HeatSwitchDevice(DeviceWrapper):
         p = self.packet()
         p.open(port)
         p.baudrate(9600)
-        p.read() # clear out the read buffer
+        p.read()  # clear out the read buffer
         p.timeout(TIMEOUT)
         yield p.send()
-        # now check to make sure we have a heat switch
-        idn = yield self.query("*IDN?")
-        #self.sketch_version = idn.split(',')[2]
-        #print idn
-        #idn = idn.split(',')
-        #if idn[1] != 'HEATSWITCH':
-        #    print "ERROR: Heat switch not responding to *IDN? correctly!"
-        #    self.shutdown()
-        
-        #print 'heatswitch version %s' % idn[2]
 
     def packet(self):
         """Create a packet in our private context."""
         return self.server.packet(context=self.ctx)
-    
+
     def shutdown(self):
         """Disconnect from the serial port when we shut down."""
         return self.packet().close().send()
@@ -114,15 +74,16 @@ class HeatSwitchDevice(DeviceWrapper):
     def write(self, code):
         """Write a data value to the heat switch."""
         yield self.packet().write_line(code).send()
-        
+
     @inlineCallbacks
     def query(self, code):
-        ''' Write, then read. '''
+        """ Write, then read. """
         p = self.packet()
         p.write_line(code)
         p.read_line()
         ans = yield p.send()
         returnValue(ans.read_line)
+
 
 class HeatSwitchServer(DeviceServer):
     deviceName = 'Heat Switch Arduino'
@@ -155,20 +116,20 @@ class HeatSwitchServer(DeviceServer):
             p.get(k, key=k)
         ans = yield p.send()
         self.serialLinks = dict((k, ans[k]) for k in keys)
-        
+
     @inlineCallbacks
     def findDevices(self):
         """Find available devices from list stored in the registry."""
         devs = []
         # for name, port in self.serialLinks:
-            # if name not in self.client.servers:
-                # continue
-            # server = self.client[name]
-            # ports = yield server.list_serial_ports()
-            # if port not in ports:
-                # continue
-            # devName = '%s - %s' % (name, port)
-            # devs += [(devName, (server, port))]
+        # if name not in self.client.servers:
+        # continue
+        # server = self.client[name]
+        # ports = yield server.list_serial_ports()
+        # if port not in ports:
+        # continue
+        # devName = '%s - %s' % (name, port)
+        # devs += [(devName, (server, port))]
         # returnValue(devs)
         for name, (serServer, port) in self.serialLinks.items():
             if serServer not in self.client.servers:
@@ -180,7 +141,7 @@ class HeatSwitchServer(DeviceServer):
             devName = '%s - %s' % (serServer, port)
             devs += [(devName, (server, port))]
         returnValue(devs)
-    
+
     @setting(100, 'Open', returns='')
     def open_heat_switch(self, c):
         """Opens the heat switch."""
@@ -192,39 +153,40 @@ class HeatSwitchServer(DeviceServer):
         """Closes the heat switch."""
         dev = self.selectedDevice(c)
         yield dev.write('CLOSE!')
-        
-    @setting(300, 'Status', returns='i: 0=Unknown, 1=Open, 2=Closed')
+
+    @setting(300, 'Status',
+             returns='i: 0=Unknown, 1=Open Confirmed, 2=Close Confirmed,' +
+                     ' 3=Open Requested, 4=Close Requested')
     def status(self, c):
-        ''' Get open/closed status of heat switch. '''
+        """ Get open/closed status of heat switch. """
         dev = self.selectedDevice(c)
         ans = yield dev.query('STATUS?')
         returnValue(int(ans))
-    
+
     @setting(400, 'Touch', which='i: 1=4K-1K, 2=1K-50mK, 3=4K-50mK', returns='b')
     def touch(self, c, which):
-        ''' Check for touch between two stages. '''
+        """ Check for touch between two stages. """
         if which != 1 and which != 2 and which != 3:
             raise ValueError('Argument to heat-switch "touch" setting must be 1, 2 or 3.')
         dev = self.selectedDevice(c)
         ans = yield dev.query('TOUCH? %s' % which)
         returnValue(bool(int(ans)))
-        
+
     @setting(500, 'Sketch Version', returns='i')
     def sketch_version(self, c):
-        ''' Get version number of sketch on Arduino. '''
+        """ Get version number of sketch on Arduino. """
         dev = self.selectedDevice(c)
         ans = yield dev.query('*IDN?')
         returnValue(int(ans.split(',')[2]))
 
 
-TIMEOUT = 1*units.s # serial read timeout
-
-#####
+# ####
 # Create a server instance and run it
 
 __server__ = HeatSwitchServer()
 
 if __name__ == '__main__':
     from labrad import util
+
     util.runServer(__server__)
 

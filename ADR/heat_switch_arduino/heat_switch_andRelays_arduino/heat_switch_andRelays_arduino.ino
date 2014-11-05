@@ -18,13 +18,16 @@ Commands end with \n, \r is ignored.
 Timeout = 1 second.
 Command    Response
 *IDN?      MARTINISGROUP,HEATSWITCH,[version]
-STATUS?    [0,1,2] for [unknown, open, closed]
+STATUS?    [0,1,2,3,4] for [unknown, open confirmed, close confirmed, open requested, close requested]
 TOUCH? n   [0, 1] for [touch, no touch] for n=[1,2,3]->[4K-1K, 1K-50mK, 4k-50mK]
            Returns E for n != [1,2,3]
-OPEN!      open the heat switch
-CLOSE!     close the heat switch
+OPEN!      open the heat switch: close relays, wait, open switch, wait, open relays
+CLOSE!     close the heat switch: close relays, open switch, close switch, open relays
+OPENRELAYS     open the relays
+CLOSERELAYS    close the relays
+NOISY n    turn noisy (verbose) mode on (1) or off (0)
 */
-const unsigned int sketchVersion = 2;
+const unsigned int sketchVersion = 5;
 const int openPin = 4;
 const int closePin = 5;
 const int touch4K1Kpin = 6;
@@ -35,11 +38,8 @@ const int relayIn2 = 15; // A1
 const int openingPin = 2;
 const int closingPin = 3;
 
-volatile int switchState = 0; // 0: Neutral 1: Opening 2: Closing
-volatile int prevState = 0;
-volatile int closeNext = 0; // Switch must be opened before it can closed, need to not power cycle before closing.
-volatile int openPrint = 0;
-volatile int closePrint = 0;
+int noisy = 0;
+volatile int switchState = 0;    // see STATUS? above
 
 volatile unsigned long switchTime = 0;
 volatile int closing = 0;
@@ -59,14 +59,12 @@ boolean buildingCommand;
 char c;
 byte b;
 int i;
+
 void setup() {
   Serial.begin(9600);
   // interrupt 0,1 -> pins 2,3 for arduino uno
   attachInterrupt(0, openingInterrupt, CHANGE);
   attachInterrupt(1, closingInterrupt, CHANGE);
-  pinMode(2, INPUT_PULLUP);
-  pinMode(3, INPUT_PULLUP);
-
   pinMode(openingPin, INPUT_PULLUP);
   pinMode(closingPin, INPUT_PULLUP);
   pinMode(openPin, OUTPUT);
@@ -80,10 +78,10 @@ void setup() {
   openRelays();
   resetCommand();
 }
+
 void loop(){
   // handle command inputs
   // build up a command one character at a time
-
   while (Serial.available() > 0) {
     buildingCommand = true;
     lastSerialTime = millis();
@@ -103,7 +101,7 @@ void loop(){
   }
   // check for serial timeout
   if (buildingCommand && millis() - lastSerialTime > serialTimeout) {
-    Serial.println(millis() - lastSerialTime);
+    //Serial.println(millis() - lastSerialTime);
     handleCommand();
   }
   
@@ -128,14 +126,6 @@ void loop(){
     closing=0;
   }
   
-  if (openPrint==1 && (closing>1 || opening>1)) {
-    Serial.println("OPENING CHANGE");
-    openPrint=0;
-  }
-  if (closePrint==1&& (closing>1 || opening>1)) {
-    Serial.println("CLOSING CHANGE");
-    closePrint=0;
-  }
 }
 void handleCommand() {
   //Serial.print("command: ");
@@ -158,6 +148,10 @@ void handleCommand() {
     openRelays();
   } else if (strcmp(currentCommand, "CLOSERELAYS") == 0) {
     closeRelays();
+  } else if (strcmp(currentCommand, "NOISY 0") == 0) {
+    noisy = 0;
+  } else if (strcmp(currentCommand, "NOISY 1") == 0) {
+    noisy = 1;
   }
   resetCommand();
 }
@@ -203,11 +197,13 @@ void sendTouch() {
 // we should record the time, and then compare using millis() in the main loop
 // but it's only 1 ms, and it won't mess up serial comms (just delay), so whatever.
 void openSwitch() {
+  switchState = 3;
   digitalWrite(openPin, HIGH);
   delay(1);
   digitalWrite(openPin, LOW);
 }
 void closeSwitch() {
+  switchState = 4;
   digitalWrite(closePin, HIGH);
   delay(1);
   digitalWrite(closePin, LOW);
@@ -215,20 +211,26 @@ void closeSwitch() {
 
 void openRelays() {
       digitalWrite(relayIn1, LOW);
-      digitalWrite(relayIn2, LOW); 
-      Serial.println("RELAYS OPENED");
+      digitalWrite(relayIn2, LOW);
+      if (noisy)
+        Serial.println("RELAYS OPENED");
 }
 void closeRelays() {
       digitalWrite(relayIn1, HIGH);
       digitalWrite(relayIn2, HIGH);
-      Serial.println("RELAYS CLOSED");
+      if (noisy)
+        Serial.println("RELAYS CLOSED");
 }
 
 void openingInterrupt() {
-  openPrint=1;
+  if (switchState == 3) {
+    switchState = 1;
+  }
 }
 
 void closingInterrupt() {
-  closePrint=1;
+  if (switchState == 4) {
+    switchState = 2;
+  }
 }
 
