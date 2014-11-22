@@ -77,7 +77,7 @@ class AnritsuWrapper(GPIBDeviceWrapper):
 class AnritsuServer(GPIBManagedServer):
     """Provides basic CW control for Anritsu 68367C Microwave Generators"""
     name = 'Anritsu Server'
-    deviceName = ['ANRITSU 68367C', 'ANRITSU MG3692C']
+    deviceName = ['ANRITSU 68367C', 'ANRITSU MG3692C', 'ANRITSU MG3692B']
     deviceWrapper = AnritsuWrapper
 
     @setting(10, 'Frequency', f=['v[MHz]'], returns=['v[MHz]'])

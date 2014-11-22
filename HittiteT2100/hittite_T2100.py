@@ -87,7 +87,7 @@ class HittiteWrapper(GPIBDeviceWrapper):
 class HittiteServer(GPIBManagedServer):
     """ADD DOCUMENT STRING"""
     name = 'Hittite T2100 Server'
-    deviceName = 'Hittite HMC-T2100'
+    deviceName = ['Hittite HMC-T2100','Hittite HMC-T2220']
     deviceWrapper = HittiteWrapper
 
     @setting(10, 'Frequency', f=['v[Hz]'], returns=['v[Hz]'])
