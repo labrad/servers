@@ -371,10 +371,10 @@ class RuOxWrapper(GPIBDeviceWrapper):
         if calIndex == -1:
             calIndex = channel
         try:
-            #print("lakeshore370: Computing temperature for channel %d"%channel)
-            #print("Resistance is %s"%str(self.readings[channel][0]))
-            #print("Calibration type %s" % (self.calibrations[calIndex][0],))
-            #print self.calibrations[calIndex]
+            print("lakeshore370: Computing temperature for channel %d"%channel)
+            print("Resistance is %s"%str(self.readings[channel][0]))
+            print("Calibration type %s" % (self.calibrations[calIndex][0],))
+            print self.calibrations[calIndex]
             if self.calibrations[calIndex][0] == INTERPOLATION:
                 # log-log interpolation
                 return (np.exp(np.interp(np.log(self.readings[channel][0]['Ohm']),
@@ -384,7 +384,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
             elif self.calibrations[calIndex][0] == VRHOPPING:
                 T0 = self.calibrations[calIndex][2]
                 R0 = self.calibrations[calIndex][1]
-                res = self.readings[channel][0]*units.Ohm
+                res = self.readings[channel][0]
                 T = T0 / (np.log(R0/res)**4)
                 return T
             elif self.calibrations[calIndex][0] == FUNCTION:
@@ -418,6 +418,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
     def getNamedTemperatures(self):
         # we now do this channel by channel. oh yeah.
         result = []
+        print self.readings.keys()
         for channel in sorted(self.readings.keys()):
             result.append((self.channelNames[channel-1],(self.getSingleTemp(channel), self.readings[channel][1])))
         return result
