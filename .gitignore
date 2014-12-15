@@ -4,6 +4,7 @@
 *.class
 *.dll
 *.o
+*.exe
 *.so
 *.pyc
 *.pyo
