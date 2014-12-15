@@ -385,7 +385,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 T0 = self.calibrations[calIndex][2]
                 R0 = self.calibrations[calIndex][1]
                 res = self.readings[channel][0]
-                T = T0 / (np.log(R0/res)**4)
+                T = T0 / (np.log(res/R0)**4)
                 return T
             elif self.calibrations[calIndex][0] == FUNCTION:
                 # hack alert--using eval is bad:
@@ -452,7 +452,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
                                             np.log(np.array(self.calibrations[calIndex][1][::-1]))
                                             )))
             elif self.calibrations[calIndex][0] == VRHOPPING:
-                return self.calibrations[calIndex][1]['K'] * np.exp((self.calibrations[calIndex][2]['K']/temp)**.25)
+                return self.calibrations[calIndex][1]['Ohm'] * np.exp(1.0*(self.calibrations[calIndex][2]['K']/temp)**.25)
             elif self.calibrations[calIndex][0] == FUNCTION:
                 # same as getSingleTemp, but use inverse instead of function
                 t = temp
@@ -558,8 +558,8 @@ class LakeshoreRuOxServer(GPIBManagedServer):
                 (i, dev.printCalibration(i))
         return string
     
-    @setting(50, 'Regulate Temperature', channel='w', temperature='v[K]',
-                 loadresistor='v[Ohm]', returns='v[Ohm]: Target resistance')
+    #@setting(50, 'Regulate Temperature', channel='w', temperature='v[K]', loadresistor='v[Ohm]', returns='v[Ohm]: Target resistance')
+    @setting(50, 'Regulate Temperature', channel='w', temperature='v', loadresistor='v', returns='v: Target resistance')
     def regulate(self, c, channel, temperature, loadresistor=30000):
         """Initializes temperature regulation
 
@@ -582,7 +582,8 @@ class LakeshoreRuOxServer(GPIBManagedServer):
         yield dev.controlTemperature(channel, res, loadresistor)
         returnValue(res)
     
-    @setting(52, 'PID', P='v', I='v[s]', D='v[s]')
+    #@setting(52, 'PID', P='v', I='v[s]', D='v[s]')
+    @setting(52, 'PID', P='v', I='v', D='v')
     def setPID(self, c, P, I, D=0):
         P = float(P)
         if (P < 0.001) or (P > 1000):
