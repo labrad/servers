@@ -270,7 +270,7 @@ class CalibrationServer(LabradServer):
         if 'DAC' not in c:
             raise NoDACSelectedError()
         
-        data = data.asarray # convert data to array
+        # data = data.asarray # convert data to array
         if len(data) == 0:
             returnValue([]) # special case for empty data
 
@@ -291,7 +291,9 @@ class CalibrationServer(LabradServer):
             calset.setFilter(bandwidth=c['Filter'])
             deconv=c['deconvZ']            
             corrected = calset.DACifyFT(data, n=(len(data)-1)*2,
-                                        t0=c['t0'], loop=c['Loop'], fitRange=False,deconv=deconv,zeroBoards=c['zeroZ'],borderValues=c['borderValues'],maxvalueZ=self.serverSettings['maxvalueZ'])
+                                        t0=c['t0'], loop=c['Loop'], fitRange=False,
+                                        deconv=deconv,zeroBoards=c['zeroZ'], borderValues=c['borderValues'],
+                                        maxvalueZ=self.serverSettings['maxvalueZ'])
             if deconv is False:
                 print 'No deconv on board ' + c['Board']                                          
         returnValue(corrected)
@@ -299,7 +301,7 @@ class CalibrationServer(LabradServer):
     @setting(40, 'Set Settling', rates=['*v[GHz]: settling rates'], amplitudes=['*v: settling amplitudes'])
     def setsettling(self, c, rates, amplitudes):
         """
-        If a calibration can be characterized by time constants, i.e.
+        If a calibration can be characterized by time constants, i.correcte.
         the step response function is
           0                                             for t <  0
           1 + sum(amplitudes[i]*exp(-decayrates[i]*t))  for t >= 0,
@@ -307,7 +309,7 @@ class CalibrationServer(LabradServer):
         but can just give the timeconstants and amplitudes.
         All previously used time constants will be replaced.
         """
-        c['Settling'] = (rates.asarray, amplitudes.asarray)
+        c['Settling'] = (rates, amplitudes)
 
     @setting(45, 'Set Filter', bandwidth=['v[GHz]: bandwidth'])
     def setfilter(self, c, bandwidth):

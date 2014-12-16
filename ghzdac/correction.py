@@ -1165,8 +1165,8 @@ class DACcorrection:
         return signal
 
     def DACifyFT(self, signal, t0=0, n=8192, offset=0, nfft=None, loop=False,
-                 rescale=False, fitRange=True, deconv=True, zerocor=True,zeroBoards=False,
-                 volts=True,borderValues=None,maxvalueZ=5.0):
+                 rescale=False, fitRange=True, deconv=True, zerocor=True, zeroBoards=False,
+                 volts=True, borderValues=None, maxvalueZ=5.0):
         """
         Works like DACify but takes the Fourier transform of the
         signal as input instead of the signal. n gives the number of
@@ -1176,6 +1176,9 @@ class DACcorrection:
         evaluated between 0 and 0.5 (GHz). For the rest of the
         arguments see DACify
         """
+
+        # TODO: Remove this hack that strips units
+        self.decayRates = np.array([x['GHz'] for x in self.decayRates])
 
         #read DAC zeros
         if zerocor:
@@ -1236,8 +1239,12 @@ class DACcorrection:
                 # settlingRates = [0.012]    #rate is in GHz, (1/ns)
                 if np.alen(self.decayRates):
                     freqs = 2j*np.pi*freqs
+                    #print "correction: decayAmplitudes: %s, type: %s" % (self.decayAmplitudes, type(self.decayAmplitudes))
+                    #print "correction: decayRates: %s, type: %s" % (self.decayRates, type(self.decayRates))
+                    #print "correction: freqs: %s, shape: %s, type: %s" % (freqs, freqs.shape, type(freqs))
+
                     precalc /= (1.0 + np.sum(self.decayAmplitudes[:,None] * freqs[None,:] / (freqs[None,:] + self.decayRates[:,None]), axis=0))
-                
+
                 
                 #the correction window can have very large amplitudes, therefore the time domain signal can have large oscillations which will be truncated digitally, 
                 #leading to deterioration of the waveform. The large amplitudes in the correction window have low S/N ratios.
@@ -1281,11 +1288,11 @@ class DACcorrection:
         else:
             ditheringspan = 0.
         dithering = ditheringspan * (np.random.rand( len(signal ) )-0.5)
-        dithering[0:4]=0.0
-        dithering[-4:]=0.0
+        dithering[0:4] = 0.0
+        dithering[-4:] = 0.0
     
-        signal = np.round(1.0*signal * fullscale + zero + dithering).astype(np.int32)        
-        
+        signal = np.round(1.0*signal * fullscale + zero + dithering).astype(np.int32)
+        #print "correction: signal: %s, shape: %s, type: %s" % (signal, signal.shape, type(signal))
    
         if not rescale:
             if (np.max(signal) > 0x1FFF) or (np.min(signal) < -0x2000):
@@ -1296,7 +1303,3 @@ class DACcorrection:
             return signal  #this returns the signal between -8192 .. + 8191
             
         return (signal & 0x3FFF).astype(np.uint32) #this returns the signal between 0 .. 16383.  -1 = 16382. It will lead to errors visible in fpgatest
-
-
-
-        
