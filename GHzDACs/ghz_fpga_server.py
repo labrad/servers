@@ -1121,7 +1121,7 @@ class FPGAServer(DeviceServer):
         dev = self.selectedDAC(c)
         d = c.setdefault(dev, {})
         if not isinstance(data, str):
-            data = np.array(data.asarray, dtype='<u4').tostring()
+            data = np.array(data, dtype='<u4').tostring()
         d['sram'] = data
 
     @setting(21, 'SRAM dual block',
@@ -1146,9 +1146,9 @@ class FPGAServer(DeviceServer):
         sram = d.get('sram', '')
         #Convert SRAM blocks to byte strings
         if not isinstance(block0, str):
-            block0 = np.array(block0.asarray, dtype='<u4').tostring()
+            block0 = np.array(block0, dtype='<u4').tostring()
         if not isinstance(block1, str):
-            block1 = np.array(block1.asarray, dtype='<u4').tostring()
+            block1 = np.array(block1, dtype='<u4').tostring()
         #Block delays come in chunks of 1024ns. Thus we need to package
         #the desired delay into an integral number of delay blocks, with
         #the difference made up by adding data to block1

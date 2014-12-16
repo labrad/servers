@@ -281,7 +281,8 @@ class CalibrationServer(LabradServer):
             calset = yield self.getIQcalset(c)
             deconv=c['deconvIQ']            
             corrected = calset.DACifyFT(c['Frequency'], data, n=len(data),
-                                        t0=c['t0'], loop=c['Loop'], zipSRAM=False,deconv=deconv,zeroBoards=c['zeroIQ'])
+                                        t0=c['t0'], loop=c['Loop'], zipSRAM=False,
+                                        deconv=deconv, zeroBoards=c['zeroIQ'])
             if deconv is False:
                 print 'No deconv on board ' + c['Board']                                         
         else:
@@ -292,7 +293,7 @@ class CalibrationServer(LabradServer):
             deconv=c['deconvZ']            
             corrected = calset.DACifyFT(data, n=(len(data)-1)*2,
                                         t0=c['t0'], loop=c['Loop'], fitRange=False,
-                                        deconv=deconv,zeroBoards=c['zeroZ'], borderValues=c['borderValues'],
+                                        deconv=deconv, zeroBoards=c['zeroZ'], borderValues=c['borderValues'],
                                         maxvalueZ=self.serverSettings['maxvalueZ'])
             if deconv is False:
                 print 'No deconv on board ' + c['Board']                                          
@@ -301,7 +302,7 @@ class CalibrationServer(LabradServer):
     @setting(40, 'Set Settling', rates=['*v[GHz]: settling rates'], amplitudes=['*v: settling amplitudes'])
     def setsettling(self, c, rates, amplitudes):
         """
-        If a calibration can be characterized by time constants, i.correcte.
+        If a calibration can be characterized by time constants, i.e.
         the step response function is
           0                                             for t <  0
           1 + sum(amplitudes[i]*exp(-decayrates[i]*t))  for t >= 0,
