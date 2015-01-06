@@ -30,55 +30,60 @@ timeout = 20
 ### END NODE INFO
 """
 
-### TODO
-#   Nail down error handling during startup
-#	misc error handling in some other functions. not a huge deal (i think).
-#   PNA functions
-#	logic to figure out what status we should be in given peripheral readings on startup
+# ## TODO
+#x clean up init
+#x clean up res-temp conversion
+#x clean up ruox reading and conversion
+#x clean up loggging?
+#x review state variables
+# fix PID?
 
+
+import traceback
+import time
 
 from labrad.devices import DeviceServer, DeviceWrapper
-from labrad import types as T, util
 from labrad.server import setting
 from labrad.units import Unit
 from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 import twisted.internet.error
-import traceback
 import numpy as np
-import time, exceptions, labrad.util, labrad.units
 
-#Registry path to ADR configurations
-CONFIG_PATH = ['','Servers','ADR']
+
+# ## Globals
+# Registry path to ADR configurations
+CONFIG_PATH = ['', 'Servers', 'ADR']
 # 18 Amps is the max, ladies and gentlemen
-PS_MAX_CURRENT = 18.8*Unit('A')
-# if HANDSOFF, don't actually do anything
-HANDSOFF = False
+PS_MAX_CURRENT = 9.0 * Unit('A')
+K, V, s, torr, minutes, A, mA = Unit('K'), Unit('V'), Unit('s'), Unit('torr'), Unit('min'), Unit('A'), Unit('mA')
+kOhm, mV = Unit('kOhm'), Unit('mV')
 
-class Peripheral(object): #Probably should subclass DeviceWrapper here.
-    
-    def __init__(self,name,server,ID,ctxt):
+
+class Peripheral(object):
+    def __init__(self, name, server, server_id, context):
         self.name = name
-        self.ID = ID
+        self.ID = server_id
         self.server = server
-        self.ctxt = ctxt
+        self.ctxt = context
 
     @inlineCallbacks
     def connect(self):
-        yield self.server.select_device(self.ID,context=self.ctxt)
+        yield self.server.select_device(self.ID, context=self.ctxt)
+
 
 class ADRWrapper(DeviceWrapper):
-
     # INITIALIZATION #
 
+    # noinspection PyAttributeOutsideInit
     @inlineCallbacks
-    def connect(self, *args, **peripheralDict):
+    def connect(self, *args, **peripheral_dict):
         """     
         TODO: Add error checking and handling
         """
-        #Give the ADR a client connection to LabRAD.
-        #ADR's use the same connection as the ADR server.
-        #Each ADR makes LabRAD requests in its own context.
+        # Give the ADR a client connection to LabRAD.
+        # ADR's use the same connection as the ADR server.
+        # Each ADR makes LabRAD requests in its own context.
 
         self.cxn = args[0]
         self.ctxt = self.cxn.context()
@@ -86,92 +91,156 @@ class ADRWrapper(DeviceWrapper):
         # give us a blank log
         self.logData = []
         # initialize the state variables. 
-        # many of these will get overwritten with defaults from the registry.
-        self.stateVars= {	# FROM THE REGISTRY
-                            # magging variables
-                            'quenchLimit': 4.0*Unit('K'),			    # K -- if we get above this temp when magging we are considered to have quenched
-                            'cooldownLimit': 3.9*Unit('K'), # K -- below this temp we are ready to rock and roll
-                            'rampWaitTime': 0.2*Unit('s'),		    # s -- min waiting time between voltage ramps (mag steps) during a mag
-                            'voltageStepUp': 0.004*Unit('V'), 	    # V -- voltage ramp amount during mag up
-                            'voltageStepDown': 0.004*Unit('V'),	    # V -- ... during mag down
-                            'voltageLimit': 0.28*Unit('V'),		    # V -- don't do a mag step when mag diode voltages are > this
-                            'targetCurrent': 8*Unit('A'),			    # A -- stop magging when we hit this current (will continue to drift up)
-                            'maxCurrent': 9*Unit('A'),			    # A -- hard limit the power supply to this current
-                            'fieldWaitTime': 45*Unit('min'),		    # min -- how long to wait at field before magging down (when autocontrolled)
-                            'autoControl': False,		    # whether to auto control the heat switch
-                            'switchPosition': 2,		    # switch position on the lock in amplifier box
-                            'lockinCurrent': 1*Unit('nA'),  # current being put through Ruox (for use with lockin)
-                            'delayHeatSwitchClose': True,   # don't close the heat switch until cold stage temp > 4K stage temp
-                            'heatSwitched': False,          # whether we've closed the heat switch for this mag-up. (internal use only)
-                            # PID variables
-                            'PIDsetTemp': 0.0 * labrad.units.K,		# setTemp is the temperature goal for PID control
-                            'PIDcp': 2.0 * labrad.units.V / labrad.units.K,
-                            'PIDcd': 70.0 * labrad.units.V * labrad.units.s / labrad.units.K,
-                            'PIDci': 2.0,
-                            'PIDintLimit': 0.4*labrad.units.K,
-                            'PIDstepTimeout': 5*labrad.units.s,	# max amount of time we will remain in PID stepping loop
-                            # temperature recording variables
-                            'recordTemp': False,		# whether we're recording right now
-                            'recordingTemp': 250*Unit('K'),	# start recording temps below this value
-                            'autoRecord': True,			# whether to start recording automatically
-                            'tempRecordDelay':	10*Unit('s'),	# every X seconds we record temp
-                            # NOT FROM REGISTRY
-                            'PIDint': 0,
-                            'PIDterr': 0,
-                            'PIDloopCount': 0,
-                            'PIDout': 0,
-                            # scheduling variables
-                            'schedulingActive': False,				# whether or not we will auto-mag up or down based on schedule.
-                            'scheduledMagDownTime': 0,				# time to start magging down
-                            'scheduledMagUpTime': 0,				# time to start magging up
-                            'magUpCompletedTime': 0,				# time when mag up was completed
-                            'magDownCompletedTime': 0,				# time when mag down was completed
-                            # temperature recording variables
-                            'tempDelayedCall': None,					# will be the twisted IDelayedCall object that the recording cycle is waiting on							
-                            'tempDatasetName': None,					# name of the dataset we're currently recording temperature to
-                            'datavaultPath': ["", "ADR", self.name],
-                            # logging variables
-                            'logfile': '%s-log.txt' % self.name,	# the log file
-                            'loglimit': 20,							# max # lines held in the log variable (i.e. in memory)
-                            'voltages': [0*labrad.units.V]*8,		# will hold the lakeshore 218 voltage readings
-                            'temperatures': [0*labrad.units.K]*8,	# ... temperature readings
-                            'magVoltage': 0,						# will hold the magnet (power supply) voltage reading
-                            'magCurrent': 0,						# ... current reading
-                            'compressorStatus': False,				# will hold status of compressor (pumping or not)
-                            'compressorTemperatures': [0*labrad.units.K]*4,
-                            'compressorPressures': [0*labrad.units.torr]*2,
-                            'compressorMotorCurrent': 0*labrad.units.A,
-                            'compressorCPUTemperature': 0*labrad.units.K,
-                            'missingCriticalPeripheral': True,		# if the lakeshore or magnet goes missing, we need to hold any mag cycles in process
-                            'lockinVoltage': None,
-                            'useRuoxInterpolation': False,
-                            'ruoxTempCutoff': 20*labrad.units.K,
-                            # not really used, but you could shut it down this way
-                            'alive': False,
-                        }
+        # any of these can get overwritten with defaults from the registry.
+        self.stateVars = {
+            # # magging variables ##
+            # if we get above this temp when magging we are considered to have quenched
+            'quenchLimit': 4.0 * K,
+            # base temp for 4K stage
+            'cooldownLimit': 3.9 * K,
+            # minimum waiting time between voltage ramps (mag steps) during a mag
+            'rampWaitTime': 0.2 * s,
+            # voltage ramp amount during mag up
+            'voltageStepUp': 0.004 * V,
+            # ... during mag down
+            'voltageStepDown': 0.004 * V,
+            # only do mag step if |magnet diode voltage| < voltageLimit
+            'voltageLimit': 0.28 * V,
+            # stop magging when we hit this current (will continue to drift up)
+            'targetCurrent': 8 * A,
+            # limit the power supply to this current
+            'maxCurrent': 9 * A,
+            # how long to wait at field before magging down (when auto-controlled)
+            'fieldWaitTime': 45 * minutes,
+            # whether to auto control the heat switch
+            'autoControl': False,
+            # don't close the heat switch until cold stage temp > 4K stage temp
+            'delayHeatSwitchClose': True,
+            # whether we've closed the heat switch for this mag-up. (internal use only)
+            'heatSwitched': False,
+
+            ## ruox measurement ##
+            # lakeshore channel to read for ruox voltage (1-8)
+            'ruoxChannel': 4,
+            # convert from voltage measured by Lakeshore to resistance
+            'lockinOhmsPerVolt': 100 * kOhm / V,
+            # if true, use interpolation from dataset for temperature. if false, use formula
+            'useRuoxInterpolation': False,
+            # above this temp, ignore ruox temperature (i.e. use 4K temperature instead)
+            'ruoxTempCutoff': 20 * K,
+            # for ruox_resistance > resistanceCutoff, use high temp ruox curve, else low temp ruox curve
+            'resistanceCutoff': 1.72578 * kOhm,
+            # curves and coefficients for above and below the resistanceCutoff
+            'lowTempRuoxCurve': '1/(p[0] + p[1]*4*np.log(r) + p[2]*r**2*np.log(r)',
+            'ruoxCoefsLow': (-0.77127, 0.00010068, -1.072e-09),
+            'highTempRuoxCurve': '1 / (p[0] + p[1] * r**2 * np.log(r) + p[2] * r**3)',
+            'ruoxCoefsHigh': (-0.3199412, 5.74884e-08, -8.8409e-11),
+            # if we want to use interpolation data instead, set this to (path, dataset)
+            # e.g. (['', 'ADR', 'Ruox Calibration'], 8)
+            'interpolationData': None,
+
+            ## temperature recording variables ##
+            'recordTemp': False,  # whether we're recording right now
+            'recordingTemp': 250 * K,  # start recording temps below this value
+            'autoRecord': True,  # whether to start recording automatically
+            'tempRecordDelay': 10 * s,  # every X seconds we record temp
+            'tempDelayedCall': None,  # will be the twisted IDelayedCall object that the recording cycle is waiting on
+            'tempDatasetName': None,  # name of the dataset we're currently recording temperature to
+            'datavaultPath': ["", "ADR", self.name],
+
+            ## scheduling variables ##
+            'schedulingActive': False,  # whether or not we will auto-mag up or down based on schedule.
+            'scheduledMagDownTime': 0,  # time to start magging down
+            'scheduledMagUpTime': 0,  # time to start magging up
+            'magUpCompletedTime': 0,  # time when mag up was completed
+            'magDownCompletedTime': 0,  # time when mag down was completed
+
+            ## PID variables ##
+            'PIDsetTemp': 0.0 * K,  # setTemp is the temperature goal for PID control
+            'PIDcp': 2.0 * V / K,
+            'PIDcd': 70.0 * V * s / K,
+            'PIDci': 2.0,
+            'PIDintLimit': 0.4 * K,
+            'PIDstepTimeout': 5 * s,  # max amount of time we will remain in PID stepping loop
+            'PIDint': 0,
+            'PIDterr': 0,
+            'PIDloopCount': 0,
+            'PIDout': 0,
+
+            ## logging variables ##
+            'logfile': '%s-log.txt' % self.name,  # the log file
+            'loglimit': 20,  # max # lines held in the log variable (i.e. in memory)
+
+            ## state tracking variables ##
+            'voltages': [0 * V] * 8,  # will hold the lakeshore 218 voltage readings
+            'temperatures': [0 * K] * 8,  # ... temperature readings
+            'magVoltage': 0,  # will hold the magnet (power supply) voltage reading
+            'magCurrent': 0,  # ... current reading
+            'compressorStatus': False,  # will hold status of compressor (pumping or not)
+            'compressorTemperatures': [0 * K] * 4,  # info about the compressor
+            'compressorPressures': [0 * torr] * 2,
+            'compressorMotorCurrent': 0 * A,
+            'compressorCPUTemperature': 0 * K,
+            # if the lakeshore or magnet goes missing, we need to hold any mag cycles in process
+            'missingCriticalPeripheral': True,
+
+            # not really used, but you could shut it down this way
+            'alive': False,
+        }
         # different possible statuses
-        self.possibleStatuses = ['cooling down', 'ready', 'waiting at field', 'waiting to mag up', 'magging up', 'magging down', 'ready to mag down', 'pid control']
-        self.currentStatus = 'cooling down'
+        self.possibleStatuses = ['cooling down', 'ready', 'waiting at field', 'waiting to mag up', 'magging up',
+                                 'magging down', 'ready to mag down', 'pid control']
+        self.status = 'cooling down'
         self.sleepTime = 1.0
         # find our peripherals
         yield self.refreshPeripherals()
         # load our defaults from the registry
-        yield self.loadDefaultsFromRegistry()
+        yield self.load_defaults_from_registry()
         # listeners
-        yield self.registerListeners()
+        yield self.register_listeners()
         # go!
         self.log("Initialization completed. Beginning cycle.")
         reactor.callLater(0.1, self.cycle)
-        print "cycled"
-        self.log('cycled')
-    
+        print "started cycling"
+        self.log('started cycling')
+
+    @property
+    def status(self):
+        return self._status
+
+    # noinspection PyAttributeOutsideInit
+    @status.setter
+    def status(self, new_status):
+        if (new_status is not None) and (new_status not in self.possibleStatuses):
+            self.log("ERROR: status %s not in possibleStatuses!" % new_status)
+        elif (new_status is not None) and not (new_status == self._status):
+            self._status = new_status
+            if new_status == 'magging up':
+                if self.state('autoControl') and not self.state('delayHeatSwitchClose'):
+                    self.state('heatSwitched', True)
+                    self.set_heat_switch(False)
+                else:
+                    self.state('heatSwitched', False)
+                self.ps_output_on()
+            elif new_status == 'magging down':
+                if self.state('autoControl'):
+                    self.set_heat_switch(True)
+                self.state('schedulingActive', False)
+            elif new_status == 'pid control':
+                self.state('PIDout', self.state('magVoltage'))
+                self.state('PIDint', 0)
+                self.ps_output_on()
+            self.log("ADR %s status is now: %s" % (self.name, self._status))
+            self.state('PIDloopCount', 0)
+
+    # noinspection PyProtectedMember
     @inlineCallbacks
-    def registerListeners(self):
-        ''' register message listeners to refresh peripherals on device/server connect/disconnects '''
-        server_connect = lambda c, (s, payload): self.refreshPeripherals()
-        server_disconnect = lambda c, (s, payload): self.refreshPeripherals()
-        device_connect = lambda c, (s, payload): self.refreshPeripherals()
-        device_disconnect = lambda c, (s, payload): self.refreshPeripherals()
+    def register_listeners(self):
+        """ register message listeners to refresh peripherals on device/server connect/disconnects """
+        server_connect = lambda c, (x, payload): self.refreshPeripherals()
+        server_disconnect = lambda c, (x, payload): self.refreshPeripherals()
+        device_connect = lambda c, (x, payload): self.refreshPeripherals()
+        device_disconnect = lambda c, (x, payload): self.refreshPeripherals()
         mgr = self.cxn.manager
         self.cxn._cxn.addListener(server_connect, source=mgr.ID, ID=10001)
         self.cxn._cxn.addListener(server_disconnect, source=mgr.ID, ID=10002)
@@ -181,9 +250,9 @@ class ADRWrapper(DeviceWrapper):
         yield mgr.subscribe_to_named_message('Server Disconnect', 10002, True)
         yield mgr.subscribe_to_named_message('GPIB Device Connect', 10003, True)
         yield mgr.subscribe_to_named_message('GPIB Device Disconnect', 10004, True)
-    
+
     @inlineCallbacks
-    def loadDefaultsFromRegistry(self):
+    def load_defaults_from_registry(self):
         reg = self.cxn.registry
         yield reg.cd(CONFIG_PATH, context=self.ctxt)
         dirs = yield reg.dir(context=self.ctxt)
@@ -192,65 +261,52 @@ class ADRWrapper(DeviceWrapper):
             yield reg.cd(self.name + ' defaults', context=self.ctxt)
         else:
             yield reg.cd("defaults", context=self.ctxt)
-        # look for a specific volt to res calibration
-        keys = (yield reg.dir(context=self.ctxt))[1]
-        if "volt to res %s" % self.name in keys:
-            vtrKey = "volt to res %s" % self.name
-        else:
-            vtrKey = "volt to res"
-        # load the vars about ruox calibration (res to temp)
-        p = reg.packet(context=self.ctxt)
-        p.get("high temp ruox curve", key="htrc")
-        p.get("low temp ruox curve", key="ltrc")
-        p.get("resistance cutoff", key="rescut")
-        p.get("ruox channel", key="ruoxchan")
-        p.get("ruox coefs high", key="rch")
-        p.get("ruox coefs low", key="rcl")
-        p.get(vtrKey, key="vtr")
-        if 'interpolation data' in keys:
-            p.get('interpolation data', key='iData')
-        ans = yield p.send()
-        self.state('ruoxCoefsHigh', ans.rch)
-        self.state('ruoxCoefsLow', ans.rcl)
-        self.state('highTempRuoxCurve', lambda r, p: eval(ans.htrc))
-        self.state('lowTempRuoxCurve', lambda r, p: eval(ans.ltrc))
-        self.state('voltToResCalibs', ans.vtr)
-        self.state('resistanceCutoff', ans.rescut)
-        self.state('ruoxChannel', ans.ruoxchan - 1)
-        if 'interpolation data' in keys:
-            iPath, iName = ans.iData
-            self.loadInterpolator(iPath, iName)
-        # now do the state variables
-        yield reg.cd("state variables", context=self.ctxt)
-        (dirs, keys) = yield reg.dir(context=self.ctxt)
-        for key in keys:
-            val = yield reg.get(key, context=self.ctxt)
-            if isinstance(val, labrad.units.Value):
-                val = val
-            self.state(key, val)
-    
+        # go through all subdirectories and load state vars from registry
+        dirs, _ = yield reg.dir(context=self.ctxt)
+        for d in dirs:
+            print "Loading state variables from subdirectory: %s" % str(d)
+            self.log("Loading state variables from subdirectory: %s" % str(d))
+            yield reg.cd(d, context=self.ctxt)
+            _, keys = yield reg.dir(context=self.ctxt)
+            p = reg.packet(context=self.ctxt)
+            for k in keys:
+                p.get(k, key=k)
+            p.cd(1)
+            ans = yield p.send()
+            for k in keys:
+                value = ans[k]
+                self.state(k, value, no_new=True)
+
+        try:
+            i_path, i_name = self.state('interpolation data')
+            inter = yield self.load_interpolator(i_path, i_name)
+            self.state('ruoxInterpolation', inter)
+            self.state('useRuoxInterpolation', True)
+        except KeyError:
+            pass
+
     @inlineCallbacks
-    def loadInterpolator(self, dsPath, dsName):
-        ''' Using RvsT data from the data vault, construct an interpolating function.
-        Requires scipy!'''
-        from scipy.interpolate import InterpolatedUnivariateSpline as IUS
+    def load_interpolator(self, ds_path, ds_name):
+        """ Using RvsT data from the data vault, construct an interpolating function.
+        Requires scipy!"""
+        from scipy.interpolate import InterpolatedUnivariateSpline
+
         ctx = self.cxn.data_vault.context()
         p = self.cxn.data_vault.packet(context=ctx)
-        p.cd(dsPath)
-        p.open(dsName)
+        p.cd(ds_path)
+        p.open(ds_name)
         p.get(-1, True)
         resp = yield p.send()
         d = resp.get.asarray[::-1]
-        f = IUS(d[:,1], d[:,0], k=3)
-        self.state('ruoxInterpolation', f)
-        self.state('useRuoxInterpolation', True)
-    
-    ##############################
+        f = InterpolatedUnivariateSpline(d[:, 1], d[:, 0], k=3)
+        returnValue(f)
+
+    # #############################
     # STATE MANAGEMENT FUNCTIONS #
-    ##############################
-    
+    # #############################
+
     # (these are the functions that do stuff) #
-    
+
     @inlineCallbacks
     def cycle(self):
         """
@@ -259,199 +315,192 @@ class ADRWrapper(DeviceWrapper):
         """
         self.state('alive', True)
         self.log("Now cycling.")
-        lastTime = time.time()
         while self.state('alive'):
             try:
                 if not self.cxn._cxn.connected:
                     self.log('LabRAD connection lost.')
                     self.state('alive', False)
                     break
-                # also todo: have a little error message thing that can be displayed in the GUI status bar
                 # send requests to the lakeshore, magnet, and compressor servers
-                lakeshoreResponse = None
-                magnetResponse = None
-                compressorResponse = None
-                lockinResponse = None
+                lakeshore_response = None
+                magnet_response = None
+                compressor_response = None
                 if 'lakeshore' in self.peripheralsConnected.keys():
-                    lakeshorePacket = self.peripheralsConnected['lakeshore'].server.packet(context=self.ctxt)
-                    lakeshorePacket.voltages()
-                    lakeshorePacket.temperatures()
-                    lakeshoreResponse = lakeshorePacket.send()
+                    lakeshore_packet = self.peripheralsConnected['lakeshore'].server.packet(context=self.ctxt)
+                    lakeshore_packet.voltages()
+                    lakeshore_packet.temperatures()
+                    lakeshore_response = lakeshore_packet.send()
                 if 'magnet' in self.peripheralsConnected.keys():
-                    magnetPacket = self.peripheralsConnected['magnet'].server.packet(context=self.ctxt)
-                    magnetPacket.voltage()
-                    magnetPacket.current()
-                    magnetResponse = magnetPacket.send()
+                    magnet_packet = self.peripheralsConnected['magnet'].server.packet(context=self.ctxt)
+                    magnet_packet.voltage()
+                    magnet_packet.current()
+                    magnet_response = magnet_packet.send()
                 if 'compressor' in self.peripheralsConnected.keys():
-                    compressorPacket = self.peripheralsConnected['compressor'].server.packet(context=self.ctxt)
-                    compressorPacket.status()
-                    compressorPacket.temperatures()
-                    compressorPacket.pressures()
-                    compressorPacket.cpu_temp()
-                    compressorPacket.motor_current()
-                    compressorResponse = compressorPacket.send()
-                if 'temperature_lockin' in self.peripheralsConnected.keys():
-                    lockinPacket = self.peripheralsConnected['temperature_lockin'].server.packet(context=self.ctxt)
-                    lockinPacket.auto_sensitivity()
-                    lockinPacket.r()
-                    lockinResponse = lockinPacket.send()
+                    compressor_packet = self.peripheralsConnected['compressor'].server.packet(context=self.ctxt)
+                    compressor_packet.status()
+                    compressor_packet.temperatures()
+                    compressor_packet.pressures()
+                    compressor_packet.cpu_temp()
+                    compressor_packet.motor_current()
+                    compressor_response = compressor_packet.send()
                 # process the responses
-                if lakeshoreResponse:
-                    ans = yield lakeshoreResponse
+                if lakeshore_response:
+                    ans = yield lakeshore_response
                     self.state('voltages', ans['voltages'], False)
                     self.state('temperatures', ans['temperatures'], False)
                 else:
-                    self.state('voltages', [0*labrad.units.V]*8, False)
-                    self.state('temperatures', [0*labrad.units.K]*8, False)
-                if magnetResponse:
-                    ans = yield magnetResponse
+                    self.state('voltages', [0 * V] * 8, False)
+                    self.state('temperatures', [0 * K] * 8, False)
+                if magnet_response:
+                    ans = yield magnet_response
                     self.state('magVoltage', ans['voltage'], False)
                     self.state('magCurrent', ans['current'], False)
                 else:
-                    self.state('magVoltage', 0*labrad.units.V, False)
-                    self.state('magCurrent', 0*labrad.units.A, False)					
-                if compressorResponse:
+                    self.state('magVoltage', 0 * V, False)
+                    self.state('magCurrent', 0 * A, False)
+                if compressor_response:
                     try:
-                        ans = yield compressorResponse
+                        ans = yield compressor_response
                         self.state('compressorStatus', ans['status'], False)
                         self.state('compressorTemperatures', [x[0] for x in ans['temperatures']], False)
                         self.state('compressorPressures', [x[0] for x in ans['pressures']], False)
                         self.state('compressorCPUTemperature', ans['cpu_temp'], False)
                         self.state('compressorMotorCurrent', ans['motor_current'], False)
                     except Exception as e:
-                        self.log("Exception in compressor: %s" % e.__str__())
+                        pass
+                        #self.log("Exception in compressor: %s" % e.__str__())
                 else:
                     self.state('compressorStatus', False, False)
-                    self.state('compressorTemperatures', [0*labrad.units.K]*4, False)
-                    self.state('compressorPressures', [0*labrad.units.torr]*2, False)
-                    self.state('compressorCPUTemperature', 0*labrad.units.K, False)
-                    self.state('compressorMotorCurrent', 0*labrad.units.A, False)
-                if lockinResponse:
-                    ans = yield lockinResponse
-                    self.state('lockinVoltage', ans['r'], False)
-                else:
-                    self.state('lockinVoltage', None, False)
-                    
+                    self.state('compressorTemperatures', [0 * K] * 4, False)
+                    self.state('compressorPressures', [0 * torr] * 2, False)
+                    self.state('compressorCPUTemperature', 0 * K, False)
+                    self.state('compressorMotorCurrent', 0 * A, False)
+
                 # see how we did
-                haveAllPeriphs = (magnetResponse is not None) and (lakeshoreResponse is not None) #(and compressorResponse is not None)
-                self.state('missingCriticalPeripheral', not haveAllPeriphs, False)
-                
+                self.state('missingCriticalPeripheral',
+                           magnet_response is None or lakeshore_response is None,
+                           False)
+
                 # check to see if we should start recording temp
-                if (not self.state('recordTemp')) and self.state('autoRecord') and self.shouldStartRecording():
-                    self.startRecording()
+                if not self.state('recordTemp') and self.state('autoRecord') and self.should_start_recording():
+                    self.start_recording()
 
                 # now check through the different statuses
-                if self.currentStatus == 'cooling down':
+                if self.status == 'cooling down':
                     yield util.wakeupCall(self.sleepTime)
                     # check if we're at base (usually 3.9K), then set status -> ready
-                    if self.atBase():
-                        self.status('ready')
-                                
-                elif self.currentStatus == 'ready':
+                    if self.at_base():
+                        self.status = 'ready'
+
+                elif self.status == 'ready':
                     yield util.wakeupCall(self.sleepTime)
                     # do we need to cool back down to 3.9K? (i.e. wait)
-                    if not self.atBase():
-                        self.status('cooling down')
+                    if not self.at_base():
+                        self.status = 'cooling down'
                     # if scheduling is enabled, go to "waiting to mag up":
                     if self.state('schedulingActive'):
-                        self.status('waiting to mag up')
-                                
-                elif self.currentStatus == 'waiting to mag up':
+                        self.status = 'waiting to mag up'
+
+                elif self.status == 'waiting to mag up':
                     yield util.wakeupCall(self.sleepTime)
                     # is scheduling still active?
                     if not self.state('schedulingActive'):
-                        self.status('ready')
+                        self.status = 'ready'
                     # do we need to cool back down to 3.9K? (i.e. wait)
-                    if not self.atBase():
-                        self.status('cooling down')
+                    elif not self.at_base():
+                        self.status = 'cooling down'
                     # is it time to mag up?
-                    if time.time() > self.state('scheduledMagUpTime') and self.atBase():
-                        self.status('magging up')
-                                
-                elif self.currentStatus == 'magging up':
+                    elif time.time() > self.state('scheduledMagUpTime') and self.at_base():
+                        self.status = 'magging up'
+
+                elif self.status == 'ready to mag down':
+                    yield util.wakeupCall(self.sleepTime)
+
+                elif self.status == 'magging up':
                     print "Magging up..."
                     self.clear('magDownCompletedTime')
                     self.clear('magUpCompletedTime')
                     self.clear('scheduledMagDownTime')
-                    (quenched, targetReached) = yield self.adrMagStep(True) # True = mag step up
-                    self.log("%s mag step! Quenched: %s -- Target Reached: %s" % (self.name, quenched, targetReached))
-                    if (not self.state('heatSwitched')) and self.state('autoControl') and self.state('delayHeatSwitchClose'):
-                        if self.ruoxStatus()[0] >= self.state('temperatures')[1]:
-                            self.setHeatSwitch(False)
+                    # close heat switch if we've passed the 4K stage temperature
+                    if not self.state('heatSwitched') and self.state('autoControl') \
+                            and self.state('delayHeatSwitchClose'):
+                        if self.ruox_status()[0] >= self.state('temperatures')[1]:
+                            self.set_heat_switch(False)
                             self.state('heatSwitched', True)
+                    (quenched, target_reached) = yield self.mag_step(True)  # True = mag step up
+                    self.log("%s mag step! Quenched: %s -- Target Reached: %s" % (self.name, quenched, target_reached))
                     if quenched:
                         self.log("QUENCHED!")
-                        self.status('cooling down')
-                    elif targetReached:
+                        self.status = 'cooling down'
+                    elif target_reached:
                         print "got it"
-                        self.status('waiting at field')
-                        self.psMaxCurrent()
-                        self.state('magUpCompletedTime', (time.time()/60)*Unit('min'))
-                        self.state('scheduledMagDownTime', (time.time()/60)*Unit('min') + self.state('fieldWaitTime'))
+                        self.status = 'waiting at field'
+                        self.ps_max_current()
+                        self.state('magUpCompletedTime', (time.time() / 60) * Unit('min'))
+                        self.state('scheduledMagDownTime',
+                                   (time.time() / 60) * Unit('min') + self.state('fieldWaitTime'))
                     else:
-                        pass # if at first we don't succeed, mag, mag again
+                        pass  # if at first we don't succeed, mag, mag again
                     yield util.wakeupCall(self.state('rampWaitTime')['s'])
-                                
-                elif self.currentStatus == 'waiting at field':
+
+                elif self.status == 'waiting at field':
                     yield util.wakeupCall(self.sleepTime)
                     # is it time to mag down?
-                    if (time.time()/60)*Unit('min') > self.state('scheduledMagDownTime'):
+                    if (time.time() / 60) * Unit('min') > self.state('scheduledMagDownTime'):
                         if not self.state('schedulingActive'):
-                            self.status('ready to mag down')
+                            self.status = 'ready to mag down'
                         else:
                             self.state('schedulingActive', False)
-                            self.status('magging down')
-                    
-                elif self.currentStatus == 'ready to mag down':
-                    yield util.wakeupCall(self.sleepTime)
-                        
-                elif self.currentStatus == 'magging down':
-                    (quenched, targetReached) = yield self.adrMagStep(False)
-                    self.log("%s mag step! Quenched: %s -- Target Reached: %s" % (self.name, quenched, targetReached))
+                            self.status = 'magging down'
+
+                elif self.status == 'magging down':
+                    (quenched, target_reached) = yield self.mag_step(False)
+                    self.log("%s mag step! Quenched: %s -- Target Reached: %s" % (self.name, quenched, target_reached))
                     if quenched:
-                        self.log("%s Quenched!" % self.name)
-                        self.status('cooling down')
-                    elif targetReached:
-                        self.status('ready')
+                        self.log("QUENCHED!")
+                        self.status = 'cooling down'
+                    elif target_reached:
+                        self.status = 'ready'
                         self.state('magDownCompletedTime', time.time())
-                        self.psOutputOff()
+                        self.ps_output_off()
                     yield util.wakeupCall(self.state('rampWaitTime')['s'])
-                    
-                elif self.currentStatus == 'pid control':
+
+                elif self.status == 'pid control':
                     # try to get to the setTemp state variable with a PID control loop
                     # save old t error
                     terrOld = self.state('PIDterr')
                     # set current t error
-                    self.state('PIDterr', self.state('PIDsetTemp') - self.ruoxStatus()[0], False)
+                    self.state('PIDterr', self.state('PIDsetTemp') - self.ruox_status()[0], False)
                     print "PIDint: ", self.state("PIDint")
                     print "PIDterr: ", self.state("PIDterr")
-                    self.state('PIDint', self.state('PIDint') + self.state('PIDterr')*self.sleepTime, False)
+                    self.state('PIDint', self.state('PIDint') + self.state('PIDterr') * self.sleepTime, False)
                     if abs(self.state('PIDint')) > self.state('PIDintLimit'):
-                        self.state('PIDint', self.state('PIDintLimit')*np.sign(self.state('PIDint')/self.state('PIDci')), False)
+                        self.state('PIDint',
+                                   self.state('PIDintLimit') * np.sign(self.state('PIDint') / self.state('PIDci')),
+                                   False)
                     P = self.state('PIDterr') * self.state('PIDcp')
-                    I = self.state('PIDci')*self.state('PIDint')
+                    I = self.state('PIDci') * self.state('PIDint')
                     if self.state('PIDloopCount') > 0:
-                        D = self.state('PIDcd')*(self.state('PIDterr') - terrOld) / (self.sleepTime)
+                        D = self.state('PIDcd') * (self.state('PIDterr') - terrOld) / (self.sleepTime)
                     else:
                         D = 0
                     # target voltage
                     self.state('PIDout', self.state('magVoltage') + P + I + D, False)
                     if self.state('PIDout') < 0:
                         self.state('PIDout', 0, False)
-                    self.log('PID: T: %.4f  V: %.4f  P: %.4f  I: %.4f  D: %.4f  PID: %.4f' % (self.ruoxStatus()[0], self.state('PIDout'), P, I, D, P+I+D))
+                    self.log('PID: T: %.4f  V: %.4f  P: %.4f  I: %.4f  D: %.4f  PID: %.4f' % (
+                        self.ruox_status()[0], self.state('PIDout'), P, I, D, P + I + D))
                     self.state('PIDloopCount', self.state('PIDloopCount') + 1, False)
                     # now step to it
                     yield self.PIDstep(self.state('PIDout'))
                     yield util.wakeupCall(self.sleepTime)
-                    
+
                 else:
                     yield util.wakeupCall(self.sleepTime)
-                # end of if (currentStatus)
-                lastTime = time.time()
+                    # end of if (status)
             # end of try
-            except KeyboardInterrupt:#, SystemExit):
+            except KeyboardInterrupt:  # , SystemExit):
                 self.state('alive', False)
-                
             except Exception as e:
                 print "Exception in cycle loop: %s" % e.__str__()
                 self.log("Exception in cycle loop: %s" % e.__str__())
@@ -459,67 +508,74 @@ class ADRWrapper(DeviceWrapper):
                 yield util.wakeupCall(self.sleepTime)
         # end of while loop
         self.state('alive', False)
-            
-    
-    # these are copied from the LabView program
-    # TODO: add error checking
-    def atBase(self):
-        temps = self.state('temperatures')
-        return( (temps[1] < self.state('cooldownLimit')) and (temps[2] < self.state('cooldownLimit')) )
-    
-    def psMaxCurrent(self):
-        """ sets the magnet current to the max current. """
-        newCurrent = min(PS_MAX_CURRENT, self.state('maxCurrent'))
-        if newCurrent < 0:
-            newCurrent = PS_MAX_CURRENT
-        magnet = self.peripheralsConnected['magnet']
-        if HANDSOFF:
-            print "would set %s magnet current -> %s" % (self.name, newCurrent)
-            self.log("would set %s magnet current -> %s" % (self.name, newCurrent))
+
+    def ruox_status(self):
+        """
+        Reads voltage from Lakeshore, converts to resistance, converts to temperature
+        :return: (temperature, resistance)
+        :rtype: (float, float)
+        """
+        ls_temps = self.state('temperatures')
+        ruox_voltage = self.state('voltages')[self.state('ruoxChannel') - 1]  # LS218 channels are indexed from 1
+        ruox_resistance = ruox_voltage * self.state('lockinOhmsPerVolt')
+        # check for over temperature
+        if ls_temps[1] > self.state('ruoxTempCutoff'):
+            return ls_temps[1], ruox_resistance
+        if self.state('useRuoxInterpolation'):
+            temp = self.state('ruoxInterpolation')(ruox_resistance) * K
+        elif ruox_resistance < self.state('resistanceCutoff'):
+            # high temp (2 to 20 K)
+            # noinspection PyUnusedLocal
+            r, p = ruox_resistance['Ohm'], self.state('ruoxCoefsHigh')
+            temp = eval(self.state('highTempRuoxCurve')) * K
         else:
-            self.log("%s magnet current -> %s" % (self.name, newCurrent))
-            magnet.server.current(newCurrent, context=magnet.ctxt)
-    
+            # low temp (0.05 to 2 K)
+            # noinspection PyUnusedLocal
+            r, p = ruox_resistance['Ohm'], self.state('ruoxCoefsLow')
+            temp = eval(self.state('lowTempRuoxCurve')) * K
+        return temp, ruox_resistance
+
+    def at_base(self):
+        temps = self.state('temperatures')
+        return (temps[1] < self.state('cooldownLimit')) and (temps[2] < self.state('cooldownLimit'))
+
+    def ps_max_current(self):
+        """ sets the magnet current to the max current. """
+        new_current = min(PS_MAX_CURRENT, self.state('maxCurrent'))
+        if new_current < 0:
+            new_current = PS_MAX_CURRENT
+        magnet = self.peripheralsConnected['magnet']
+        self.log("%s magnet current -> %s" % (self.name, new_current))
+        magnet.server.current(new_current, context=magnet.ctxt)
+
     @inlineCallbacks
-    def psOutputOff(self):
+    def ps_output_off(self):
         """ Turns off the magnet power supply, basically. """
         ps = self.peripheralsConnected['magnet']
         p = ps.server.packet(context=ps.ctxt)
-        p.voltage(0*labrad.units.V)
-        p.current(0*labrad.units.A)
-        if HANDSOFF:
-            print "would set %s magnet voltage, current -> 0" % self.name
-            self.log("would set %s magnet voltage, current -> 0" % self.name)
-        else:
-            self.log("magnet voltage, current -> 0")
-            yield p.send()
+        p.voltage(0 * V)
+        p.current(0 * A)
+        yield p.send()
+        self.log("magnet voltage, current -> 0")
         yield util.wakeupCall(0.5)
-        if HANDSOFF:
-            print "would set %s magnet output_state -> false" % self.name
-            self.log("would set magnet output_state -> false")
-        else:
-            self.log("magnet output_state -> false")
-            yield ps.server.output_state(False, context=ps.ctxt)
-        
+        yield ps.server.output_state(False, context=ps.ctxt)
+        self.log("magnet output_state -> false")
+
     @inlineCallbacks
-    def psOutputOn(self):
+    def ps_output_on(self):
         """ Turns on the power supply. """
         ps = self.peripheralsConnected['magnet']
         p = ps.server.packet(context=ps.ctxt)
-        newCurrent = min(PS_MAX_CURRENT, self.state('maxCurrent'))
-        if newCurrent < 0:
-            newCurrent = PS_MAX_CURRENT
-        p.current(newCurrent)
+        new_current = min(PS_MAX_CURRENT, self.state('maxCurrent'))
+        if new_current < 0:
+            new_current = PS_MAX_CURRENT
+        p.current(new_current)
         p.output_state(True)
-        if HANDSOFF:
-            print "would set %s magnet current -> %s\nmagnet output state -> %s" % (self.name, newCurrent, True)
-            self.log("would set magnet current -> %s\nmagnet output state -> %s" % (newCurrent, True))
-        else:
-            self.log("magnet current -> %s\nmagnet output state -> %s" % (newCurrent, True))
-            yield p.send()
-    
+        yield p.send()
+        self.log("magnet current -> %s\nmagnet output state -> %s" % (new_current, True))
+
     @inlineCallbacks
-    def adrMagStep(self, up):
+    def mag_step(self, up):
         """ If up is True, mags up a step. If up is False, mags down a step. """
         # don't mag if we don't have all the peripherals we need!
         if self.state('missingCriticalPeripheral'):
@@ -527,35 +583,36 @@ class ADRWrapper(DeviceWrapper):
             self.log("Missing peripheral! Cannot mag! Check lakeshore and magnet!")
             yield util.wakeupCall(1.0)
             returnValue((False, False))
+        # pull out the relevant values
         temps = self.state('temperatures')
         volts = self.state('voltages')
         current = self.state('magCurrent')
         voltage = self.state('magVoltage')
-        quenched = temps[1] > self.state('quenchLimit') and current > 0.5*Unit('A')
-        targetReached = (up and self.state('targetCurrent') - current < 1*Unit('mA')) or (not up and 10*Unit('mA') > current)
-        newVoltage = voltage
-        #print "  volts[6]: %s\n  volts[7]: %s\n  voltageLimit: %s" % (volts[6], volts[7], self.state('voltageLimit'))
-        if (not quenched) and (not targetReached) and abs(volts[6]) < self.state('voltageLimit') and abs(volts[7]) < self.state('voltageLimit'):
-            #print "changing voltage"
+        # check for quench, reaching of mag target, and whether magnet voltage is within limits
+        quenched = temps[1] > self.state('quenchLimit') and current > 0.5 * A
+        if up:
+            target_reached = self.state('targetCurrent') - current < 1 * mA
+        else:
+            target_reached = current < 10 * mA
+        within_limits = abs(volts[6]) < self.state('voltageLimit') and abs(volts[7]) < self.state('voltageLimit')
+        if (not quenched) and (not target_reached) and within_limits:
             if up:
-                newVoltage += self.state('voltageStepUp')
+                new_voltage = voltage + self.state('voltageStepUp')
             else:
-                newVoltage -= self.state('voltageStepDown')
-            if HANDSOFF:
-                print "would set %s magnet voltage -> %s" % (self.name, newVoltage)
-                self.log("would set %s magnet voltage -> %s" % (self.name, newVoltage))
-            else:
-                self.log("%s magnet voltage -> %s" % (self.name, newVoltage))
-                ps = self.peripheralsConnected['magnet']
-                yield ps.server.voltage(newVoltage, context=ps.ctxt)
+                new_voltage = voltage - self.state('voltageStepDown')
+            self.log("%s magnet voltage -> %s" % (self.name, new_voltage))
+            ps = self.peripheralsConnected['magnet']
+            yield ps.server.voltage(new_voltage, context=ps.ctxt)
         else:
             pass
-            #print "not changing voltage"
-        returnValue((quenched, targetReached))
-        
+        returnValue((quenched, target_reached))
+
     @inlineCallbacks
     def PIDstep(self, setV):
-        ''' step the magnet to a voltage target. Note that this will repeatedly make small steps in the manner of a mag step. '''
+        """
+        step the magnet to a voltage target.
+        Note that this will repeatedly make small steps in the manner of a mag step.
+        """
         startTime = time.time()
         doneStepping = False
         while not doneStepping:
@@ -568,143 +625,98 @@ class ADRWrapper(DeviceWrapper):
             if abs(volts[6]) < self.state('voltageLimit') and abs(volts[7]) < self.state('voltageLimit'):
                 verr = setV - self.state('magVoltage')
                 if abs(verr) > max(self.state('voltageStepUp'), self.state('voltageStepDown')):
-                    vnew = self.state('magVoltage') + max(self.state('voltageStepUp'), self.state('voltageStepDown')) * np.sign(verr)
-                    yield mag.server.voltage(vnew, context = self.ctxt)
+                    vnew = self.state('magVoltage') + max(self.state('voltageStepUp'),
+                                                          self.state('voltageStepDown')) * np.sign(verr)
+                    yield mag.server.voltage(vnew, context=self.ctxt)
                 else:
                     doneStepping = True
                 dt = time.time() - startTime
                 if dt > self.state('PIDstepTimeout')['s']:
                     doneStepping = True
             yield util.wakeupCall(self.state('rampWaitTime')['s'])
-            
-    
+
+
     @inlineCallbacks
-    def setHeatSwitch(self, open):
-        """ open the heat switch (when open=True), or close it (when open=False) """
+    def set_heat_switch(self, open_switch):
+        """ open the heat switch (when open_switch=True), or close it (when open_switch=False) """
         if 'heatswitch' not in self.peripheralsConnected.keys():
             self.log('cannot open heat switch--server not connected!')
             return
-        if open:
-            if HANDSOFF:
-                print "would open %s heat switch" % self.name
-                self.log('would open heat switch')
-            else:
-                hs = self.peripheralsConnected['heatswitch']
-                yield hs.server.open(context=hs.ctxt)
-                self.log("open heat switch")
+        if open_switch:
+            hs = self.peripheralsConnected['heatswitch']
+            yield hs.server.open(context=hs.ctxt)
+            self.log("open heat switch")
         else:
-            if HANDSOFF:
-                print "would close %s heat switch" % self.name
-                self.log('would close heat switch')
-            else:
-                hs = self.peripheralsConnected['heatswitch']
-                yield hs.server.close(context=hs.ctxt)
-                self.log("close heat switch")
-    
-    def setCompressor(self, start):
+            hs = self.peripheralsConnected['heatswitch']
+            yield hs.server.close(context=hs.ctxt)
+            self.log("close heat switch")
+
+    def set_compressor(self, start):
         """ if start==true, start compressor. if start==false, stop compressor """
         if start:
-            if HANDSOFF:
-                print "would start %s compressor" % self.name
-                self.log('would start compressor')
-            else:
-                cp = self.peripheralsConnected['compressor']
-                cp.server.start(context=cp.ctxt)
-                self.log("start compressor")
+            cp = self.peripheralsConnected['compressor']
+            cp.server.start(context=cp.ctxt)
+            self.log("start compressor")
         else:
-            if HANDSOFF:
-                print "would stop %s compressor" % self.name
-                self.log('would stop compressor')
-            else:
-                cp = self.peripheralsConnected['compressor']
-                cp.server.stop(context=cp.ctxt)
-                self.log("stop compressor")
-    
+            cp = self.peripheralsConnected['compressor']
+            cp.server.stop(context=cp.ctxt)
+            self.log("stop compressor")
+
     #########################
     # DATA OUTPUT FUNCTIONS #
     #########################
-    
+
     # getter/setter for state variables
-    def state(self, var, newValue = None, log = True):
-        if newValue is not None:
-            self.stateVars[var] = newValue
+    def state(self, var, new_value=None, log=True, no_new=False):
+        """
+        get/set a state variable.
+        :param var: name of the state variable
+        :param new_value: new value (optional)
+        :param log: whether to log this change (default=True)
+        :param no_new: if true, then don't create new one, only update existing (default=False)
+        :return: Value
+        """
+        if no_new and new_value is not None and var not in self.stateVars:
+            print "WARNING: not setting previously undefined state variable %s to %s" % (str(var), str(new_value))
+            return None
+        if new_value is not None:
+            old_value = self.stateVars[var]
+            self.stateVars[var] = new_value
             if log:
-                self.log('Set %s to %s' % (var, str(newValue)))
+                self.log('Set %s to %s' % (var, str(new_value)))
             # if we changed the field wait time, we may need to change scheduled mag down time
             if var == 'fieldWaitTime' and self.state('magUpCompletedTime') > 1:
-                self.state('scheduledMagDownTime', self.state('magUpCompletedTime') + newValue * 60.0)
-            elif var == 'schedulingActive' and newValue:
+                self.state('scheduledMagDownTime', self.state('magUpCompletedTime') + new_value * 60.0)
+            elif var == 'schedulingActive' and new_value:
                 self.state('autoControl', True)
+            elif var == 'tempRecordDelay':
+                # update the deferred delayed call
+                e = self.state('tempDelayedCall')
+                if e:
+                    try:
+                        diff = new_value - old_value
+                        e.reset(e.getTime() - time.time() + diff['s'])  # reset the counter
+                    except twisted.internet.error.AlreadyCalled, twisted.internet.error.AlreadyCancelled:
+                        pass
         return self.stateVars[var]
-        
+
     # clear a state variable
     def clear(self, var):
+        #del self.stateVars[var]
         self.stateVars[var] = None
-    
-    # getter/setter for status
-    def status(self, newStatus = None):
-        if (newStatus is not None) and (newStatus not in self.possibleStatuses):
-            self.log("ERROR: status %s not in possibleStatuses!" % newStatus)
-        elif (newStatus is not None) and not (newStatus == self.currentStatus):
-            self.currentStatus = newStatus
-            if newStatus == 'magging up':
-                if self.state('autoControl') and not self.state('delayHeatSwitchClose'):
-                    self.state('heatSwitched', True)
-                    self.setHeatSwitch(False)
-                else:
-                    self.state('heatSwitched', False)
-                self.psOutputOn()
-            elif newStatus == 'magging down':
-                if self.state('autoControl'):
-                    self.setHeatSwitch(True)
-                self.state('schedulingActive', False)
-            elif newStatus == 'pid control':
-                self.state('PIDout', self.state('magVoltage'))
-                self.state('PIDint', 0)
-                self.psOutputOn()
-            self.log("ADR %s status is now: %s" % (self.name, self.currentStatus))
-            self.state('PIDloopCount', 0)
-        return self.currentStatus
-    
-    # returns the cold stage resistance and temperature
-    # interpreted from "RuOx thermometer.vi" LabView program, such as I can
-    # the voltage reading is from lakeshore channel 4 (i.e. index 3)
-    def ruoxStatus(self):
-        lsTemps = self.state('temperatures')
-        lockin = self.state('lockinVoltage')
-        if lockin is None:
-            calib = self.state('voltToResCalibs')[self.state('switchPosition') - 1]
-            voltage = self.state('voltages')[self.state('ruoxChannel')]
-            resistance = voltage / (calib)* 10**6 # may or may not need this factor of 10^6
-        else:
-            if lockin.units == 'Ohm':
-                resistance = lockin
-            else:
-                resistance = lockin/ self.state('lockinCurrent')
-        if lsTemps[1] > self.state('ruoxTempCutoff'):
-            return (lsTemps[1], resistance)
-        temp = 0.0*labrad.units.K
-        if self.state('useRuoxInterpolation'):
-            temp = self.state('ruoxInterpolation')(resistance)*labrad.units.K
-        elif resistance < self.state('resistanceCutoff'):
-            # high temp (2 to 20 K)
-            temp = self.state('highTempRuoxCurve')(resistance['Ohm'], self.state('ruoxCoefsHigh'))*labrad.units.K
-        else:
-            # low temp (0.05 to 2 K)
-            temp = self.state('lowTempRuoxCurve')(resistance['Ohm'], self.state('ruoxCoefsLow'))*labrad.units.K
-        return (temp, resistance)
-            
+
     ###################################
     # TEMPERATURE RECORDING FUNCTIONS #
     ###################################
-    
+
     # overall plan here:
     # once the temp dips below 250 K, take data every 10 min;
     # in critical periods, do it every 10 s.
     # a "critical period" would be triggered when you start magging up or on user command
     # it would end when the heat switch closes, when temp > (some value), after X hours, or on user command
 
-    def recordTemp(self):
+    # noinspection PyAttributeOutsideInit
+    def record_temp(self):
         """
         writes to the data vault.
         independent variable: time
@@ -713,66 +725,73 @@ class ADRWrapper(DeviceWrapper):
         """
         try:
             dv = self.cxn.data_vault
+            ds_name = self.state('tempDatasetName')
+            if ds_name and ds_name[18:20] != time.strftime('%m'):  # start new dataset if it's a new day
+                self.state('tempDatasetName', None)
             if not self.state('tempDatasetName'):
                 # we need to create a new dataset
                 dv.cd(self.state('datavaultPath'), context=self.ctxt)
-                indeps = [('time', 's')]
-                deps = [
-                        ('temperature', 'ch1: 50K', 'K'),
-                        ('temperature', 'ch2: 4K', 'K'),
-                        ('temperature', 'ch3: mag', 'K'),
-                        ('voltage', 'ch4: ruox', 'V'),
-                        ('resistance', 'ruox', 'Ohm'),
-                        ('temperature', 'ruox', 'K'),
-                        ('voltage', 'magnet', 'V'),
-                        ('current', 'magnet', 'Amp'),
-                        ('temperature', 'ch5: aux', 'K'),
-                        ('temperature', 'CP Water In', 'K'),
-                        ('temperature', 'CP Water Out', 'K'),
-                        ('temperature', 'CP Helium', 'K'),
-                        ('temperature', 'CP Oil', 'K'),
-                        ('current', 'CP Motor', 'A'),
-                        ('temperature', 'CP CPU', 'K'),
-                        ('pressure', 'CP High Side', 'torr'), 
-                        ('pressure', 'CP Low Side', 'torr'),
-                        ('temperature', 'ch4: ruox (N/A)', 'K'),
-                        ('temperature', 'ch6: (N/A)', 'K'),
-                        ('temperature', 'ch7: V- (N/A)', 'K'),
-                        ('temperature', 'ch8: V+ (N/A)', 'K'),
-                        ('voltage', 'ch1: 50K', 'V'),
-                        ('voltage', 'ch2: 4K', 'V'),
-                        ('voltage', 'ch3: mag', 'V'),
-                        ('voltage', 'ch5', 'V'),
-                        ('voltage', 'ch6', 'V'),
-                        ('voltage', 'ch7: V-', 'V'),
-                        ('voltage', 'ch8: V+', 'V'),
-                        ]
+                self.indeps = [('time', 's')]
+                self.deps = [
+                    ('temperature', 'ch1: 50K', 'K'),
+                    ('temperature', 'ch2: 4K', 'K'),
+                    ('temperature', 'ch3: mag', 'K'),
+                    ('voltage', 'ch4: ruox', 'V'),
+                    ('resistance', 'ruox', 'Ohm'),
+                    ('temperature', 'ruox', 'K'),
+                    ('voltage', 'magnet', 'V'),
+                    ('current', 'magnet', 'A'),
+                    ('temperature', 'ch5: aux', 'K'),
+                    ('temperature', 'CP Water In', 'K'),
+                    ('temperature', 'CP Water Out', 'K'),
+                    ('temperature', 'CP Helium', 'K'),
+                    ('temperature', 'CP Oil', 'K'),
+                    ('current', 'CP Motor', 'A'),
+                    ('temperature', 'CP CPU', 'K'),
+                    ('pressure', 'CP High Side', 'torr'),
+                    ('pressure', 'CP Low Side', 'torr'),
+                    ('temperature', 'ch4: ruox (N/A)', 'K'),
+                    ('temperature', 'ch6: (N/A)', 'K'),
+                    ('temperature', 'ch7: V- (N/A)', 'K'),
+                    ('temperature', 'ch8: V+ (N/A)', 'K'),
+                    ('voltage', 'ch1: 50K', 'V'),
+                    ('voltage', 'ch2: 4K', 'V'),
+                    ('voltage', 'ch3: mag', 'V'),
+                    ('voltage', 'ch5', 'V'),
+                    ('voltage', 'ch6', 'V'),
+                    ('voltage', 'ch7: V-', 'V'),
+                    ('voltage', 'ch8: V+', 'V'),
+                ]
                 name = "ADR Log - %s" % time.strftime("%Y-%m-%d %H:%M")
-                dv.new(name, indeps, deps, context=self.ctxt)
+                dv.new(name, self.indeps, self.deps, context=self.ctxt)
+                print "Started new recording dataset: %s" % name
                 self.state('tempDatasetName', name)
             # assemble the info
             temps = self.state('temperatures')
             volts = self.state('voltages')
-            ruox = self.ruoxStatus()
-            I, V = (self.state('magCurrent'), self.state('magVoltage'))
-            t = int(time.time())
-            cpTemps = self.state('compressorTemperatures')
-            cpPress = self.state('compressorPressures')
-            cpCPU = self.state('compressorCPUTemperature')
-            cpMotor = self.state('compressorMotorCurrent')
+            ruox = self.ruox_status()
+            i, v = (self.state('magCurrent'), self.state('magVoltage'))
+            t = int(time.time()) * s
+            cp_temps = self.state('compressorTemperatures')
+            cp_press = self.state('compressorPressures')
+            cp_cpu = self.state('compressorCPUTemperature')
+            cp_motor = self.state('compressorMotorCurrent')
             # save the data
-            dv.add([t, temps[0], temps[1], temps[2], volts[3], ruox[1], ruox[0],
-                   V, I, temps[4]] + cpTemps + [cpMotor, cpCPU] + cpPress +
-                   [temps[3]] + temps[5:] + volts[0:3] + volts[4:],
-                context=self.ctxt)
+            values = [t, temps[0], temps[1], temps[2], volts[3], ruox[1], ruox[0], v, i, temps[4]] \
+                + list(cp_temps) + [cp_motor, cp_cpu] + list(cp_press) + [temps[3]] + list(temps[5:]) \
+                + list(volts[0:3]) + list(volts[4:])
+            floats = []
+            for value, unit in zip(values, self.indeps + self.deps):
+                floats.append(value[unit[-1]])
+            dv.add(floats, context=self.ctxt)
             # log!
             #self.log("Temperature log recorded: %s" % time.strftime("%Y-%m-%d %H:%M", time.localtime(t)))
-        except Exception, e:
+        except Exception as e:
             print "Exception in data logging: %s" % e.__str__()
             self.log("Exception in data logging: %s" % e.__str__())
-        
+
     @inlineCallbacks
-    def tempCycle(self):
+    def recording_cycle(self):
         """
         this function should be called when the temperature recording starts, and will return when it stops.
         it will loop every either 10s or 10 min and then call record temp.
@@ -780,63 +799,65 @@ class ADRWrapper(DeviceWrapper):
         """
         while self.state('recordTemp'):
             # make the record
-            self.recordTemp()
+            self.record_temp()
 
             # check if we should stop recording
-            if self.state('autoRecord') and self.shouldStopRecording():
-                self.stopRecording()
+            if self.state('autoRecord') and self.should_stop_recording():
+                self.stop_recording()
                 break
 
-            d = defer.Deferred()	# we use a blank deferred, so nothing will actually happen when we finish
+            d = defer.Deferred()  # we use a blank deferred, so nothing will actually happen when we finish
             e = reactor.callLater(self.state('tempRecordDelay')['s'], d.callback, None)
             self.state('tempDelayedCall', e, False)
             # and now, we wait.
             yield d
             # note that we can interrupt the waiting by messing with the e object (saved in a state variable)
-            
-    def startRecording(self):
+
+    def start_recording(self):
         self.state('recordTemp', True)
-        reactor.callLater(0.1, self.tempCycle)
+        reactor.callLater(0.1, self.recording_cycle)
         #self.tempCycle()
-    
-    def stopRecording(self):
+
+    def stop_recording(self):
         self.state('recordTemp', False)
         self.state('tempDatasetName', None)
         e = self.state('tempDelayedCall')
         if e:
             try:
-                e.reset(0) # reset the counter
+                e.reset(0)  # reset the counter
             except twisted.internet.error.AlreadyCalled:
                 pass
-    
-    def shouldStartRecording(self):
+
+    def should_start_recording(self):
         """
         determines whether we should start recording.
         """
         temps = self.state('temperatures')
         if len(self.peripheralsConnected.items()) == 0:
             return False
-        return temps[0] < self.state('recordingTemp') or temps[1] < self.state('recordingTemp') or self.state('compressorStatus')
-        
-    def shouldStopRecording(self):
+        return (self.state('recordingTemp') > temps[0] > 0*K) \
+            or (self.state('recordingTemp') > temps[0] > 0*K) \
+            or self.state('compressorStatus')
+
+    def should_stop_recording(self):
         """
         determines whether to stop recording.
         conditions: temp > 250K, --???
         """
-        return not self.shouldStartRecording()
+        return not self.should_start_recording()
 
-        
-        
+
     #################################
     # PERIPHERAL HANDLING FUNCTIONS #
     #################################
-    
+
+    # noinspection PyAttributeOutsideInit
     @inlineCallbacks
     def refreshPeripherals(self, refreshGPIB=False):
         while self._refreshPeripheralLock:
             yield util.wakeupCall(0.25)
         self._refreshPeripheralLock = True
-        self.allPeripherals = yield self.findPeripherals(refreshGPIB=refreshGPIB)
+        self.allPeripherals = yield self.findPeripherals(refresh_gpib=refreshGPIB)
         print self.allPeripherals
         self.peripheralOrphans = {}
         self.peripheralsConnected = {}
@@ -845,12 +866,12 @@ class ADRWrapper(DeviceWrapper):
         self._refreshPeripheralLock = False
 
     @inlineCallbacks
-    def findPeripherals(self, refreshGPIB=False):
+    def findPeripherals(self, refresh_gpib=False):
         """Finds peripheral device definitions for a given ADR (from the registry)
         OUTPUT
-            peripheralDict - dictionary {peripheralName:(serverName,identifier)..}
+            peripheral_dict - dictionary {peripheralName:(serverName,identifier)..}
         """
-        
+
         reg = self.cxn.registry
         ctxt = reg.context()
         yield reg.cd(CONFIG_PATH + [self.name], context=ctxt)
@@ -859,22 +880,22 @@ class ADRWrapper(DeviceWrapper):
         for peripheral in keys:
             p.get(peripheral, key=peripheral)
         ans = yield p.send(context=ctxt)
-        peripheralDict = {}
-        for peripheral in keys: #all key names in this directory
-            peripheralDict[peripheral] = ans[peripheral]
+        peripheral_dict = {}
+        for peripheral in keys:  # all key names in this directory
+            peripheral_dict[peripheral] = ans[peripheral]
         # pomalley 2013-01-25 -- refresh the GPIB bus when we do this
         # pomalley 2013-02-21 -- do it conditionally
-        if refreshGPIB:
-            nodeList = [v[1] for v in peripheralDict.itervalues()]
-            deferredList = []
-            for node in set(nodeList):
+        if refresh_gpib:
+            node_list = [v[1] for v in peripheral_dict.itervalues()]
+            deferred_list = []
+            for node in set(node_list):
                 for serverName, server in self.cxn.servers.iteritems():
                     if serverName.lower().startswith(node.lower()) and 'gpib' in serverName.lower():
-                        deferredList.append(server.refresh_devices())
+                        deferred_list.append(server.refresh_devices())
                         print "refreshing %s" % serverName
-            for d in deferredList:
+            for d in deferred_list:
                 yield d
-        returnValue(peripheralDict)
+        returnValue(peripheral_dict)
 
     @inlineCallbacks
     def attemptOrphans(self):
@@ -882,7 +903,7 @@ class ADRWrapper(DeviceWrapper):
             yield self.attemptPeripheral((peripheralName, idTuple))
 
     @inlineCallbacks
-    def attemptPeripheral(self,peripheralTuple):
+    def attemptPeripheral(self, peripheralTuple):
         """
         Attempts to connect to a specified peripheral. If the peripheral's server exists and
         the desired peripheral is known to that server, then the peripheral is selected in
@@ -902,7 +923,7 @@ class ADRWrapper(DeviceWrapper):
         #otherwise orphan this peripheral and tell the user.
         else:
             self._orphanPeripheral(peripheralTuple)
-            print 'Server ' + serverName + ' does not exist.'
+            print 'Server ' + serverName + ' does not exist.',
             print 'Check that the server is running and refresh this ADR'
             return
 
@@ -923,7 +944,7 @@ class ADRWrapper(DeviceWrapper):
                     break
         # otherwise, orphan it
         else:
-            print 'Server '+ serverName + ' does not have device ' + peripheralID
+            print 'Server ' + serverName + ' does not have device ' + peripheralID
             self._orphanPeripheral(peripheralTuple)
 
     @inlineCallbacks
@@ -931,173 +952,165 @@ class ADRWrapper(DeviceWrapper):
         peripheralName = peripheralTuple[0]
         ID = peripheralTuple[1][1]
         #Make the actual connection to the peripheral device!
-        self.peripheralsConnected[peripheralName] = Peripheral(peripheralName,server,ID,self.ctxt)
+        self.peripheralsConnected[peripheralName] = Peripheral(peripheralName, server, ID, self.ctxt)
         yield self.peripheralsConnected[peripheralName].connect()
         print "connected to %s for %s" % (ID, peripheralName)
 
-    def _orphanPeripheral(self,peripheralTuple):
+    def _orphanPeripheral(self, peripheralTuple):
         peripheralName = peripheralTuple[0]
         idTuple = peripheralTuple[1]
         if peripheralName not in self.peripheralOrphans:
             self.peripheralOrphans[peripheralName] = idTuple
-    
+
     #####################
     # LOGGING FUNCTIONS #
     #####################
-    
+
+    # noinspection PyAttributeOutsideInit
     def log(self, data):
         # write to log file
-        try:
-            f = open(self.state('logfile'), 'a')
+        with open(self.state('logfile'), 'a') as f:
             f.write('%s -- %s\n' % (time.strftime("%Y-%m-%d %H:%M:%S"), data))
-        finally:
-            f.close()
         # append to log variable
-        print "appending %s, %s to log" % (time.strftime("%Y-%m-%d %H:%M:%S"), data)
+        print 'stardate %s: %s' % (time.strftime("%Y-%m-%d %H:%M:%S"), data)
         self.logData.append((time.strftime("%Y-%m-%d %H:%M:%S"), data))
         # check to truncate log to last X entries
         if len(self.logData) > self.state('loglimit'):
             self.logData = self.logData[-self.state('loglimit'):]
-    
-    def getLog(self):
+
+    def get_log(self):
         return self.logData
-        
-    def getEntireLog(self):
-        s = ''
-        f = open(self.state('logfile'))
-        s = f.read()
-        f.close()
-        return s
-    
+
+    def get_entire_log(self):
+        with open(self.state('logfile')) as f:
+            log_string = f.read()
+        return log_string
+
+
 # (end of ADRWrapper)
 
-######################################
-########## ADR SERVER CLASS ##########
-######################################
+# #####################################
+# ######### ADR SERVER CLASS ##########
+# #####################################
+
 
 class ADRServer(DeviceServer):
     name = 'ADR Server'
     deviceName = 'ADR'
     deviceWrapper = ADRWrapper
-    
-    #def initServer(self):
+
+    # def initServer(self):
     #	return DeviceServer.initServer(self)
-    
+
     #def stopServer(self):
     #	return DeviceServer.stopServer(self)
 
     @inlineCallbacks
     def findDevices(self):
-        """Finds all ADR configurations in the registry at CONFIG_PATH and returns a list of (ADR_name,(),peripheralDictionary).
+        """
+        Finds all ADR configurations in the registry at CONFIG_PATH and returns a list of
+        (ADR_name,(),peripheralDictionary).
         INPUTS - none
         OUTPUT - List of (ADRName,(connectionObject,context),peripheralDict) tuples.
         """
-        deviceList=[]
+        device_list = []
         reg = self.client.registry
         yield reg.cd(CONFIG_PATH)
         resp = yield reg.dir()
-        ADRNames = resp[0].aslist
-        for name in ADRNames:
+        adr_names = resp[0].aslist
+        for name in adr_names:
             if 'defaults' not in name:
                 # all required nodes must be present to create this device
                 yield reg.cd(name)
-                devs = yield reg.dir()
-                devs = devs[1].aslist
-                missingNodes = []
-                for dev in devs:
+                devices = yield reg.dir()
+                devices = devices[1].aslist
+                missing_nodes = []
+                for dev in devices:
                     node = yield reg.get(dev)
                     node = node[1].split(' ')[0]
                     if "node_" + node.lower() not in self.client.servers:
-                        missingNodes.append(node)
-                if not missingNodes:
-                    deviceList.append((name,(self.client,)))
+                        missing_nodes.append(node)
+                if not missing_nodes:
+                    device_list.append((name, (self.client,)))
                 else:
-                    print "device %s missing nodes %s" % (name, str(set(missingNodes)))
-                yield reg.cd(1)                
-            
-        returnValue(deviceList)
+                    print "device %s missing nodes: %s" % (name, str(list(set(missing_nodes))))
+                yield reg.cd(1)
+
+        returnValue(device_list)
 
     @setting(211, 'refresh gpib')
     def refresh_gpib(self, c):
-        '''Refreshes all relevant GPIB buses and then looks for peripherals.'''
+        """Refreshes all relevant GPIB buses and then looks for peripherals."""
         dev = self.selectedDevice(c)
         yield dev.refreshPeripherals(refreshGPIB=True)
 
     @setting(21, 'refresh peripherals', returns=[''])
-    def refresh_peripherals(self,c):
+    def refresh_peripherals(self, c):
         """Refreshes peripheral connections for the currently selected ADR"""
 
         dev = self.selectedDevice(c)
         yield dev.refreshPeripherals()
 
     @setting(22, 'list all peripherals', returns='*?')
-    def list_all_peripherals(self,c):
+    def list_all_peripherals(self, c):
         dev = self.selectedDevice(c)
-        peripheralList=[]
-        for peripheral,idTuple in dev.allPeripherals.items():
-            peripheralList.append((peripheral,idTuple))
-        return peripheralList
+        peripheral_list = []
+        for peripheral, idTuple in dev.allPeripherals.items():
+            peripheral_list.append((peripheral, idTuple))
+        return peripheral_list
 
     @setting(23, 'list connected peripherals', returns='*?')
-    def list_connected_peripherals(self,c):
+    def list_connected_peripherals(self, c):
         dev = self.selectedDevice(c)
-        connected=[]
+        connected = []
         for name, peripheral in dev.peripheralsConnected.items():
-            connected.append((peripheral.name,peripheral.ID))
+            connected.append((peripheral.name, peripheral.ID))
         return connected
 
     @setting(24, 'list orphans', returns='*?')
-    def list_orphans(self,c):
+    def list_orphans(self, c):
         dev = self.selectedDevice(c)
-        orphans=[]
-        for peripheral,idTuple in dev.peripheralOrphans.items():
-            orphans.append((peripheral,idTuple))
+        orphans = []
+        for peripheral, idTuple in dev.peripheralOrphans.items():
+            orphans.append((peripheral, idTuple))
         return orphans
 
-    @setting(32, 'echo PNA', data=['?'], returns=['?'])
-    def echo_PNA(self,c,data):
-        dev = self.selectedDevice(c) #this gets the selected ADR
-        if 'PNA' in dev.peripheralsConnected.keys():
-            PNA = dev.peripheralsConnected['PNA']
-            resp = yield PNA.server.echo(data, context=PNA.ctxt)
-            returnValue(resp)
-    
     @setting(40, 'Voltages', returns=['*v[V]'])
     def voltages(self, c):
         """ Returns the voltages from this ADR's lakeshore diode server. """
         dev = self.selectedDevice(c)
         return dev.state('voltages')
-    
+
     @setting(41, 'Temperatures', returns=['*v[K]'])
     def temperatures(self, c):
         """ Returns the temperatures from this ADR's lakeshore diode server. """
         dev = self.selectedDevice(c)
         return dev.state('temperatures')
-            
+
     @setting(42, 'Magnet Status', returns=['(v[A] v[V])'])
     def magnet_status(self, c):
         """ Returns the voltage and current from the magnet power supply. """
         dev = self.selectedDevice(c)
-        return (dev.state('magCurrent'), dev.state('magVoltage'))
-            
+        return dev.state('magCurrent'), dev.state('magVoltage')
+
     @setting(43, 'Compressor Status', returns=['b'])
     def compressor_status(self, c):
         """ Returns True if the compressor is running, false otherwise. """
         dev = self.selectedDevice(c)
-        return (dev.state('compressorStatus'))
-            
+        return dev.state('compressorStatus')
+
     @setting(44, 'Ruox Status', returns=['(v[K] v[Ohm])'])
     def ruox_status(self, c):
         """ Returns the temperature and resistance measured at the cold stage. """
         dev = self.selectedDevice(c)
-        return dev.ruoxStatus()
-        
+        return dev.ruox_status()
+
     @setting(45, 'Set Compressor', value='b')
     def set_compressor(self, c, value):
         """ True starts the compressor, False stops it. """
         dev = self.selectedDevice(c)
-        dev.setCompressor(value)
-        
+        dev.set_compressor(value)
+
     @setting(46, 'Set Heat Switch', value='b')
     def set_heat_switch(self, c, value):
         """ 
@@ -1105,93 +1118,97 @@ class ADRServer(DeviceServer):
         There is no confirmation! Don't fuck up.
         """
         dev = self.selectedDevice(c)
-        dev.setHeatSwitch(value)
-    
+        dev.set_heat_switch(value)
+
     @setting(50, 'List State Variables', returns=['*s'])
     def list_state_variables(self, c):
         """ Returns a list of all the state variables for this ADR. """
         dev = self.selectedDevice(c)
         return dev.stateVars.keys()
-    
-    @setting(51, 'Set State', variable = 's', value='?')
+
+    @setting(51, 'Set State', variable='s', value='?')
     def set_state(self, c, variable, value):
         """ Sets the given state variable to the given value. """
         dev = self.selectedDevice(c)
         dev.state(variable, value)
-    
-    @setting(52, 'Get State', variable = 's', returns=["?"])
+
+    @setting(52, 'Get State', variable='s', returns=["?"])
     def get_state(self, c, variable):
         """ Gets the value of the given state variable. """
         dev = self.selectedDevice(c)
         return dev.state(variable)
-    
-    @setting(53, 'Status', returns = ['s'])
+
+    @setting(53, 'Status', returns=['s'])
     def status(self, c):
         """ Returns the status (e.g. "cooling down", "waiting to mag up", etc.) """
         dev = self.selectedDevice(c)
-        return dev.status()
-    
-    @setting(54, 'List Statuses', returns = ['*s'])
+        return dev.status
+
+    @setting(54, 'List Statuses', returns=['*s'])
     def list_statuses(self, c):
         """ Returns a list of all allowed statuses. """
         dev = self.selectedDevice(c)
         return dev.possibleStatuses
-        
+
     @setting(55, 'Change Status', value='s')
     def change_status(self, c, value):
         """ Changes the status of the ADR server. """
         dev = self.selectedDevice(c)
         dev.status(value)
-        
-    @setting(56, "Get Log", returns = ['*(ss)'])
+
+    @setting(56, "Get Log", returns=['*(ss)'])
     def get_log(self, c):
         """ Gets this ADR's log. """
         dev = self.selectedDevice(c)
-        return dev.getLog()
-        
+        return dev.get_log()
+
     @setting(57, "Write Log", value='s')
     def write_log(self, c, value):
         """ Writes a single entry to the log. """
         dev = self.selectedDevice(c)
         dev.log(value)
-        
+
     @setting(58, "Revert to Defaults")
     def revert_to_defaults(self, c):
         """ Reverts the state variables to the defaults in the registry. """
         dev = self.selectedDevice(c)
-        dev.loadDefaultsFromRegistry()
-        
+        dev.load_defaults_from_registry()
+
     @setting(59, "Get Entire Log")
     def get_entire_log(self, c):
-        ''' Gets the entire log. '''
+        """ Gets the entire log. It is very large and you probably don't want to do this. """
         dev = self.selectedDevice(c)
-        return dev.getEntireLog()
-        
+        return dev.get_entire_log()
+
     # the 60's settings are for controlling the temp recording
     @setting(60, "Start Recording")
     def start_recording(self, c):
         """ Start recording temp. """
         dev = self.selectedDevice(c)
         dev.state('autoRecord', False)
-        dev.startRecording()
+        dev.start_recording()
+
     @setting(61, "Stop Recording")
     def stop_recording(self, c):
         """ Stop recording temp. """
-        self.selectedDevice(c).stopRecording()
+        self.selectedDevice(c).stop_recording()
+
     @setting(62, "Is Recording")
     def is_recording(self, c):
         """ Returns whether recording or not. """
         dev = self.selectedDevice(c)
         return dev.state('recordTemp')
-        
+
     @setting(63, "Mag Step", up='b')
     def mag_step(self, c, up):
-        ''' mag step '''
+        """ mag step """
         dev = self.selectedDevice(c)
-        dev.adrMagStep(up)
-    
+        dev.mag_step(up)
+
+
 __server__ = ADRServer()
 
 if __name__ == '__main__':
     from labrad import util
+
     util.runServer(__server__)
