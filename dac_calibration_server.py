@@ -270,7 +270,7 @@ class CalibrationServer(LabradServer):
         if 'DAC' not in c:
             raise NoDACSelectedError()
         
-        data = data.asarray # convert data to array
+        # data = data.asarray # convert data to array
         if len(data) == 0:
             returnValue([]) # special case for empty data
 
@@ -281,7 +281,8 @@ class CalibrationServer(LabradServer):
             calset = yield self.getIQcalset(c)
             deconv=c['deconvIQ']            
             corrected = calset.DACifyFT(c['Frequency'], data, n=len(data),
-                                        t0=c['t0'], loop=c['Loop'], zipSRAM=False,deconv=deconv,zeroBoards=c['zeroIQ'])
+                                        t0=c['t0'], loop=c['Loop'], zipSRAM=False,
+                                        deconv=deconv, zeroBoards=c['zeroIQ'])
             if deconv is False:
                 print 'No deconv on board ' + c['Board']                                         
         else:
@@ -291,7 +292,9 @@ class CalibrationServer(LabradServer):
             calset.setFilter(bandwidth=c['Filter'])
             deconv=c['deconvZ']            
             corrected = calset.DACifyFT(data, n=(len(data)-1)*2,
-                                        t0=c['t0'], loop=c['Loop'], fitRange=False,deconv=deconv,zeroBoards=c['zeroZ'],borderValues=c['borderValues'],maxvalueZ=self.serverSettings['maxvalueZ'])
+                                        t0=c['t0'], loop=c['Loop'], fitRange=False,
+                                        deconv=deconv, zeroBoards=c['zeroZ'], borderValues=c['borderValues'],
+                                        maxvalueZ=self.serverSettings['maxvalueZ'])
             if deconv is False:
                 print 'No deconv on board ' + c['Board']                                          
         returnValue(corrected)
@@ -307,7 +310,7 @@ class CalibrationServer(LabradServer):
         but can just give the timeconstants and amplitudes.
         All previously used time constants will be replaced.
         """
-        c['Settling'] = (rates.asarray, amplitudes.asarray)
+        c['Settling'] = (rates, amplitudes)
 
     @setting(45, 'Set Filter', bandwidth=['v[GHz]: bandwidth'])
     def setfilter(self, c, bandwidth):
