@@ -30,16 +30,16 @@ timeout = 30
 ### END NODE INFO
 """
 
-from labrad import util
+from labrad import types as T, util
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
-import labrad.units as units
-from labrad.units import dBm
 
 from struct import unpack
 import time
 import numpy
+
+import labrad.units as units
 
 # the names of the measured parameters
 MEAS_PARAM = ['S11', 'S12', 'S21', 'S22']
@@ -93,8 +93,8 @@ class AgilentPNAServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if bw is None:
             resp = yield dev.query('SENS:BAND?')
-            bw = units.Value(float(resp), 'Hz')
-        elif isinstance(bw, units.Value):
+            bw = T.Value(float(resp), 'Hz')
+        elif isinstance(bw, T.Value):
             yield dev.write('SENS:BAND %f' % bw['Hz'])
         returnValue(bw)
 
@@ -104,9 +104,9 @@ class AgilentPNAServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if f is None:
             resp = yield dev.query('SENS:FREQ:CW?')
-            f = units.Value(float(resp), 'Hz')
-        elif isinstance(f, units.Value):
-            yield dev.write('SENS:FREQ:CW %f' % f.value)
+            f = T.Value(float(resp), 'Hz')
+        elif isinstance(f, T.Value):
+            yield dev.write('SENS:FREQ:CW %f' % f['Hz'])
         returnValue(f)
 
     @setting(12, fs=['(v[Hz], v[Hz])'], returns=['(v[Hz], v[Hz])'])
@@ -116,7 +116,7 @@ class AgilentPNAServer(GPIBManagedServer):
         dev.write('SENS:SWE:TYPE LIN')
         if fs is None:
             resp = yield dev.query('SENS:FREQ:STAR?; STOP?')
-            fs = tuple(units.Value(float(f), 'Hz') for f in resp.split(';'))
+            fs = tuple(T.Value(float(f), 'Hz') for f in resp.split(';'))
         else:
             yield dev.write('SENS:FREQ:STAR %f; STOP %f' % (fs[0]['Hz'], fs[1]['Hz']))
         returnValue(fs)
@@ -127,8 +127,8 @@ class AgilentPNAServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if p is None:
             resp = yield dev.query('SOUR:POW?')
-            p = units.Value(float(resp), 'dBm')
-        elif isinstance(p, units.Value):
+            p = T.Value(float(resp), 'dBm')
+        elif isinstance(p, T.Value):
             yield dev.write('SOUR:POW %f' % p['dBm'])
         returnValue(p)
 
@@ -157,16 +157,16 @@ class AgilentPNAServer(GPIBManagedServer):
         dev.write('SENS:SWE:TYPE POW')
         if ps is None:
             resp = yield dev.query('SOUR:POW:STAR?; STOP?')
-            ps = tuple(units.Value(float(p), 'dBm') for p in resp.split(';'))
+            ps = tuple(T.Value(float(p), 'dBm') for p in resp.split(';'))
         else:
             good_atten = None
             for attn in [0, 10, 20, 30, 40, 50, 60]:
-                if (-attn-30)*dBm <= ps[0] and (-attn+20)*dBm >= ps[1]:
+                if -attn-30 <= ps[0] and -attn+20 >= ps[1]:
                     good_atten = attn
                     break
             if good_atten is None:
                 raise Exception('Power out of range.')
-            yield dev.write('SOUR:POW:ATT %f; STAR %f; STOP %f' %(good_atten, ps[0], ps[1]))
+            yield dev.write('SOUR:POW:ATT %f; STAR %f; STOP %f' %(good_atten, ps[0]['dBm'], ps[1]['dBm']))
         returnValue(ps)
 
     @setting(16, n=['w'], returns=['w'])
@@ -190,7 +190,7 @@ class AgilentPNAServer(GPIBManagedServer):
         elif isinstance(av, long): # if you send in a number
             yield dev.write('SENS:AVER:COUN %u' % av) # sets the averaging number
             yield dev.write('SENS:SWE:GRO:COUN %u' % av) # sets the triggering number
-            yield dev.write('SENS:AVER:MODE SWEEP') # turns average mode to SWEEP
+            # yield dev.write('SENS:AVER:MODE SWEEP') # turns average mode to SWEEP
             if av > 1:
                 yield dev.write('SENS:AVER ON') # turns averaging on
             else:
@@ -208,8 +208,8 @@ class AgilentPNAServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if corr is None:
             resp = yield dev.query('CALC:CORR:EDEL:TIME?')
-            corr = units.Value(float(resp), 'ns')
-        elif isinstance(corr, units.Value):
+            corr = T.Value(float(resp), 'ns')
+        elif isinstance(corr, T.Value):
             yield dev.write('CALC:CORR:EDEL:TIME %fNS' % corr)
         returnValue(corr)
         
@@ -255,12 +255,14 @@ class AgilentPNAServer(GPIBManagedServer):
         If log is False (the default), this will perform a
         linear sweep.  If log is True, the sweep will be logarithmic.
         """
-
+        print 'starting'
         dev = self.selectedDevice(c)
 
         resp = yield dev.query('SENS:FREQ:STAR?; STOP?')
         fstar, fstop = [float(f) for f in resp.split(';')]
-
+        print 'fstar = ',fstar
+        print 'fstop = ',fstop
+        print resp.split(";")
         sweepType = 'LOG' if log else 'LIN'
         sweeptime, npoints = yield self.startSweep(dev, sweepType)
         if sweeptime > 1:
@@ -269,16 +271,16 @@ class AgilentPNAServer(GPIBManagedServer):
             yield util.wakeupCall(sweeptime)  #needs factor of 2 since it runs both forward and backward 
 
         if log:
-            ## hack: should use numpy.logspace, but it seems to be broken
-            ## for now, this works instead.
+            # hack: should use numpy.logspace, but it seems to be broken
+            # for now, this works instead.
             lim1, lim2 = numpy.log10(fstar), numpy.log10(fstop)
-            freq = 10**numpy.linspace(lim1, lim2, npoints) * units.Hz
+            freq = 10**numpy.linspace(lim1, lim2, npoints)
         else:
-            freq = numpy.linspace(fstar, fstop, npoints) * units.Hz
+            freq = numpy.linspace(fstar, fstop, npoints)
             
         # wait for sweep to finish
         sparams = yield self.getSweepData(dev, c['meas'])
-        returnValue((freq, sparams))
+        returnValue((freq*units.Hz, sparams))
         
         
     @setting(124, log='b')
@@ -312,7 +314,7 @@ class AgilentPNAServer(GPIBManagedServer):
         phase = yield self.getSweepDataPhase(dev, c['meas'])
         returnValue((freq, phase))
 
-    @setting(101, returns='*v[dBm]*2c')
+    @setting(101, returns='*v[Hz]*2c')
     def power_sweep(self, c):
         """Initiate a power sweep."""
         dev = self.selectedDevice(c)
@@ -328,10 +330,10 @@ class AgilentPNAServer(GPIBManagedServer):
         sparams = yield self.getSweepData(dev, c['meas'])
 
         power = util.linspace(pstar, pstop, npoints)
-        power = [units.Value(p, 'dBm') for p in power]
+        power = [T.Value(p, 'dBm') for p in power]
         for s in sparams:
             for i, c in enumerate(s):
-                s[i] = units.Complex(c)
+                s[i] = T.Complex(c)
         returnValue((power, sparams))
         
     @setting(189)
@@ -347,7 +349,7 @@ class AgilentPNAServer(GPIBManagedServer):
             sweeptime *= self.sweepFactor(c)
             yield util.wakeupCall(sweeptime)
         power = util.linspace(pstar, pstop, npoints)
-        power = [units.Value(p, 'dBm') for p in power]
+        power = [T.Value(p, 'dBm') for p in power]
         phase = yield self.getSweepDataPhase(dev, c['meas'])
         returnValue((power, phase))
         
@@ -372,10 +374,10 @@ class AgilentPNAServer(GPIBManagedServer):
         sparams = yield self.getSweepData(dev, c['meas'])
 
         power = util.linspace(pstar, pstop, npoints)
-        power = [units.Value(p, 'dBm') for p in power]
+        power = [T.Value(p, 'dBm') for p in power]
         for s in sparams:
             for i, cplx in enumerate(s):
-                s[i] = units.Complex(cplx)
+                s[i] = T.Complex(cplx)
 
         p = numpy.array(power)
         s = 20*numpy.log10(abs(numpy.array(sparams)))
@@ -421,10 +423,10 @@ class AgilentPNAServer(GPIBManagedServer):
         sparams = yield self.getSweepData(dev, c['meas'])
 
         freq = util.linspace(fstar, fstop, npoints)
-        freq = [units.Value(f, 'Hz') for f in freq]
+        freq = [T.Value(f, 'Hz') for f in freq]
         for s in sparams:
             for i, cplx in enumerate(s):
-                s[i] = units.Complex(cplx)
+                s[i] = T.Complex(cplx)
 
         f = numpy.array(freq)
         s = 20*numpy.log10(abs(numpy.array(sparams)))
@@ -498,24 +500,24 @@ class AgilentPNAServer(GPIBManagedServer):
     @inlineCallbacks
     def startSweep(self, dev, sweeptype):
         yield dev.write('SENS:SWE:TIME:AUTO ON; :INIT:CONT ON; :OUTP ON')
-
         resp = yield dev.query('SENS:SWE:TIME?; POIN?')
         sweeptime, npoints = resp.split(';')
         sweeptime = float(sweeptime)
         npoints = int(npoints)
-
         yield dev.write('SENS:SWE:TYPE %s' % sweeptype)
         # yield dev.write('ABORT;INIT:IMM')
         resp = yield dev.query('SENS:AVER:COUN?')
         sweeptime *= long(resp)
         yield dev.write('ABORT;SENS:SWE:MODE GRO')
-
+        print 'sweeptime = ',sweeptime
+        print 'npoints = ',npoints
         returnValue((sweeptime, npoints))
 
     @inlineCallbacks
     def getSweepData(self, dev, meas):
         yield dev.query('*OPC?') # wait for sweep to finish
-        sdata = yield self.getSParams(dev, meas)
+        print 'Query Accepted'
+        sdata = yield self.getSParams(dev, meas)    
         yield dev.write('OUTP OFF')
         returnValue(sdata)
         
@@ -529,6 +531,7 @@ class AgilentPNAServer(GPIBManagedServer):
     @inlineCallbacks
     def getSParams(self, dev, measurements):
         sdata = [(yield self.getData(dev, m)) for m in measurements]
+        print 'Got Params'
         returnValue(sdata)
         
     @inlineCallbacks
@@ -560,19 +563,15 @@ class AgilentPNAServer(GPIBManagedServer):
         """
         yield dev.write("CALC:PAR:SEL '%s'" % _parName(meas))
         yield dev.write("CALC:DATA? SDATA")
-        yield dev.read(n_bytes=1L) # throw away first byte
+        # as of pyvisa 1.6 reading a set number of bytes no longer seems to work
+        # we still put in a number here because we want to use read_raw to avoid attempted conversion of non-ascii chars
+        data = yield dev.read(99999)
         
-        headerLen = long((yield dev.read(n_bytes=1L)))
-        dataLen = long((yield dev.read(n_bytes=headerLen)))
-
-        # read data in chunks
-        dataStr = ''
-        while len(dataStr) < dataLen:
-            chunk = min(10000, dataLen - len(dataStr))
-            dataStr += yield dev.read(n_bytes=long(chunk))
-            
-        yield dev.read(n_bytes=1L) # read last byte and discard
-
+        # parse header for length of data
+        headerLen = long(data[1])        
+        dataLen = long(data[2:2+headerLen])
+        # parse data
+        dataStr = data[2+headerLen:]
         nPoints = dataLen / 16
         
         _parse = lambda s: complex(*unpack('>dd', s))
@@ -598,18 +597,18 @@ class AgilentPNAServer(GPIBManagedServer):
         yield dev.write("CALC:PAR:SEL '%s'" % _parName(meas))
         yield dev.write("CALC:FORM PHAS")
         yield dev.write("CALC:DATA? FDATA")
-        yield dev.read(n_bytes=1L) # throw away first byte
+        yield dev.read(bytes=1L) # throw away first byte
         
-        headerLen = long((yield dev.read(n_bytes=1L)))
-        dataLen = long((yield dev.read(n_bytes=headerLen)))
+        headerLen = long((yield dev.read(bytes=1L)))
+        dataLen = long((yield dev.read(bytes=headerLen)))
 
         # read data in chunks
         dataStr = ''
         while len(dataStr) < dataLen:
             chunk = min(10000, dataLen - len(dataStr))
-            dataStr += yield dev.read(n_bytes=long(chunk))
+            dataStr += yield dev.read(bytes=long(chunk))
             
-        yield dev.read(n_bytes=1L) # read last byte and discard
+        yield dev.read(bytes=1L) # read last byte and discard
 
         nPoints = dataLen / 8
         
