@@ -190,6 +190,7 @@ class ADRWrapper(DeviceWrapper):
         # different possible statuses
         self.possibleStatuses = ['cooling down', 'ready', 'waiting at field', 'waiting to mag up', 'magging up',
                                  'magging down', 'ready to mag down', 'pid control']
+        self._status = '' 
         self.status = 'cooling down'
         self.sleepTime = 1.0
         # find our peripherals
@@ -211,6 +212,7 @@ class ADRWrapper(DeviceWrapper):
     # noinspection PyAttributeOutsideInit
     @status.setter
     def status(self, new_status):
+        print "new_status: %s, _status: %s" % (new_status, self._status)
         if (new_status is not None) and (new_status not in self.possibleStatuses):
             self.log("ERROR: status %s not in possibleStatuses!" % new_status)
         elif (new_status is not None) and not (new_status == self._status):
@@ -221,6 +223,8 @@ class ADRWrapper(DeviceWrapper):
                     self.set_heat_switch(False)
                 else:
                     self.state('heatSwitched', False)
+                print "output on"
+                self.log("PS output on")
                 self.ps_output_on()
             elif new_status == 'magging down':
                 if self.state('autoControl'):
@@ -1154,7 +1158,7 @@ class ADRServer(DeviceServer):
     def change_status(self, c, value):
         """ Changes the status of the ADR server. """
         dev = self.selectedDevice(c)
-        dev.status(value)
+        dev.status = value
 
     @setting(56, "Get Log", returns=['*(ss)'])
     def get_log(self, c):
