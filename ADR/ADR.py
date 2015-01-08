@@ -282,11 +282,12 @@ class ADRWrapper(DeviceWrapper):
                 self.state(k, value, no_new=True)
 
         try:
-            i_path, i_name = self.state('interpolation data')
+            i_path, i_name = self.state('interpolationData')
             inter = yield self.load_interpolator(i_path, i_name)
             self.state('ruoxInterpolation', inter)
             self.state('useRuoxInterpolation', True)
         except KeyError:
+            print "Unable to load ruox interpolation."
             pass
 
     @inlineCallbacks
@@ -294,14 +295,14 @@ class ADRWrapper(DeviceWrapper):
         """ Using RvsT data from the data vault, construct an interpolating function.
         Requires scipy!"""
         from scipy.interpolate import InterpolatedUnivariateSpline
-
+        self.log("Loading interpolation data from: %s, dataset: %s" % (ds_path, ds_name))
         ctx = self.cxn.data_vault.context()
         p = self.cxn.data_vault.packet(context=ctx)
         p.cd(ds_path)
         p.open(ds_name)
-        p.get(-1, True)
+        p.get()
         resp = yield p.send()
-        d = resp.get.asarray[::-1]
+        d = resp.get[::-1]
         f = InterpolatedUnivariateSpline(d[:, 1], d[:, 0], k=3)
         returnValue(f)
 
@@ -526,7 +527,7 @@ class ADRWrapper(DeviceWrapper):
         if ls_temps[1] > self.state('ruoxTempCutoff'):
             return ls_temps[1], ruox_resistance
         if self.state('useRuoxInterpolation'):
-            temp = self.state('ruoxInterpolation')(ruox_resistance) * K
+            temp = self.state('ruoxInterpolation')(ruox_resistance['Ohm']) * K
         elif ruox_resistance < self.state('resistanceCutoff'):
             # high temp (2 to 20 K)
             # noinspection PyUnusedLocal
@@ -684,7 +685,7 @@ class ADRWrapper(DeviceWrapper):
             print "WARNING: not setting previously undefined state variable %s to %s" % (str(var), str(new_value))
             return None
         if new_value is not None:
-            old_value = self.stateVars[var]
+            old_value = self.stateVars.get(var, None)
             self.stateVars[var] = new_value
             if log:
                 self.log('Set %s to %s' % (var, str(new_value)))
