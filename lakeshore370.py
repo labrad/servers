@@ -535,7 +535,7 @@ class LakeshoreRuOxServer(GPIBManagedServer):
             dev.selectChannel(channel)
         return channel
     
-    @setting(09, 'Settle Time', time='v[s]', returns='v[s]')
+    @setting(9, 'Settle Time', time='v[s]', returns='v[s]')
     def settleTime(self, c, time=None):
         """Select channel to be read. If argument is 0,
         scan over channels.
