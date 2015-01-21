@@ -180,7 +180,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
             p.get('Settle Time', key='settleTime')
             ans = yield p.send()
             self.settleTime = ans['settleTime']
-        except Exception, e:
+        except Exception as e:
             print e
             self.settleTime = DEFAULT_SETTLE_TIME
         
@@ -231,7 +231,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 returnValue([VRHOPPING, ans.res, ans.temp])
             else:
                 returnValue([DEFAULT])
-        except Exception, e:
+        except Exception as e:
             print e
             returnValue([DEFAULT])
     
@@ -251,7 +251,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
             else:
                 raise Exception('Invalid calibration for channel %s: "%s"' %\
                                    (channel, str))
-        except Exception, e:
+        except Exception as e:
             str += e.__str__()
             
         return str
@@ -475,7 +475,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
                     return self.singleTempToRes(temp, channel, 0) # use calibration 0
                 else:
                     return temp2res(temp) # if no calibration for the device either, use old-fashioned temp2res
-        except Exception, e:
+        except Exception as e:
             print "Exception converting temp to res: %s" % e.__str__()
             return 0.0
             
