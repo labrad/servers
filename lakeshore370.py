@@ -107,11 +107,11 @@ from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 import labrad.units as units
 import numpy as np
 
-Ohm, K = [U.Unit(s) for s in ['Ohm', 'K']]
+Ohm, K, s = [U.Unit(s) for s in ['Ohm', 'K', 's']]
 
 READ_ORDER = [1, 2, 1, 3, 1, 4, 1, 5]
 #N_CHANNELS = 5
-SETTLE_TIME = 8
+DEFAULT_SETTLE_TIME = 8*s
 DEFAULT, FUNCTION, INTERPOLATION, VRHOPPING = range(4)
 
 # These functions suck.
@@ -148,6 +148,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
         #Load calibration data
         yield self.reloadCalibrations(path)
         yield self.reloadChannelNames(path)
+        yield self.reloadSettleTime(path)
     
     def getRegistryPath(self):
         """Get a registry path suitable for registry.cd
@@ -170,6 +171,19 @@ class RuOxWrapper(GPIBDeviceWrapper):
         ans = yield p.send()
         self.channelNames = ans['channels']
     
+    @inlineCallbacks
+    def reloadSettleTime(self, path):
+        try:
+            reg = self.gpib._cxn.registry
+            p = reg.packet()
+            p.cd(path)
+            p.get('Settle Time', key='settleTime')
+            ans = yield p.send()
+            self.settleTime = ans['settleTime']
+        except Exception as e:
+            print e
+            self.settleTime = DEFAULT_SETTLE_TIME
+        
     @inlineCallbacks
     def loadSingleCalibration(self, reg, path):
         """Load a single calibration
@@ -217,7 +231,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 returnValue([VRHOPPING, ans.res, ans.temp])
             else:
                 returnValue([DEFAULT])
-        except Exception, e:
+        except Exception as e:
             print e
             returnValue([DEFAULT])
     
@@ -237,7 +251,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
             else:
                 raise Exception('Invalid calibration for channel %s: "%s"' %\
                                    (channel, str))
-        except Exception, e:
+        except Exception as e:
             str += e.__str__()
             
         return str
@@ -342,7 +356,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
             # read only one specific channel
             if self.onlyChannel > 0:
                 chan = self.onlyChannel
-                yield util.wakeupCall(SETTLE_TIME)
+                yield util.wakeupCall(self.settleTime['s'])
                 r = yield self.query('RDGR? %d' % chan)
                 self.readings[chan] = float(r)*Ohm, datetime.now()
             # scan over channels
@@ -350,10 +364,10 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 if len(self.readOrder) > 0:
                     chan = self.readOrder[idx]
                 else:
-                    yield util.wakeupCall(SETTLE_TIME)
+                    yield util.wakeupCall(self.settleTime['s'])
                     continue
                 yield self.selectChannel(chan)
-                yield util.wakeupCall(SETTLE_TIME)
+                yield util.wakeupCall(self.settleTime['s'])
                 r = yield self.query('RDGR? %d' % chan)
                 self.readings[chan] = float(r)*Ohm, datetime.now()
                 idx = (idx + 1) % len(self.readOrder)
@@ -461,7 +475,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
                     return self.singleTempToRes(temp, channel, 0) # use calibration 0
                 else:
                     return temp2res(temp) # if no calibration for the device either, use old-fashioned temp2res
-        except Exception, e:
+        except Exception as e:
             print "Exception converting temp to res: %s" % e.__str__()
             return 0.0
             
@@ -520,6 +534,18 @@ class LakeshoreRuOxServer(GPIBManagedServer):
         if channel > 0:
             dev.selectChannel(channel)
         return channel
+    
+    @setting(9, 'Settle Time', time='v[s]', returns='v[s]')
+    def settleTime(self, c, time=None):
+        """Select channel to be read. If argument is 0,
+        scan over channels.
+
+        Returns selected channel.
+        """
+        dev = self.selectedDevice(c)
+        if time != None:
+            dev.settleTime = time
+        return dev.settleTime
     
     @setting(21, "Single Temperature", channel='w', returns='(v[K], t)')
     def single_temperature(self, c, channel):
