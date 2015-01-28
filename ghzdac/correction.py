@@ -1178,7 +1178,7 @@ class DACcorrection:
         """
 
         # TODO: Remove this hack that strips units
-        self.decayRates = np.array([x['GHz'] for x in self.decayRates])
+        decayRates = np.array([x['GHz'] for x in self.decayRates])
 
         #read DAC zeros
         if zerocor:
@@ -1237,13 +1237,13 @@ class DACcorrection:
                 # add to qubit registry the following keys:
                 # settlingAmplitudes=[-0.05]  #relative amplitude
                 # settlingRates = [0.012]    #rate is in GHz, (1/ns)
-                if np.alen(self.decayRates):
+                if np.alen(decayRates):
                     freqs = 2j*np.pi*freqs
                     #print "correction: decayAmplitudes: %s, type: %s" % (self.decayAmplitudes, type(self.decayAmplitudes))
                     #print "correction: decayRates: %s, type: %s" % (self.decayRates, type(self.decayRates))
                     #print "correction: freqs: %s, shape: %s, type: %s" % (freqs, freqs.shape, type(freqs))
 
-                    precalc /= (1.0 + np.sum(self.decayAmplitudes[:,None] * freqs[None,:] / (freqs[None,:] + self.decayRates[:,None]), axis=0))
+                    precalc /= (1.0 + np.sum(self.decayAmplitudes[:,None] * freqs[None,:] / (freqs[None,:] + decayRates[:,None]), axis=0))
 
                 
                 #the correction window can have very large amplitudes, therefore the time domain signal can have large oscillations which will be truncated digitally, 
