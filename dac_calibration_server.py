@@ -164,7 +164,7 @@ class CalibrationServer(LabradServer):
     @setting(2, 'borderValues', borderValues= ['*v'], returns=['*v'])
     def set_border_values(self,c,borderValues):
         """Sets the end value to be enforced on the deconvolved output. By default it is zero, for single block. For dual block this must be set"""
-        c['borderValues']=borderValues.asarray
+        c['borderValues']=borderValues
         return c['borderValues']
         
     @setting(10, 'Frequency', frequency=['v[GHz]'], returns=['v[GHz]'])
@@ -237,7 +237,7 @@ class CalibrationServer(LabradServer):
         if 'DAC' not in c:
             raise NoDACSelectedError()
         
-        data = data.asarray # convert data to array
+        # data = data.asarray # convert data to array
         if len(data) == 0:
             returnValue([]) # special case for empty data
 
