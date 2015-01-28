@@ -104,6 +104,7 @@ class MKS(WatchedServer):
     @inlineCallbacks
     def _take_point(self):
         r = yield self.server.get_readings(context=self.ctx)
+        r = list(r)
         if not hasattr(self, 'channel'):
             yield self.setup_he_flow()
         if self.channel != -1:
