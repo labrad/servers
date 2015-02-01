@@ -15,8 +15,6 @@
 
 
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.mlab import find
 
 # CHANGELOG
 #
@@ -153,6 +151,7 @@ def moving_average(x,m):
         y.append(a)
     return np.array(y)
 
+
 def derivative(x,y):
     """Taking derivative, uses both adjacent points for estimate of derivative. Returns array with the same number of points (different than np.diff). RB."""
     n=np.alen(x)
@@ -165,7 +164,6 @@ def derivative(x,y):
         else:
             deriv[k]=1.0*(y[k+1]-y[k-1])/(x[k+1]-x[k-1])
     return deriv
-
 
 
 def interpol_cubic(h,x2,fill_value=None):
@@ -230,7 +228,6 @@ def interpol_cubic(h,x2,fill_value=None):
             
         return np.array(yout)          
     return func(x2)
-
 
     
 def interpol1d_cubic_S(h,x2):
@@ -298,8 +295,7 @@ def interpol1d_cubic_S(h,x2):
         return np.array(yout)
     return func(x2)
 
- 
-       
+
 def interpol(signal, x, extrapolate=False):
     """
     Linear interpolation of array signal at floating point indices x

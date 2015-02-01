@@ -19,11 +19,10 @@
 # by GHz_DAC_calibrate in "scripts".
 
 import numpy as np
-from twisted.internet.defer import inlineCallbacks, returnValue
 
+import labrad
 from labrad.types import Value
 
-from servers.ghzdac import IQcorrector
 import keys
 
 #trigger to be set:
@@ -41,20 +40,20 @@ DACMIN= 1 << 13
 PERIOD = 2000
 SCOPECHANNEL = 2
 
-@inlineCallbacks
+
 def assertSpecAnalLock(server, device):
     p = server.packet()
     p.select_device(device)
     p.query_10_mhz_ref(key='ref')
-    ans = yield p.send()
+    ans = p.send()
     if ans['ref'] != 'EXT':
         raise Exception('Spectrum analyzer %s external 10MHz reference not locked!' %device)
         
-@inlineCallbacks
+
 def microwaveSourceServer(cxn, ID):
-    anritsus = yield cxn.anritsu_server.list_devices()
+    anritsus = cxn.anritsu_server.list_devices()
     anritsus = [dev[1] for dev in anritsus]
-    hittites = yield cxn.hittite_t2100_server.list_devices()
+    hittites = cxn.hittite_t2100_server.list_devices()
     hittites = [dev[1] for dev in hittites]
     if ID in anritsus:
         server = 'anritsu_server'
@@ -62,29 +61,29 @@ def microwaveSourceServer(cxn, ID):
         server = 'hittite_t2100_server'
     else:
         raise Exception('Microwave source %s not found' %ID)
-    returnValue(cxn.servers[server])
+    return (cxn.servers[server])
     
 
 def validSBstep(f):
     return round(0.5*np.clip(f,2.0/PERIOD,1.0)*PERIOD)*2.0/PERIOD
 
-@inlineCallbacks
+
 def spectInit(spec):
-    yield spec.gpib_write(':POW:RF:ATT 0dB;:AVER:STAT OFF;:FREQ:SPAN 100Hz;:BAND 300Hz;:INIT:CONT OFF;:SYST:PORT:IFVS:ENAB OFF;:SENS:SWE:POIN 101')
+    spec.gpib_write(':POW:RF:ATT 0dB;:AVER:STAT OFF;:FREQ:SPAN 100Hz;:BAND 300Hz;:INIT:CONT OFF;:SYST:PORT:IFVS:ENAB OFF;:SENS:SWE:POIN 101')
 
 def spectDeInit(spec):
-    yield spec.gpib_write(':INIT:CONT ON')
+    spec.gpib_write(':INIT:CONT ON')
     
-@inlineCallbacks     
+     
 def spectFreq(spec,freq):
-    yield spec.gpib_write(':FREQ:CENT %gGHz' % freq)
+    spec.gpib_write(':FREQ:CENT %gGHz' % freq)
 
-@inlineCallbacks     
+     
 def signalPower(spec):
     """returns the mean power in mW read by the spectrum analyzer"""
-    dBs = yield spec.gpib_query('*TRG;*OPC?;:TRAC:MATH:MEAN? TRACE1')
+    dBs = spec.gpib_query('*TRG;*OPC?;:TRAC:MATH:MEAN? TRACE1')
     dBs=dBs.split(';')[1]
-    returnValue(10.0**(0.1*float(dBs)))
+    return (10.0**(0.1*float(dBs)))
 
 
 def makeSample(a,b):
@@ -94,16 +93,18 @@ def makeSample(a,b):
         print 'DAC overflow'
     return long(a & 0x3FFFL) | (long(b & 0x3FFFL) << 14)
 
-@inlineCallbacks     
+     
 def measurePower(spec,fpga,a,b):
     """returns signal power from the spectrum analyzer"""
     dac = [makeSample(a,b)]*64
     dac[0] |= trigger
-    yield fpga.dac_run_sram(dac,True)
-    returnValue((yield signalPower(spec)))
+    fpga.dac_run_sram(dac,True)
+    return ((signalPower(spec)))
+
 
 def datasetNumber(dataset):
     return int(dataset[1][:5])
+
 
 def datasetDir(dataset):
     result = ''
@@ -133,27 +134,26 @@ def minPos(l, c, r):
 # DAC zero calibration                                             #
 ####################################################################
 
-  
-@inlineCallbacks 
+
 def zero(anr, spec, fpga, freq):
     """Calibrates the zeros for DAC A and B using the spectrum analyzer"""
    
-    yield anr.frequency(Value(freq,'GHz'))
-    yield spectFreq(spec,freq)
+    anr.frequency(Value(freq,'GHz'))
+    spectFreq(spec,freq)
     a = 0
     b = 0
     precision = 0x800
     print '    calibrating at %g GHz...' % freq
     while precision > 0:
-        al = yield measurePower(spec, fpga, a-precision, b)
-        ar = yield measurePower(spec, fpga, a+precision, b)
-        ac = yield measurePower(spec, fpga, a, b)
+        al = measurePower(spec, fpga, a-precision, b)
+        ar = measurePower(spec, fpga, a+precision, b)
+        ac = measurePower(spec, fpga, a, b)
         corra = long(round(precision*minPos(al, ac, ar)))
         a += corra
 
-        bl = yield measurePower(spec, fpga, a, b-precision)
-        br = yield measurePower(spec, fpga, a, b+precision)
-        bc = yield measurePower(spec, fpga, a, b)
+        bl = measurePower(spec, fpga, a, b-precision)
+        br = measurePower(spec, fpga, a, b+precision)
+        bc = measurePower(spec, fpga, a, b)
         corrb = long(round(precision*minPos(bl, bc, br)))
         b += corrb
         optprec = 2*np.max([abs(corra), abs(corrb)]) 
@@ -162,91 +162,91 @@ def zero(anr, spec, fpga, freq):
             precision = optprec
         print '        a = %4d  b = %4d uncertainty : %4d, power %6.1f dBm' % \
               (a, b, precision, 10 * np.log(bc) / np.log(10.0))
-    returnValue([a, b])
+    return ([a, b])
 
-@inlineCallbacks
+
 def zeroFixedCarrier(cxn, boardname):
     reg = cxn.registry
-    yield reg.cd(['',keys.SESSIONNAME,boardname])
+    reg.cd(['',keys.SESSIONNAME,boardname])
 
     fpga = cxn[FPGA_SERVER_NAME]
-    yield fpga.select_device(boardname)
+    fpga.select_device(boardname)
 
     switch = cxn.microwave_switch
-    yield switch.switch(boardname)
+    switch.switch(boardname)
     
     spec = cxn.spectrum_analyzer_server
-    spectID = yield reg.get(keys.SPECTID)
+    spectID = reg.get(keys.SPECTID)
     spec.select_device(spectID)
-    yield spectInit(spec)
-    yield assertSpecAnalLock(spec, spectID)
-    uwaveSourceID = yield reg.get(keys.ANRITSUID)
-    uwaveSource = yield microwaveSourceServer(cxn,uwaveSourceID)
+    spectInit(spec)
+    assertSpecAnalLock(spec, spectID)
+    uwaveSourceID = reg.get(keys.ANRITSUID)
+    uwaveSource = microwaveSourceServer(cxn, uwaveSourceID)
     
-    uwavePower = yield reg.get(keys.ANRITSUPOWER)
-    frequency = (yield reg.get(keys.PULSECARRIERFREQ))['GHz']
-    yield uwaveSource.select_device(uwaveSourceID)
-    yield uwaveSource.amplitude(uwavePower)
-    yield uwaveSource.output(True)
+    uwavePower = reg.get(keys.ANRITSUPOWER)
+    frequency = (reg.get(keys.PULSECARRIERFREQ))['GHz']
+    uwaveSource.select_device(uwaveSourceID)
+    uwaveSource.amplitude(uwavePower)
+    uwaveSource.output(True)
 
     print 'Zero calibration...'
 
-    daczeros = yield zero(uwaveSource,spec,fpga,frequency)
+    daczeros = zero(uwaveSource, spec, fpga, frequency)
 
-    yield uwaveSource.output(False)
-    yield spectDeInit(spec)
-    yield switch.switch(0)
-    returnValue(daczeros)
+    uwaveSource.output(False)
+    spectDeInit(spec)
+    switch.switch(0)
+    return daczeros
 
 
-@inlineCallbacks
+
 def zeroScanCarrier(cxn, scanparams, boardname):
     """Measures the DAC zeros in function of the carrier frequency."""
     reg = cxn.registry
-    yield reg.cd(['',keys.SESSIONNAME,boardname])
+    reg.cd(['', keys.SESSIONNAME, boardname])
 
     fpga = cxn[FPGA_SERVER_NAME]
-    yield fpga.select_device(boardname)
-    
+    fpga.select_device(boardname)
+
     switch = cxn.microwave_switch
-    yield switch.switch(boardname)
+    switch.switch(boardname)
     
     spec = cxn.spectrum_analyzer_server
-    spectID = yield reg.get(keys.SPECTID)
+    spectID = reg.get(keys.SPECTID)
     spec.select_device(spectID)
-    yield spectInit(spec)
-    yield assertSpecAnalLock(spec, spectID)
-    uwaveSourceID = yield reg.get(keys.ANRITSUID)
-    uwaveSource = yield microwaveSourceServer(cxn, uwaveSourceID)
-    uwavePower = yield reg.get(keys.ANRITSUPOWER)
-    yield uwaveSource.select_device(uwaveSourceID)
-    yield uwaveSource.amplitude(uwavePower)
-    yield uwaveSource.output(True)
+    spectInit(spec)
+    assertSpecAnalLock(spec, spectID)
+    uwaveSourceID = reg.get(keys.ANRITSUID)
+    uwaveSource = microwaveSourceServer(cxn, uwaveSourceID)
+    uwavePower = reg.get(keys.ANRITSUPOWER)
+    uwaveSource.select_device(uwaveSourceID)
+    uwaveSource.amplitude(uwavePower)
+    uwaveSource.output(True)
 
     print 'Zero calibration from %g GHz to %g GHz in steps of %g GHz...' % \
         (scanparams['carrierMin'],scanparams['carrierMax'],scanparams['carrierStep'])
     ds = cxn.data_vault
-    yield ds.cd(['',keys.SESSIONNAME,boardname],True)
-    dataset = yield ds.new(keys.ZERONAME,
+    ds.cd(['', keys.SESSIONNAME, boardname], True)
+    dataset = ds.new(keys.ZERONAME,
                            [('Frequency', 'GHz')],
                            [('DAC zero', 'A', 'clics'),
                             ('DAC zero', 'B', 'clics')])
-    yield ds.add_parameter(keys.ANRITSUPOWER, uwavePower)
+    ds.add_parameter(keys.ANRITSUPOWER, uwavePower)
 
     freq = scanparams['carrierMin']
     while freq < scanparams['carrierMax']+0.001*scanparams['carrierStep']:
-        yield ds.add([freq]+(yield zero(uwaveSource, spec, fpga, freq)))
+        ds.add([freq]+(zero(uwaveSource, spec, fpga, freq)))
         freq += scanparams['carrierStep']
-    yield uwaveSource.output(False)
-    yield spectDeInit(spec)
-    yield cxn.microwave_switch.switch(0)
-    returnValue(int(dataset[1][:5]))
+    uwaveSource.output(False)
+    spectDeInit(spec)
+    cxn.microwave_switch.switch(0)
+    return (int(dataset[1][:5]))
                 
 ####################################################################
 # Pulse calibration                                                #
 ####################################################################
 
-@inlineCallbacks
+
 def measureImpulseResponse(fpga, scope, baseline, pulse, dacoffsettime=6, pulselength=1):
     """Measure the response to a DAC pulse
     fpga: connected fpga server
@@ -262,47 +262,46 @@ def measureImpulseResponse(fpga, scope, baseline, pulse, dacoffsettime=6, pulsel
     triggerdelay = 30
     looplength = 2000
     pulseindex = triggerdelay-dacoffsettime
-    yield scope.start_time(Value(triggerdelay, 'ns'))
+    scope.start_time(Value(triggerdelay, 'ns'))
     #calculate the baseline voltage by capturing a trace without a pulse
     
     data = np.resize(baseline, looplength)
     data[pulseindex:pulseindex+pulselength] = pulse
     data[0] |= trigger
-    yield fpga.dac_run_sram(data.astype('u4'),True)
-    data = (yield scope.get_trace(1)).asarray
-    data[0] -= triggerdelay*1e-9
-    returnValue(data)
+    fpga.dac_run_sram(data.astype('u4'),True)
+    data = (scope.get_trace(1))
+    data[0] -= Value(triggerdelay*1e-9, 'V')  # TODO: not sure about units here--pjjo
+    return (data)
 
-@inlineCallbacks
+
 def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     """Measures the impulse response of the DACs after the IQ mixer"""
     pulseheight = 0x1800
 
     reg = cxn.registry
-    yield reg.cd(['', keys.SESSIONNAME, boardname])
+    reg.cd(['', keys.SESSIONNAME, boardname])
 
     switch = cxn.microwave_switch
 
-    uwaveSourceID = yield reg.get(keys.ANRITSUID)    
-    uwaveSource = yield microwaveSourceServer(cxn,uwaveSourceID)
-    uwaveSourcePower = yield reg.get(keys.ANRITSUPOWER)
-    carrierFreq = yield reg.get(keys.PULSECARRIERFREQ)
-    sens = yield reg.get(keys.SCOPESENSITIVITY)
-    try:offs = yield reg.get(keys.SCOPEOFFSET)
+    uwaveSourceID = reg.get(keys.ANRITSUID)    
+    uwaveSource = microwaveSourceServer(cxn,uwaveSourceID)
+    uwaveSourcePower = reg.get(keys.ANRITSUPOWER)
+    carrierFreq = reg.get(keys.PULSECARRIERFREQ)
+    sens = reg.get(keys.SCOPESENSITIVITY)
+    try:offs = reg.get(keys.SCOPEOFFSET)
     except:
         offs=Value(0.,'mV')
-        print "this is a new registry key to correct for SS DC offset, please add 'Sampling Scope DC offset' key at 0.0 mV if you don't have it"
-    yield switch.switch(boardname) #Hack to select the correct microwave switch
-    yield switch.switch(0)
-    yield uwaveSource.select_device(uwaveSourceID)
-    yield uwaveSource.frequency(carrierFreq)
-    yield uwaveSource.amplitude(uwaveSourcePower)
-    yield uwaveSource.output(True)
+    switch.switch(boardname) #Hack to select the correct microwave switch
+    switch.switch(0)
+    uwaveSource.select_device(uwaveSourceID)
+    uwaveSource.frequency(carrierFreq)
+    uwaveSource.amplitude(uwaveSourcePower)
+    uwaveSource.output(True)
     
     #Set up the scope
     scope = cxn.sampling_scope
-    scopeID = yield reg.get(keys.SCOPEID)
-    yield scope.select_device(scopeID)
+    scopeID = reg.get(keys.SCOPEID)
+    scope.select_device(scopeID)
     p = scope.packet().\
     reset().\
     channel(SCOPECHANNEL).\
@@ -314,24 +313,24 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     time_step(Value(2,'ns')).\
     trigger_level(Value(0.18,'V')).\
     trigger_positive()
-    yield p.send()
+    p.send()
 
     fpga = cxn[FPGA_SERVER_NAME]
-    yield fpga.select_device(boardname)
-    offsettime = yield reg.get(keys.TIMEOFFSET)
+    fpga.select_device(boardname)
+    offsettime = reg.get(keys.TIMEOFFSET)
 
     baseline = makeSample(baselineA,baselineB)
 #    print "Measuring offset voltage..."
-#    offset = (yield measureImpulseResponse(fpga, scope, baseline, baseline))[2:]
+#    offset = (measureImpulseResponse(fpga, scope, baseline, baseline))[2:]
 #    offset = sum(offset) / len(offset)
 
     print "Measuring pulse response DAC A..."
-    traceA = yield measureImpulseResponse(fpga, scope, baseline,
+    traceA = measureImpulseResponse(fpga, scope, baseline,
         makeSample(baselineA+pulseheight,baselineB),
         dacoffsettime=offsettime['ns'])
 
     print "Measuring pulse response DAC B..."
-    traceB = yield measureImpulseResponse(fpga, scope, baseline,
+    traceB = measureImpulseResponse(fpga, scope, baseline,
         makeSample(baselineA,baselineB+pulseheight),
         dacoffsettime=offsettime['ns'])
 
@@ -341,22 +340,27 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
         print """Time scales are different for measurement of DAC A and B.
         Did you change settings on the scope during the measurement?"""
         exit
-    #set output to zero    
-    yield fpga.dac_run_sram([baseline]*4)
-    yield uwaveSource.output(False)
-    
+    #set output to zero
+    fpga.dac_run_sram([baseline]*4)
+    uwaveSource.output(False)
     ds = cxn.data_vault
-    yield ds.cd(['',keys.SESSIONNAME,boardname],True)
-    dataset = yield ds.new(keys.PULSENAME,[('Time','ns')],
+    ds.cd(['',keys.SESSIONNAME,boardname],True)
+    dataset = ds.new(keys.PULSENAME,[('Time','ns')],
                            [('Voltage','A','V'),('Voltage','B','V')])
-    setupType = yield reg.get(keys.IQWIRING)
-    yield ds.add_parameter(keys.IQWIRING, setupType)
-    yield ds.add_parameter(keys.PULSECARRIERFREQ, carrierFreq)
-    yield ds.add_parameter(keys.ANRITSUPOWER, uwaveSourcePower)
-    yield ds.add_parameter(keys.TIMEOFFSET, offsettime)
-    yield ds.add(np.transpose(\
+    setupType = reg.get(keys.IQWIRING)
+    ds.add_parameter(keys.IQWIRING, setupType)
+    ds.add_parameter(keys.PULSECARRIERFREQ, carrierFreq)
+    ds.add_parameter(keys.ANRITSUPOWER, uwaveSourcePower)
+    ds.add_parameter(keys.TIMEOFFSET, offsettime)
+    # begin unit strip party
+    starttime = starttime[starttime.unit]  # stripping units
+    timestep = timestep[timestep.unit]  # stripping units
+    traceA = traceA[traceA.unit]  # stripping units
+    traceB = traceB[traceB.unit]  # stripping units
+    data = np.transpose(\
         [1e9*(starttime+timestep*np.arange(np.alen(traceA)-2)),
-         traceA[2:],traceB[2:]]))
+         traceA[2:],traceB[2:]])
+    ds.add(data)
 #        traceA[2:]-offset,
 #        traceB[2:]-offset]))
     if np.abs(np.argmax(np.abs(traceA-np.average(traceA))) - \
@@ -370,13 +374,14 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     print datasetDir(dataset)
     print "If the pulses are offset by more than 0.5 ns,"
     print "bring up the board and try the pulse calibration again."
-    returnValue(datasetNumber(dataset))
+    print 5
+    return (datasetNumber(dataset))
 
-@inlineCallbacks
+
 def calibrateDCPulse(cxn,boardname,channel):
 
     reg = cxn.registry
-    yield reg.cd(['',keys.SESSIONNAME,boardname])
+    reg.cd(['',keys.SESSIONNAME,boardname])
 
     fpga = cxn[FPGA_SERVER_NAME]
     fpga.select_device(boardname)
@@ -392,7 +397,7 @@ def calibrateDCPulse(cxn,boardname,channel):
         baseline = makeSample(dac_baseline, dac_neutral)
     #Set up the scope
     scope = cxn.sampling_scope
-    scopeID = yield reg.get(keys.SCOPEID)
+    scopeID = reg.get(keys.SCOPEID)
     p = scope.packet().\
     select_device(scopeID).\
     reset().\
@@ -405,33 +410,34 @@ def calibrateDCPulse(cxn,boardname,channel):
     time_step(Value(5,'ns')).\
     trigger_level(Value(0.18,'V')).\
     trigger_positive()
-    yield p.send()
+    p.send()
 
-    offsettime = yield reg.get(keys.TIMEOFFSET)
+    offsettime = reg.get(keys.TIMEOFFSET)
 
     
 
     print 'Measuring step response...'
-    trace = yield measureImpulseResponse(fpga, scope, baseline, pulse,
+    trace = measureImpulseResponse(fpga, scope, baseline, pulse,
         dacoffsettime=offsettime['ns'], pulselength=100)
+    trace = trace[trace.unit]  # strip units
     # set the output to zero so that the fridge does not warm up when the
     # cable is plugged back in
-    yield fpga.dac_run_sram([makeSample(dac_neutral, dac_neutral)]*4,False)
+    fpga.dac_run_sram([makeSample(dac_neutral, dac_neutral)]*4,False)
     ds = cxn.data_vault
-    yield ds.cd(['', keys.SESSIONNAME, boardname],True)
-    dataset = yield ds.new(keys.CHANNELNAMES[channel], [('Time','ns')],
+    ds.cd(['', keys.SESSIONNAME, boardname],True)
+    dataset = ds.new(keys.CHANNELNAMES[channel], [('Time','ns')],
                            [('Voltage','','V')])
-    yield ds.add_parameter(keys.TIMEOFFSET, offsettime)
-    yield ds.add(np.transpose([1e9*(trace[0]+trace[1]*np.arange(np.alen(trace)-2)),
+    ds.add_parameter(keys.TIMEOFFSET, offsettime)
+    ds.add(np.transpose([1e9*(trace[0]+trace[1]*np.arange(np.alen(trace)-2)),
         trace[2:]]))
-    returnValue(datasetNumber(dataset))
+    return (datasetNumber(dataset))
 
 
 ####################################################################
 # Sideband calibration                                             #
 ####################################################################
 
-@inlineCallbacks 
+ 
 def measureOppositeSideband(spec, fpga, corrector,
                             carrierfreq, sidebandfreq, compensation):
     """Put out a signal at carrierfreq+sidebandfreq and return the power at
@@ -442,10 +448,10 @@ def measureOppositeSideband(spec, fpga, corrector,
                             0.5 * np.exp(arg) + 0.5 * compensation * np.exp(-arg), \
                             loop=True, iqcor=False, rescale=True)
     signal[0] = signal[0] | trigger
-    yield fpga.dac_run_sram(signal,True)
-    returnValue((yield signalPower(spec)) / corrector.last_rescale_factor)
+    fpga.dac_run_sram(signal,True)
+    return ((signalPower(spec)) / corrector.last_rescale_factor)
 
-@inlineCallbacks 
+ 
 def sideband(anr, spect, fpga, corrector, carrierfreq, sidebandfreq):
     """When the IQ mixer is used for sideband mixing, imperfections in the
     IQ mixer and the DACs give rise to a signal not only at
@@ -457,26 +463,26 @@ def sideband(anr, spect, fpga, corrector, carrierfreq, sidebandfreq):
     corrector.dynamicReserve = 4.0
 
     if abs(sidebandfreq) < 3e-5:
-        returnValue(0.0j)
-    yield anr.frequency(Value(carrierfreq,'GHz'))
+        return (0.0j)
+    anr.frequency(Value(carrierfreq,'GHz'))
     comp = 0.0j
     precision = 1.0
-    yield spectFreq(spect,carrierfreq-sidebandfreq)
+    spectFreq(spect,carrierfreq-sidebandfreq)
     while precision > 2.0**-14:
-        lR = yield measureOppositeSideband(spect, fpga, corrector, carrierfreq,
+        lR = measureOppositeSideband(spect, fpga, corrector, carrierfreq,
                                            sidebandfreq, comp - precision)
-        rR = yield measureOppositeSideband(spect, fpga, corrector, carrierfreq,
+        rR = measureOppositeSideband(spect, fpga, corrector, carrierfreq,
                                            sidebandfreq, comp + precision)
-        cR = yield measureOppositeSideband(spect, fpga, corrector, carrierfreq,
+        cR = measureOppositeSideband(spect, fpga, corrector, carrierfreq,
                                            sidebandfreq, comp)
         
         corrR = precision * minPos(lR,cR,rR)
         comp += corrR
-        lI = yield measureOppositeSideband(spect, fpga, corrector, carrierfreq,
+        lI = measureOppositeSideband(spect, fpga, corrector, carrierfreq,
                                            sidebandfreq, comp - 1.0j * precision)
-        rI = yield measureOppositeSideband(spect, fpga, corrector, carrierfreq,
+        rI = measureOppositeSideband(spect, fpga, corrector, carrierfreq,
                                            sidebandfreq, comp + 1.0j * precision)
-        cI = yield measureOppositeSideband(spect, fpga, corrector, carrierfreq,
+        cI = measureOppositeSideband(spect, fpga, corrector, carrierfreq,
                                            sidebandfreq, comp)
         
         corrI = precision * minPos(lI,cI,rI)
@@ -485,35 +491,35 @@ def sideband(anr, spect, fpga, corrector, carrierfreq, sidebandfreq):
         print '      compensation: %.4f%+.4fj +- %.4f, opposite sb: %6.1f dBm' % \
             (np.real(comp), np.imag(comp), precision, 10.0 * np.log(cI) / np.log(10.0))
     corrector.dynamicReserve = reserveBuffer
-    returnValue(comp)
+    return (comp)
 
-@inlineCallbacks
+
 def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
     """Determines relative I and Q amplitudes by canceling the undesired
        sideband at different sideband frequencies."""
 
     reg = cxn.registry
-    yield reg.cd(['', keys.SESSIONNAME, boardname])
+    reg.cd(['', keys.SESSIONNAME, boardname])
 
     fpga = cxn[FPGA_SERVER_NAME]
-    yield fpga.select_device(boardname)
+    fpga.select_device(boardname)
 
-    uwaveSourceID = yield reg.get(keys.ANRITSUID)
-    uwaveSource = yield microwaveSourceServer(cxn, uwaveSourceID)
+    uwaveSourceID = reg.get(keys.ANRITSUID)
+    uwaveSource = microwaveSourceServer(cxn, uwaveSourceID)
 
     spec = cxn.spectrum_analyzer_server
     scope = cxn.sampling_scope
     ds = cxn.data_vault
-    spectID = yield reg.get(keys.SPECTID)
+    spectID = reg.get(keys.SPECTID)
     spec.select_device(spectID)
-    yield spectInit(spec)
-    yield assertSpecAnalLock(spec, spectID)
+    spectInit(spec)
+    assertSpecAnalLock(spec, spectID)
     
-    uwaveSourcePower = yield reg.get(keys.ANRITSUPOWER)
-    yield cxn.microwave_switch.switch(boardname)
-    yield uwaveSource.select_device(uwaveSourceID)
-    yield uwaveSource.amplitude(uwaveSourcePower)
-    yield uwaveSource.output(True)
+    uwaveSourcePower = reg.get(keys.ANRITSUPOWER)
+    cxn.microwave_switch.switch(boardname)
+    uwaveSource.select_device(uwaveSourceID)
+    uwaveSource.amplitude(uwaveSourcePower)
+    uwaveSource.output(True)
 
     print 'Sideband calibration from %g GHz to %g GHz in steps of %g GHz...' \
        %  (scanparams['carrierMin'],scanparams['carrierMax'],
@@ -528,12 +534,12 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
                             (sidebandfreq*1e3),''),
                        ('relative compensation', 'I at f_SB = %g MHz' % \
                             (sidebandfreq*1e3),'')]    
-    yield ds.cd(['', keys.SESSIONNAME, boardname], True)
-    dataset = yield ds.new(keys.IQNAME, [('Antritsu Frequency','GHz')], dependents)
-    yield ds.add_parameter(keys.ANRITSUPOWER, (yield reg.get(keys.ANRITSUPOWER)))
-    yield ds.add_parameter('Sideband frequency step',
+    ds.cd(['', keys.SESSIONNAME, boardname], True)
+    dataset = ds.new(keys.IQNAME, [('Antritsu Frequency','GHz')], dependents)
+    ds.add_parameter(keys.ANRITSUPOWER, (reg.get(keys.ANRITSUPOWER)))
+    ds.add_parameter('Sideband frequency step',
                      Value(scanparams['sidebandFreqStep']*1e3, 'MHz'))
-    yield ds.add_parameter('Number of sideband frequencies',
+    ds.add_parameter('Number of sideband frequencies',
                      scanparams['sidebandFreqCount'])
     freq = scanparams['carrierMin']
     while freq < scanparams['carrierMax'] + \
@@ -542,11 +548,11 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
         datapoint = [freq]
         for sidebandfreq in sidebandfreqs:
             print '    sideband frequency: %g GHz' % sidebandfreq
-            comp = yield sideband(uwaveSource, spec, fpga, corrector, freq, sidebandfreq)
+            comp = sideband(uwaveSource, spec, fpga, corrector, freq, sidebandfreq)
             datapoint += [np.real(comp), np.imag(comp)]
-        yield ds.add(datapoint)
+        ds.add(datapoint)
         freq += scanparams['sidebandCarrierStep']
-    yield uwaveSource.output(False)
-    yield spectDeInit(spec)
-    yield cxn.microwave_switch.switch(0)
-    returnValue(datasetNumber(dataset))
+    uwaveSource.output(False)
+    spectDeInit(spec)
+    cxn.microwave_switch.switch(0)
+    return (datasetNumber(dataset))

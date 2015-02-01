@@ -1633,7 +1633,7 @@ class FPGAServer(DeviceServer):
             data *= (20-1)/len(data) + 1
         else:
             # Set data at least 20 words long by repeating first value
-            data += [data[0]] * (20-len(data))
+            data = list(data) + [data[0]] * (20-len(data))
         
         dev = self.selectedDAC(c)
         yield dev.runSram(data, loop, blockDelay)
