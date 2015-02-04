@@ -190,9 +190,6 @@ class GPIBBusServer(LabradServer):
         device will occur while the query is in progress.
         """
         instr = self.getDevice(c)
-        # instr.write(data)
-        # ans = instr.read()
-        # ans = instr.query(data)
         instr.write(data)
         ans = instr.read_raw()
         return str(ans).strip()
