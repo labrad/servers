@@ -237,7 +237,6 @@ class CalibrationServer(LabradServer):
         if 'DAC' not in c:
             raise NoDACSelectedError()
         
-        data = data # convert data to array
         if len(data) == 0:
             returnValue([]) # special case for empty data
 
@@ -270,7 +269,6 @@ class CalibrationServer(LabradServer):
         if 'DAC' not in c:
             raise NoDACSelectedError()
         
-        # data = data # convert data to array
         if len(data) == 0:
             returnValue([]) # special case for empty data
 
