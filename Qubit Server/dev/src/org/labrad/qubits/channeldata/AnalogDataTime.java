@@ -16,7 +16,7 @@ public class AnalogDataTime extends AnalogDataBase {
 
   public AnalogDataTime(double[] data, boolean isDeconvolved) {
     this.rawData = data;
-    if (isDeconvolved) {		
+    if (isDeconvolved) {
       int[] values = new int[data.length];
       for (int i = 0; i < data.length; i++) {
         values[i] = (int)(data[i] * 0x1fff) & 0x3fff;
@@ -26,8 +26,17 @@ public class AnalogDataTime extends AnalogDataBase {
     setDeconvolved(isDeconvolved);
   }
 
+    public AnalogDataTime(int[] data) {
+      this.deconvolvedData = data;
+      setDeconvolved(true);
+    }
+
   public void checkLength(int expected) {
-    LengthChecker.checkLengths(rawData.length, expected);
+    if (rawData == null) {
+      LengthChecker.checkLengths(deconvolvedData.length, expected);
+    } else {
+      LengthChecker.checkLengths(rawData.length, expected);
+    }
   }
 
   @Override

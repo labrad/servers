@@ -29,8 +29,19 @@ public class IqDataTime extends IqDataBase {
     setDeconvolved(isDeconvolved);
   }
 
+    public IqDataTime(int[] I, int[] Q) {
+      this.I = I;
+      this.Q = Q;
+      setDeconvolved(true);
+    }
+
   public void checkLength(int expected) {
-    LengthChecker.checkLengths(data.length, expected);
+    if (data == null) {
+      LengthChecker.checkLengths(I.length, expected);
+      LengthChecker.checkLengths(Q.length, expected);
+    } else {
+      LengthChecker.checkLengths(data.length, expected);
+    }
   }
 
   @Override

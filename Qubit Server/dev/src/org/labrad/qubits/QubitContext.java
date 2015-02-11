@@ -560,7 +560,9 @@ public class QubitContext extends AbstractServerContext {
 				+ "microwave quadratures.  The length of the data should "
 				+ "match the length of the current SRAM block.  "
 				+ "An optional boolean specifies whether the data "
-				+ "should be deconvolved (default: true).")
+				+ "should be deconvolved (default: true)."
+				+ "If deconvolve=false, the data can be specified as DAC-ready"
+				+ "I and Q integers.")
 				public void sram_iq_data(@Accepts({"s", "ss"}) Data id,
 						@Accepts("*c") Data vals) {
 		sram_iq_data(id, vals, true);
@@ -568,11 +570,16 @@ public class QubitContext extends AbstractServerContext {
 	}
 	@SettingOverload
 	public void sram_iq_data(@Accepts({"s", "ss"}) Data id,
-			@Accepts("*c") Data vals,
+			@Accepts({"*c", "(*i{I}, *i{Q})"}) Data vals,
 			boolean deconvolve) {
 		IqChannel ch = getChannel(id, IqChannel.class);
-		ComplexArray c = ComplexArray.fromData(vals);
-		ch.addData(new IqDataTime(c, !deconvolve));
+		if (vals.isCluster()) {
+			Preconditions.checkArgument(!deconvolve, "Must not deconvolve if providing DAC'ified IQ data.");
+			ch.addData(new IqDataTime(vals.get(0).getIntArray(), vals.get(1).getIntArray()));
+		} else {
+			ComplexArray c = ComplexArray.fromData(vals);
+			ch.addData(new IqDataTime(c, !deconvolve));
+		}
 		sramDirty = true;
 	}
 
@@ -607,7 +614,9 @@ public class QubitContext extends AbstractServerContext {
 				+ "\n\n"
 				+ "The length of the data should match the length of the "
 				+ "current SRAM block.  An optional boolean specifies "
-				+ "whether the data should be deconvolved (default: true).")
+				+ "whether the data should be deconvolved (default: true)."
+				+ "If deconvolve=false, the data can be supplied as DAC-ready"
+				+ "integers")
 				public void sram_analog_data(@Accepts({"s", "ss"}) Data id,
 						@Accepts("*v") Data vals) {
 		sram_analog_data(id, vals, true);
@@ -615,11 +624,17 @@ public class QubitContext extends AbstractServerContext {
 	}
 	@SettingOverload
 	public void sram_analog_data(@Accepts({"s", "ss"}) Data id,
-			@Accepts("*v") Data vals,
+			@Accepts({"*v", "*i"}) Data vals,
 			boolean deconvolve) {
 		AnalogChannel ch = getChannel(id, AnalogChannel.class);
-		double[] arr = vals.getValueArray();
-		ch.addData(new AnalogDataTime(arr, !deconvolve));
+		if (vals.matchesType("*v")) {
+			double[] arr = vals.getValueArray();
+			ch.addData(new AnalogDataTime(arr, !deconvolve));
+		} else {
+			Preconditions.checkArgument(!deconvolve, "Must not deconvolve if providing DAC'ified data.");
+			int[] arr = vals.getIntArray();
+			ch.addData(new AnalogDataTime(arr));
+		}
 		sramDirty = true;
 	}
 
