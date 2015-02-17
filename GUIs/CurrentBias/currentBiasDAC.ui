@@ -1,0 +1,336 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>currentBias</class>
+ <widget class="QMainWindow" name="currentBias">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>298</width>
+    <height>635</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Current Bias</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QGridLayout" name="gridLayout_4">
+    <item row="0" column="0">
+     <layout class="QVBoxLayout" name="verticalLayout">
+      <item>
+       <widget class="QLabel" name="boardLabel">
+        <property name="font">
+         <font>
+          <pointsize>12</pointsize>
+         </font>
+        </property>
+        <property name="text">
+         <string>Board Select</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QComboBox" name="boardSelect">
+        <item>
+         <property name="text">
+          <string>Null</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>ADR lab FPGA 5</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Vince DAC 11</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Vince DAC 12</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Vince DAC 13</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Vince DAC 14</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Vince DAC 15</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Vince DAC 16</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Vince DAC 17</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Vince DAC 18</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>DR Lab DAC 1</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>DR Lab DAC 2</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>DR Lab DAC 3</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>DR Lab DAC 4</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>DR Lab DAC 7</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>DR Lab DAC 8</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>DR Lab DAC 10</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item>
+       <layout class="QGridLayout" name="gridLayout_3">
+        <item row="0" column="0">
+         <layout class="QGridLayout" name="gridLayout">
+          <item row="0" column="0">
+           <widget class="QLabel" name="channel0">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>channel 0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QSpinBox" name="zeroBox">
+            <property name="minimum">
+             <number>-2500</number>
+            </property>
+            <property name="maximum">
+             <number>2500</number>
+            </property>
+            <property name="singleStep">
+             <number>10</number>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QSlider" name="zeroSlider">
+            <property name="minimumSize">
+             <size>
+              <width>100</width>
+              <height>400</height>
+             </size>
+            </property>
+            <property name="minimum">
+             <number>-2500</number>
+            </property>
+            <property name="maximum">
+             <number>2500</number>
+            </property>
+            <property name="singleStep">
+             <number>10</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QTextEdit" name="tempLabelZero">
+            <property name="maximumSize">
+             <size>
+              <width>300</width>
+              <height>25</height>
+             </size>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="0" column="1">
+         <layout class="QGridLayout" name="gridLayout_2">
+          <item row="0" column="0">
+           <widget class="QLabel" name="channel1">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>channel 1</string>
+            </property>
+            <property name="textFormat">
+             <enum>Qt::AutoText</enum>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QSpinBox" name="oneBox">
+            <property name="buttonSymbols">
+             <enum>QAbstractSpinBox::UpDownArrows</enum>
+            </property>
+            <property name="minimum">
+             <number>-2500</number>
+            </property>
+            <property name="maximum">
+             <number>2500</number>
+            </property>
+            <property name="singleStep">
+             <number>10</number>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QSlider" name="oneSlider">
+            <property name="minimumSize">
+             <size>
+              <width>100</width>
+              <height>400</height>
+             </size>
+            </property>
+            <property name="minimum">
+             <number>-2500</number>
+            </property>
+            <property name="maximum">
+             <number>2500</number>
+            </property>
+            <property name="singleStep">
+             <number>10</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QTextEdit" name="tempLabelOne">
+            <property name="maximumSize">
+             <size>
+              <width>300</width>
+              <height>25</height>
+             </size>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>298</width>
+     <height>22</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>zeroSlider</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>zeroBox</receiver>
+   <slot>setValue(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>56</x>
+     <y>144</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>82</x>
+     <y>67</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>zeroBox</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>zeroSlider</receiver>
+   <slot>setValue(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>104</x>
+     <y>67</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>54</x>
+     <y>181</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>oneSlider</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>oneBox</receiver>
+   <slot>setValue(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>196</x>
+     <y>121</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>220</x>
+     <y>68</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>oneBox</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>oneSlider</receiver>
+   <slot>setValue(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>240</x>
+     <y>71</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>199</x>
+     <y>188</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>
