@@ -14,7 +14,7 @@ public abstract class DacBoard implements Resource {
 
   private Map<DacFiberId, BiasBoard> fibers = Maps.newHashMap();
   private Map<DacFiberId, DcRackFiberId> fiberChannels = Maps.newHashMap();
-  
+
   protected String buildType;		// either 'adcBuild' or 'dacBuild'
   protected String buildNumber;
   protected Map<String, Long> buildProperties = Maps.newHashMap();
@@ -29,32 +29,32 @@ public abstract class DacBoard implements Resource {
   public String getName() {
     return name;
   }
-  
+
   public String getBuildType() {
-	  return buildType;
+    return buildType;
   }
   public String getBuildNumber() {
-	  return buildNumber;
+    return buildNumber;
   }
   public void setBuildNumber(String buildNumber) {
-	  this.buildNumber = buildNumber;
+    this.buildNumber = buildNumber;
   }
-  
+
   public void loadProperties(Data properties) {
-	  for (Data prop : properties.getDataList()) {
-		  List<Data> pair = prop.getClusterAsList();
-		  String propName = pair.get(0).getString();
-		  Long propValue = pair.get(1).getWord();
-		  buildProperties.put(propName, propValue);
-		  //System.out.println("put: " + propName + " -- " + propValue);
-	  }
-	  this.propertiesLoaded = true;
+    for (Data prop : properties.getDataList()) {
+      List<Data> pair = prop.getClusterAsList();
+      String propName = pair.get(0).getString();
+      Long propValue = pair.get(1).getWord();
+      buildProperties.put(propName, propValue);
+      //System.out.println("put: " + propName + " -- " + propValue);
+    }
+    this.propertiesLoaded = true;
   }
   public Map<String, Long> getBuildProperties() {
-	  return this.buildProperties;
+    return this.buildProperties;
   }
   public boolean havePropertiesLoaded() {
-	  return this.propertiesLoaded;
+    return this.propertiesLoaded;
   }
 
   public void setFiber(DacFiberId fiber, BiasBoard board, DcRackFiberId channel) {

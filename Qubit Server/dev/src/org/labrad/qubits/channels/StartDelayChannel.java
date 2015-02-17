@@ -6,6 +6,6 @@ package org.labrad.qubits.channels;
  *
  */
 public interface StartDelayChannel extends Channel {
-	public void setStartDelay(int startDelay);
-	public int getStartDelay();
+  public void setStartDelay(int startDelay);
+  public int getStartDelay();
 }

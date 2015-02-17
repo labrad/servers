@@ -6,8 +6,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 
 public enum FastBiasProperties {
-	GAIN("gain");
-	
+  GAIN("gain");
+
   private final String name;
   private static final Map<String, FastBiasProperties> map = Maps.newHashMap();
 

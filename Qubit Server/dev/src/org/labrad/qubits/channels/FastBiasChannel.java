@@ -44,8 +44,8 @@ public class FastBiasChannel implements FiberChannel {
   }
 
   public void setFpgaModel(FpgaModel fpga) {
-	Preconditions.checkArgument(fpga instanceof FpgaModelDac,
-			"FastBias '%s' requires an FpgaModelDac.", getName());
+    Preconditions.checkArgument(fpga instanceof FpgaModelDac,
+        "FastBias '%s' requires an FpgaModelDac.", getName());
     this.fpga = (FpgaModelDac)fpga;
   }
 
@@ -62,9 +62,9 @@ public class FastBiasChannel implements FiberChannel {
   }
 
   public DcRackFiberId getDcFiberId() {
-  	return fbChannel;
+    return fbChannel;
   }
-  
+
   public DacFiberId getFiberId() {
     return fb.getFiber(fbChannel);
   }

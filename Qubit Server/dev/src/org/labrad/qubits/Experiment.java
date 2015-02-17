@@ -27,9 +27,9 @@ import com.google.common.collect.Sets;
 /**
  * "Experiment holds all the information about the fpga sequence as it is being built,
  * and knows how to produce the memory and sram instructions that actually get sent out to run the sequence."
- * 
+ *
  * For the ADC addition, we now have to be careful to only perform things like memory ops on DAC FpgaModels, not ADC ones.
- * 
+ *
  * @author maffoo
  * @author pomalley
  */
@@ -157,36 +157,35 @@ public class Experiment {
     }
     return fpgas;
   }
-  
+
   /**
    * Many operations are only performed on DAC fpgas.
    * @return A set of all FpgaModelDac's in this experiment.
    * @author pomalley
    */
-  
   public Set<FpgaModelDac> getDacFpgas() {
-	  Set<FpgaModelDac> fpgas = Sets.newHashSet();
-	  for (FpgaModel fpga : this.fpgas) {
-		  if (fpga instanceof FpgaModelDac) {
-			  fpgas.add((FpgaModelDac)fpga);
-		  }
-	  }
-	  return fpgas;
+    Set<FpgaModelDac> fpgas = Sets.newHashSet();
+    for (FpgaModel fpga : this.fpgas) {
+      if (fpga instanceof FpgaModelDac) {
+        fpgas.add((FpgaModelDac)fpga);
+      }
+    }
+    return fpgas;
   }
-  
+
   /**
    * Conversely, sometimes we need the ADC fpgas. 
    * @return A set of all FpgaModelAdc's in this experiment.
    * @author pomalley
    */
   public Set<FpgaModelAdc> getAdcFpgas() {
-	  Set<FpgaModelAdc> fpgas = Sets.newHashSet();
-	  for (FpgaModel fpga : this.fpgas) {
-		  if (fpga instanceof FpgaModelAdc) {
-			  fpgas.add((FpgaModelAdc)fpga);
-		  }
-	  }
-	  return fpgas;
+    Set<FpgaModelAdc> fpgas = Sets.newHashSet();
+    for (FpgaModel fpga : this.fpgas) {
+      if (fpga instanceof FpgaModelAdc) {
+        fpgas.add((FpgaModelAdc)fpga);
+      }
+    }
+    return fpgas;
   }
 
   public List<String> getFpgaNames() {
@@ -199,44 +198,45 @@ public class Experiment {
 
   // stupid handler class to implement a timing order item
   public static class TimingOrderItem {
-	  private TimingChannel channel;
-	  private int subChannel;
-	  
-	  public TimingOrderItem(TimingChannel c, int i) {
-		  this.channel = c; subChannel = i;
-	  }
-	  public TimingOrderItem(TimingChannel c) {
-		  this(c, -1);
-	  }
-	  public String toString() {
-		  if (subChannel == -1)
-			  return getChannel().getDacBoard().getName();
-		  else
-			  return getChannel().getDacBoard().getName() + "::" + subChannel;
-	  }
-	  public boolean isAdc() {
-		  return getChannel() instanceof AdcChannel;
-	  }
-	  /**
-	   * @param data Must be *w (DACs) or (*i{I}, *i{Q}) (ADCs)
-	   * @return T/F for 1/0 qubit state for each item in data.
-	   */
-	  public boolean[] interpretData (Data data) {
-		  if (isAdc()) {
-			  Preconditions.checkArgument(data.matchesType("(*i, *i)"), 
-					  "interpretData called with data type %s on an ADC channel. Qubit Sequencer mixup.", data.getType().toString());
-			  return ((AdcChannel)getChannel()).interpretPhases(data.get(0).getIntArray(), data.get(1).getIntArray());
-		  } else {
-			  Preconditions.checkArgument(data.matchesType("*w"), 
-					  "interpretData called with data type %s on a DAC channel. Qubit Sequencer mixup.", data.getType().toString());
-			  return ((PreampChannel)getChannel()).interpretSwitches(data.getWordArray());
-		  }
-	  }
-	public TimingChannel getChannel() {
-		return channel;
-	}
+    private TimingChannel channel;
+    private int subChannel;
+
+    public TimingOrderItem(TimingChannel c, int i) {
+      this.channel = c; subChannel = i;
+    }
+    public TimingOrderItem(TimingChannel c) {
+      this(c, -1);
+    }
+    public String toString() {
+      if (subChannel == -1)
+        return getChannel().getDacBoard().getName();
+      else
+        return getChannel().getDacBoard().getName() + "::" + subChannel;
+    }
+    public boolean isAdc() {
+      return getChannel() instanceof AdcChannel;
+    }
+
+    /**
+     * @param data Must be *w (DACs) or (*i{I}, *i{Q}) (ADCs)
+     * @return T/F for 1/0 qubit state for each item in data.
+     */
+    public boolean[] interpretData (Data data) {
+      if (isAdc()) {
+        Preconditions.checkArgument(data.matchesType("(*i, *i)"), 
+            "interpretData called with data type %s on an ADC channel. Qubit Sequencer mixup.", data.getType().toString());
+        return ((AdcChannel)getChannel()).interpretPhases(data.get(0).getIntArray(), data.get(1).getIntArray());
+      } else {
+        Preconditions.checkArgument(data.matchesType("*w"), 
+            "interpretData called with data type %s on a DAC channel. Qubit Sequencer mixup.", data.getType().toString());
+        return ((PreampChannel)getChannel()).interpretSwitches(data.getWordArray());
+      }
+    }
+    public TimingChannel getChannel() {
+      return channel;
+    }
   }
-  
+
   private final List<Data> setupPackets = Lists.newArrayList();
   private final List<String> setupState = Lists.newArrayList();
   private List<TimingOrderItem> timingOrder = null;
@@ -308,48 +308,48 @@ public class Experiment {
   public List<String> getTimingOrder() {
     List<String> order = Lists.newArrayList();
     for (TimingOrderItem toi : getTimingChannels()) {
-    	order.add(toi.toString());
+      order.add(toi.toString());
     }
     return order;
   }
 
   public List<TimingOrderItem> getTimingChannels() {
-	  // if we have an existing timing order, use it
-	  if (timingOrder != null)
-		  return timingOrder;
-	  // if not, use everything--all DACs, all ADCs/active ADC channels
-	  else {
-		  List<TimingOrderItem> to = Lists.newArrayList();
-		  for (TimingChannel t : getChannels(TimingChannel.class)) {
-			  if (t instanceof AdcChannel) {
-				  to.add(new TimingOrderItem(t, t.getDemodChannel()));
-			  } else {
-				  to.add(new TimingOrderItem(t, -1));
-			  }
-		  }
-		  return to;
-	  }
+    // if we have an existing timing order, use it
+    if (timingOrder != null)
+      return timingOrder;
+    // if not, use everything--all DACs, all ADCs/active ADC channels
+    else {
+      List<TimingOrderItem> to = Lists.newArrayList();
+      for (TimingChannel t : getChannels(TimingChannel.class)) {
+        if (t instanceof AdcChannel) {
+          to.add(new TimingOrderItem(t, t.getDemodChannel()));
+        } else {
+          to.add(new TimingOrderItem(t, -1));
+        }
+      }
+      return to;
+    }
   }
-  
+
   public List<Integer> adcTimingOrderIndices() {
-	  List<Integer> list = Lists.newArrayList();
-	  int i = 0;
-	  for (TimingOrderItem toi : getTimingChannels()) {
-		  if (toi.isAdc())
-			  list.add(i);
-		  i++;
-	  }
-	  return list;
+    List<Integer> list = Lists.newArrayList();
+    int i = 0;
+    for (TimingOrderItem toi : getTimingChannels()) {
+      if (toi.isAdc())
+        list.add(i);
+      i++;
+    }
+    return list;
   }
   public List<Integer> dacTimingOrderIndices() {
-	  List<Integer> list = Lists.newArrayList();
-	  int i = 0;
-	  for (TimingOrderItem toi : getTimingChannels()) {
-		  if (!(toi.isAdc()))
-			  list.add(i);
-		  i++;
-	  }
-	  return list;
+    List<Integer> list = Lists.newArrayList();
+    int i = 0;
+    for (TimingOrderItem toi : getTimingChannels()) {
+      if (!(toi.isAdc()))
+        list.add(i);
+      i++;
+    }
+    return list;
   }
 
   //
@@ -401,7 +401,7 @@ public class Experiment {
   public void addSingleMemoryDelay(FpgaModelDac fpga, double delay_us) {
     fpga.addMemoryDelay(delay_us);
   }
-  
+
   /**
    * Add a delay in the memory sequence of all boards.
    * Only applies to DACs.
@@ -411,34 +411,32 @@ public class Experiment {
       fpga.addMemoryDelay(microseconds);
     }
   }
-  
-  public void addMemSyncDelay() {
-	  //Find maximum sequence length on all fpgas
-	  double maxT_us=0;
-	  for (FpgaModel fpga : getFpgas()) {
-		  try {
-			  double t_us = fpga.getSequenceLengthPostSRAM_us();
-			  maxT_us = Math.max(maxT_us, t_us);
-		  } catch (java.lang.IllegalArgumentException ex) {
-			  
-		  }
 
-	  }
-	  
-	  for (FpgaModelDac fpga : getDacFpgas()) {
-		  double t = 0;
-		  try {
-			  t = fpga.getSequenceLength_us();
-		  } catch (java.lang.IllegalArgumentException ex) {
-			  
-		  }
-		  if (t < maxT_us) {
-			  fpga.addMemoryDelay(maxT_us - t);
-		  } else {
-			  fpga.addMemoryNoop();
-		  }
-	  }
+  public void addMemSyncDelay() {
+    //Find maximum sequence length on all fpgas
+    double maxT_us=0;
+    for (FpgaModel fpga : getFpgas()) {
+      try {
+        double t_us = fpga.getSequenceLengthPostSRAM_us();
+        maxT_us = Math.max(maxT_us, t_us);
+      } catch (java.lang.IllegalArgumentException ex) {
+      }
+    }
+
+    for (FpgaModelDac fpga : getDacFpgas()) {
+      double t = 0;
+      try {
+        t = fpga.getSequenceLength_us();
+      } catch (java.lang.IllegalArgumentException ex) {
+      }
+      if (t < maxT_us) {
+        fpga.addMemoryDelay(maxT_us - t);
+      } else {
+        fpga.addMemoryNoop();
+      }
+    }
   }
+
   /**
    * Call SRAM. Only applies to DACs.
    */
@@ -459,23 +457,22 @@ public class Experiment {
       fpga.setSramDualBlockDelay(delay_ns);
     }
   }
-  
-  
+
   /**
    * Get the length of the shortest SRAM block across all fpgas.
    * @return
    */
   public int getShortestSram() {
-	  int i = 0;
-	  for (FpgaModelDac fpga : getDacFpgas()) {
-		  for (String block : fpga.getBlockNames()) {
-			  int len = fpga.getBlockLength(block);
-			  if (i == 0 || len < i) {
-				  i = len;
-			  }
-		  }
-	  }
-	  return i;
+    int i = 0;
+    for (FpgaModelDac fpga : getDacFpgas()) {
+      for (String block : fpga.getBlockNames()) {
+        int len = fpga.getBlockLength(block);
+        if (i == 0 || len < i) {
+          i = len;
+        }
+      }
+    }
+    return i;
   }
 
   /**

@@ -19,8 +19,8 @@ public class TriggerChannel extends SramChannelBase<TriggerData> {
 
   @Override
   public void setFpgaModel(FpgaModel fpga) {
-	Preconditions.checkArgument(fpga instanceof FpgaModelDac,
-			"TriggerChannel '%s' requires FpgaModelDac.", getName());
+    Preconditions.checkArgument(fpga instanceof FpgaModelDac,
+        "TriggerChannel '%s' requires FpgaModelDac.", getName());
     this.fpga = (FpgaModelDac) fpga;
     this.fpga.setTriggerChannel(triggerId, this);
   }
