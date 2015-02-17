@@ -50,22 +50,22 @@ public abstract class SramChannelBase<T> implements SramChannel {
   //
   protected String currentBlock;
   public String getCurrentBlock() {
-	  return currentBlock;
+    return currentBlock;
   }
   public void setCurrentBlock(String block) {
-	  currentBlock = block;
+    currentBlock = block;
   }
 
   Map<String, T> blocks = Maps.newHashMap();
-  
-  // Start delay
-	@Override
-	public int getStartDelay() {
-		return this.getFpgaModel().getStartDelay();
-	}
 
-	@Override
-	public void setStartDelay(int startDelay) {
-		this.getFpgaModel().setStartDelay(startDelay);
-	}
+  // Start delay
+  @Override
+  public int getStartDelay() {
+    return this.getFpgaModel().getStartDelay();
+  }
+
+  @Override
+  public void setStartDelay(int startDelay) {
+    this.getFpgaModel().setStartDelay(startDelay);
+  }
 }

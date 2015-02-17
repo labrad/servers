@@ -11,17 +11,17 @@ public class DelayCommand implements MemoryCommand {
   public DelayCommand(int cycles) {
     this.cycles = cycles;
   }
-  
+
   public void setDelay(int cycles) {
-	  this.cycles = cycles;
+    this.cycles = cycles;
   }
   public int getDelay() {
-	  return this.cycles;
+    return this.cycles;
   }
   public double getTime_us(FpgaModelDac dac) {
-	  return FpgaModelDac.clocksToMicroseconds(this.cycles);
+    return FpgaModelDac.clocksToMicroseconds(this.cycles);
   }
-  
+
   public long[] getBits() {
     int left = cycles;
     List<Long> seq = new ArrayList<Long>();

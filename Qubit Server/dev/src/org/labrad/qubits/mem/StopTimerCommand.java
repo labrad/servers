@@ -15,6 +15,6 @@ public class StopTimerCommand implements MemoryCommand {
     return new long[] {0x400001};
   }
   public double getTime_us(FpgaModelDac dac) {
-	  return FpgaModelDac.clocksToMicroseconds(1);
-  } 
+    return FpgaModelDac.clocksToMicroseconds(1);
+  }
 }

@@ -66,7 +66,7 @@ public class PreampChannel implements FiberChannel, TimingChannel {
   }
 
   public void setFpgaModel(FpgaModel fpga) {
-	Preconditions.checkArgument(fpga instanceof FpgaModelDac, "Preamp channel's FpgaModel must be FpgaModelDac.");
+    Preconditions.checkArgument(fpga instanceof FpgaModelDac, "Preamp channel's FpgaModel must be FpgaModelDac.");
     this.fpga = (FpgaModelDac)fpga;
   }
 
@@ -117,7 +117,7 @@ public class PreampChannel implements FiberChannel, TimingChannel {
       switchIntervals[i] = new long[] {Math.min(a, b), Math.max(a, b)};
     }
   }
-  
+
   /**
    * Convert an array of cycle times to boolean switches for this channel.
    * @param cycles
@@ -134,10 +134,10 @@ public class PreampChannel implements FiberChannel, TimingChannel {
     return ans;
   }
 
-@Override
-public int getDemodChannel() {
-	// this is a bit of a kludge, only applies to ADCs.
-	return -1;
-}
-    
+  @Override
+  public int getDemodChannel() {
+    // this is a bit of a kludge, only applies to ADCs.
+    return -1;
+  }
+
 }

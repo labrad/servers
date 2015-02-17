@@ -23,6 +23,6 @@ public class SendFiberCommand implements MemoryCommand {
     return new long[] {send + (bits & 0x0FFFFF)};
   }
   public double getTime_us(FpgaModelDac dac) {
-	  return FpgaModelDac.clocksToMicroseconds(1);
+    return FpgaModelDac.clocksToMicroseconds(1);
   }
 }

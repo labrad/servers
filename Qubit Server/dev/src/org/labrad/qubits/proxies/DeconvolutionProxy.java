@@ -29,7 +29,7 @@ public class DeconvolutionProxy {
   }
 
   // TODO send requests in different contexts so that they can potentially be worked on in parallel
-  
+
   private Request startRequest() {
     return new Request(SERVER_NAME);
   }

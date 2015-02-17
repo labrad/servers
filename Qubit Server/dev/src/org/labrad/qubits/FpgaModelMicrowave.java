@@ -74,11 +74,11 @@ public class FpgaModelMicrowave extends FpgaModelDac {
     return sram;
   }
 
-  	/**
-  	 * See comment on parent's abstract method.
-  	 */
-	@Override
-	protected boolean hasSramChannel() {
-		return iq != null;
-	}
+  /**
+   * See comment on parent's abstract method.
+   */
+  @Override
+  protected boolean hasSramChannel() {
+    return iq != null;
+  }
 }

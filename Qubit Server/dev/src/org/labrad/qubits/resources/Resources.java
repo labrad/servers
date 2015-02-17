@@ -17,7 +17,7 @@ import com.google.common.collect.Maps;
 
 /**
  * "Resources represent the available hardware; these are configured in the registry."
- * 
+ *
  * @author maffoo
  */
 public class Resources {
@@ -45,7 +45,7 @@ public class Resources {
         "Resource '%s' not of type %s", name, cls.getName());	
     return (T) r;
   }
-  
+
   /**
    * Get all resources of a given type.
    * @param <T>
@@ -54,14 +54,14 @@ public class Resources {
    */
   @SuppressWarnings("unchecked")
   public <T extends Resource> List<T> getAll(Class<? extends T> cls) {
-	  List<T> list = Lists.newArrayList();
-	  for (String key : resources.keySet()) {
-		  Resource r = resources.get(key);
-		  if (cls.isInstance(r)) {
-			  list.add((T)r);
-		  }
-	  }
-	  return list;
+    List<T> list = Lists.newArrayList();
+    for (String key : resources.keySet()) {
+      Resource r = resources.get(key);
+      if (cls.isInstance(r)) {
+        list.add((T)r);
+      }
+    }
+    return list;
   }
 
 
@@ -89,17 +89,17 @@ public class Resources {
    * @param microwaves
    */
   public static void updateWiring(List<Data> resources, List<Data> fibers, List<Data> microwaves) {
-  	/*
-  	 * resources - [(String type, String id),...]
-  	 * fibers - [((dacName, fiber),(cardName, channel)),...]
-  	 */
+    /*
+     * resources - [(String type, String id),...]
+     * fibers - [((dacName, fiber),(cardName, channel)),...]
+     */
     // build resources for all objects
     Map<String, Resource> map = Maps.newHashMap();
     for (Data elem : resources) {
-  		String type = elem.get(0).getString();
-  		String name = elem.get(1).getString();
+      String type = elem.get(0).getString();
+      String name = elem.get(1).getString();
       List<Data> properties = (elem.getClusterSize() == 3) ? elem.get(2).getClusterAsList()
-      		                                                 : new ArrayList<Data>();
+                                                           : new ArrayList<Data>();
       DeviceType dt = DeviceType.fromString(type);
       map.put(name, create(dt, name, properties));
     }

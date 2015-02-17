@@ -15,7 +15,7 @@ public interface Deconvolvable {
    * Mark as needing to be deconvolved again.
    */
   public void invalidate();
-  
+
   /**
    * Deconvolve this item using the provided deconvolver.
    */
