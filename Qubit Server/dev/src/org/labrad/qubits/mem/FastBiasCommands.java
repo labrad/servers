@@ -5,8 +5,8 @@ import org.labrad.qubits.enums.BiasCommandType;
 
 public class FastBiasCommands {
   public static SendFiberCommand get(BiasCommandType type, FastBiasChannel fb, double v) {
-  	double gain = fb.getFastBias().getGain(fb.getDcFiberId());
-  	double vSend = v/gain;
+    double gain = fb.getFastBias().getGain(fb.getDcFiberId());
+    double vSend = v/gain;
     switch (type) {
       case DAC0: return setDac0(fb, vSend);
       case DAC0_NOSELECT: return setDac0NoSelect(fb, vSend);

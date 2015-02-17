@@ -15,6 +15,6 @@ public class StartTimerCommand implements MemoryCommand {
     return new long[] {0x400000};
   }
   public double getTime_us(FpgaModelDac dac) {
-	  return FpgaModelDac.clocksToMicroseconds(1);
-  } 
+    return FpgaModelDac.clocksToMicroseconds(1);
+  }
 }

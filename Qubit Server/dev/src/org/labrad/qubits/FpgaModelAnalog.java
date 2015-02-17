@@ -16,10 +16,10 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 public class FpgaModelAnalog extends FpgaModelDac {
-  
+
   private AnalogBoard analogBoard;
   private Map<DacAnalogId, AnalogChannel> dacs = Maps.newEnumMap(DacAnalogId.class);
-  
+
   public FpgaModelAnalog(AnalogBoard dacBoard, Experiment expt) {
     super(dacBoard, expt);
     analogBoard = dacBoard;
@@ -33,19 +33,19 @@ public class FpgaModelAnalog extends FpgaModelDac {
       dummy.setFpgaModel(this);
     }*/
   }
-  
+
   public AnalogBoard getAnalogBoard() {
     return analogBoard;
   }
-  
+
   public void setAnalogChannel(DacAnalogId id, AnalogChannel ch) {
     dacs.put(id, ch);
   }
-  
+
   public AnalogChannel getDacChannel(DacAnalogId id) {
     return dacs.get(id);
   }
-  
+
   public Future<Void> deconvolveSram(DeconvolutionProxy deconvolver) {
     List<Future<Void>> deconvolutions = Lists.newArrayList();
     for (AnalogChannel ch : dacs.values()) {
@@ -58,7 +58,7 @@ public class FpgaModelAnalog extends FpgaModelDac {
     }
     return Futures.waitForAll(deconvolutions);
   }
-  
+
   /**
    * Get sram bits for a particular block
    * @param block
@@ -77,11 +77,11 @@ public class FpgaModelAnalog extends FpgaModelDac {
     return sram;
   }
 
-	/**
-	 * See comments on parent's abstract method.
-	 */
-    @Override
-	protected boolean hasSramChannel() {
-		return !dacs.isEmpty();
-	}
+  /**
+   * See comments on parent's abstract method.
+   */
+  @Override
+  protected boolean hasSramChannel() {
+    return !dacs.isEmpty();
+  }
 }

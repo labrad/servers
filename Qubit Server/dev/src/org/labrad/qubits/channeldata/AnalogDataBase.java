@@ -29,7 +29,7 @@ public abstract class AnalogDataBase implements AnalogData {
   public void invalidate() {
     isDeconvolved = false;
   }
-  
+
   protected void setDeconvolved(boolean isDeconvolved) {
     this.isDeconvolved = isDeconvolved;
   }
