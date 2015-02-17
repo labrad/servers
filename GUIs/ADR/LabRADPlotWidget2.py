@@ -85,12 +85,26 @@ class LabRADPlotWidget2(Qt.QWidget):
         self.tempUnitsCB = Qt.QCheckBox("Temperature in F")
         self.tempUnitsCB.setChecked(False)
         vl.addWidget(self.tempUnitsCB)
+
+        self.hideUncheckedCB = Qt.QCheckBox("Hide unchecked")
+        self.hideUncheckedCB.setChecked(False)
+        self.hideUncheckedCB.toggled.connect(self.hideUncheckedCallback)
+        vl.addWidget(self.hideUncheckedCB)
         
         optGB = Qt.QGroupBox("Options")
         optGB.setCheckable(False)
         optGB.setLayout(vl)
         optGB.setSizePolicy(Qt.QSizePolicy.Fixed, Qt.QSizePolicy.Fixed)
         self.groupBoxLayout.addWidget(optGB, 0, QtCore.Qt.AlignTop)
+
+    def hideUncheckedCallback(self, toggled):
+        if toggled:
+            for cb in self.checkBoxes:
+                if not cb.isChecked():
+                    cb.setVisible(False)
+        else:
+            for cb in self.checkBoxes:
+                cb.setVisible(True)
         
     def setCxn(self, cxn):
         self.cxn = cxn
@@ -275,6 +289,8 @@ class LabRADPlotWidget2(Qt.QWidget):
                         gb.setChecked(False)
                     gb.leaveEvent(None)
             self.groupBoxCallback()
+        self.hideUncheckedCB.setChecked(True)
+        self.hideUncheckedCallback(True)
         #if 'ylimits' in self.settings.keys():
             #for name, lim in ylimits:
                 
@@ -293,7 +309,7 @@ class LabRADPlotWidget2(Qt.QWidget):
             if len(self.plotLabels[legend]) == 1:
                 gb = Qt.QGroupBox("%s (%s)" % (legend, self.plotLabels[legend][0]))
             else:
-                gb = HidingGroupBox(legend)
+                gb = Qt.QGroupBox(legend)
                 for label in self.plotLabels[legend]:
                     l = self.lines[self.plotIndices[legend][self.plotLabels[legend].index(label)] - 1]
                     cb = Qt.QCheckBox(label)

@@ -534,7 +534,7 @@ class TestWindow(QtGui.QMainWindow):
             yield self.adr_server.set_state(var, val * unit)
 
     def setDateTimeLabels(self, dateLabel, timeLabel, t):
-        if hasattr(t, 'unit'):
+        if hasattr(t, 'unit') and t.unit != '':
             if t['s'] > 1:
                 lt = time.localtime(t['s'])
                 dateLabel.setText("%s/%s" % (lt.tm_mon, lt.tm_mday))
