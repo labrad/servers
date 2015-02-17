@@ -41,27 +41,29 @@ public class FpgaModelAdc implements FpgaModel {
 	public String getName() {
 		return board.getName();
 	}
-    //
-    // Start Delay - pomalley 5/4/2011
-    //
-    private int startDelay = -1;
-    public void setStartDelay(int startDelay) {
-	  this.startDelay = startDelay;
-    }
-    public int getStartDelay() {
-	    return this.startDelay;
-    }
-    
-    @Override
-    public double getSequenceLength_us() {
-  	  double t_us=this.startDelay * START_DELAY_UNIT_NS / 1000.0;
-  	  t_us += ACQUISITION_TIME_US;
-  	  return t_us;
-    }
-    @Override
-    public double getSequenceLengthPostSRAM_us() {
-    	return getSequenceLength_us();
-    }
+
+  //
+  // Start Delay - pomalley 5/4/2011
+  //
+  private int startDelay = -1;
+  public void setStartDelay(int startDelay) {
+    this.startDelay = startDelay;
+  }
+  public int getStartDelay() {
+    return this.startDelay;
+  }
+
+  @Override
+  public double getSequenceLength_us() {
+    double t_us=this.startDelay * START_DELAY_UNIT_NS / 1000.0;
+    t_us += ACQUISITION_TIME_US;
+    return t_us;
+  }
+  @Override
+  public double getSequenceLengthPostSRAM_us() {
+    return getSequenceLength_us();
+  }
+
 	public void addPackets(Request runRequest) {
 		// first we configure the "global" ADC properties, while checking to see if they were set more than once
 		// across the different channels

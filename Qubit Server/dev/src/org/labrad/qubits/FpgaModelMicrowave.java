@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Future;
 
+import org.labrad.data.Request;
 import org.labrad.qubits.channeldata.Deconvolvable;
 import org.labrad.qubits.channels.IqChannel;
 import org.labrad.qubits.proxies.DeconvolutionProxy;
@@ -81,4 +82,18 @@ public class FpgaModelMicrowave extends FpgaModelDac {
 	protected boolean hasSramChannel() {
 		return iq != null;
 	}
+
+  @Override
+  public void addJumpTablePackets(Request runRequest) {
+    if (iq != null) {
+      iq.getJumpTable().addPackets(runRequest);
+    }
+  }
+
+  @Override
+  public void clearJumpTable() {
+    if (iq != null) {
+      iq.clearJumpTable();
+    }
+  }
 }

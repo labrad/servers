@@ -43,3 +43,6 @@ Thumbs.db
 .idea/
 # text editor backups
 *~
+
+# IDE stuff
+.idea/

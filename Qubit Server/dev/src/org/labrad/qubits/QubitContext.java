@@ -23,16 +23,7 @@ import org.labrad.qubits.channeldata.AnalogDataTime;
 import org.labrad.qubits.channeldata.IqDataFourier;
 import org.labrad.qubits.channeldata.IqDataTime;
 import org.labrad.qubits.channeldata.TriggerDataTime;
-import org.labrad.qubits.channels.AdcChannel;
-import org.labrad.qubits.channels.AnalogChannel;
-import org.labrad.qubits.channels.Channel;
-import org.labrad.qubits.channels.FastBiasChannel;
-import org.labrad.qubits.channels.IqChannel;
-import org.labrad.qubits.channels.PreampChannel;
-import org.labrad.qubits.channels.SramChannelBase;
-import org.labrad.qubits.channels.StartDelayChannel;
-import org.labrad.qubits.channels.TimingChannel;
-import org.labrad.qubits.channels.TriggerChannel;
+import org.labrad.qubits.channels.*;
 import org.labrad.qubits.config.MicrowaveSourceConfig;
 import org.labrad.qubits.config.MicrowaveSourceOffConfig;
 import org.labrad.qubits.config.SetupPacket;
@@ -509,6 +500,38 @@ public class QubitContext extends AbstractServerContext {
       memDirty = true;
   }
   //
+  // Jump Table
+  //
+
+  @Setting(id = 370,
+           name = "Clear Jump Table",
+           doc = "Clear the jump table commands in this context.")
+  public void clear_jump_table() {
+    getExperiment().clearJumpTable();
+  }
+
+  @Setting(id = 371,
+           name = "Add Jump Table Entry",
+           doc = "Add a jump table entry to a single board.")
+  public void add_jump_table_entry(@Accepts({"s", "(ss)"}) Data channel,
+                                   String command_name,
+                                   @Accepts({"w{NOP,END}", "ww{IDLE}", "www{JUMP}", "wwww{CYCLE}"}) Data command_data) {
+    SramChannelBase ch = getChannel(channel, SramChannelBase.class);
+    ch.addJumpTableEntry(command_name, command_data);
+  }
+
+  @Setting(id = 372,
+           name = "Set Jump Table Counters",
+           doc = "Set the counter values for this board")
+  public void set_jump_table_counters(@Accepts({"s", "(ss)"}) Data channel,
+                                      @Accepts("*w") Data counters) {
+    SramChannelBase ch = getChannel(channel, SramChannelBase.class);
+    ch.setCounters(counters.getWordArray());
+  }
+
+
+
+  //
   // SRAM
   //
 
@@ -926,8 +949,11 @@ public class QubitContext extends AbstractServerContext {
     // upload all memory and SRAM data
     for (FpgaModelDac fpga : expt.getDacFpgas()) {
       runRequest.add("Select Device", Data.valueOf(fpga.getName()));
-      runRequest.add("Start Delay", Data.valueOf((long)fpga.getStartDelay()));	// new 5/4/11 - pomalley
-      runRequest.add("Memory", Data.valueOf(fpga.getMemory()));
+      // TODO: how to handle backwards compatibility for non-JT boards?
+//      runRequest.add("Start Delay", Data.valueOf((long)fpga.getStartDelay()));  // new 5/4/11 - pomalley
+//      runRequest.add("Memory", Data.valueOf(fpga.getMemory()));
+      fpga.addJumpTablePackets(runRequest);
+      Preconditions.checkState(!fpga.hasDualBlockSram(), "No dual block with the jump table!"); // TODO: blargh
       if (fpga.hasDualBlockSram()) {
         runRequest.add("SRAM dual block",
             Data.valueOf(fpga.getSramDualBlock1()),

@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
 
+import com.google.common.base.Preconditions;
+import org.labrad.data.Request;
 import org.labrad.qubits.channeldata.Deconvolvable;
 import org.labrad.qubits.channels.AnalogChannel;
 import org.labrad.qubits.enums.DacAnalogId;
@@ -84,4 +86,23 @@ public class FpgaModelAnalog extends FpgaModelDac {
 	protected boolean hasSramChannel() {
 		return !dacs.isEmpty();
 	}
+
+  @Override
+  public void addJumpTablePackets(Request runRequest) {
+    if (!dacs.isEmpty()) {
+      AnalogChannel ch = dacs.values().iterator().next();
+      for (AnalogChannel other : dacs.values()) {
+        Preconditions.checkArgument(ch.getJumpTable().equals(other.getJumpTable()),
+                "Jump tables not equivalent for channels sharing a board: %s, %s", ch.getName(), ch.getName());
+      }
+      ch.getJumpTable().addPackets(runRequest);
+    }
+  }
+
+  @Override
+  public void clearJumpTable() {
+    for (AnalogChannel ch : dacs.values()) {
+      ch.clearJumpTable();
+    }
+  }
 }

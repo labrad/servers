@@ -353,6 +353,20 @@ public class Experiment {
   }
 
   //
+  // Jump Table
+  //
+
+  /**
+   * Clear the jump table for this experiment.
+   */
+  public void clearJumpTable() {
+    for (FpgaModelDac fpga: getDacFpgas()) {
+      fpga.clearJumpTable();
+    }
+  }
+
+
+  //
   // Memory
   //
 

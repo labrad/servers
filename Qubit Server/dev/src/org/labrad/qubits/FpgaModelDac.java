@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
 
+import org.labrad.data.Request;
 import org.labrad.qubits.channels.TriggerChannel;
 import org.labrad.qubits.enums.DacTriggerId;
 import org.labrad.qubits.mem.CallSramCommand;
@@ -323,35 +324,35 @@ public abstract class FpgaModelDac implements FpgaModel {
    * @return
    */
   public long[] getSram() {
-	long[] sram;
-	if (hasSramChannel()) {
-	  // get bits for all SRAM blocks
-	  int len = 0;
-	  List<long[]> blocks = Lists.newArrayList();
-	  for (String blockName : this.getBlockNames()) {
-	    long[] block = getSramBlock(blockName);
-	    padArrayFront(block, this.getPaddedBlockLength(blockName));
-	    blocks.add(block);
-	    len += block.length;
-	  }
-	  // concatenate blocks into one array
-	  sram = new long[len];
-	  // the length of long[sram] is effectively set by the experiment. it may be longer than the SRAM of this board.
-	  // but if we aren't using this board and are just filling its SRAM with zeroes, that may be unnecessary.
-	  int pos = 0;
-	  for (long[] block : blocks) {
-	    System.arraycopy(block, 0, sram, pos, block.length);
-	    pos += block.length;
-	  }		
-	} else {
-	  int len = dacBoard.getBuildProperties().get("SRAM_LEN").intValue();
-	  if (expt.getShortestSram() < len) {
-		  //System.out.println(getName() + ": len: " + len + ", shortest: " + expt.getShortestSram());
-		  len = expt.getShortestSram();
-	  }
-	  sram = new long[len];
-	  Arrays.fill(sram, 0);
-	}
+    long[] sram;
+    if (hasSramChannel()) {
+      // get bits for all SRAM blocks
+      int len = 0;
+      List<long[]> blocks = Lists.newArrayList();
+      for (String blockName : this.getBlockNames()) {
+        long[] block = getSramBlock(blockName);
+        padArrayFront(block, this.getPaddedBlockLength(blockName));
+        blocks.add(block);
+        len += block.length;
+      }
+      // concatenate blocks into one array
+      sram = new long[len];
+      // the length of long[sram] is effectively set by the experiment. it may be longer than the SRAM of this board.
+      // but if we aren't using this board and are just filling its SRAM with zeroes, that may be unnecessary.
+      int pos = 0;
+      for (long[] block : blocks) {
+        System.arraycopy(block, 0, sram, pos, block.length);
+        pos += block.length;
+      }
+    } else {
+      int len = dacBoard.getBuildProperties().get("SRAM_LEN").intValue();
+      if (expt.getShortestSram() < len) {
+        //System.out.println(getName() + ": len: " + len + ", shortest: " + expt.getShortestSram());
+        len = expt.getShortestSram();
+      }
+      sram = new long[len];
+      Arrays.fill(sram, 0);
+    }
     // check that the total sram sequence is not too long
     if (sram.length > this.dacBoard.getBuildProperties().get("SRAM_LEN")) {
       throw new RuntimeException("SRAM sequence exceeds maximum length. Length = " + sram.length + "; allowed = " +
@@ -567,4 +568,7 @@ public abstract class FpgaModelDac implements FpgaModel {
     }
     throw new RuntimeException(String.format("Block '%s' not found", name));
   }
+
+  public abstract void addJumpTablePackets(Request runRequest);
+  public abstract void clearJumpTable();
 }
