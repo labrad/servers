@@ -1,14 +1,11 @@
 package org.labrad.qubits.resources
 
-import java.util.List
-
 import org.labrad.data.Data
 import org.labrad.qubits.enums.DacFiberId
 import org.labrad.qubits.enums.DcRackFiberId
 import org.labrad.qubits.enums.DeviceType
 import scala.collection.JavaConverters._
-
-import com.google.common.collect.Lists
+import scala.reflect.ClassTag
 
 
 /**
@@ -25,11 +22,12 @@ class Resources protected(resources: Map[String, Resource]) {
    * @param cls
    * @return
    */
-  def get[T <: Resource](name: String, cls: Class[T]): T = {
-    require(resources.contains(name), s"Resource '$name' not found")
-    val r = resources(name)
-    require(cls.isInstance(r), s"Resource '$name' has type ${r.getClass}; expected $cls")
-    r.asInstanceOf[T]
+  def get[T <: Resource](name: String)(implicit tag: ClassTag[T]): T = {
+    resources.get(name) match {
+      case Some(r: T) => r
+      case Some(r) => sys.error(s"Resource $name has type ${r.getClass}; expected $tag")
+      case None => sys.error(s"Resource $name not found")
+    }
   }
 
   /**
@@ -38,14 +36,8 @@ class Resources protected(resources: Map[String, Resource]) {
    * @param cls
    * @return
    */
-  def getAll[T <: Resource](cls: Class[T]): List[T] = {
-    val list: List[T] = Lists.newArrayList()
-    for (r <- resources.values) {
-      if (cls.isInstance(r)) {
-        list.add(r.asInstanceOf[T])
-      }
-    }
-    list
+  def getAll[T <: Resource : ClassTag]: Seq[T] = {
+    resources.values.collect { case r: T => r }.toVector
   }
 }
 
@@ -75,13 +67,13 @@ object Resources {
    * @param fibers
    * @param microwaves
    */
-  def updateWiring(resources: List[Data], fibers: List[Data], microwaves: List[Data]): Unit = {
+  def updateWiring(resources: Seq[Data], fibers: Seq[Data], microwaves: Seq[Data]): Unit = {
     /*
      * resources - [(String type, String id),...]
      * fibers - [((dacName, fiber),(cardName, channel)),...]
      */
     // build resources for all objects
-    val map = resources.asScala.map { elem =>
+    val map = resources.map { elem =>
       val devType = elem.get(0).getString()
       val name = elem.get(1).getString()
       val properties = if (elem.getClusterSize() == 3) {
@@ -95,14 +87,14 @@ object Resources {
     val r = new Resources(map)
 
     // wire together DAC boards and bias boards
-    for (elem <- fibers.asScala) {
+    for (elem <- fibers) {
       val dacName = elem.get(0, 0).getString()
       val fiber = elem.get(0, 1).getString()
       val cardName = elem.get(1, 0).getString()
       val channel = elem.get(1, 1).getString()
 
-      val dac = r.get(dacName, classOf[DacBoard])
-      val bias = r.get(cardName, classOf[BiasBoard])
+      val dac = r.get[DacBoard](dacName)
+      val bias = r.get[BiasBoard](cardName)
       val df = DacFiberId.fromString(fiber)
       val bf = DcRackFiberId.fromString(channel)
       dac.setFiber(df, bias, bf)
@@ -110,12 +102,12 @@ object Resources {
     }
 
     // wire together microwave DAC boards and microwave sources
-    for (elem <- microwaves.asScala) {
+    for (elem <- microwaves) {
       val dacName = elem.get(0).getString()
       val devName = elem.get(1).getString()
 
-      val dac = r.get(dacName, classOf[MicrowaveBoard])
-      val uwaveSrc = r.get(devName, classOf[MicrowaveSource])
+      val dac = r.get[MicrowaveBoard](dacName)
+      val uwaveSrc = r.get[MicrowaveSource](devName)
       dac.setMicrowaveSource(uwaveSrc)
       uwaveSrc.addMicrowaveBoard(dac)
     }

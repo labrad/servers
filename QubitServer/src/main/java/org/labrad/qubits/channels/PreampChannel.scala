@@ -8,7 +8,7 @@ import org.labrad.qubits.enums.DcRackFiberId
 import org.labrad.qubits.resources.DacBoard
 import org.labrad.qubits.resources.PreampBoard
 
-class PreampChannel(name: String) extends FiberChannel with TimingChannel {
+class PreampChannel(val name: String) extends FiberChannel with TimingChannel {
 
   private var expt: Experiment = null
   private var board: DacBoard = null
@@ -19,10 +19,6 @@ class PreampChannel(name: String) extends FiberChannel with TimingChannel {
   private var switchIntervals: Array[(Long, Long)] = null
 
   clearConfig()
-
-  override def getName(): String = {
-    name
-  }
 
   def setPreampBoard(preampBoard: PreampBoard): Unit = {
     this.preampBoard = preampBoard

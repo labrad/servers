@@ -28,7 +28,7 @@ class FastBiasSerialChannel(name: String) extends FastBiasChannel(name) {
   }
 
   def getSetupPacket(): SetupPacket = {
-    require(hasSetupPacket(), s"Cannot get setup packet for channel '$getName': it has not been configured.")
+    require(hasSetupPacket(), s"Cannot get setup packet for channel '$name': it has not been configured.")
     val (dacNum, rcTimeConstant) = dac.toLowerCase match {
       case "dac0" => (0, 1)
       case "dac1slow" => (1, 1)

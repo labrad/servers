@@ -1,12 +1,10 @@
 package org.labrad.qubits
 
-import com.google.common.collect.Lists
-import java.util.List
 import org.labrad.data.Request
 import org.labrad.qubits.channels.AdcChannel
 import org.labrad.qubits.resources.AdcBoard
 import org.labrad.qubits.resources.DacBoard
-import scala.collection.JavaConverters._
+import scala.collection.mutable
 
 
 object FpgaModelAdc {
@@ -18,11 +16,11 @@ class FpgaModelAdc(board: AdcBoard, expt: Experiment) extends FpgaModel {
 
   import FpgaModelAdc._
 
-  private val channels: List[AdcChannel] = Lists.newArrayList()
+  private val channels = mutable.Buffer.empty[AdcChannel]
 
   def setChannel(c: AdcChannel) {
     if (!channels.contains(c))
-      channels.add(c)
+      channels += c
   }
 
   def getChannel(): AdcChannel = {
@@ -33,9 +31,7 @@ class FpgaModelAdc(board: AdcBoard, expt: Experiment) extends FpgaModel {
     board
   }
 
-  override def getName(): String = {
-    board.getName()
-  }
+  override def name: String = board.name
 
   //
   // Start Delay - pomalley 5/4/2011
@@ -64,15 +60,14 @@ class FpgaModelAdc(board: AdcBoard, expt: Experiment) extends FpgaModel {
     // first we configure the "global" ADC properties, while checking to see if they were set more than once
     // across the different channels
     // then we set the "local" properties of each demod channel
-    if (channels.size() == 0)
+    if (channels.isEmpty)
       return
 
     // this is double counting but it doesn't matter
-    for (ch1 <- channels.asScala)
-      for (ch2 <- channels.asScala)
-        ch1.reconcile(ch2)
-    channels.get(0).addGlobalPackets(runRequest)
-    for (ch <- channels.asScala) {
+    for (ch1 <- channels; ch2 <- channels) ch1.reconcile(ch2)
+
+    channels(0).addGlobalPackets(runRequest)
+    for (ch <- channels) {
       ch.addLocalPackets(runRequest)
     }
   }

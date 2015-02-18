@@ -10,7 +10,7 @@ class AnalogChannelBuilder(name: String, params: Seq[String], resources: Resourc
   def build(): Channel = {
     val Seq(boardName, dacId) = params
     val ch = new AnalogChannel(name)
-    val board = resources.get(boardName, classOf[DacBoard])
+    val board = resources.get[DacBoard](boardName)
     ch.setDacBoard(board)
     ch.setDacId(DacAnalogId.fromString(dacId))
     ch

@@ -1,20 +1,15 @@
 package org.labrad.qubits.channels
 
-import com.google.common.collect.Maps
-import java.util.Map
 import org.labrad.qubits.Experiment
 import org.labrad.qubits.FpgaModelDac
 import org.labrad.qubits.resources.DacBoard
+import scala.collection.mutable
 
-abstract class SramChannelBase[T](name: String) extends SramChannel {
+abstract class SramChannelBase[T](val name: String) extends SramChannel {
 
   private var expt: Experiment = null
   private var board: DacBoard = null
   protected var fpga: FpgaModelDac = null
-
-  override def getName(): String = {
-    name
-  }
 
   override def getExperiment(): Experiment = {
     expt
@@ -48,7 +43,7 @@ abstract class SramChannelBase[T](name: String) extends SramChannel {
     currentBlock = block
   }
 
-  protected val blocks: Map[String, T] = Maps.newHashMap()
+  protected val blocks = mutable.Map.empty[String, T]
 
   // Start delay
   override def getStartDelay(): Int = {

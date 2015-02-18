@@ -17,7 +17,7 @@ class TriggerChannel(name: String) extends SramChannelBase[TriggerData](name) {
         dac.setTriggerChannel(triggerId, this)
 
       case _ =>
-        sys.error(s"TriggerChannel '$getName' requires FpgaModelDac.")
+        sys.error(s"TriggerChannel '$name' requires FpgaModelDac.")
     }
   }
 
@@ -49,19 +49,15 @@ class TriggerChannel(name: String) extends SramChannelBase[TriggerData](name) {
   }
 
   def getSramData(name: String): Array[Boolean] = {
-    val d = blocks.get(name) match {
-      case null =>
-        // create a dummy data block
-        val length = fpga.getBlockLength(name)
-        val zeros = Array.ofDim[Boolean](length)
-        val d = new TriggerDataTime(zeros)
-        d.setChannel(this)
-        blocks.put(name, d)
-        d
-
-      case d => d
-    }
-    d.get()
+    val trigger = blocks.getOrElseUpdate(name, {
+      // create a dummy data block
+      val length = fpga.getBlockLength(name)
+      val zeros = Array.ofDim[Boolean](length)
+      val d = new TriggerDataTime(zeros)
+      d.setChannel(this)
+      d
+    })
+    trigger.get()
   }
 
   // configuration

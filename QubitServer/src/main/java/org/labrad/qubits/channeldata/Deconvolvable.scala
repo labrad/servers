@@ -1,8 +1,7 @@
 package org.labrad.qubits.channeldata
 
-import java.util.concurrent.Future
-
 import org.labrad.qubits.proxies.DeconvolutionProxy
+import scala.concurrent.{ExecutionContext, Future}
 
 trait Deconvolvable {
   /**
@@ -19,5 +18,5 @@ trait Deconvolvable {
   /**
    * Deconvolve this item using the provided deconvolver.
    */
-  def deconvolve(deconvolver: DeconvolutionProxy): Future[Void]
+  def deconvolve(deconvolver: DeconvolutionProxy)(implicit ec: ExecutionContext): Future[Unit]
 }

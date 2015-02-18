@@ -10,7 +10,7 @@ class TriggerChannelBuilder(name: String, params: Seq[String], resources: Resour
   def build(): Channel = {
     val Seq(boardName, triggerId) = params
     val tc = new TriggerChannel(name)
-    val board = resources.get(boardName, classOf[DacBoard])
+    val board = resources.get[DacBoard](boardName)
     tc.setDacBoard(board)
     tc.setTriggerId(DacTriggerId.fromString(triggerId))
     tc

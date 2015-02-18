@@ -6,7 +6,7 @@ abstract class AnalogDataBase extends AnalogData {
 
   private var channel: AnalogChannel = null
 
-  private var _isDeconvolved = false
+  @volatile private var _isDeconvolved = false
 
   override def setChannel(channel: AnalogChannel): Unit = {
     this.channel = channel

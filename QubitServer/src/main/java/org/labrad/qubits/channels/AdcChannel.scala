@@ -14,15 +14,15 @@ import org.labrad.qubits.resources.AdcBoard
  * @author pomalley
  *
  */
-class AdcChannel(name: String, protected val board: AdcBoard) extends Channel with TimingChannel with StartDelayChannel {
+class AdcChannel(val name: String, protected val board: AdcBoard) extends Channel with TimingChannel with StartDelayChannel {
 
-  private val bp = this.board.getBuildProperties()
-  val MAX_CHANNELS = bp.get("DEMOD_CHANNELS").intValue()
-  val DEMOD_CHANNELS_PER_PACKET = bp.get("DEMOD_CHANNELS_PER_PACKET").intValue()
-  val TRIG_AMP = bp.get("TRIG_AMP").intValue()
+  private val props = this.board.getBuildProperties()
+  val MAX_CHANNELS = props("DEMOD_CHANNELS").toInt
+  val DEMOD_CHANNELS_PER_PACKET = props("DEMOD_CHANNELS_PER_PACKET").toInt
+  val TRIG_AMP = props("TRIG_AMP").toInt
   // see fpga server documentation on the "ADC Demod Phase" setting for an explanation of the two below.
-  val LOOKUP_ACCUMULATOR_BITS = bp.get("LOOKUP_ACCUMULATOR_BITS").intValue()
-  val DEMOD_TIME_STEP = bp.get("DEMOD_TIME_STEP").intValue() // in ns
+  val LOOKUP_ACCUMULATOR_BITS = props("LOOKUP_ACCUMULATOR_BITS").toInt
+  val DEMOD_TIME_STEP = props("DEMOD_TIME_STEP").toInt // in ns
 
   private var expt: Experiment = null
   private var fpga: FpgaModelAdc = null
@@ -67,10 +67,6 @@ class AdcChannel(name: String, protected val board: AdcBoard) extends Channel wi
     fpga
   }
 
-  override def getName(): String = {
-    name
-  }
-
   override def setExperiment(expt: Experiment): Unit = {
     this.expt = expt
   }
@@ -82,7 +78,7 @@ class AdcChannel(name: String, protected val board: AdcBoard) extends Channel wi
         adc.setChannel(this)
 
       case _ =>
-        sys.error(s"AdcChannel '$getName' require ADC board.")
+        sys.error(s"AdcChannel '$name' requires ADC board.")
     }
   }
 
@@ -93,27 +89,27 @@ class AdcChannel(name: String, protected val board: AdcBoard) extends Channel wi
     if (this == other)
       return true
     require(this.mode == other.mode,
-        s"Conflicting modes for ADC board ${this.board.getName}")
+        s"Conflicting modes for ADC board ${this.board.name}")
     require(this.getStartDelay() == other.getStartDelay(),
-        s"Conflicting start delays for ADC board ${this.board.getName}")
+        s"Conflicting start delays for ADC board ${this.board.name}")
     require(this.triggerTable.pretty() == other.triggerTable.pretty(),
-        s"Conflicting trigger tables for ADC board ${this.board.getName}: (this: ${this.triggerTable.pretty()}, other: ${other.triggerTable.pretty()})")
+        s"Conflicting trigger tables for ADC board ${this.board.name}: (this: ${this.triggerTable.pretty()}, other: ${other.triggerTable.pretty()})")
     mode match {
       case AdcMode.DEMODULATE =>
         require(this.filterFunction == other.filterFunction,
-            s"Conflicting filter functions for ADC board ${this.board.getName}")
+            s"Conflicting filter functions for ADC board ${this.board.name}")
         require(this.stretchAt == other.stretchAt,
-            s"Conflicting stretchAt parameters for ADC board ${this.board.getName}")
+            s"Conflicting stretchAt parameters for ADC board ${this.board.name}")
         require(this.stretchLen == other.stretchLen,
-            s"Conflicting stretchLen parameters for ADC board ${this.board.getName}")
+            s"Conflicting stretchLen parameters for ADC board ${this.board.name}")
         require(this.demodChannel != other.demodChannel,
-            s"Two ADC Demod channels with same channel number for ADC board ${this.board.getName}")
+            s"Two ADC Demod channels with same channel number for ADC board ${this.board.name}")
 
       case AdcMode.AVERAGE =>
         // nothing?
 
       case AdcMode.UNSET =>
-        sys.error(s"ADC board ${this.board.getName} has no mode (avg/demod) set!")
+        sys.error(s"ADC board ${this.board.name} has no mode (avg/demod) set!")
     }
     true
   }

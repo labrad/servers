@@ -1,10 +1,5 @@
 package org.labrad.qubits
 
-import com.google.common.collect.Lists
-import com.google.common.collect.Maps
-import java.util.List
-import java.util.Map
-import java.util.concurrent.Future
 import org.labrad.data.Data
 import org.labrad.data.Request
 import org.labrad.qubits.channels.TriggerChannel
@@ -14,7 +9,8 @@ import org.labrad.qubits.enums.DacTriggerId
 import org.labrad.qubits.proxies.DeconvolutionProxy
 import org.labrad.qubits.resources.DacBoard
 import scala.collection.JavaConverters._
-
+import scala.collection.mutable
+import scala.concurrent.{ExecutionContext, Future}
 
 object FpgaModelDac {
   val FREQUENCY = 25.0 // MHz
@@ -46,7 +42,7 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
 
   import FpgaModelDac._
 
-  private val triggers: Map[DacTriggerId, TriggerChannel] = Maps.newEnumMap(classOf[DacTriggerId])
+  private val triggers = mutable.Map.empty[DacTriggerId, TriggerChannel]
 
   // TODO: figure this out intelligently (from the build properties?)
   private val controller = if (dacBoard.getBuildNumber.toInt >= 13) {
@@ -57,9 +53,7 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
 
   clearController()
 
-  def getName(): String = {
-    dacBoard.getName()
-  }
+  def name: String = dacBoard.name
 
   def getDacBoard(): DacBoard = {
     dacBoard
@@ -71,7 +65,7 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
   }
 
   def addPackets(runRequest: Request): Unit = {
-    runRequest.add("Select Device", Data.valueOf(getName()))
+    runRequest.add("Select Device", Data.valueOf(name))
     runRequest.add("Start Delay", Data.valueOf(getStartDelay().toLong))
     controller.addPackets(runRequest)
     // TODO: having the dual block stuff here is a bit ugly
@@ -90,14 +84,14 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
   def getMemoryController(): MemoryController = {
     controller match {
       case mc: MemoryController => mc
-      case _ => sys.error(s"Cannot assign memory commands to jump table board $getName")
+      case _ => sys.error(s"Cannot assign memory commands to jump table board $name")
     }
   }
 
   def getJumpTableController(): JumpTableController = {
     controller match {
       case jtc: JumpTableController => jtc
-      case _ => sys.error(s"Cannot assign jump table commands to memory board $getName")
+      case _ => sys.error(s"Cannot assign jump table commands to memory board $name")
     }
   }
 
@@ -136,14 +130,13 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
   // SRAM
   //
 
-  def deconvolveSram(deconvolver: DeconvolutionProxy): Future[Void]
-
+  def deconvolveSram(deconvolver: DeconvolutionProxy)(implicit ec: ExecutionContext): Future[Unit]
 
   /**
    * Get the bits for the full SRAM sequence for this board.
    * We loop over all called blocks, padding the bits from each block
    * and then concatenating them together.
-   * 
+   *
    * pomalley 4/22/2014 -- Added check for hasSramChannel(), and in the
    * case where it is false, just do zeroes of the whole memory length.
    * See comment on hasSramChannel.
@@ -152,23 +145,22 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
   def getSram(): Array[Long] = {
     val sram = if (hasSramChannel()) {
       // concatenate bits for all SRAM blocks into one array
-      this.getBlockNames.asScala.toArray.flatMap { blockName =>
+      getBlockNames.toArray.flatMap { blockName =>
         val block = getSramBlock(blockName)
         padArrayFront(block, this.getPaddedBlockLength(blockName))
         block
       }
     } else {
-      var len = dacBoard.getBuildProperties().get("SRAM_LEN").intValue()
+      var len = dacBoard.getBuildProperties()("SRAM_LEN").toInt
       if (expt.getShortestSram() < len) {
-        //System.out.println(getName() + ": len: " + len + ", shortest: " + expt.getShortestSram());
         len = expt.getShortestSram()
       }
       Array.fill[Long](len) { 0 }
     }
     // check that the total sram sequence is not too long
-    if (sram.length > this.dacBoard.getBuildProperties().get("SRAM_LEN")) {
-      val allowed = this.dacBoard.getBuildProperties().get("SRAM_LEN")
-      sys.error(s"SRAM sequence exceeds maximum length. Length = ${sram.length}; allowed = $allowed; for board $getName")
+    val maxLen = this.dacBoard.getBuildProperties()("SRAM_LEN")
+    if (sram.length > maxLen) {
+      sys.error(s"SRAM sequence exceeds maximum length. Length = ${sram.length}; allowed = $maxLen; for board $name")
     }
     sram
   }
@@ -182,7 +174,7 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
     require(memoryController.hasDualBlockSram, "Sequence does not have a dual-block SRAM call")
     if (!hasSramChannel()) {
       // return zeros in this case
-      val len = Math.min(dacBoard.getBuildProperties().get("SRAM_LEN").intValue(), expt.getShortestSram())
+      val len = Math.min(dacBoard.getBuildProperties()("SRAM_LEN").toInt, expt.getShortestSram())
       Array.fill[Long](len) { 0 }
     } else {
       getSramBlock(memoryController.getDualBlockName1())
@@ -198,7 +190,7 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
     require(memoryController.hasDualBlockSram, "Sequence does not have a dual-block SRAM call")
     if (!hasSramChannel()) {
       // return zeros in this case
-      val len = Math.min(dacBoard.getBuildProperties().get("SRAM_LEN").intValue(), expt.getShortestSram())
+      val len = Math.min(dacBoard.getBuildProperties()("SRAM_LEN").toInt, expt.getShortestSram())
       Array.fill[Long](len) { 0 }
     } else {
       getSramBlock(memoryController.getDualBlockName2(), addAutoTrigger = false)
@@ -245,7 +237,7 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
     val autoTriggerId = expt.getAutoTriggerId()
     var foundAutoTrigger = false
 
-    for (ch <- triggers.values().asScala) {
+    for (ch <- triggers.values) {
       val trigs = ch.getSramData(block)
       if (addAutoTrigger && (expt.getAutoTriggerId() == ch.getTriggerId())) {
         foundAutoTrigger = true
@@ -301,26 +293,25 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
   // SRAM block management
   //
 
-  private val blocks: List[String] = Lists.newArrayList()
-  private val blockLengths: Map[String, Int] = Maps.newHashMap()
+  private val blocks = mutable.Buffer.empty[String]
+  private val blockLengths = mutable.Map.empty[String, Int]
 
   def startSramBlock(name: String, length: Long): Unit = {
     if (blocks.contains(name)) {
-      require(blockLengths.get(name) == length,
-          s"Conflicting block lengths for block '$name' for FPGA $getName (DAC board ${dacBoard.getName()})")
+      require(blockLengths(name) == length,
+          s"Conflicting block lengths for block $name for FPGA ${this.name} (DAC board ${dacBoard.name})")
     } else {
-      blocks.add(name)
-      blockLengths.put(name, length.toInt)
+      blocks += name
+      blockLengths(name) = length.toInt
     }
   }
 
-  def getBlockNames(): List[String] = {
-    Lists.newArrayList(blocks)
+  def getBlockNames(): Seq[String] = {
+    blocks.toSeq
   }
 
   def getBlockLength(name: String): Int = {
-    require(blockLengths.containsKey(name), s"SRAM block '$name' is undefined for board $getName")
-    blockLengths.get(name)
+    blockLengths.getOrElse(name, sys.error(s"SRAM block $name is undefined for board ${this.name}"))
   }
 
   /**
@@ -341,24 +332,24 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
 
   def getBlockStartAddress(name: String): Int = {
     var start = 0
-    for (block <- blocks.asScala) {
+    for (block <- blocks) {
       if (block == name) {
         return start
       }
       start += getPaddedBlockLength(block)
     }
-    sys.error(s"Block '$name' not found")
+    sys.error(s"Block $name not found")
   }
 
   def getBlockEndAddress(name: String): Int = {
     var end = 0
-    for (block <- blocks.asScala) {
+    for (block <- blocks) {
       end += getPaddedBlockLength(block)
       if (block == name) {
         return end - 1 //Zero indexing ;)
       }
     }
-    sys.error(s"Block '$name' not found")
+    sys.error(s"Block $name not found")
   }
 
 }

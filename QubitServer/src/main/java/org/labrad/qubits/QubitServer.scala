@@ -108,10 +108,10 @@ class QubitServer extends AbstractServer {
     val ans = getConnection().sendAndWait(req)
 
     // create objects for all resources
-    val resources = ans.get(idx).get(0).getClusterAsList()
+    val resources = ans.get(idx).get(0).getClusterAsList().asScala.toSeq
     //List<Data> resources = ans.get(idx).get(0).getDataList()
-    val fibers = ans.get(idx).get(1).getDataList()
-    val microwaves = ans.get(idx).get(2).getDataList()
+    val fibers = ans.get(idx).get(1).getDataList().asScala.toSeq
+    val microwaves = ans.get(idx).get(2).getDataList().asScala.toSeq
     Resources.updateWiring(resources, fibers, microwaves)
 
     println("Wiring configuration updated.")
@@ -132,7 +132,7 @@ class QubitServer extends AbstractServer {
     def run(): Unit = {
       // build and send request to the FPGA server
       val req = Request.to(Constants.GHZ_DAC_SERVER, wiringContext)
-      req.add("Select Device", Data.valueOf(myBoard.getName()))
+      req.add("Select Device", Data.valueOf(myBoard.name))
       req.add("Build Number")
 
       // TODO: let's temporarily try doing this synchronously
@@ -146,10 +146,6 @@ class QubitServer extends AbstractServer {
         case e: Exception =>
           onFailure(req, e)
       }
-
-      //System.out.println("Sent request for board " + myBoard.getName());
-      //System.out.println(req.getServerName() + " (" + req.getServerID() + ")");
-
     }
 
     override def onSuccess(request: Request, response: JList[Data]): Unit = {
@@ -157,21 +153,21 @@ class QubitServer extends AbstractServer {
         // we got the build number from the FPGA server
         val buildNumber = response.get(1).getString()
         myBoard.setBuildNumber(buildNumber)
-        println(s"Board ${myBoard.getName} has build number ${myBoard.getBuildNumber}")
+        println(s"Board ${myBoard.name} has build number ${myBoard.getBuildNumber}")
         gotBuildNumber = true
         // send out a new packet to the registry to look up info on this build number
         sendRegistryRequest()
       } else {
         // we have the build details from the registry
         myBoard.loadProperties(response.get(1))
-        println(s"Loaded build properties for board ${myBoard.getName}")
+        println(s"Loaded build properties for board ${myBoard.name}")
       }
     }
 
     override def onFailure(request: Request, cause: Throwable): Unit = {
       if (!gotBuildNumber) {
         // we failed to get the build number from the FPGA server
-        println(s"Board ${myBoard.getName} failed to get build number: Using default build number (5 for DAC, 1 for ADC).")
+        println(s"Board ${myBoard.name} failed to get build number: Using default build number (5 for DAC, 1 for ADC).")
         myBoard.setBuildNumber("-1")
         gotBuildNumber = true
         // send out a packet to the registry anyway to get the details
@@ -179,24 +175,26 @@ class QubitServer extends AbstractServer {
       } else {
         // we failed to get the build details from the registry
         println(s"Exception when looking up ADC/DAC build properties: ${cause.getMessage}. Using default values.")
-        if (myBoard.isInstanceOf[AdcBoard])
-          myBoard.loadProperties(Constants.DEFAULT_ADC_PROPERTIES_DATA)
-        else
-          myBoard.loadProperties(Constants.DEFAULT_DAC_PROPERTIES_DATA)
+        val defaults = myBoard match {
+          case _: AdcBoard => Constants.DEFAULT_ADC_PROPERTIES_DATA
+          case _: DacBoard => Constants.DEFAULT_DAC_PROPERTIES_DATA
+        }
+        myBoard.loadProperties(defaults)
       }
     }
 
     private def sendRegistryRequest(): Unit = {
       val regReq = startRegistryRequest()
       regReq.add("cd", Data.valueOf(Constants.BUILD_INFO_PATH))
-      var number = myBoard.getBuildNumber()
-      if (number == "-1") {
-        if (myBoard.isInstanceOf[AdcBoard])
-          number = "1"
-        else
-          number = "5"
+      val defaultBuild = myBoard match {
+        case _: AdcBoard => "1"
+        case _: DacBoard => "5"
       }
-      regReq.add("get", Data.valueOf(myBoard.getBuildType() + number))
+      val build = myBoard.getBuildNumber() match {
+        case "-1" => defaultBuild
+        case n => n
+      }
+      regReq.add("get", Data.valueOf(myBoard.getBuildType() + build))
 
       // TODO: synchronous as above
       //getConnection().send(regReq, this);
@@ -216,30 +214,28 @@ class QubitServer extends AbstractServer {
   def loadBuildProperties(): Unit = {
     println("Load DAC/ADC build properties...")
     val current = Resources.getCurrent()
-    val dacs = current.getAll(classOf[DacBoard])
+    var dacs = current.getAll[DacBoard]
     println(s"dacs.size() = ${dacs.size}")
     // make and start a request to do look up build numbers and properties for each board
-    for (board <- dacs.asScala) {
+    for (board <- dacs) {
       val bl = new BuildLoader(board)
       bl.run()
     }
 
     // check to see that we've set build properties
-    while (dacs.size() > 0) {
-      val it = dacs.iterator()
-      while (it.hasNext) {
-        if (it.next().havePropertiesLoaded())
-          it.remove()
-      }
+    while (dacs.nonEmpty) {
+      // keep dacs that have not yet loaded
+      dacs = dacs.filterNot(_.havePropertiesLoaded)
+
       var n = 0
-      if (dacs.size() > 0) {
+      if (dacs.nonEmpty) {
         println(s"Waiting on ${dacs.size} boards...")
         try {
           Thread.sleep(1000)
           n += 1
           if (n > 30) {
             System.err.println("Timeout when waiting for board build number info!")
-            dacs.clear()
+            dacs = Nil
           }
         } catch {
           case e: InterruptedException =>

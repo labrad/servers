@@ -1,15 +1,10 @@
 package org.labrad.qubits
 
-import com.google.common.collect.Lists
-import java.util.List
-import java.util.concurrent.Future
 import org.labrad.qubits.channels.IqChannel
 import org.labrad.qubits.proxies.DeconvolutionProxy
 import org.labrad.qubits.resources.MicrowaveBoard
 import org.labrad.qubits.resources.MicrowaveSource
-import org.labrad.qubits.util.Futures
-import scala.collection.JavaConverters._
-
+import scala.concurrent.{ExecutionContext, Future}
 
 class FpgaModelMicrowave(microwaveBoard: MicrowaveBoard, expt: Experiment) extends FpgaModelDac(microwaveBoard, expt) {
 
@@ -27,15 +22,14 @@ class FpgaModelMicrowave(microwaveBoard: MicrowaveBoard, expt: Experiment) exten
     microwaveBoard.getMicrowaveSource()
   }
 
-  def deconvolveSram(deconvolver: DeconvolutionProxy): Future[Void] = {
-    val deconvolutions: List[Future[Void]] = Lists.newArrayList()
-    for (blockName <- getBlockNames().asScala) {
-      val block = iq.getBlockData(blockName)
-      if (!block.isDeconvolved()) {
-        deconvolutions.add(block.deconvolve(deconvolver))
-      }
-    }
-    Futures.waitForAll(deconvolutions)
+  def deconvolveSram(deconvolver: DeconvolutionProxy)(implicit ec: ExecutionContext): Future[Unit] = {
+    val deconvolutions = for {
+      blockName <- getBlockNames()
+      block = iq.getBlockData(blockName)
+      if !block.isDeconvolved
+    } yield block.deconvolve(deconvolver)
+
+    Future.sequence(deconvolutions).map { _ => () } // discard results
   }
 
   /**

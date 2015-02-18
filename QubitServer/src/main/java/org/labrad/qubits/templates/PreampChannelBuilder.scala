@@ -10,7 +10,7 @@ class PreampChannelBuilder(name: String, params: Seq[String], resources: Resourc
   def build(): Channel = {
     val Seq(boardName, channel) = params
     val pc = new PreampChannel(name)
-    val board = resources.get(boardName, classOf[PreampBoard])
+    val board = resources.get[PreampBoard](boardName)
     pc.setPreampBoard(board)
     pc.setPreampChannel(DcRackFiberId.fromString(channel))
     // look up the dacBoard on the other end and connect to it

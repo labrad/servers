@@ -24,6 +24,6 @@ object ExperimentBuilder {
 class ExperimentBuilder(deviceBuilders: Seq[DeviceBuilder]) {
   def build(): Experiment = {
     val devs = deviceBuilders.map(_.build())
-    new Experiment(devs.asJava)
+    new Experiment(devs)
   }
 }

@@ -16,11 +16,8 @@ class FastBiasFpgaChannel(name: String) extends FastBiasChannel(name) with FpgaC
 
   def setFpgaModel(fpga: FpgaModel): Unit = {
     fpga match {
-      case dac: FpgaModelDac =>
-        this.fpga = dac
-
-      case _ =>
-        sys.error(s"FastBias '$getName' requires an FpgaModelDac.")
+      case dac: FpgaModelDac => this.fpga = dac
+      case _ => sys.error(s"FastBias $name requires an FpgaModelDac.")
     }
   }
 
@@ -34,9 +31,5 @@ class FastBiasFpgaChannel(name: String) extends FastBiasChannel(name) with FpgaC
 
   def getDacBoard(): DacBoard = {
     board
-  }
-
-  override def getName(): String = {
-    name
   }
 }

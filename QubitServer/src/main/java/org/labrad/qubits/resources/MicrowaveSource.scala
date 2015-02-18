@@ -1,8 +1,6 @@
 package org.labrad.qubits.resources
 
-import java.util.Set
-
-import com.google.common.collect.Sets
+import scala.collection.mutable
 
 object MicrowaveSource {
   def create(name: String): MicrowaveSource = {
@@ -11,15 +9,13 @@ object MicrowaveSource {
 }
 
 class MicrowaveSource(val name: String) extends Resource {
-  private val boards: Set[MicrowaveBoard] = Sets.newHashSet()
+  private val boards = mutable.Set.empty[MicrowaveBoard]
 
   def addMicrowaveBoard(board: MicrowaveBoard): Unit = {
-    boards.add(board)
+    boards += board
   }
 
   def getMicrowaveBoards(): Set[MicrowaveBoard] = {
-    boards
+    boards.toSet
   }
-
-  def getName(): String = name
 }

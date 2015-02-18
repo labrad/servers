@@ -1,36 +1,29 @@
 package org.labrad.qubits.channeldata
 
-import java.util.concurrent.Future
-
 import org.labrad.qubits.channels.IqChannel
 import org.labrad.qubits.proxies.DeconvolutionProxy
 import org.labrad.qubits.proxies.DeconvolutionProxy.IqResult
 import org.labrad.qubits.util.ComplexArray
-import org.labrad.qubits.util.Futures
-
-import com.google.common.base.Function
+import scala.concurrent.{ExecutionContext, Future}
 
 class IqDataFourier(data: ComplexArray, t0: Double, zeroEnds: Boolean) extends IqDataBase {
 
-  private var I: Array[Int] = null
-  private var Q: Array[Int] = null
+  @volatile private var I: Array[Int] = null
+  @volatile private var Q: Array[Int] = null
 
   def checkLength(expected: Int): Unit = {
     LengthChecker.checkLengths(data.length, expected)
   }
 
-  def deconvolve(deconvolver: DeconvolutionProxy): Future[Void] = {
+  def deconvolve(deconvolver: DeconvolutionProxy)(implicit ec: ExecutionContext): Future[Unit] = {
     val ch = getChannel()
     val freq = ch.getMicrowaveConfig().frequency
     val req = deconvolver.deconvolveIqFourier(ch.getDacBoard(), data, freq, t0, zeroEnds)
-    Futures.chain(req, new Function[DeconvolutionProxy.IqResult, Void] {
-      override def apply(result: IqResult): Void = {
-        I = result.I
-        Q = result.Q
-        setDeconvolved(true)
-        null
-      }
-    })
+    req.map { result =>
+      I = result.I
+      Q = result.Q
+      setDeconvolved(true)
+    }
   }
 
   override def getDeconvolvedI(): Array[Int] = {

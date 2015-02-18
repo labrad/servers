@@ -9,7 +9,7 @@ class IqChannelBuilder(name: String, params: Seq[String], resources: Resources) 
   def build(): Channel = {
     val Seq(boardName) = params
     val iq = new IqChannel(name)
-    val board = resources.get(boardName, classOf[MicrowaveBoard])
+    val board = resources.get[MicrowaveBoard](boardName)
     iq.setDacBoard(board)
     val src = board.getMicrowaveSource()
     iq.setMicrowaveSource(src)

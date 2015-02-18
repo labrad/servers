@@ -1,12 +1,10 @@
 package org.labrad.qubits.resources
 
-import java.util.Map
+import scala.collection.mutable
 
 import org.labrad.data.Data
 import org.labrad.qubits.enums.DacFiberId
 import org.labrad.qubits.enums.DcRackFiberId
-
-import com.google.common.collect.Maps
 
 object FastBias {
   def create(name: String, properties: Seq[Data]): FastBias = {
@@ -16,14 +14,10 @@ object FastBias {
   }
 }
 
-class FastBias(name: String) extends BiasBoard {
-  private val dacBoards: Map[DcRackFiberId, DacBoard] = Maps.newHashMap()
-  private val dacFibers: Map[DcRackFiberId, DacFiberId] = Maps.newHashMap()
-  private val gains: Map[DcRackFiberId, Double] = Maps.newHashMap()
-
-  def getName: String = {
-    name
-  }
+class FastBias(val name: String) extends BiasBoard {
+  private val dacBoards = mutable.Map.empty[DcRackFiberId, DacBoard]
+  private val dacFibers = mutable.Map.empty[DcRackFiberId, DacFiberId]
+  private val gains = mutable.Map.empty[DcRackFiberId, Double]
 
   def setDacBoard(channel: DcRackFiberId, board: DacBoard, fiber: DacFiberId) {
     dacBoards.put(channel, board)
@@ -31,23 +25,15 @@ class FastBias(name: String) extends BiasBoard {
   }
 
   def getDacBoard(channel: DcRackFiberId): DacBoard = {
-    require(dacBoards.containsKey(channel),
-        s"No DAC board wired to channel '$channel' on board '$name'")
-    dacBoards.get(channel)
+    dacBoards.getOrElse(channel, sys.error(s"No DAC board wired to channel $channel on board $name"))
   }
 
   def getFiber(channel: DcRackFiberId): DacFiberId = {
-    require(dacBoards.containsKey(channel),
-        s"No DAC board wired to channel '$channel' on board '$name'")
-    dacFibers.get(channel)
+    dacFibers.getOrElse(channel, sys.error(s"No DAC board wired to channel $channel on board $name"))
   }
 
   def getGain(channel: DcRackFiberId): Double = {
-    if (gains.containsKey(channel)) {
-      gains.get(channel)
-    } else {
-      1.0
-    }
+    gains.getOrElse(channel, 1.0)
   }
 
   private def setProperties(properties: Seq[Data]): Unit = {
@@ -57,7 +43,7 @@ class FastBias(name: String) extends BiasBoard {
         val channels = DcRackFiberId.values()
         val values = elem.get(1).getValueArray()
         for ((ch, gain) <- channels zip values) {
-          gains.put(ch, gain)
+          gains(ch) = gain
         }
       }
     }

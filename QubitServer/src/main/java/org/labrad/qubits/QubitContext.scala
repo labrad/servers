@@ -1,14 +1,6 @@
 package org.labrad.qubits
 
-import com.google.common.collect.ArrayListMultimap
-import com.google.common.collect.ListMultimap
-import com.google.common.collect.Lists
-import com.google.common.collect.Maps
-import java.util.Collections
-import java.util.HashSet
-import java.util.List
-import java.util.Map
-import java.util.concurrent.Future
+import java.util.{List => JList}
 import org.labrad.AbstractServerContext
 import org.labrad.annotations.Accepts
 import org.labrad.annotations.Returns
@@ -28,8 +20,12 @@ import org.labrad.qubits.resources.MicrowaveSource
 import org.labrad.qubits.resources.Resources
 import org.labrad.qubits.templates.ExperimentBuilder
 import org.labrad.qubits.util.ComplexArray
-import org.labrad.qubits.util.Futures
 import scala.collection.JavaConverters._
+import scala.collection.mutable
+import scala.concurrent.{Await, Future}
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
+import scala.reflect.ClassTag
 
 class QubitContext extends AbstractServerContext {
 
@@ -78,14 +74,14 @@ class QubitContext extends AbstractServerContext {
    * Get a channel from the experiment that is of a particular Channel class
    * this unpacks the channel descriptor directly from the incoming LabRAD data
    */
-  private def getChannel[T <: Channel](data: Data, cls: Class[T]): T = {
+  private def getChannel[T <: Channel : ClassTag](data: Data): T = {
     if (data.matchesType("s")) {
       val device = data.getString()
-      getChannel(device, cls)
+      getChannel[T](device)
     } else if (data.matchesType("ss")) {
       val device = data.get(0).getString()
       val channel = data.get(1).getString()
-      getChannel(device, channel, cls)
+      getChannel[T](device, channel)
     } else {
       sys.error(s"Unknown channel identifier: ${data.pretty}")
     }
@@ -94,8 +90,8 @@ class QubitContext extends AbstractServerContext {
   /**
    * Get a channel from the experiment that is of a particular class
    */
-  private def getChannel[T <: Channel](device: String, channel: String, cls: Class[T]): T = {
-    getExperiment().getDevice(device).getChannel(channel, cls)
+  private def getChannel[T <: Channel : ClassTag](device: String, channel: String): T = {
+    getExperiment().getDevice(device).getChannel[T](channel)
   }
 
   /**
@@ -103,8 +99,8 @@ class QubitContext extends AbstractServerContext {
    * In this case, no channel name is specified, so this will succeed
    * only if there is a unique channel of the appropriate type.
    */
-  private def getChannel[T <: Channel](device: String, cls: Class[T]): T = {
-    getExperiment().getDevice(device).getChannel(cls)
+  private def getChannel[T <: Channel : ClassTag](device: String): T = {
+    getExperiment().getDevice(device).getChannel[T]
   }
 
   /**
@@ -195,14 +191,14 @@ class QubitContext extends AbstractServerContext {
       @Accepts(Array("v[GHz]")) freq: Double,
       @Accepts(Array("v[dBm]")) power: Double): Unit = {
     // turn the microwave source on, set the power level and frequency
-    val ch = getChannel(id, classOf[IqChannel])
+    val ch = getChannel[IqChannel](id)
     ch.configMicrowavesOn(freq, power)
     configDirty = true
   }
   @SettingOverload
   def config_microwaves(@Accepts(Array("s", "ss")) id: Data): Unit = {
     // turn the microwave source off
-    val ch = getChannel(id, classOf[IqChannel])
+    val ch = getChannel[IqChannel](id)
     ch.configMicrowavesOff()
     configDirty = true
   }
@@ -216,7 +212,7 @@ class QubitContext extends AbstractServerContext {
   def config_preamp(@Accepts(Array("s", "ss")) id: Data,
       offset: Long, polarity: Boolean, highPass: String, lowPass: String): Unit = {
     // set the preamp offset, polarity and filtering options
-    val ch = getChannel(id, classOf[PreampChannel])
+    val ch = getChannel[PreampChannel](id)
     ch.setPreampConfig(offset, polarity, highPass, lowPass)
     configDirty = true
   }
@@ -229,7 +225,7 @@ class QubitContext extends AbstractServerContext {
       @Accepts(Array("*v[GHz]")) rates: Array[Double],
       @Accepts(Array("*v[]")) amplitudes: Array[Double]
   ): Unit = {
-    val ch = getChannel(id, classOf[AnalogChannel])
+    val ch = getChannel[AnalogChannel](id)
     ch.setSettling(rates, amplitudes)
     configDirty = true
   }
@@ -242,7 +238,7 @@ class QubitContext extends AbstractServerContext {
       @Accepts(Array("*v[GHz]")) rates: Array[Double],
       @Accepts(Array("*v[]")) amplitudes: Array[Double]
   ): Unit = {
-    val ch = getChannel(id, classOf[AnalogChannel])
+    val ch = getChannel[AnalogChannel](id)
     ch.setReflection(rates, amplitudes)
     configDirty = true
   }
@@ -254,8 +250,8 @@ class QubitContext extends AbstractServerContext {
               |If this option is not specified, timing results will be returned
               |for all timing channels in the order they were defined when this
               |sequence was initialized.""")
-  def config_timing_order(@Accepts(Array("*s", "*(ss)")) ids: List[Data]): Unit = {
-    val channels: List[TimingOrderItem] = Lists.newArrayList()
+  def config_timing_order(@Accepts(Array("*s", "*(ss)")) ids: JList[Data]): Unit = {
+    val channels = Seq.newBuilder[TimingOrderItem]
     for (id <- ids.asScala) {
       var i = -1
       if (id.isCluster()) {
@@ -269,9 +265,9 @@ class QubitContext extends AbstractServerContext {
           id.setString(id.getString().substring(0, id.getString().lastIndexOf(':') - 1))
         }
       }
-      channels.add(new TimingOrderItem(getChannel(id, classOf[TimingChannel]), i))
+      channels += new TimingOrderItem(getChannel[TimingChannel](id), i)
     }
-    getExperiment().setTimingOrder(channels)
+    getExperiment().setTimingOrder(channels.result)
     configDirty = true
   }
 
@@ -286,14 +282,13 @@ class QubitContext extends AbstractServerContext {
               |server name, and cluster of records, where each record is a cluster of
               |setting name and data.  These setup packets will get sent before
               |this sequence is run, allowing various sequences to be interleaved.""")
-  def config_setup_packets(states: List[String], packets: Data): Unit = {
-    def packetList: List[Data] = Lists.newArrayList()
-    for (i <- 0 until packets.getClusterSize()) {
+  def config_setup_packets(states: JList[String], packets: Data): Unit = {
+    val packetSeq = Seq.tabulate(packets.getClusterSize()) { i =>
       val packet = packets.get(i)
       checkSetupPacket(packet)
-      packetList.add(packet)
+      packet
     }
-    getExperiment().setSetupState(states, packetList)
+    getExperiment().setSetupState(states.asScala.toSeq, packetSeq)
     configDirty = true
   }
 
@@ -324,7 +319,7 @@ class QubitContext extends AbstractServerContext {
       doc = "Configure switching intervals for processing timing data from a particular timing channel.")
   def config_switch_intervals(@Accepts(Array("s", "ss")) id: Data,
       @Accepts(Array("*(v[us], v[us])")) intervals: Data): Unit = {
-    val channel = getChannel(id, classOf[PreampChannel])
+    val channel = getChannel[PreampChannel](id)
     val ints = Array.ofDim[(Double, Double)](intervals.getArraySize())
     for (i <- ints.indices) {
       val interval = intervals.get(i)
@@ -338,7 +333,7 @@ class QubitContext extends AbstractServerContext {
       doc = "Configure the critical phases for processing ADC readout.")
   def config_critical_phases(@Accepts(Array("s","ss")) id: Data,
       @Accepts(Array("v{phase}")) phase: Data): Unit = {
-    val channel = getChannel(id, classOf[AdcChannel])
+    val channel = getChannel[AdcChannel](id)
     channel.setCriticalPhase(phase.getValue())
   }
 
@@ -348,7 +343,7 @@ class QubitContext extends AbstractServerContext {
               |True and we do < instead (for this ADC channel).""")
   def reverse_critical_phase_comparison(@Accepts(Array("s", "ss")) id: Data,
       @Accepts(Array("b{reverse}")) reverse: Data): Unit = {
-    val channel = getChannel(id, classOf[AdcChannel])
+    val channel = getChannel[AdcChannel](id)
     channel.reverseCriticalPhase(reverse.getBool())
   }
 
@@ -356,7 +351,7 @@ class QubitContext extends AbstractServerContext {
       name = "Set IQ Offsets",
       doc = "Bother Dan")
   def set_iq_offset(@Accepts(Array("s", "ss")) id: Data, @Accepts(Array("ii")) offsets: Data): Unit = {
-    val channel = getChannel(id, classOf[AdcChannel])
+    val channel = getChannel[AdcChannel](id)
     channel.setIqOffset(offsets.get(0).getInt(), offsets.get(1).getInt())
   }
 
@@ -399,23 +394,26 @@ class QubitContext extends AbstractServerContext {
               |A final delay can be specified to have a delay command added after the bias
               |commands on all memory sequences.  If no final delay is specified, a default
               |delay will be added (currently 4.3 microseconds).""")
-  def mem_bias(@Accepts(Array("*(s s v[mV])", "*((ss) s v[mV])")) commands: List[Data]): Unit = {
+  def mem_bias(@Accepts(Array("*(s s v[mV])", "*((ss) s v[mV])")) commands: JList[Data]): Unit = {
     mem_bias(commands, Constants.DEFAULT_BIAS_DELAY)
     memDirty = true
   }
   @SettingOverload
-  def mem_bias(@Accepts(Array("*(s s v[mV])", "*((ss) s v[mV])")) commands: List[Data],
+  def mem_bias(@Accepts(Array("*(s s v[mV])", "*((ss) s v[mV])")) commands: JList[Data],
       @Accepts(Array("v[us]")) microseconds: Double): Unit = {
-    // create a map with a list of commands for each board
-    val fpgas: ListMultimap[FpgaModelDac, MemoryCommand] = ArrayListMultimap.create()
 
-    // parse the commands and group them for each fpga
-    for (cmd <- commands.asScala) {
-      val ch = getChannel(cmd.get(0), classOf[FastBiasFpgaChannel])
+    // parse the commands and find the board they apply to
+    val boardsAndCommands = commands.asScala.toSeq.map { cmd =>
+      val ch = getChannel[FastBiasFpgaChannel](cmd.get(0))
       val cmdType = BiasCommandType.fromString(cmd.get(1).getString())
       val voltage = cmd.get(2).getValue()
-      fpgas.put(ch.getFpgaModel(), FastBiasCommands.get(cmdType, ch, voltage))
+      (ch.getFpgaModel(), FastBiasCommands.get(cmdType, ch, voltage))
     }
+
+    // group commands by fpga board
+    val fpgas = boardsAndCommands
+      .groupBy { case (board, cmd) => board }
+      .map { case (board, cmds) => board -> cmds.map(_._2) } // just keep cmd from board, command tuple
 
     getExperiment().addBiasCommands(fpgas, microseconds)
     memDirty = true
@@ -433,7 +431,7 @@ class QubitContext extends AbstractServerContext {
     name = "Mem Delay Single",
     doc = "Add a delay to a single channel.")
   def mem_delay_single(@Accepts(Array("(s v[us])", "((ss) v[us])")) command: Data): Unit = {
-    val ch = getChannel(command.get(0), classOf[FastBiasFpgaChannel])
+    val ch = getChannel[FastBiasFpgaChannel](command.get(0))
     val delay_us = command.get(1).getValue()
     getExperiment().addSingleMemoryDelay(ch.getFpgaModel(), delay_us)
     memDirty = true
@@ -462,11 +460,8 @@ class QubitContext extends AbstractServerContext {
   @Setting(id = 340,
       name = "Mem Start Timer",
       doc = "Start the timer for the specified timing channels.")
-  def mem_start_timer(@Accepts(Array("*s", "*(ss)")) ids: List[Data]): Unit = {
-    val channels: List[PreampChannel] = Lists.newArrayList()
-    for (ch <- ids.asScala) {
-      channels.add(getChannel(ch, classOf[PreampChannel]))
-    }
+  def mem_start_timer(@Accepts(Array("*s", "*(ss)")) ids: JList[Data]): Unit = {
+    val channels = ids.asScala.toSeq.map { id => getChannel[PreampChannel](id) }
     getExperiment().startTimer(channels)
     memDirty = true
   }
@@ -474,11 +469,8 @@ class QubitContext extends AbstractServerContext {
   @Setting(id = 350,
       name = "Mem Stop Timer",
       doc = "Stop the timer for the specified timing channels.")
-  def mem_stop_timer(@Accepts(Array("*s", "*(ss)")) ids: List[Data]): Unit = {
-    val channels: List[PreampChannel] = Lists.newArrayList()
-    for (ch <- ids.asScala) {
-      channels.add(getChannel(ch, classOf[PreampChannel]))
-    }
+  def mem_stop_timer(@Accepts(Array("*s", "*(ss)")) ids: JList[Data]): Unit = {
+    val channels = ids.asScala.toSeq.map { id => getChannel[PreampChannel](id) }
     getExperiment().stopTimer(channels)
     memDirty = true
   }
@@ -500,7 +492,7 @@ class QubitContext extends AbstractServerContext {
       doc = "Set the bias for this fastBias card (controlled by the DC rack server, over serial)")
   def config_bias_voltage(@Accepts(Array("s", "ss")) id: Data, dac: String, @Accepts(Array("v[V]")) voltage: Double): Unit = {
     // TODO: create a mem_bias call if the channel is a FastBiasFpga channel.
-    val ch = getChannel(id, classOf[FastBiasSerialChannel])
+    val ch = getChannel[FastBiasSerialChannel](id)
     ch.setDac(dac)
     ch.setBias(voltage)
   }
@@ -543,7 +535,7 @@ class QubitContext extends AbstractServerContext {
               |a multiple of 4, the data will be padded at the beginning after
               |deconvolution.""")
   def new_sram_block(name: String, length: Long, @Accepts(Array("ss")) id: Data): Unit = {
-    val ch = getChannel(id, classOf[SramChannelBase[_]])
+    val ch = getChannel[SramChannelBase[_]](id)
     ch.getFpgaModel().startSramBlock(name, length)
     ch.setCurrentBlock(name)
     sramDirty = true
@@ -603,7 +595,7 @@ class QubitContext extends AbstractServerContext {
       deconvolve: Boolean,
       zeroEnds: Boolean
   ): Unit = {
-    val ch = getChannel(id, classOf[IqChannel])
+    val ch = getChannel[IqChannel](id)
     if (vals.isCluster()) {
       require(!deconvolve, "Must not deconvolve if providing DAC'ified IQ data.")
       ch.addData(new IqDataTimeDacified(vals.get(0).getIntArray(), vals.get(1).getIntArray()))
@@ -643,7 +635,7 @@ class QubitContext extends AbstractServerContext {
       @Accepts(Array("v[ns]")) t0: Double,
       zeroEnds: Boolean
   ): Unit = {
-    val ch = getChannel(id, classOf[IqChannel])
+    val ch = getChannel[IqChannel](id)
     val c = ComplexArray.fromData(vals)
     ch.addData(new IqDataFourier(c, t0, zeroEnds))
     sramDirty = true
@@ -700,7 +692,7 @@ class QubitContext extends AbstractServerContext {
       averageEnds: Boolean,
       dither: Boolean
   ): Unit = {
-    val ch = getChannel(id, classOf[AnalogChannel])
+    val ch = getChannel[AnalogChannel](id)
     if (vals.matchesType("*v")) {
       val arr = vals.getValueArray()
       ch.addData(new AnalogDataTime(arr, !deconvolve, averageEnds, dither))
@@ -754,7 +746,7 @@ class QubitContext extends AbstractServerContext {
       averageEnds: Boolean,
       dither: Boolean
   ): Unit = {
-    val ch = getChannel(id, classOf[AnalogChannel])
+    val ch = getChannel[AnalogChannel](id)
     val c = ComplexArray.fromData(vals)
     ch.addData(new AnalogDataFourier(c, t0, averageEnds, dither))
     sramDirty = true
@@ -768,7 +760,7 @@ class QubitContext extends AbstractServerContext {
       doc = "Set trigger data for the specified trigger channel")
   def sram_trigger_data(@Accepts(Array("s", "ss")) id: Data,
       @Accepts(Array("*b")) data: Data): Unit = {
-    val ch = getChannel(id, classOf[TriggerChannel])
+    val ch = getChannel[TriggerChannel](id)
     ch.addData(new TriggerDataTime(data.getBoolArray()))
     sramDirty = true
   }
@@ -780,8 +772,8 @@ class QubitContext extends AbstractServerContext {
               |Each pulse is given as a cluster of (start, length) values,
               |specified in nanoseconds.""")
   def sram_trigger_pulses(@Accepts(Array("s", "ss")) id: Data,
-      @Accepts(Array("*(v[ns] v[ns])")) pulses: List[Data]): Unit = {
-    val ch = getChannel(id, classOf[TriggerChannel])
+      @Accepts(Array("*(v[ns] v[ns])")) pulses: JList[Data]): Unit = {
+    val ch = getChannel[TriggerChannel](id)
     for (pulse <- pulses.asScala) {
       val start = pulse.get(0).getValue().toInt
       val length = pulse.get(1).getValue().toInt
@@ -802,7 +794,7 @@ class QubitContext extends AbstractServerContext {
               |Second: delay, in clock cycles (typically 4 ns) (w)""")
   def adc_set_start_delay(@Accepts(Array("s", "ss")) id: Data,
       @Accepts(Array("i")) delay: Int): Unit = {
-    val ch = getChannel(id, classOf[StartDelayChannel])
+    val ch = getChannel[StartDelayChannel](id)
     ch.setStartDelay(delay)
   }
 
@@ -814,7 +806,7 @@ class QubitContext extends AbstractServerContext {
               |Second {s or (si)}: either 'demodulate' or ('average', [demod channel number])""")
   def adc_set_mode(@Accepts(Array("s", "ss")) id: Data,
       @Accepts(Array("s", "si")) mode: Data): Unit = {
-    val ch = getChannel(id, classOf[AdcChannel])
+    val ch = getChannel[AdcChannel](id)
     if (mode.isString()) {
       ch.setToAverage()
     } else {
@@ -834,7 +826,7 @@ class QubitContext extends AbstractServerContext {
       @Accepts(Array("s")) bytes: Data,
       @Accepts(Array("w")) stretchLen: Data,
       @Accepts(Array("w")) stretchAt: Data): Unit = {
-    val ch = getChannel(id, classOf[AdcChannel])
+    val ch = getChannel[AdcChannel](id)
     ch.setFilterFunction(bytes.getString(), stretchLen.getWord().toInt, stretchAt.getWord().toInt)
   }
 
@@ -850,7 +842,7 @@ class QubitContext extends AbstractServerContext {
   def adc_set_trig_magnitude(@Accepts(Array("s", "ss")) id: Data,
       @Accepts(Array("w")) sineAmp: Data,
       @Accepts(Array("w")) cosineAmp: Data): Unit = {
-    val ch = getChannel(id, classOf[AdcChannel])
+    val ch = getChannel[AdcChannel](id)
     ch.setTrigMagnitude(sineAmp.getWord().toInt, cosineAmp.getWord().toInt)
   }
 
@@ -864,7 +856,7 @@ class QubitContext extends AbstractServerContext {
               |Second {(i,i) or (v[Hz], v[rad])}: (dPhi, phi0) or (frequency (Hz), offset (radians))""")
   def adc_demod_phase(@Accepts(Array("s", "ss")) id: Data,
       @Accepts(Array("ii", "v[Hz]v[rad]")) dat: Data): Unit = {
-    val ch = getChannel(id, classOf[AdcChannel])
+    val ch = getChannel[AdcChannel](id)
     if (dat.matchesType("(ii)")) {
       ch.setPhase(dat.get(0).getInt(), dat.get(1).getInt())
     } else {
@@ -878,7 +870,7 @@ class QubitContext extends AbstractServerContext {
               |data: List of (count,delay,length,rchan) tuples.""")
   def adc_trigger_table(@Accepts(Array("s", "ss")) id: Data,
       @Accepts(Array("*(i,i,i,i)")) data: Data): Unit = {
-    val ch = getChannel(id, classOf[AdcChannel])
+    val ch = getChannel[AdcChannel](id)
     ch.setTriggerTable(data)
   }
 
@@ -888,7 +880,7 @@ class QubitContext extends AbstractServerContext {
               |data: List of (count,delay,length,rchan) tuples.""")
   def adc_mixer_table(@Accepts(Array("s", "ss")) id: Data,
       @Accepts(Array("*2i {Nx2 array of IQ values}")) data: Data): Unit = {
-    val ch = getChannel(id, classOf[AdcChannel])
+    val ch = getChannel[AdcChannel](id)
     ch.setMixerTable(data)
   }
 
@@ -927,25 +919,27 @@ class QubitContext extends AbstractServerContext {
     }*/
 
     // check microwave source configuration
-    val uwaveConfigs: Map[MicrowaveSource, MicrowaveSourceConfig] = Maps.newHashMap()
-    for (ch <- expt.getChannels(classOf[IqChannel]).asScala) {
+    val uwaveConfigs = mutable.Map.empty[MicrowaveSource, MicrowaveSourceConfig]
+    for (ch <- expt.getChannels[IqChannel]) {
       val src = ch.getMicrowaveSource()
       val config = ch.getMicrowaveConfig()
-      require(config != null, s"No microwaves configured for channel '${ch.getName}'")
-      if (!uwaveConfigs.containsKey(src)) {
-        // keep track of which microwave sources we have seen
-        uwaveConfigs.put(src, config)
-      } else {
-        // check that microwave configurations are compatible
-        require(config == uwaveConfigs.get(src),
-            s"Conflicting microwave configurations for source '${src.getName}'")
+      require(config != null, s"No microwaves configured for channel '${ch.name}'")
+      uwaveConfigs.get(src) match {
+        case None =>
+          // keep track of which microwave sources we have seen
+          uwaveConfigs(src) = config
+
+        case Some(existing) =>
+          // check that microwave configurations are compatible
+          require(config == existing,
+              s"Conflicting microwave configurations for source '${src.name}'")
       }
     }
     // turn off the microwave source for any boards whose source is not configured
-    for (fpga <- getExperiment().getMicrowaveFpgas().asScala) {
+    for (fpga <- getExperiment().getMicrowaveFpgas()) {
       val src = fpga.getMicrowaveSource()
-      if (!uwaveConfigs.containsKey(src)) {
-        uwaveConfigs.put(src, MicrowaveSourceOffConfig)
+      if (!uwaveConfigs.contains(src)) {
+        uwaveConfigs(src) = MicrowaveSourceOffConfig
       }
     }
 
@@ -954,57 +948,54 @@ class QubitContext extends AbstractServerContext {
     // build setup packets
     //
 
+    val setupPackets = Seq.newBuilder[Data]
+    val setupState = Seq.newBuilder[String]
+
     // start with setup packets that have already been configured
-    val setupPackets: List[Data] = Lists.newArrayList(expt.getSetupPackets())
-    val setupState: List[String] = Lists.newArrayList(expt.getSetupState())
+    setupPackets ++= expt.getSetupPackets()
+    setupState ++= expt.getSetupState()
 
     // build setup packets for microwave sources
     // TODO if a microwave source is used for dummy channels and real channels, resolve here
     val anristuRequest = Request.to(Constants.ANRITSU_SERVER)
     anristuRequest.add("List Devices")
     val anritsuList = getConnection().sendAndWait(anristuRequest).get(0).getDataList()
-    val anritsuNames = new HashSet[String]()
-    for (d <- anritsuList.asScala) {
-      anritsuNames.add(d.get(1).getString())
-      //System.out.println("Anritsu Device: '" + d.get(1).getString() + "'");
-    }
+    val anritsuNames = anritsuList.asScala.map(_.get(1).getString()).toSet
+
     val hittiteRequest = Request.to(Constants.HITTITE_SERVER)
     hittiteRequest.add("List Devices")
     val hittiteList = getConnection().sendAndWait(hittiteRequest).get(0).getDataList()
-    val hittiteNames = new HashSet[String]()
-    for (d <- hittiteList.asScala) {
-      hittiteNames.add(d.get(1).getString())
-      //System.out.println("Hittite Device: '" + d.get(1).getString() + "'");
-    }
-    for (entry <- uwaveConfigs.entrySet().asScala) {
-      val p = entry.getValue().getSetupPacket(entry.getKey())
-      val devName = entry.getKey().getName()
+    val hittiteNames = hittiteList.asScala.map(_.get(1).getString()).toSet
+
+    for ((src, config) <- uwaveConfigs) {
+      val p = config.getSetupPacket(src)
+      val devName = src.name
       if (anritsuNames.contains(devName)) {
-        setupPackets.add(buildSetupPacket(Constants.ANRITSU_SERVER, p.records))
+        setupPackets += buildSetupPacket(Constants.ANRITSU_SERVER, p.records)
       } else if (hittiteNames.contains(devName)) {
-        setupPackets.add(buildSetupPacket(Constants.HITTITE_SERVER, p.records))
+        setupPackets += buildSetupPacket(Constants.HITTITE_SERVER, p.records)
       } else {
         sys.error(s"Microwave device not found: '$devName'")
       }
 
-      setupState.add(p.state)
+      setupState += p.state
     }
 
     // build setup packets for preamp boards
     // TODO improve DC Racks server (e.g. need caching)
-    for (ch <- expt.getChannels(classOf[PreampChannel]).asScala) {
+    for (ch <- expt.getChannels[PreampChannel]) {
       if (ch.hasPreampConfig()) {
         val p = ch.getPreampConfig().getSetupPacket(ch)
-        setupPackets.add(buildSetupPacket(Constants.DC_RACK_SERVER, p.records))
-        setupState.add(p.state)
+        setupPackets += buildSetupPacket(Constants.DC_RACK_SERVER, p.records)
+        setupState += p.state
       }
     }
 
-    for (ch <- expt.getChannels(classOf[FastBiasSerialChannel]).asScala) {
+    for (ch <- expt.getChannels[FastBiasSerialChannel]) {
       if (ch.hasSetupPacket()) {
         val p = ch.getSetupPacket()
-        setupPackets.add(buildSetupPacket(Constants.DC_RACK_SERVER, p.records))
-        setupState.add(p.state)
+        setupPackets += buildSetupPacket(Constants.DC_RACK_SERVER, p.records)
+        setupState += p.state
       }
     }
 
@@ -1017,15 +1008,12 @@ class QubitContext extends AbstractServerContext {
 
     // this is the new-style deconvolution routine which sends all deconvolution requests in separate packets
     val deconvolver = new DeconvolutionProxy(getConnection())
-    val deconvolutions: List[Future[Void]] = Lists.newArrayList()
-    for (fpga <- expt.getDacFpgas().asScala) {
-      // pomalley 4/22/14 added this check, as we now handle the case of boards not having defined channels a bit differently
-      if (fpga.hasSramChannel()) {
-        deconvolutions.add(fpga.deconvolveSram(deconvolver))
-      }
-    }
-    Futures.waitForAll(deconvolutions).get()
-    // println("deconv finished")
+    val deconvolutions = for {
+      fpga <- expt.getDacFpgas.toSeq
+      if fpga.hasSramChannel
+    } yield fpga.deconvolveSram(deconvolver)
+
+    Await.result(Future.sequence(deconvolutions), 1.minute)
 
     //
     // build run packet
@@ -1035,13 +1023,13 @@ class QubitContext extends AbstractServerContext {
 
     // NEW 4/22/2011 - pomalley
     // settings for ADCs
-    for (fpga <- expt.getAdcFpgas().asScala) {
-      runRequest.add("Select Device", Data.valueOf(fpga.getName()))
+    for (fpga <- expt.getAdcFpgas()) {
+      runRequest.add("Select Device", Data.valueOf(fpga.name))
       fpga.addPackets(runRequest)
     }
 
     // upload all memory and SRAM data
-    for (fpga <- expt.getDacFpgas().asScala) {
+    for (fpga <- expt.getDacFpgas()) {
       fpga.addPackets(runRequest)
       // TODO: this feels like a hack. loop delay is per board in the fpga server, but global to the expt here.
       if (getExperiment().isLoopDelayConfigured()) {
@@ -1050,15 +1038,15 @@ class QubitContext extends AbstractServerContext {
     }
 
     // set up daisy chain and timing order
-    runRequest.add("Daisy Chain", Data.listOf(expt.getFpgaNames(), Setters.stringSetter))
-    runRequest.add("Timing Order", Data.listOf(expt.getTimingOrder(), Setters.stringSetter))
+    runRequest.add("Daisy Chain", Data.listOf(expt.getFpgaNames().asJava, Setters.stringSetter))
+    runRequest.add("Timing Order", Data.listOf(expt.getTimingOrder().asJava, Setters.stringSetter))
 
     // run the sequence
     runIndex = runRequest.addRecord("Run Sequence",
         Data.valueOf(0L), // put in a dummy value for number of reps
         Data.valueOf(true), // return timing results
-        Data.clusterOf(setupPackets),
-        Data.listOf(setupState, Setters.stringSetter))
+        Data.clusterOf(setupPackets.result.asJava),
+        Data.listOf(setupState.result.asJava, Setters.stringSetter))
     nextRequest = runRequest
 
     // clear the dirty bits
@@ -1071,7 +1059,7 @@ class QubitContext extends AbstractServerContext {
       name = "Get SRAM Final",
       doc = "Make sure to run build sequence first.")
   def get_sram_final(@Accepts(Array("s", "ss")) id: Data): Data = {
-    val iq = getChannel(id, classOf[IqChannel])
+    val iq = getChannel[IqChannel](id)
     Data.valueOf(iq.getFpgaModel().getSram())
   }
 
@@ -1148,10 +1136,10 @@ class QubitContext extends AbstractServerContext {
     val shape = lastData.getArrayShape()
     val ans = Array.ofDim[Array[Double]](shape(0), shape(1))
     val adcIndices = this.getExperiment().adcTimingOrderIndices()
+    val timingChannels = getExperiment().getTimingChannels()
 
     for (whichAdcChannel <- 0 until shape(0)) {
-
-      val ch = getExperiment().getTimingChannels().get(adcIndices.get(whichAdcChannel)).getChannel().asInstanceOf[AdcChannel]
+      val ch = timingChannels(adcIndices(whichAdcChannel)).getChannel().asInstanceOf[AdcChannel]
       for (j <- 0 until shape(1)) {
         ans(whichAdcChannel)(j) = ch.getPhases(
           lastData.get(whichAdcChannel, j, 0).getIntArray(),
@@ -1174,12 +1162,10 @@ class QubitContext extends AbstractServerContext {
               |a cluster of (name, data).  For a human-readable dump of the packet,
               |see the 'Dump Sequence Text' setting.""")
   def dump_packet(): Data = {
-    val records: List[Data] = Lists.newArrayList()
-    for (r <- nextRequest.getRecords().asScala) {
-      records.add(Data.clusterOf(Data.valueOf(r.getName()),
-          r.getData()))
+    val records = nextRequest.getRecords.asScala.map { r =>
+      Data.clusterOf(Data.valueOf(r.getName), r.getData)
     }
-    Data.clusterOf(records)
+    Data.clusterOf(records.asJava)
   }
 
   @Setting(id = 2002,
@@ -1188,10 +1174,10 @@ class QubitContext extends AbstractServerContext {
   @Returns(Array("s"))
   def dump_text(): Data = {
 
-    val deviceNames: List[String] = Lists.newArrayList()
-    val memorySequences: Map[String, Array[Long]] = Maps.newHashMap()
-    val sramSequences: Map[String, Array[Long]] = Maps.newHashMap()
-    val commands: List[Record] = Lists.newArrayList()
+    val deviceNamesBuilder = Set.newBuilder[String]
+    val memorySequences = mutable.Map.empty[String, Array[Long]]
+    val sramSequences = mutable.Map.empty[String, Array[Long]]
+    val commands = mutable.Buffer.empty[Record]
 
     // iterate over packet, pulling out commands
     var currentDevice: String = null
@@ -1199,69 +1185,69 @@ class QubitContext extends AbstractServerContext {
       r.getName() match {
         case "Select Device" =>
           currentDevice = r.getData().getString()
-          deviceNames.add(currentDevice)
+          deviceNamesBuilder += currentDevice
 
         case "Memory" =>
-          memorySequences.put(currentDevice, r.getData().getWordArray())
+          memorySequences(currentDevice) = r.getData().getWordArray()
 
         case "SRAM" =>
-          sramSequences.put(currentDevice, r.getData().getWordArray())
+          sramSequences(currentDevice) = r.getData().getWordArray()
 
         case "SRAM Address" =>
           // do nothing
 
         case _ =>
-          commands.add(r)
+          commands += r
       }
     }
-    Collections.sort(deviceNames)
+    val deviceNames = deviceNamesBuilder.result.toSeq.sorted
 
-    val lines: List[String] = Lists.newArrayList()
+    val lines = Seq.newBuilder[String]
 
     val devLine = new StringBuilder()
-    for (dev <- deviceNames.asScala) {
+    for (dev <- deviceNames) {
       devLine.append(dev)
       devLine.append(", ")
     }
-    lines.add(devLine.toString())
-    lines.add("")
+    lines += devLine.toString()
+    lines += ""
 
-    lines.add("Memory")
-    if (deviceNames.size() > 0) {
-      val N = memorySequences.get(deviceNames.get(0)).length
+    lines += "Memory"
+    if (deviceNames.size > 0) {
+      val N = memorySequences(deviceNames(0)).length
       for (i <- 0 until N) {
         val row = new StringBuilder()
-        for (name <- deviceNames.asScala) {
-          row.append("%06X".format(memorySequences.get(name)(i)))
+        for (name <- deviceNames) {
+          row.append("%06X".format(memorySequences(name)(i)))
           row.append("  ")
         }
-        lines.add(row.toString())
+        lines += row.toString()
       }
     }
-    lines.add("")
+    lines += ""
 
-    lines.add("SRAM")
-    if (deviceNames.size() > 0) {
-      val N = sramSequences.get(deviceNames.get(0)).length
+    lines += "SRAM"
+    if (deviceNames.size > 0) {
+      val N = sramSequences(deviceNames(0)).length
       for (i <- 0 until N) {
         val row = new StringBuilder()
-        for (name <- deviceNames.asScala) {
-          row.append("%08X".format(sramSequences.get(name)(i)))
+        for (name <- deviceNames) {
+          row.append("%08X".format(sramSequences(name)(i)))
           row.append("  ")
         }
-        lines.add(row.toString())
+        lines += row.toString()
       }
     }
-    lines.add("")
+    lines += ""
 
-    for (r <- commands.asScala) {
-      lines.add(r.getName())
-      lines.add(r.getData().toString())
-      lines.add("")
+    for (r <- commands) {
+      lines += r.getName()
+      lines += r.getData().toString()
+      lines += ""
     }
 
     val builder = new StringBuilder()
-    for (line <- lines.asScala) {
+    for (line <- lines.result) {
       builder.append(line)
       builder.append("\n")
     }

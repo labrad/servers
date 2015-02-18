@@ -1,19 +1,15 @@
 package org.labrad.qubits.channeldata
 
-import java.util.concurrent.Future
-
 import org.labrad.qubits.channels.IqChannel
 import org.labrad.qubits.proxies.DeconvolutionProxy
 import org.labrad.qubits.proxies.DeconvolutionProxy.IqResult
 import org.labrad.qubits.util.ComplexArray
-import org.labrad.qubits.util.Futures
-
-import com.google.common.base.Function
+import scala.concurrent.{ExecutionContext, Future}
 
 class IqDataTime(data: ComplexArray, isDeconvolved: Boolean, zeroEnds: Boolean) extends IqDataBase {
 
-  private var I: Array[Int] = null
-  private var Q: Array[Int] = null
+  @volatile private var I: Array[Int] = null
+  @volatile private var Q: Array[Int] = null
 
   if (isDeconvolved) {
     I = data.re.map { i => (i * 0x1fff).toInt & 0x3fff }
@@ -25,18 +21,15 @@ class IqDataTime(data: ComplexArray, isDeconvolved: Boolean, zeroEnds: Boolean) 
     LengthChecker.checkLengths(data.length, expected)
   }
 
-  override def deconvolve(deconvolver: DeconvolutionProxy): Future[Void] = {
+  override def deconvolve(deconvolver: DeconvolutionProxy)(implicit ec: ExecutionContext): Future[Unit] = {
     val ch = getChannel()
     val freq = ch.getMicrowaveConfig().frequency
     val req = deconvolver.deconvolveIq(ch.getDacBoard(), data, freq, zeroEnds)
-    Futures.chain(req, new Function[DeconvolutionProxy.IqResult, Void] {
-      override def apply(result: IqResult): Void = {
-        I = result.I
-        Q = result.Q
-        setDeconvolved(true)
-        null
-      }
-    })
+    req.map { result =>
+      I = result.I
+      Q = result.Q
+      setDeconvolved(true)
+    }
   }
 
   override def getDeconvolvedI(): Array[Int] = {
@@ -59,7 +52,7 @@ class IqDataTimeDacified(I: Array[Int], Q: Array[Int]) extends IqDataBase {
     LengthChecker.checkLengths(Q.length, expected)
   }
 
-  override def deconvolve(deconvolved: DeconvolutionProxy): Future[Void] = {
+  override def deconvolve(deconvolved: DeconvolutionProxy)(implicit ec: ExecutionContext): Future[Unit] = {
     sys.error("cannot deconvolve pre-dacified data")
   }
 

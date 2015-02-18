@@ -12,7 +12,7 @@ object AdcBoard {
 class AdcBoard(name: String) extends DacBoard(name) with Resource {
 
   // replace "dacBuild" with "adcBuild"
-  buildType = "adcBuild"
+  override val buildType = "adcBuild"
 
   override def setFiber(fiber: DacFiberId, board: BiasBoard, channel: DcRackFiberId): Unit = {
     sys.error(s"ADC board '$name' was given fibers!")

@@ -8,7 +8,7 @@ import org.labrad.qubits.resources.Resources
 class AdcChannelBuilder(name: String, params: Seq[String], resources: Resources) extends ChannelBuilder {
   def build(): Channel = {
     val Seq(boardName) = params
-    val board = resources.get(boardName, classOf[AdcBoard])
+    val board = resources.get[AdcBoard](boardName)
     new AdcChannel(name, board)
   }
 }

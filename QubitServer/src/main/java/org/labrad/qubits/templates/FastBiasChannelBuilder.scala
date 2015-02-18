@@ -12,7 +12,7 @@ class FastBiasChannelBuilder(name: String, params: Seq[String], resources: Resou
     val Seq(boardName, channel) = params
     if (boardName.contains("FastBias")) {
       val fb = new FastBiasFpgaChannel(name)
-      val board = resources.get(boardName, classOf[FastBias])
+      val board = resources.get[FastBias](boardName)
       fb.setFastBias(board)
       fb.setBiasChannel(DcRackFiberId.fromString(channel))
       fb.setDacBoard(board.getDacBoard(DcRackFiberId.fromString(channel)))

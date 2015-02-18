@@ -1,15 +1,11 @@
 package org.labrad.qubits.channeldata
 
-import java.util.concurrent.Future
-
 import org.labrad.qubits.proxies.DeconvolutionProxy
-import org.labrad.qubits.util.Futures
-
-import com.google.common.base.Function
+import scala.concurrent.{ExecutionContext, Future}
 
 class AnalogDataTime(data: Array[Double], isDeconvolved: Boolean, averageEnds: Boolean, dither: Boolean) extends AnalogDataBase {
 
-  private var deconvolvedData: Array[Int] = null
+  @volatile private var deconvolvedData: Array[Int] = null
 
   if (isDeconvolved) {
     deconvolvedData = data.map { x =>
@@ -22,7 +18,7 @@ class AnalogDataTime(data: Array[Double], isDeconvolved: Boolean, averageEnds: B
     LengthChecker.checkLengths(data.length, expected)
   }
 
-  override def deconvolve(deconvolver: DeconvolutionProxy): Future[Void] = {
+  override def deconvolve(deconvolver: DeconvolutionProxy)(implicit ec: ExecutionContext): Future[Unit] = {
     val ch = getChannel()
     val req = deconvolver.deconvolveAnalog(
         ch.getDacBoard(),
@@ -33,14 +29,12 @@ class AnalogDataTime(data: Array[Double], isDeconvolved: Boolean, averageEnds: B
         ch.getReflectionRates(),
         ch.getReflectionAmplitudes(),
         averageEnds,
-        dither)
-    Futures.chain(req, new Function[Array[Int], Void] {
-      override def apply(result: Array[Int]): Void = {
-        deconvolvedData = result
-        setDeconvolved(true)
-        null
-      }
-    })
+        dither
+    )
+    req.map { result =>
+      deconvolvedData = result
+      setDeconvolved(true)
+    }
   }
 
   override def getDeconvolved(): Array[Int] = {
@@ -57,7 +51,7 @@ class AnalogDataTimeDacified(data: Array[Int]) extends AnalogDataBase {
     LengthChecker.checkLengths(data.length, expected)
   }
 
-  override def deconvolve(deconvolver: DeconvolutionProxy): Future[Void] = {
+  override def deconvolve(deconvolver: DeconvolutionProxy)(implicit ec: ExecutionContext): Future[Unit] = {
     sys.error("cannot deconvolve pre-dacified data")
   }
 

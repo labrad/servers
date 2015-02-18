@@ -12,7 +12,7 @@ import org.labrad.qubits.Experiment
  * @author maffoo
  */
 trait Channel {
-  def getName(): String
+  def name: String
 
   def setExperiment(expt: Experiment): Unit
   def getExperiment(): Experiment

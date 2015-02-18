@@ -29,7 +29,7 @@ class AnalogChannel(name: String) extends SramChannelBase[AnalogData](name) {
         analogDac.setAnalogChannel(dacId, this)
 
       case _ =>
-        sys.error(s"AnalogChannel '$getName' requires analog board.")
+        sys.error(s"AnalogChannel '$name' requires analog board.")
     }
   }
 
@@ -45,23 +45,19 @@ class AnalogChannel(name: String) extends SramChannelBase[AnalogData](name) {
   }
 
   def getBlockData(name: String): AnalogData = {
-    blocks.get(name) match {
-      case null =>
-        // create a dummy data set with zeros
-        val len = fpga.getBlockLength(name)
-        val fourierLen = if (len % 2 == 0) len/2 + 1 else (len+1) / 2
-        val zeros = Array.ofDim[Double](fourierLen)
-        val data = new AnalogDataFourier(new ComplexArray(zeros, zeros), 0, true, false)
-        data.setChannel(this)
-        blocks.put(name, data)
-        data
-
-      case data => data
-    }
+    blocks.getOrElseUpdate(name, {
+      // create a dummy data set with zeros
+      val len = fpga.getBlockLength(name)
+      val fourierLen = if (len % 2 == 0) len/2 + 1 else (len+1) / 2
+      val zeros = Array.ofDim[Double](fourierLen)
+      val data = new AnalogDataFourier(new ComplexArray(zeros, zeros), 0, true, false)
+      data.setChannel(this)
+      data
+    })
   }
 
   def getSramData(name: String): Array[Int] = {
-    blocks.get(name).getDeconvolved()
+    blocks(name).getDeconvolved()
   }
 
 
@@ -83,11 +79,11 @@ class AnalogChannel(name: String) extends SramChannelBase[AnalogData](name) {
 
   def setSettling(rates: Array[Double], amplitudes: Array[Double]): Unit = {
     require(rates.length == amplitudes.length,
-        s"$getName: lists of settling rates and amplitudes must be the same length")
+        s"$name: lists of settling rates and amplitudes must be the same length")
     settlingRates = rates
     settlingAmplitudes = amplitudes
     // mark all blocks as needing to be deconvolved again
-    for (block <- blocks.values().asScala) {
+    for (block <- blocks.values) {
       block.invalidate()
     }
   }
@@ -102,11 +98,11 @@ class AnalogChannel(name: String) extends SramChannelBase[AnalogData](name) {
 
   def setReflection(rates: Array[Double], amplitudes: Array[Double]): Unit = {
     require(rates.length == amplitudes.length,
-        s"$getName: lists of reflection rates and amplitudes must be the same length")
+        s"$name: lists of reflection rates and amplitudes must be the same length")
     reflectionRates = rates;
     reflectionAmplitudes = amplitudes;
     // mark all blocks as needing to be deconvolved again
-    for (block <- blocks.values().asScala) {
+    for (block <- blocks.values) {
       block.invalidate()
     }
   }

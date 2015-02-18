@@ -25,7 +25,7 @@ class IqChannel(name: String) extends SramChannelBase[IqData](name) {
         iqDac.setIqChannel(this)
 
       case _ =>
-        sys.error(s"IqChannel '$getName' requires microwave board.")
+        sys.error(s"IqChannel '$name' requires microwave board.")
     }
   }
 
@@ -49,26 +49,22 @@ class IqChannel(name: String) extends SramChannelBase[IqData](name) {
   }
 
   def getBlockData(name: String): IqData = {
-    blocks.get(name) match {
-      case null =>
-        // create a dummy data set with zeros
-        val expected = fpga.getBlockLength(name)
-        val zeros = Array.fill[Double](expected) { 0 }
-        val data = new IqDataFourier(new ComplexArray(zeros, zeros), 0, true)
-        data.setChannel(this)
-        blocks.put(name, data)
-        data
-
-      case data => data
-    }
+    blocks.getOrElseUpdate(name, {
+      // create a dummy data set with zeros
+      val expected = fpga.getBlockLength(name)
+      val zeros = Array.fill[Double](expected) { 0 }
+      val data = new IqDataFourier(new ComplexArray(zeros, zeros), 0, true)
+      data.setChannel(this)
+      data
+    })
   }
 
   def getSramDataA(name: String): Array[Int] = {
-    blocks.get(name).getDeconvolvedI()
+    blocks(name).getDeconvolvedI()
   }
 
   def getSramDataB(name: String): Array[Int] = {
-    blocks.get(name).getDeconvolvedQ()
+    blocks(name).getDeconvolvedQ()
   }
 
   // configuration
@@ -80,7 +76,7 @@ class IqChannel(name: String) extends SramChannelBase[IqData](name) {
   def configMicrowavesOn(freq: Double, power: Double): Unit = {
     uwaveConfig = new MicrowaveSourceOnConfig(freq, power)
     // mark all blocks as needing to be deconvolved again
-    for (block <- blocks.values().asScala) {
+    for (block <- blocks.values) {
       block.invalidate()
     }
   }
@@ -90,7 +86,7 @@ class IqChannel(name: String) extends SramChannelBase[IqData](name) {
   }
 
   def getMicrowaveConfig(): MicrowaveSourceConfig = {
-    require(uwaveConfig != null, s"No microwave configuration for channel '$getName'")
+    require(uwaveConfig != null, s"No microwave configuration for channel '$name'")
     uwaveConfig
   }
 

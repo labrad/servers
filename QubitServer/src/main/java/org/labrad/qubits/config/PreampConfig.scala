@@ -39,7 +39,7 @@ case class PreampConfig(offset: Long, polarity: Boolean, highPassName: String, l
   }
 
   def getSetupPacket(ch: PreampChannel): SetupPacket = {
-    val chName = ch.getPreampBoard().getName()
+    val chName = ch.getPreampBoard().name
     val linkNameEnd = chName.indexOf("Preamp") - 1
     val linkName = chName.substring(0, linkNameEnd)
     val cardId = (chName.substring(linkNameEnd + "Preamp".length() + 2)).toLong
@@ -54,7 +54,7 @@ case class PreampConfig(offset: Long, polarity: Boolean, highPassName: String, l
     .setWord(offset, 1, 1, 3)
     data.get(3).setString("Disconnect", 0)
 
-    val state = s"${ch.getPreampBoard.getName}${ch.getPreampChannel}: offset=$offset polarity=$polarity highPass=$highPass lowPass=$lowPass"
+    val state = s"${ch.getPreampBoard.name}${ch.getPreampChannel}: offset=$offset polarity=$polarity highPass=$highPass lowPass=$lowPass"
 
     new SetupPacket(state, data)
   }

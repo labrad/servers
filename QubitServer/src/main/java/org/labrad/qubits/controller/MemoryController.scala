@@ -1,12 +1,11 @@
 package org.labrad.qubits.controller
 
-import java.util.ArrayList
-import java.util.List
 import org.labrad.data.Data
 import org.labrad.data.Request
 import org.labrad.qubits.FpgaModelDac
 import org.labrad.qubits.mem._
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 
 /**
  * The MemoryController
@@ -15,7 +14,7 @@ class MemoryController(fpga: FpgaModelDac) extends FpgaController(fpga) {
 
   clear()
 
-  private val memory = new ArrayList[MemoryCommand]
+  private val memory = mutable.Buffer.empty[MemoryCommand]
   private var timerStartCount = 0
   private var timerStopCount = 0
   private var sramCalled = false
@@ -37,11 +36,11 @@ class MemoryController(fpga: FpgaModelDac) extends FpgaController(fpga) {
   }
 
   def addMemoryCommand(cmd: MemoryCommand): Unit = {
-    memory.add(cmd)
+    memory += cmd
   }
 
-  def addMemoryCommands(cmds: List[MemoryCommand]): Unit = {
-    memory.addAll(cmds)
+  def addMemoryCommands(cmds: Seq[MemoryCommand]): Unit = {
+    memory ++= cmds
   }
 
   def addMemoryNoop(): Unit = {
@@ -56,9 +55,9 @@ class MemoryController(fpga: FpgaModelDac) extends FpgaController(fpga) {
 
   def addMemoryDelay(microseconds: Double): Unit = {
     val cycles = FpgaModelDac.microsecondsToClocks(microseconds).toInt
-    val memSize = this.memory.size()
+    val memSize = this.memory.size
     if (memSize > 0) {
-      val lastCmd = this.memory.get(memSize - 1)
+      val lastCmd = this.memory(memSize - 1)
       lastCmd match {
         case delayCmd: DelayCommand =>
           delayCmd.setDelay(cycles + delayCmd.getDelay)
@@ -75,7 +74,7 @@ class MemoryController(fpga: FpgaModelDac) extends FpgaController(fpga) {
 
   override def getSequenceLength_us(): Double = {
     var t_us = this.fpga.getStartDelay() * FpgaModelDac.START_DELAY_UNIT_NS / 1000.0
-    for (memCmd <- this.memory.asScala) {
+    for (memCmd <- this.memory) {
       t_us += memCmd.getTime_us(fpga)
     }
     t_us
@@ -83,7 +82,7 @@ class MemoryController(fpga: FpgaModelDac) extends FpgaController(fpga) {
   override def getSequenceLengthPostSRAM_us(): Double = {
     var t_us = this.fpga.getStartDelay() * FpgaModelDac.START_DELAY_UNIT_NS / 1000.0
     var SRAMStarted = false
-    for (memCmd <- this.memory.asScala) {
+    for (memCmd <- this.memory) {
       if (memCmd.isInstanceOf[CallSramDualBlockCommand] || memCmd.isInstanceOf[CallSramCommand]) {
         SRAMStarted = true
       }
@@ -125,15 +124,15 @@ class MemoryController(fpga: FpgaModelDac) extends FpgaController(fpga) {
    * started.  This ensures that all boards will be run properly.
    */
   def checkTimerStatus(): Unit = {
-    require(isTimerStarted(), s"${fpga.getName}: timer not started")
-    require(isTimerStopped(), s"${fpga.getName}: timer not stopped")
+    require(isTimerStarted(), s"${fpga.name}: timer not started")
+    require(isTimerStopped(), s"${fpga.name}: timer not stopped")
   }
 
   /**
    * Issue a start timer command.  Will only succeed if the timer is currently stopped.
    */
   def startTimer(): Unit = {
-    require(isTimerStopped(), s"${fpga.getName}: timer already started")
+    require(isTimerStopped(), s"${fpga.name}: timer already started")
     addMemoryCommand(StartTimerCommand)
     timerStartCount += 1
   }
@@ -142,7 +141,7 @@ class MemoryController(fpga: FpgaModelDac) extends FpgaController(fpga) {
    * Issue a stop timer command.  Will only succeed if the timer is currently running.
    */
   def stopTimer(): Unit = {
-    require(isTimerRunning(), s"${fpga.getName}: timer not started")
+    require(isTimerRunning(), s"${fpga.name}: timer not started")
     addMemoryCommand(StopTimerCommand)
     timerStopCount += 1
   }
@@ -199,13 +198,11 @@ class MemoryController(fpga: FpgaModelDac) extends FpgaController(fpga) {
    * Get the bits of the memory sequence for this board
    */
   def getMemory(): Array[Long] = {
-    val mem = new ArrayList[MemoryCommand]
     // add initial noop and final mem commands
-    mem.add(0, NoopCommand)
-    mem.add(EndSequenceCommand)
+    val mem = NoopCommand +: memory.toArray :+ EndSequenceCommand
 
     // resolve addresses of all SRAM blocks
-    for (c <- mem.asScala) {
+    for (c <- mem) {
       c match {
         case cmd: CallSramCommand =>
           val block = cmd.getBlockName()
@@ -223,16 +220,10 @@ class MemoryController(fpga: FpgaModelDac) extends FpgaController(fpga) {
     }
 
     // get bits for all memory commands
-    val bits = {
-      val builder = Array.newBuilder[Long]
-      for (cmd <- mem.asScala) {
-        builder ++= cmd.getBits()
-      }
-      builder.result()
-    }
+    val bits = mem.flatMap(_.getBits)
 
     // check that the total memory sequence is not too long
-    if (bits.length > fpga.getDacBoard().getBuildProperties().get("SRAM_WRITE_PKT_LEN")) {
+    if (bits.length > fpga.getDacBoard.getBuildProperties()("SRAM_WRITE_PKT_LEN")) {
       sys.error("Memory sequence exceeds maximum length")
     }
     bits

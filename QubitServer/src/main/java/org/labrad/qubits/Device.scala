@@ -1,43 +1,36 @@
 package org.labrad.qubits
 
-import com.google.common.collect.Lists
-import com.google.common.collect.Maps
-import java.util.List
-import java.util.Map
 import org.labrad.qubits.channels.Channel
-import scala.collection.JavaConverters._
+import scala.collection.mutable
+import scala.reflect.ClassTag
 
 /**
  * Model of a device, essentially a collection of named channels of various types.
  * Each channel connects various physical devices (FastBias, Preamp, GHzDac) to some
  * controllable parameter on the device (flux bias, microwave, etc.).
- * 
+ *
  * @author maffoo
  */
-class Device(name: String) {
+class Device(val name: String) {
 
-  private val channels: List[Channel] = Lists.newArrayList()
-  private val channelsByName: Map[String, Channel] = Maps.newHashMap()
-
-  def getName(): String = {
-    name
-  }
+  private val channels = mutable.Buffer.empty[Channel]
+  private val channelsByName = mutable.Map.empty[String, Channel]
 
   /**
    * Add a channel to this device.
    * @param ch
    */
   def addChannel(ch: Channel): Unit = {
-    channels.add(ch)
-    channelsByName.put(ch.getName(), ch)
+    channels += ch
+    channelsByName(ch.name) = ch
   }
 
   /**
    * Get all defined channels.
    * @return
    */
-  def getChannels(): List[Channel] = {
-    Lists.newArrayList(channels)
+  def getChannels(): Seq[Channel] = {
+    channels.toSeq
   }
 
   /**
@@ -46,14 +39,8 @@ class Device(name: String) {
    * @param cls
    * @return
    */
-  def getChannels[T <: Channel](cls: Class[T]): List[T] = {
-    val matches: List[T] = Lists.newArrayList()
-    for (chan <- channels.asScala) {
-      if (cls.isInstance(chan)) {
-        matches.add(chan.asInstanceOf[T])
-      }
-    }
-    matches
+  def getChannels[T <: Channel : ClassTag]: Seq[T] = {
+    channels.collect { case ch: T => ch }.toSeq
   }
 
   /**
@@ -61,10 +48,8 @@ class Device(name: String) {
    * @param name
    * @return
    */
-  def getChannel(name: String): Channel = {
-    require(channelsByName.containsKey(name),
-        s"Device '$getName' has no channel named '$name'")
-    channelsByName.get(name)
+  def getAnyChannel(name: String): Channel = {
+    channelsByName.getOrElse(name, sys.error(s"Device ${this.name} has no channel named $name"))
   }
 
   /**
@@ -74,11 +59,11 @@ class Device(name: String) {
    * @param cls
    * @return
    */
-  def getChannel[T <: Channel](name: String, cls: Class[T]): T = {
-    val ch = getChannel(name)
-    require(cls.isInstance(ch),
-        s"Channel '$name' is not of type '${cls.getName}'")
-    ch.asInstanceOf[T]
+  def getChannel[T <: Channel](name: String)(implicit tag: ClassTag[T]): T = {
+    getAnyChannel(name) match {
+      case ch: T => ch
+      case _ => sys.error(s"Channel $name is not of type $tag")
+    }
   }
 
   /**
@@ -87,10 +72,11 @@ class Device(name: String) {
    * @param cls
    * @return
    */
-  def getChannel[T <: Channel](cls: Class[T]): T = {
-    val channels = getChannels(cls)
-    require(channels.size() == 1,
-        s"Device '$getName' has more than one channel of type '${cls.getName}'")
-    channels.get(0)
+  def getChannel[T <: Channel](implicit tag: ClassTag[T]): T = {
+    getChannels[T] match {
+      case Seq(ch) => ch
+      case Seq() => sys.error(s"Device $name has no channel of type $tag")
+      case _ => sys.error(s"Device $name has more than one channel of type $tag")
+    }
   }
 }

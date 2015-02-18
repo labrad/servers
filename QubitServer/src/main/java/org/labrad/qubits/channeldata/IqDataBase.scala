@@ -6,7 +6,7 @@ abstract class IqDataBase extends IqData {
 
   private var channel: IqChannel = _
 
-  private var _isDeconvolved = false
+  @volatile private var _isDeconvolved = false
 
   override def setChannel(channel: IqChannel): Unit = {
     this.channel = channel
