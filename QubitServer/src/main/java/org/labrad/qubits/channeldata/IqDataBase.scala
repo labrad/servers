@@ -1,36 +1,33 @@
-package org.labrad.qubits.channeldata;
+package org.labrad.qubits.channeldata
 
-import org.labrad.qubits.channels.IqChannel;
+import org.labrad.qubits.channels.IqChannel
 
-public abstract class IqDataBase implements IqData {
+abstract class IqDataBase extends IqData {
 
-  private IqChannel channel;
+  private var channel: IqChannel = _
 
-  private boolean isDeconvolved = false;
+  private var _isDeconvolved = false
 
-  @Override
-  public void setChannel(IqChannel channel) {
-    this.channel = channel;
+  override def setChannel(channel: IqChannel): Unit = {
+    this.channel = channel
   }
 
-  protected IqChannel getChannel() {
-    return channel;
+  protected def getChannel(): IqChannel = {
+    channel
   }
 
   /**
    * Whether this bit of analog data has been deconvolved.
    */
-  @Override
-  public boolean isDeconvolved() {
-    return isDeconvolved;
+  def isDeconvolved(): Boolean = {
+    _isDeconvolved
   }
 
-  @Override
-  public void invalidate() {
-    isDeconvolved = false;
+  override def invalidate(): Unit = {
+    setDeconvolved(false)
   }
 
-  protected void setDeconvolved(boolean isDeconvolved) {
-    this.isDeconvolved = isDeconvolved;
+  private[channeldata] def setDeconvolved(isDeconvolved: Boolean): Unit = {
+    _isDeconvolved = isDeconvolved
   }
 }

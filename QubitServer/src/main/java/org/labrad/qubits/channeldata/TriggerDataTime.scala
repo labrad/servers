@@ -1,20 +1,12 @@
-package org.labrad.qubits.channeldata;
+package org.labrad.qubits.channeldata
 
+class TriggerDataTime(vals: Array[Boolean]) extends TriggerDataBase {
 
-public class TriggerDataTime extends TriggerDataBase {
-
-  private boolean[] vals;
-
-  public TriggerDataTime(boolean[] vals) {
-    this.vals = vals;
+  def checkLength(expected: Int): Unit = {
+    LengthChecker.checkLengths(vals.length, expected)
   }
 
-  public void checkLength(int expected) {
-    LengthChecker.checkLengths(vals.length, expected);
-  }
-
-  @Override
-  public boolean[] get() {
-    return vals;
+  override def get(): Array[Boolean] = {
+    vals
   }
 }

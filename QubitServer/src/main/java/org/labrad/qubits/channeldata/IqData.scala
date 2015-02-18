@@ -1,11 +1,10 @@
-package org.labrad.qubits.channeldata;
+package org.labrad.qubits.channeldata
 
-import org.labrad.qubits.channels.IqChannel;
+import org.labrad.qubits.channels.IqChannel
 
-
-public interface IqData extends Deconvolvable {
-  public void setChannel(IqChannel channel);
-  public int[] getDeconvolvedI();
-  public int[] getDeconvolvedQ();
-  public void checkLength(int expected);
+trait IqData extends Deconvolvable {
+  def setChannel(channel: IqChannel): Unit
+  def getDeconvolvedI(): Array[Int]
+  def getDeconvolvedQ(): Array[Int]
+  def checkLength(expected: Int): Unit
 }

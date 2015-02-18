@@ -1,10 +1,9 @@
-package org.labrad.qubits.channeldata;
+package org.labrad.qubits.channeldata
 
-import org.labrad.qubits.channels.AnalogChannel;
+import org.labrad.qubits.channels.AnalogChannel
 
-
-public interface AnalogData extends Deconvolvable {
-  public void setChannel(AnalogChannel channel);
-  public int[] getDeconvolved();
-  public void checkLength(int expected);
+trait AnalogData extends Deconvolvable {
+  def setChannel(channel: AnalogChannel): Unit
+  def getDeconvolved(): Array[Int]
+  def checkLength(expected: Int): Unit
 }

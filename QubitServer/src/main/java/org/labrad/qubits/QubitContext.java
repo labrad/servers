@@ -617,7 +617,7 @@ public class QubitContext extends AbstractServerContext {
     IqChannel ch = getChannel(id, IqChannel.class);
     if (vals.isCluster()) {
       Preconditions.checkArgument(!deconvolve, "Must not deconvolve if providing DAC'ified IQ data.");
-      ch.addData(new IqDataTime(vals.get(0).getIntArray(), vals.get(1).getIntArray()));
+      ch.addData(new IqDataTimeDacified(vals.get(0).getIntArray(), vals.get(1).getIntArray()));
     } else {
       ComplexArray c = ComplexArray.fromData(vals);
       ch.addData(new IqDataTime(c, !deconvolve, zeroEnds));
@@ -718,7 +718,7 @@ public class QubitContext extends AbstractServerContext {
     } else {
       Preconditions.checkArgument(!deconvolve, "Must not deconvolve if providing DAC'ified data.");
       int[] arr = vals.getIntArray();
-      ch.addData(new AnalogDataTime(arr));
+      ch.addData(new AnalogDataTimeDacified(arr));
     }
     sramDirty = true;
   }

@@ -1,23 +1,23 @@
-package org.labrad.qubits.channeldata;
+package org.labrad.qubits.channeldata
 
-import java.util.concurrent.Future;
+import java.util.concurrent.Future
 
-import org.labrad.qubits.proxies.DeconvolutionProxy;
+import org.labrad.qubits.proxies.DeconvolutionProxy
 
-public interface Deconvolvable {
+trait Deconvolvable {
   /**
    * Whether the data for this block has been deconvolved.
    * @return
    */
-  public boolean isDeconvolved();
+  def isDeconvolved(): Boolean
 
   /**
    * Mark as needing to be deconvolved again.
    */
-  public void invalidate();
+  def invalidate(): Unit
 
   /**
    * Deconvolve this item using the provided deconvolver.
    */
-  public Future<Void> deconvolve(DeconvolutionProxy deconvolver);
+  def deconvolve(deconvolver: DeconvolutionProxy): Future[Void]
 }

@@ -1,16 +1,16 @@
-package org.labrad.qubits.channeldata;
+package org.labrad.qubits.channeldata
 
-import org.labrad.qubits.channels.TriggerChannel;
+import org.labrad.qubits.channels.TriggerChannel
 
-public abstract class TriggerDataBase implements TriggerData {
+abstract class TriggerDataBase extends TriggerData {
 
-  private TriggerChannel channel;
+  private var channel: TriggerChannel = null
 
-  public void setChannel(TriggerChannel channel) {
-    this.channel = channel;
+  def setChannel(channel: TriggerChannel): Unit = {
+    this.channel = channel
   }
 
-  public TriggerChannel getChannel() {
-    return channel;
+  def getChannel(): TriggerChannel = {
+    channel
   }
 }

@@ -1,9 +1,9 @@
-package org.labrad.qubits.channeldata;
+package org.labrad.qubits.channeldata
 
-import org.labrad.qubits.channels.TriggerChannel;
+import org.labrad.qubits.channels.TriggerChannel
 
-public interface TriggerData {
-  public void setChannel(TriggerChannel channel);
-  public boolean[] get();
-  public void checkLength(int expected);
+trait TriggerData {
+  def setChannel(channel: TriggerChannel): Unit
+  def get(): Array[Boolean]
+  def checkLength(expected: Int): Unit
 }

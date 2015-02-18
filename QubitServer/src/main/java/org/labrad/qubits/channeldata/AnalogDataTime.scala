@@ -1,76 +1,67 @@
-package org.labrad.qubits.channeldata;
+package org.labrad.qubits.channeldata
 
-import java.util.concurrent.Future;
+import java.util.concurrent.Future
 
-import org.labrad.qubits.channels.AnalogChannel;
-import org.labrad.qubits.proxies.DeconvolutionProxy;
-import org.labrad.qubits.util.Futures;
+import org.labrad.qubits.proxies.DeconvolutionProxy
+import org.labrad.qubits.util.Futures
 
-import com.google.common.base.Function;
-import com.google.common.base.Preconditions;
+import com.google.common.base.Function
 
-public class AnalogDataTime extends AnalogDataBase {
+class AnalogDataTime(data: Array[Double], isDeconvolved: Boolean, averageEnds: Boolean, dither: Boolean) extends AnalogDataBase {
 
-  private double[] rawData = null;
-  private boolean averageEnds;
-  private boolean dither;
-  private int[] deconvolvedData = null;
+  private var deconvolvedData: Array[Int] = null
 
-  public AnalogDataTime(double[] data, boolean isDeconvolved, boolean averageEnds, boolean dither) {
-    this.rawData = data;
-    this.averageEnds = averageEnds;
-    this.dither = dither;
-    if (isDeconvolved) {
-      int[] values = new int[data.length];
-      for (int i = 0; i < data.length; i++) {
-        values[i] = (int)(data[i] * 0x1fff) & 0x3fff;
-      }
-      this.deconvolvedData = values;
-    }
-    setDeconvolved(isDeconvolved);
-  }
-
-  public AnalogDataTime(int[] data) {
-    this.deconvolvedData = data;
-    this.averageEnds = false;
-    setDeconvolved(true);
-  }
-
-  public void checkLength(int expected) {
-    if (rawData == null) {
-      LengthChecker.checkLengths(deconvolvedData.length, expected);
-    } else {
-      LengthChecker.checkLengths(rawData.length, expected);
+  if (isDeconvolved) {
+    deconvolvedData = data.map { x =>
+      (x * 0x1fff).toInt & 0x3fff
     }
   }
+  setDeconvolved(isDeconvolved)
 
-  @Override
-  public Future<Void> deconvolve(DeconvolutionProxy deconvolver) {
-    AnalogChannel ch = getChannel();
-    Future<int[]> req = deconvolver.deconvolveAnalog(
+  def checkLength(expected: Int): Unit = {
+    LengthChecker.checkLengths(data.length, expected)
+  }
+
+  override def deconvolve(deconvolver: DeconvolutionProxy): Future[Void] = {
+    val ch = getChannel()
+    val req = deconvolver.deconvolveAnalog(
         ch.getDacBoard(),
         ch.getDacId(),
-        rawData,
+        data,
         ch.getSettlingRates(),
         ch.getSettlingTimes(),
         ch.getReflectionRates(),
         ch.getReflectionAmplitudes(),
         averageEnds,
-        dither
-    );
-    return Futures.chain(req, new Function<int[], Void>() {
-      @Override
-      public Void apply(int[] result) {
-        deconvolvedData = result;
-        setDeconvolved(true);
-        return null;
+        dither)
+    Futures.chain(req, new Function[Array[Int], Void] {
+      override def apply(result: Array[Int]): Void = {
+        deconvolvedData = result
+        setDeconvolved(true)
+        null
       }
-    });
+    })
   }
 
-  @Override
-  public int[] getDeconvolved() {
-    Preconditions.checkState(isDeconvolved(), "Data has not yet been deconvolved");
-    return deconvolvedData;
+  override def getDeconvolved(): Array[Int] = {
+    require(isDeconvolved(), "Data has not yet been deconvolved")
+    deconvolvedData
+  }
+}
+
+class AnalogDataTimeDacified(data: Array[Int]) extends AnalogDataBase {
+
+  setDeconvolved(true)
+
+  def checkLength(expected: Int): Unit = {
+    LengthChecker.checkLengths(data.length, expected)
+  }
+
+  override def deconvolve(deconvolver: DeconvolutionProxy): Future[Void] = {
+    sys.error("cannot deconvolve pre-dacified data")
+  }
+
+  override def getDeconvolved(): Array[Int] = {
+    data
   }
 }

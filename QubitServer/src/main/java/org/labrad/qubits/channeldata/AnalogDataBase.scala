@@ -1,36 +1,33 @@
-package org.labrad.qubits.channeldata;
+package org.labrad.qubits.channeldata
 
-import org.labrad.qubits.channels.AnalogChannel;
+import org.labrad.qubits.channels.AnalogChannel
 
-public abstract class AnalogDataBase implements AnalogData {
+abstract class AnalogDataBase extends AnalogData {
 
-  private AnalogChannel channel;
+  private var channel: AnalogChannel = null
 
-  private boolean isDeconvolved = false;
+  private var _isDeconvolved = false
 
-  @Override
-  public void setChannel(AnalogChannel channel) {
-    this.channel = channel;
+  override def setChannel(channel: AnalogChannel): Unit = {
+    this.channel = channel
   }
 
-  protected AnalogChannel getChannel() {
-    return channel;
+  protected def getChannel(): AnalogChannel = {
+    channel
   }
 
   /**
    * Whether this bit of analog data has been deconvolved.
    */
-  @Override
-  public boolean isDeconvolved() {
-    return isDeconvolved;
+  override def isDeconvolved(): Boolean = {
+    _isDeconvolved
   }
 
-  @Override
-  public void invalidate() {
-    isDeconvolved = false;
+  override def invalidate(): Unit = {
+    setDeconvolved(false)
   }
 
-  protected void setDeconvolved(boolean isDeconvolved) {
-    this.isDeconvolved = isDeconvolved;
+  private[channeldata] def setDeconvolved(isDeconvolved: Boolean): Unit = {
+    this._isDeconvolved = isDeconvolved
   }
 }

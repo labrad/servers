@@ -1,58 +1,45 @@
-package org.labrad.qubits.channeldata;
+package org.labrad.qubits.channeldata
 
-import java.util.concurrent.Future;
+import java.util.concurrent.Future
 
-import org.labrad.qubits.channels.IqChannel;
-import org.labrad.qubits.proxies.DeconvolutionProxy;
-import org.labrad.qubits.proxies.DeconvolutionProxy.IqResult;
-import org.labrad.qubits.util.ComplexArray;
-import org.labrad.qubits.util.Futures;
+import org.labrad.qubits.channels.IqChannel
+import org.labrad.qubits.proxies.DeconvolutionProxy
+import org.labrad.qubits.proxies.DeconvolutionProxy.IqResult
+import org.labrad.qubits.util.ComplexArray
+import org.labrad.qubits.util.Futures
 
-import com.google.common.base.Function;
-import com.google.common.base.Preconditions;
+import com.google.common.base.Function
 
-public class IqDataFourier extends IqDataBase {
+class IqDataFourier(data: ComplexArray, t0: Double, zeroEnds: Boolean) extends IqDataBase {
 
-  private ComplexArray data;
-  private double t0;
-  private boolean zeroEnds;
-  private int[] I, Q;
+  private var I: Array[Int] = null
+  private var Q: Array[Int] = null
 
-  public IqDataFourier(ComplexArray data, double t0, boolean zeroEnds) {
-    this.data = data;
-    this.t0 = t0;
-    this.zeroEnds = zeroEnds;
+  def checkLength(expected: Int): Unit = {
+    LengthChecker.checkLengths(data.length, expected)
   }
 
-  public void checkLength(int expected) {
-    LengthChecker.checkLengths(data.length, expected);
-  }
-
-  @Override
-  public Future<Void> deconvolve(DeconvolutionProxy deconvolver) {
-    IqChannel ch = getChannel();
-    double freq = ch.getMicrowaveConfig().getFrequency();
-    Future<DeconvolutionProxy.IqResult> req = deconvolver.deconvolveIqFourier(ch.getDacBoard(), data, freq, t0, zeroEnds);
-    return Futures.chain(req, new Function<DeconvolutionProxy.IqResult, Void>() {
-      @Override
-      public Void apply(IqResult result) {
-        I = result.I;
-        Q = result.Q;
-        setDeconvolved(true);
-        return null;
+  def deconvolve(deconvolver: DeconvolutionProxy): Future[Void] = {
+    val ch = getChannel()
+    val freq = ch.getMicrowaveConfig().getFrequency()
+    val req = deconvolver.deconvolveIqFourier(ch.getDacBoard(), data, freq, t0, zeroEnds)
+    Futures.chain(req, new Function[DeconvolutionProxy.IqResult, Void] {
+      override def apply(result: IqResult): Void = {
+        I = result.I
+        Q = result.Q
+        setDeconvolved(true)
+        null
       }
-    });
+    })
   }
 
-  @Override
-  public int[] getDeconvolvedI() {
-    Preconditions.checkState(isDeconvolved(), "Data has not yet been deconvolved");
-    return I;
+  override def getDeconvolvedI(): Array[Int] = {
+    require(isDeconvolved(), "Data has not yet been deconvolved")
+    I
   }
 
-  @Override
-  public int[] getDeconvolvedQ() {
-    Preconditions.checkState(isDeconvolved(), "Data has not yet been deconvolved");
-    return Q;
+  override def getDeconvolvedQ(): Array[Int] = {
+    require(isDeconvolved(), "Data has not yet been deconvolved")
+    Q
   }
 }

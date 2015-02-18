@@ -1,39 +1,25 @@
-package org.labrad.qubits.channeldata;
+package org.labrad.qubits.channeldata
 
-import java.util.concurrent.Future;
+import java.util.concurrent.Future
 
-import org.labrad.qubits.channels.AnalogChannel;
-import org.labrad.qubits.proxies.DeconvolutionProxy;
-import org.labrad.qubits.util.ComplexArray;
-import org.labrad.qubits.util.Futures;
+import org.labrad.qubits.proxies.DeconvolutionProxy
+import org.labrad.qubits.util.ComplexArray
+import org.labrad.qubits.util.Futures
 
-import com.google.common.base.Function;
-import com.google.common.base.Preconditions;
+import com.google.common.base.Function
 
-public class AnalogDataFourier extends AnalogDataBase {
+class AnalogDataFourier(data: ComplexArray, t0: Double, averageEnds: Boolean, dither: Boolean) extends AnalogDataBase {
 
-  private ComplexArray data;
-  private double t0;
-  private boolean averageEnds;
-  private boolean dither;
-  private int[] deconvolvedData;
+  private var deconvolvedData: Array[Int] = null
 
-  public AnalogDataFourier(ComplexArray data, double t0, boolean averageEnds, boolean dither) {
-    this.data = data;
-    this.t0 = t0;
-    this.averageEnds = averageEnds;
-    this.dither = dither;
+  def checkLength(expected: Int): Unit = {
+    val expectedFourier = if (expected % 2 == 0) (expected/2) + 1 else (expected+1) / 2
+    LengthChecker.checkLengths(data.length, expectedFourier)
   }
 
-  public void checkLength(int expected) {
-    int expectedFourier = expected % 2 == 0 ? (expected/2) + 1 : (expected+1) / 2;
-    LengthChecker.checkLengths(data.length, expectedFourier);
-  }
-
-  @Override
-  public Future<Void> deconvolve(DeconvolutionProxy deconvolver) {
-    AnalogChannel ch = getChannel();
-    Future<int[]> req = deconvolver.deconvolveAnalogFourier(
+  def deconvolve(deconvolver: DeconvolutionProxy): Future[Void] = {
+    val ch = getChannel()
+    val req = deconvolver.deconvolveAnalogFourier(
         ch.getDacBoard(),
         ch.getDacId(),
         data,
@@ -44,20 +30,18 @@ public class AnalogDataFourier extends AnalogDataBase {
         ch.getReflectionAmplitudes(),
         averageEnds,
         dither
-    );
-    return Futures.chain(req, new Function<int[], Void>() {
-      @Override
-      public Void apply(int[] result) {
-        deconvolvedData = result;
-        setDeconvolved(true);
-        return null;
+    )
+    Futures.chain(req, new Function[Array[Int], Void] {
+      override def apply(result: Array[Int]): Void = {
+        deconvolvedData = result
+        setDeconvolved(true)
+        null
       }
-    });
+    })
   }
 
-  @Override
-  public int[] getDeconvolved() {
-    Preconditions.checkState(isDeconvolved(), "Data has not yet been deconvolved");
-    return deconvolvedData;
+  def getDeconvolved(): Array[Int] = {
+    require(isDeconvolved(), "Data has not yet been deconvolved")
+    deconvolvedData
   }
 }
