@@ -1,6 +1,6 @@
 package org.labrad.qubits
 
-import org.labrad.data.Request
+import org.labrad.data.Data
 import org.labrad.qubits.channels.AdcChannel
 import org.labrad.qubits.resources.AdcBoard
 import org.labrad.qubits.resources.DacBoard
@@ -56,19 +56,16 @@ class FpgaModelAdc(board: AdcBoard, expt: Experiment) extends FpgaModel {
     getSequenceLength_us()
   }
 
-  def addPackets(runRequest: Request): Unit = {
+  def packets: Seq[(String, Data)] = {
     // first we configure the "global" ADC properties, while checking to see if they were set more than once
     // across the different channels
     // then we set the "local" properties of each demod channel
     if (channels.isEmpty)
-      return
+      return Nil
 
     // this is double counting but it doesn't matter
     for (ch1 <- channels; ch2 <- channels) ch1.reconcile(ch2)
 
-    channels(0).addGlobalPackets(runRequest)
-    for (ch <- channels) {
-      ch.addLocalPackets(runRequest)
-    }
+    channels(0).globalPackets ++ channels.flatMap(_.localPackets)
   }
 }

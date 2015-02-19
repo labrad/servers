@@ -1,6 +1,6 @@
 package org.labrad.qubits.config
 
-import org.labrad.data.Data
+import org.labrad.data._
 import org.labrad.qubits.resources.MicrowaveSource
 
 case object MicrowaveSourceOffConfig extends MicrowaveSourceConfig {
@@ -19,11 +19,12 @@ case object MicrowaveSourceOffConfig extends MicrowaveSourceConfig {
   }
 
   override def getSetupPacket(src: MicrowaveSource): SetupPacket = {
-    val data = Data.ofType("(ss)(sb)")
-    data.get(0).setString("Select Device", 0).setString(src.name, 1)
-    data.get(1).setString("Output", 0).setBool(false, 1)
+    val data = Seq(
+      "Select Device" -> Str(src.name),
+      "Output" -> Bool(false)
+    )
 
     val state = s"${src.name}: off"
-    new SetupPacket(state, data)
+    SetupPacket(state, data)
   }
 }

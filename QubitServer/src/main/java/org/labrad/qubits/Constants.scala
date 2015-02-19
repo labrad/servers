@@ -1,8 +1,5 @@
 package org.labrad.qubits
 
-import org.labrad.data.Data
-import scala.collection.JavaConverters._
-
 object Constants {
   /*
    * Minimum delay (in microseconds) after sending a command to the DC Rack
@@ -17,9 +14,7 @@ object Constants {
   /*
    * Maximum number of reps that can be run in one go.
    *
-   * This number is determined by the fact that the number
-   * of reps must fit into a two byte field in the packet that
-   * is sent to the DACs.
+   * Must fit into a two byte field in the packet sent to the DACs.
    */
   val MAX_REPS = 65535
 
@@ -41,8 +36,11 @@ object Constants {
   val WIRING_TYPE = "*(ss), *((ss)(ss)), *(ss)"
 
   val BUILD_INFO_PATH = Array("", "Servers", "GHz FPGAs")
+  val BUILD_INFO_ADC_PREFIX = "adcBuild"
+  val BUILD_INFO_DAC_PREFIX = "dacBuild"
 
-  val DEFAULT_ADC_PROPERTIES = Map(
+  val DEFAULT_ADC_BUILD = "1"
+  val DEFAULT_ADC_PROPERTIES: Map[String, Long] = Map(
     "DEMOD_CHANNELS" -> 4,
     "DEMOD_CHANNELS_PER_PACKET" -> 11,
     "DEMOD_PACKET_LEN" -> 46,
@@ -57,7 +55,8 @@ object Constants {
     "LOOKUP_ACCUMULATOR_BITS" -> 16
   )
 
-  val DEFAULT_DAC_PROPERTIES = Map(
+  val DEFAULT_DAC_BUILD = "5"
+  val DEFAULT_DAC_PROPERTIES: Map[String, Long] = Map(
     "SRAM_LEN" -> 10240,
     "SRAM_PAGE_LEN" -> 5120,
     "SRAM_DELAY_LEN" -> 1024,
@@ -65,14 +64,4 @@ object Constants {
     "SRAM_BLOCK1_LEN" -> 2048,
     "SRAM_WRITE_PKT_LEN" -> 256
   )
-
-  private def processProperties(props: Map[String, Int]): Data = {
-    val elems = props.map { case (k, v) =>
-      Data.clusterOf(Data.valueOf(k), Data.valueOf(v.toLong))
-    }
-    Data.listOf(elems.toSeq.asJava)
-  }
-
-  val DEFAULT_ADC_PROPERTIES_DATA = processProperties(DEFAULT_ADC_PROPERTIES)
-  val DEFAULT_DAC_PROPERTIES_DATA = processProperties(DEFAULT_DAC_PROPERTIES)
 }

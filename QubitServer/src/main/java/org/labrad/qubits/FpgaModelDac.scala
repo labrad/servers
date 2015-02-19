@@ -1,14 +1,12 @@
 package org.labrad.qubits
 
-import org.labrad.data.Data
-import org.labrad.data.Request
+import org.labrad.data._
 import org.labrad.qubits.channels.TriggerChannel
 import org.labrad.qubits.controller.JumpTableController
 import org.labrad.qubits.controller.MemoryController
 import org.labrad.qubits.enums.DacTriggerId
 import org.labrad.qubits.proxies.DeconvolutionProxy
 import org.labrad.qubits.resources.DacBoard
-import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -45,7 +43,7 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
   private val triggers = mutable.Map.empty[DacTriggerId, TriggerChannel]
 
   // TODO: figure this out intelligently (from the build properties?)
-  private val controller = if (dacBoard.getBuildNumber.toInt >= 13) {
+  private val controller = if (dacBoard.buildNumber.toInt >= 13) {
     new JumpTableController(this)
   } else {
     new MemoryController(this)
@@ -64,20 +62,25 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
     expt
   }
 
-  def addPackets(runRequest: Request): Unit = {
-    runRequest.add("Select Device", Data.valueOf(name))
-    runRequest.add("Start Delay", Data.valueOf(getStartDelay().toLong))
-    controller.addPackets(runRequest)
+  def packets: Seq[(String, Data)] = {
+    val builder = Seq.newBuilder[(String, Data)]
+
+    builder += "Select Device" -> Str(name)
+    builder += "Start Delay" -> UInt(getStartDelay())
+    builder ++= controller.packets
+
     // TODO: having the dual block stuff here is a bit ugly
     if (controller.hasDualBlockSram()) {
       val memController = getMemoryController()
-      runRequest.add("SRAM dual block",
-              Data.valueOf(getSramDualBlock1()),
-              Data.valueOf(getSramDualBlock2()),
-              Data.valueOf(memController.getSramDualBlockDelay()))
+      builder += "SRAM dual block" -> Cluster(
+          Arr(getSramDualBlock1()),
+          Arr(getSramDualBlock2()),
+          UInt(memController.getSramDualBlockDelay())
+      )
     } else {
-      runRequest.add("SRAM", Data.valueOf(getSram()))
+      builder += "SRAM" -> Arr(getSram())
     }
+    builder.result
   }
 
   // Controller stuff
@@ -151,14 +154,14 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
         block
       }
     } else {
-      var len = dacBoard.getBuildProperties()("SRAM_LEN").toInt
+      var len = dacBoard.buildProperties("SRAM_LEN").toInt
       if (expt.getShortestSram() < len) {
         len = expt.getShortestSram()
       }
       Array.fill[Long](len) { 0 }
     }
     // check that the total sram sequence is not too long
-    val maxLen = this.dacBoard.getBuildProperties()("SRAM_LEN")
+    val maxLen = this.dacBoard.buildProperties("SRAM_LEN")
     if (sram.length > maxLen) {
       sys.error(s"SRAM sequence exceeds maximum length. Length = ${sram.length}; allowed = $maxLen; for board $name")
     }
@@ -174,7 +177,7 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
     require(memoryController.hasDualBlockSram, "Sequence does not have a dual-block SRAM call")
     if (!hasSramChannel()) {
       // return zeros in this case
-      val len = Math.min(dacBoard.getBuildProperties()("SRAM_LEN").toInt, expt.getShortestSram())
+      val len = Math.min(dacBoard.buildProperties("SRAM_LEN").toInt, expt.getShortestSram())
       Array.fill[Long](len) { 0 }
     } else {
       getSramBlock(memoryController.getDualBlockName1())
@@ -190,7 +193,7 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
     require(memoryController.hasDualBlockSram, "Sequence does not have a dual-block SRAM call")
     if (!hasSramChannel()) {
       // return zeros in this case
-      val len = Math.min(dacBoard.getBuildProperties()("SRAM_LEN").toInt, expt.getShortestSram())
+      val len = Math.min(dacBoard.buildProperties("SRAM_LEN").toInt, expt.getShortestSram())
       Array.fill[Long](len) { 0 }
     } else {
       getSramBlock(memoryController.getDualBlockName2(), addAutoTrigger = false)

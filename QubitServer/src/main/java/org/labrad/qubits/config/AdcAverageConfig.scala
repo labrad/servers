@@ -1,9 +1,6 @@
 package org.labrad.qubits.config
 
-import java.util.Map
-
-import org.labrad.data.Data
-import org.labrad.data.Request
+import org.labrad.data._
 
 class AdcAverageConfig(name: String, buildProperties: Map[String, Long]) extends AdcBaseConfig(name, buildProperties) {
 
@@ -17,11 +14,13 @@ class AdcAverageConfig(name: String, buildProperties: Map[String, Long]) extends
    * @param runRequest The request to which we add the packets.
    * @author pomalley
    */
-  override def addPackets(runRequest: Request): Unit = {
+  override def packets: Seq[(String, Data)] = {
     require(startDelay > -1, s"ADC Start Delay not set for channel '$name'")
-    runRequest.add("ADC Run Mode", Data.valueOf("average"))
-    runRequest.add("Start Delay", Data.valueOf(this.startDelay.toLong))
-    runRequest.add("ADC Filter Func", Data.valueOf("balhQLIYFGDSVF"), Data.valueOf(42L), Data.valueOf(42L))
+    Seq(
+      "ADC Run Mode" -> Str("average"),
+      "Start Delay" -> UInt(startDelay),
+      "ADC Filter Func" -> Cluster(Str("balhQLIYFGDSVF"), UInt(42L), UInt(42L))
+    )
   }
 
   def setCriticalPhase(criticalPhase: Double): Unit = {

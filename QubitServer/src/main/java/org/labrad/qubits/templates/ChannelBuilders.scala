@@ -1,9 +1,8 @@
 package org.labrad.qubits.templates
 
-import org.labrad.data.Data
+import org.labrad.data._
 import org.labrad.qubits.enums.ChannelType
 import org.labrad.qubits.resources.Resources
-import scala.collection.JavaConverters._
 
 object ChannelBuilders {
   /**
@@ -14,10 +13,8 @@ object ChannelBuilders {
   def fromData(template: Data, resources: Resources): ChannelBuilder = {
     import ChannelType._
 
-    val name = template.get(0).getString()
-    val typeName = template.get(1, 0).getString()
+    val (name, (typeName, params)) = template.get[(String, (String, Seq[String]))]
     val chanType = ChannelType.fromString(typeName)
-    val params = template.get(1, 1).getStringList().asScala.toSeq
 
     chanType match {
       case ANALOG => new AnalogChannelBuilder(name, params, resources)
@@ -26,7 +23,6 @@ object ChannelBuilders {
       case FASTBIAS => new FastBiasChannelBuilder(name, params, resources)
       case PREAMP => new PreampChannelBuilder(name, params, resources)
       case ADC => new AdcChannelBuilder(name, params, resources)
-      case _ => sys.error(s"Unknown channel type: $chanType")
     }
   }
 }

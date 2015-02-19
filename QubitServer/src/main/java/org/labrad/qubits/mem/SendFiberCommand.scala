@@ -9,7 +9,7 @@ case class SendFiberCommand(channel: DacFiberId, bits: Int) extends MemoryComman
     val send = channel match {
       case DacFiberId.FOUT_0 => 0x100000
       case DacFiberId.FOUT_1 => 0x200000
-      case _ => sys.error(s"Invalid DAC fiber id: $channel")
+      case DacFiberId.FIN => sys.error(s"Invalid DAC fiber id: $channel")
     }
     Array[Long](send + (bits & 0x0FFFFF))
   }

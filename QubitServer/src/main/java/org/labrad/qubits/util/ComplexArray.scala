@@ -1,6 +1,6 @@
 package org.labrad.qubits.util
 
-import org.labrad.data.Data
+import org.labrad.data._
 
 /**
  * A utility class that encapsulates an array of complex numbers.
@@ -19,10 +19,11 @@ case class ComplexArray(re: Array[Double], im: Array[Double]) {
    * Convert a complex array into LabRAD data of type *c
    */
   def toData(): Data = {
-    val iq = Data.ofType("*c")
+    val iq = Data("*c")
     iq.setArraySize(re.length)
+    val it = iq.flatIterator
     for (i <- 0 until length) {
-      iq.setComplex(re(i), im(i), i)
+      it.next.setComplex(re(i), im(i))
     }
     iq
   }
@@ -35,13 +36,14 @@ object ComplexArray {
    * @return
    */
   def fromData(vals: Data): ComplexArray = {
-    val len = vals.getArraySize()
+    val len = vals.arraySize
     val re = Array.ofDim[Double](len)
     val im = Array.ofDim[Double](len)
+    val it = vals.flatIterator
     for (i <- 0 until len) {
-      val c = vals.get(i).getComplex()
-      re(i) = c.getReal()
-      im(i) = c.getImag()
+      val c = it.next
+      re(i) = c.getReal
+      im(i) = c.getImag
     }
     ComplexArray(re, im)
   }

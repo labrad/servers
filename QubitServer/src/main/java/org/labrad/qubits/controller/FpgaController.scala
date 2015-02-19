@@ -1,6 +1,6 @@
 package org.labrad.qubits.controller
 
-import org.labrad.data.Request
+import org.labrad.data.Data
 import org.labrad.qubits.FpgaModelDac
 
 /**
@@ -14,7 +14,7 @@ abstract class FpgaController(protected val fpga: FpgaModelDac) {
 
   def hasDualBlockSram(): Boolean
 
-  def addPackets(runRequest: Request): Unit
+  def packets: Seq[(String, Data)]
 
   def clear(): Unit
 }

@@ -13,7 +13,6 @@ object FastBiasCommands {
       case DAC0_NOSELECT => setDac0NoSelect(fb, vSend)
       case DAC1 => setDac1Fast(fb, vSend)
       case DAC1_SLOW => setDac1Slow(fb, vSend)
-      case _ => sys.error(s"Unknown bias command type: $cmdType")
     }
   }
 

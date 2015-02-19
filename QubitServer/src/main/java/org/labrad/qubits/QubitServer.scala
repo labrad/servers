@@ -1,22 +1,21 @@
 package org.labrad.qubits
 
-import java.util.{List => JList}
-import org.labrad.AbstractServer
-import org.labrad.RequestCallback
-import org.labrad.Servers
-import org.labrad.annotations.ServerInfo
-import org.labrad.data.Context
-import org.labrad.data.Data
-import org.labrad.data.Request
+import java.util.concurrent.atomic.AtomicReference
+import org.labrad._
+import org.labrad.data._
 import org.labrad.events.MessageEvent
 import org.labrad.events.MessageListener
+import org.labrad.qubits.proxies.FpgaServerProxy
 import org.labrad.qubits.resources.AdcBoard
 import org.labrad.qubits.resources.DacBoard
 import org.labrad.qubits.resources.Resources
-import scala.collection.JavaConverters._
+import scala.concurrent.{Await, Future}
+import scala.concurrent.duration._
 
-@ServerInfo(name = "Qubit Sequencer",
-    doc = """Builds and Runs qubit sequences
+class QubitServer extends Server[QubitServer, QubitContext] {
+
+  val name = "Qubit Sequencer"
+  val doc = """Builds and Runs qubit sequences
             |
             |This server is designed to help you build sequences to control the
             |numerous devices involved in a multi-qubit experiment.  In general,
@@ -41,45 +40,73 @@ import scala.collection.JavaConverters._
             |(<device name>, <channel name>), or a single string <device name>
             |if the device has only one channel of the type needed for the command.
             |
-            |Version 0.6.1.""")
-class QubitServer extends AbstractServer {
+            |Version 0.6.1.""".stripMargin
 
-  private var wiringContext: Context = _
+  implicit def executionContext = cxn.executionContext
+
+  private var mgr: ManagerServerProxy = _
+  private var buildReg: RegistryServerProxy = _
+  private var wiringReg: RegistryServerProxy = _
+  private var fpgaServer: FpgaServerProxy = _
+  private val resources = new AtomicReference[Resources]
 
   override def init(): Unit = {
-    val cxn = getConnection()
-    wiringContext = cxn.newContext()
-    loadWiringConfiguration()
+    this.mgr = new ManagerServerProxy(cxn)
+    this.buildReg = new RegistryServerProxy(cxn, context = cxn.newContext)
+    this.wiringReg = new RegistryServerProxy(cxn, context = cxn.newContext)
+    this.fpgaServer = new FpgaServerProxy(cxn, context = cxn.newContext)
+
+    val wiringMsg = 11223344
+    val buildInfoMsg = 11335577
+    val serverConnectMsg = 55443322
+
     // automatically reload the wiring configuration when it changes
-    cxn.addMessageListener(new MessageListener() {
-      override def messageReceived(e: MessageEvent): Unit = {
-        if (e.getMessageID() == 55443322L) {
-          val serverName = e.getData().getClusterAsList().get(1).getString()
-          if (serverName == Constants.GHZ_DAC_SERVER) {
-            println(s"Server connected: $serverName -- refreshing wiring.")
-            try {
-              Thread.sleep(1000)
-            } catch {
-              case e1: InterruptedException =>
-                e1.printStackTrace()
-            }
-            loadWiringConfiguration()
+    cxn.addMessageListener {
+      // wiring updated in registry
+      case Message(src, ctx, `wiringMsg`, data) =>
+        println(s"Registry wiring info updated -- reloading config.")
+        reload()
+
+      // fpga build info updated in registry
+      case Message(src, ctx, `buildInfoMsg`, data) =>
+        println(s"Registry build info updated -- reloading config.")
+        reload()
+
+      // Server Connect
+      case Message(src, ctx, `serverConnectMsg`, Cluster(id, serverName)) =>
+        if (serverName == Constants.GHZ_DAC_SERVER) {
+          println(s"Server connected: $serverName -- reloading config.")
+          try {
+            // wait to allow fpga autodetection
+            // TODO: need a more robust mechanism here
+            Thread.sleep(1000)
+          } catch {
+            case e1: InterruptedException =>
+              e1.printStackTrace()
           }
+          reload()
         }
-        else if (e.getContext() == wiringContext) {
-          wiringContext = getConnection().newContext()
-          loadWiringConfiguration()
-        }
-      }
-    })
-    val req = startRegistryRequest()
-    req.add("Notify on Change", Data.valueOf(wiringContext.getLow()),
-        Data.valueOf(true))
-    val req2 = Request.to("Manager", wiringContext)
-    req2.add("Subscribe to Named Message", Data.valueOf("Server Connect"), Data.valueOf(55443322L),
-        Data.valueOf(true))
-    cxn.sendAndWait(req)
-    cxn.sendAndWait(req2)
+    }
+
+    val req = wiringReg.packet()
+    req.cd(Constants.WIRING_PATH, true)
+    req.notifyOnChange(wiringMsg, true)
+    Await.result(req.send(), 1.minute)
+
+    val req2 = buildReg.packet()
+    req2.cd(Constants.BUILD_INFO_PATH, true)
+    req2.notifyOnChange(buildInfoMsg, true)
+    Await.result(req2.send(), 1.minute)
+
+    val req3 = mgr.packet() // don't really care about context here
+    req3.subscribeToNamedMessage("Server Connect", serverConnectMsg, true)
+    Await.result(req3.send(), 1.minute)
+
+    reload()
+  }
+
+  def newContext(context: Context): QubitContext = {
+    new QubitContext(cxn, () => resources.get())
   }
 
   override def shutdown(): Unit = {
@@ -87,165 +114,124 @@ class QubitServer extends AbstractServer {
   }
 
   /**
-   * Create a request for the registry
-   */
-  private def startRegistryRequest(): Request = {
-    Request.to(Constants.REGISTRY_SERVER, wiringContext)
-  }
-
-  /**
    * Load the current wiring configuration from the registry.
    */
-  def loadWiringConfiguration(): Unit = {
-    println("Updating wiring configuration...")
-
+  def loadWiringConfiguration(): Future[(Seq[Data], Seq[Data], Seq[Data])] = {
     // load wiring configuration from the registry
-    val req = startRegistryRequest()
-    req.add("cd", Data.valueOf(Constants.WIRING_PATH),
-        Data.valueOf(true)) // create the directory if needed
-    val idx = req.addRecord("get", Data.valueOf(Constants.WIRING_KEY)) //,
-    // Data.valueOf(Constants.WIRING_TYPE)); // no longer enforcing wiring type ==> FAIL!
-    val ans = getConnection().sendAndWait(req)
+    val req = wiringReg.packet()
+    req.cd(Constants.WIRING_PATH, true) // create the directory if needed
+    val wiringFuture = req.get(Constants.WIRING_KEY) // cannot enforce wiring type, because it includes variable-length clusters
+    req.send()
 
-    // create objects for all resources
-    val resources = ans.get(idx).get(0).getClusterAsList().asScala.toSeq
-    //List<Data> resources = ans.get(idx).get(0).getDataList()
-    val fibers = ans.get(idx).get(1).getDataList().asScala.toSeq
-    val microwaves = ans.get(idx).get(2).getDataList().asScala.toSeq
-    Resources.updateWiring(resources, fibers, microwaves)
-
-    println("Wiring configuration updated.")
-
-    this.loadBuildProperties()
+    wiringFuture.map { wiring =>
+      val Cluster(resources @ _*) = wiring(0)
+      val fibers = wiring(1).get[Seq[Data]]
+      val microwaves = wiring(2).get[Seq[Data]]
+      (resources, fibers, microwaves)
+    }
   }
 
   /**
-   * we make a BuildLoader for every DAC/ADC board. we run them asynchronously to get build information
-   * from both the FPGA server and the registry.
-   * @author pomalley
+   * Load build number for all connected ADC and DAC fpga boards.
    *
+   * Returns two maps, the first from ADC device name to build number, and the
+   * second from DAC device name to build number. If the build number cannot be
+   * determined for a given board, that board will not be included in the
+   * result.
    */
-  private class BuildLoader(myBoard: DacBoard) extends RequestCallback {
+  def loadBuildNumbers(): Future[(Map[String, String], Map[String, String])] = {
+    val adcBuildNumsF = fpgaServer.listADCs().flatMap { adcs =>
+      loadBuildNumbers(adcs)
+    }
+    val dacBuildNumsF = fpgaServer.listDACs().flatMap { dacs =>
+      loadBuildNumbers(dacs)
+    }
 
-    private var gotBuildNumber = false
+    for {
+      adcBuildNums <- adcBuildNumsF
+      dacBuildNums <- dacBuildNumsF
+    } yield (adcBuildNums, dacBuildNums)
+  }
 
-    def run(): Unit = {
-      // build and send request to the FPGA server
-      val req = Request.to(Constants.GHZ_DAC_SERVER, wiringContext)
-      req.add("Select Device", Data.valueOf(myBoard.name))
-      req.add("Build Number")
-
-      // TODO: let's temporarily try doing this synchronously
-      // to see if we can figure out why neither onSuccess or onFailure
-      // is being called when the FPGA server is restarted.
-      //getConnection().send(req, this);
-      try {
-        val resp = getConnection().sendAndWait(req)
-        onSuccess(req, resp)
-      } catch {
-        case e: Exception =>
-          onFailure(req, e)
+  def loadBuildNumbers(boards: Seq[String]): Future[Map[String, String]] = {
+    val reqs = boards.map { board =>
+      loadBuildNumber(board).map { buildOpt =>
+        buildOpt.map(build => board -> build)
       }
     }
 
-    override def onSuccess(request: Request, response: JList[Data]): Unit = {
-      if (!gotBuildNumber) {
-        // we got the build number from the FPGA server
-        val buildNumber = response.get(1).getString()
-        myBoard.setBuildNumber(buildNumber)
-        println(s"Board ${myBoard.name} has build number ${myBoard.getBuildNumber}")
-        gotBuildNumber = true
-        // send out a new packet to the registry to look up info on this build number
-        sendRegistryRequest()
-      } else {
-        // we have the build details from the registry
-        myBoard.loadProperties(response.get(1))
-        println(s"Loaded build properties for board ${myBoard.name}")
-      }
+    Future.sequence(reqs).map { results =>
+      results.flatten.toMap
     }
+  }
 
-    override def onFailure(request: Request, cause: Throwable): Unit = {
-      if (!gotBuildNumber) {
-        // we failed to get the build number from the FPGA server
-        println(s"Board ${myBoard.name} failed to get build number: Using default build number (5 for DAC, 1 for ADC).")
-        myBoard.setBuildNumber("-1")
-        gotBuildNumber = true
-        // send out a packet to the registry anyway to get the details
-        sendRegistryRequest()
-      } else {
-        // we failed to get the build details from the registry
-        println(s"Exception when looking up ADC/DAC build properties: ${cause.getMessage}. Using default values.")
-        val defaults = myBoard match {
-          case _: AdcBoard => Constants.DEFAULT_ADC_PROPERTIES_DATA
-          case _: DacBoard => Constants.DEFAULT_DAC_PROPERTIES_DATA
-        }
-        myBoard.loadProperties(defaults)
-      }
-    }
+  def loadBuildNumber(board: String): Future[Option[String]] = {
+    val p = fpgaServer.packet()
+    p.selectDevice(board)
+    val f = p.buildNumber()
+    p.send()
 
-    private def sendRegistryRequest(): Unit = {
-      val regReq = startRegistryRequest()
-      regReq.add("cd", Data.valueOf(Constants.BUILD_INFO_PATH))
-      val defaultBuild = myBoard match {
-        case _: AdcBoard => "1"
-        case _: DacBoard => "5"
-      }
-      val build = myBoard.getBuildNumber() match {
-        case "-1" => defaultBuild
-        case n => n
-      }
-      regReq.add("get", Data.valueOf(myBoard.getBuildType() + build))
-
-      // TODO: synchronous as above
-      //getConnection().send(regReq, this);
-      try {
-        val resp = getConnection().sendAndWait(regReq)
-        onSuccess(regReq, resp)
-      } catch {
-        case e: Exception =>
-          onFailure(regReq, e)
-      }
+    f.map { build =>
+      Some(build)
+    }.recover {
+      case e: Exception =>
+        None
     }
   }
 
   /**
-   * Load the build properties for the ADC and DAC boards.
+   * Load build properties from the registry for all known ADC and DAC builds.
+   *
+   * Returns a Future that will fire with a map from build name to build
+   * properties for that build, where the build properties are given as a map
+   * from string property name to long value.
    */
-  def loadBuildProperties(): Unit = {
-    println("Load DAC/ADC build properties...")
-    val current = Resources.getCurrent()
-    var dacs = current.getAll[DacBoard]
-    println(s"dacs.size() = ${dacs.size}")
-    // make and start a request to do look up build numbers and properties for each board
-    for (board <- dacs) {
-      val bl = new BuildLoader(board)
-      bl.run()
-    }
+  def loadBuildProperties(): Future[(Map[String, Map[String, Long]], Map[String, Map[String, Long]])] = {
+    val adcBuildPropsF = loadBuildProperties(Constants.BUILD_INFO_ADC_PREFIX)
+    val dacBuildPropsF = loadBuildProperties(Constants.BUILD_INFO_DAC_PREFIX)
 
-    // check to see that we've set build properties
-    while (dacs.nonEmpty) {
-      // keep dacs that have not yet loaded
-      dacs = dacs.filterNot(_.havePropertiesLoaded)
+    for {
+      adcBuildProps <- adcBuildPropsF
+      dacBuildProps <- dacBuildPropsF
+    } yield (adcBuildProps, dacBuildProps)
+  }
 
-      var n = 0
-      if (dacs.nonEmpty) {
-        println(s"Waiting on ${dacs.size} boards...")
-        try {
-          Thread.sleep(1000)
-          n += 1
-          if (n > 30) {
-            System.err.println("Timeout when waiting for board build number info!")
-            dacs = Nil
-          }
-        } catch {
-          case e: InterruptedException =>
-            System.err.println("Error while waiting for DAC board info!")
-            e.printStackTrace()
+  def loadBuildProperties(prefix: String): Future[Map[String, Map[String, Long]]] = {
+    val p = buildReg.packet()
+    p.cd(Constants.BUILD_INFO_PATH)
+    val f = p.dir()
+    p.send()
+
+    f.flatMap { case (dirs, keys) =>
+      val buildInfoKeys = keys.filter(_.startsWith(prefix))
+      val p = buildReg.packet()
+      val fs = buildInfoKeys.map { key =>
+        p.get(key).map { value =>
+          val props = value.get[Seq[(String, Long)]].toMap
+          key -> props
         }
-      } else {
-        println("All boards loaded.")
       }
+      p.send()
+
+      Future.sequence(fs).map(_.toMap)
     }
+  }
+
+  def reload(): Unit = {
+    val wiringF = loadWiringConfiguration()
+    val buildNumsF = loadBuildNumbers()
+    val buildPropsF = loadBuildProperties()
+
+    val f = for {
+      (resources, fibers, microwaves) <- wiringF
+      (adcNums, dacNums) <- buildNumsF
+      (adcProps, dacProps) <- buildPropsF
+    } yield {
+      Resources.create(resources, fibers, microwaves, adcNums, dacNums, adcProps, dacProps)
+    }
+
+    val newResources = Await.result(f, 1.minute)
+    resources.set(newResources)
     println("DAC/ADC build properties loaded.")
   }
 }
@@ -255,6 +241,7 @@ object QubitServer {
    * Run this server.
    */
   def main(args: Array[String]) {
-    Servers.runServer(classOf[QubitServer], classOf[QubitContext], args)
+    val server = new QubitServer
+    Server.run(server, args)
   }
 }

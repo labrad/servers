@@ -6,7 +6,6 @@ import org.labrad.qubits.channeldata.AnalogData
 import org.labrad.qubits.channeldata.AnalogDataFourier
 import org.labrad.qubits.enums.DacAnalogId
 import org.labrad.qubits.util.ComplexArray
-import scala.collection.JavaConverters._
 
 class AnalogChannel(name: String) extends SramChannelBase[AnalogData](name) {
 

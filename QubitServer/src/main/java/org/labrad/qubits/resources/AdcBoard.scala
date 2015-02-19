@@ -4,12 +4,12 @@ import org.labrad.qubits.enums.DacFiberId
 import org.labrad.qubits.enums.DcRackFiberId
 
 object AdcBoard {
-  def create(name: String): Resource = {
-    new AdcBoard(name)
+  def create(name: String, buildNumber: String, buildProperties: Map[String, Long]): Resource = {
+    new AdcBoard(name, buildNumber, buildProperties)
   }
 }
 
-class AdcBoard(name: String) extends DacBoard(name) with Resource {
+class AdcBoard(name: String, buildNumber: String, buildProperties: Map[String, Long]) extends DacBoard(name, buildNumber, buildProperties) with Resource {
 
   // replace "dacBuild" with "adcBuild"
   override val buildType = "adcBuild"

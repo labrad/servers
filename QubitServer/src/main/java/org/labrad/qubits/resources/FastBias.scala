@@ -38,10 +38,10 @@ class FastBias(val name: String) extends BiasBoard {
 
   private def setProperties(properties: Seq[Data]): Unit = {
     for (elem <- properties) {
-      val name = elem.get(0).getString()
+      val name = elem(0).getString
       if (name == "gain") {
         val channels = DcRackFiberId.values()
-        val values = elem.get(1).getValueArray()
+        val values = elem(1).get[Array[Double]]
         for ((ch, gain) <- channels zip values) {
           gains(ch) = gain
         }

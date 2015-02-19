@@ -1,8 +1,7 @@
 package org.labrad.qubits.jumptable
 
 import java.util.ArrayList
-import org.labrad.data.Data
-import org.labrad.data.Request
+import org.labrad.data._
 
 /**
  * Created by pomalley on 2/13/15.
@@ -31,16 +30,15 @@ class JumpTable {
   }
 
   def addEntry(name: String, argument: Data): Unit = {
-    val argClone = argument.clone()
+    val argClone = Data.copy(argument, Data(argument.t))
     // TODO: type check the name and argument
     if (name == "CYCLE") {
-      val args = argClone.getClusterAsList()
-      require(args.size() == 4, s"Cycle must have 4 arguments; currently has $args")
+      require(argClone.clusterSize == 4, s"Cycle must have 4 arguments; currently has $argClone")
       if (countersUsed == NUM_COUNTERS) {
         sys.error("More than 4 counters used in jump table.")
       } else {
-        counters(countersUsed) = argClone.get(3).getWord()
-        argClone.get(3).setWord(countersUsed)
+        counters(countersUsed) = argClone(3).getUInt
+        argClone(3).setUInt(countersUsed)
         countersUsed += 1
       }
     }
@@ -54,11 +52,13 @@ class JumpTable {
    * The correct DAC must already have been selected.
    * @param runRequest request to the GHz FPGA server
    */
-  def addPackets(runRequest: Request): Unit = {
-    runRequest.add("Jump Table Clear")
-    runRequest.add("Jump Table Set Counters", Data.valueOf(counters))
+  def packets: Seq[(String, Data)] = {
+    val builder = Seq.newBuilder[(String, Data)]
+    builder += "Jump Table Clear" -> Data.NONE
+    builder += "Jump Table Set Counters" -> Arr(counters)
     for (i <- 0 until entryNames.size()) {
-      runRequest.add("Jump Table Add Entry", Data.valueOf(entryNames.get(i)), entryArguments.get(i))
+      builder += "Jump Table Add Entry" -> Cluster(Str(entryNames.get(i)), entryArguments.get(i))
     }
+    builder.result
   }
 }

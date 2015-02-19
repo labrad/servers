@@ -1,6 +1,6 @@
 package org.labrad.qubits.channels
 
-import org.labrad.data.Data
+import org.labrad.data._
 import org.labrad.qubits.config.SetupPacket
 
 /**
@@ -35,18 +35,20 @@ class FastBiasSerialChannel(name: String) extends FastBiasChannel(name) {
       case "dac1" => (1, 0)
       case _ => sys.error(s"DAC setting must be one of 'dac0', 'dac1', or 'dac1slow'. got: $dac")
     }
-    val data = Data.ofType("(s)(s(wswwv[V]))")
-    data.get(0).setString("Select Device", 0)
-    data.get(1).setString("channel_set_voltage", 0)
-            .setWord(dcRackCard, 1, 0)
-            .setString(getDcFiberId().toString().toUpperCase(), 1, 1)
-            .setWord(dacNum, 1, 2)
-            .setWord(rcTimeConstant, 1, 3)
-            .setValue(voltage, 1, 4)
+    val records = Seq(
+      "Select Device" -> Data.NONE,
+      "channel_set_voltage" -> Cluster(
+        UInt(dcRackCard),
+        Str(getDcFiberId.toString.toUpperCase),
+        UInt(dacNum),
+        UInt(rcTimeConstant),
+        Value(voltage, "V")
+      )
+    )
 
-    val state = "%d%s: voltage=%f dac=%s".format(
-            dcRackCard, getDcFiberId(), voltage, dac)
-    new SetupPacket(state, data)
+    val state = s"$dcRackCard$getDcFiberId: voltage=$voltage dac=$dac"
+
+    SetupPacket(state, records)
   }
 
   def setDac(dac: String): Unit = {

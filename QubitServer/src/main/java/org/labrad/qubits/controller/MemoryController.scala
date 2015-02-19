@@ -1,10 +1,8 @@
 package org.labrad.qubits.controller
 
-import org.labrad.data.Data
-import org.labrad.data.Request
+import org.labrad.data._
 import org.labrad.qubits.FpgaModelDac
 import org.labrad.qubits.mem._
-import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 /**
@@ -20,8 +18,10 @@ class MemoryController(fpga: FpgaModelDac) extends FpgaController(fpga) {
   private var sramDualBlockCmd: CallSramDualBlockCommand = null
   private var sramDualBlockDelay: Double = -1
 
-  def addPackets(runRequest: Request): Unit = {
-    runRequest.add("Memory", Data.valueOf(getMemory()))
+  def packets: Seq[(String, Data)] = {
+    Seq(
+      "Memory" -> Arr(getMemory())
+    )
   }
 
   def clear(): Unit = {
@@ -221,7 +221,7 @@ class MemoryController(fpga: FpgaModelDac) extends FpgaController(fpga) {
     val bits = mem.flatMap(_.getBits)
 
     // check that the total memory sequence is not too long
-    if (bits.length > fpga.getDacBoard.getBuildProperties()("SRAM_WRITE_PKT_LEN")) {
+    if (bits.length > fpga.getDacBoard.buildProperties("SRAM_WRITE_PKT_LEN")) {
       sys.error("Memory sequence exceeds maximum length")
     }
     bits

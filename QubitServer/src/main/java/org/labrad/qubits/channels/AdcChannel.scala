@@ -1,7 +1,6 @@
 package org.labrad.qubits.channels
 
-import org.labrad.data.Data
-import org.labrad.data.Request
+import org.labrad.data._
 import org.labrad.qubits.Experiment
 import org.labrad.qubits.FpgaModel
 import org.labrad.qubits.FpgaModelAdc
@@ -16,7 +15,7 @@ import org.labrad.qubits.resources.AdcBoard
  */
 class AdcChannel(val name: String, protected val board: AdcBoard) extends Channel with TimingChannel with StartDelayChannel {
 
-  private val props = this.board.getBuildProperties()
+  private val props = board.buildProperties
   val MAX_CHANNELS = props("DEMOD_CHANNELS").toInt
   val DEMOD_CHANNELS_PER_PACKET = props("DEMOD_CHANNELS_PER_PACKET").toInt
   val TRIG_AMP = props("TRIG_AMP").toInt
@@ -92,8 +91,8 @@ class AdcChannel(val name: String, protected val board: AdcBoard) extends Channe
         s"Conflicting modes for ADC board ${this.board.name}")
     require(this.getStartDelay() == other.getStartDelay(),
         s"Conflicting start delays for ADC board ${this.board.name}")
-    require(this.triggerTable.pretty() == other.triggerTable.pretty(),
-        s"Conflicting trigger tables for ADC board ${this.board.name}: (this: ${this.triggerTable.pretty()}, other: ${other.triggerTable.pretty()})")
+    require(this.triggerTable == other.triggerTable,
+        s"Conflicting trigger tables for ADC board ${this.board.name}: (this: ${this.triggerTable}, other: ${other.triggerTable})")
     mode match {
       case AdcMode.DEMODULATE =>
         require(this.filterFunction == other.filterFunction,
@@ -115,32 +114,31 @@ class AdcChannel(val name: String, protected val board: AdcBoard) extends Channe
   }
 
   // add global packets for this ADC board. should only be called on one channel per board!
-  def addGlobalPackets(runRequest: Request): Unit = {
+  def globalPackets: Seq[(String, Data)] = {
+    val packets = Seq.newBuilder[(String, Data)]
     mode match {
       case AdcMode.AVERAGE =>
         require(getStartDelay() > -1, s"ADC Start Delay not set for channel '${this.name}'")
-        runRequest.add("ADC Run Mode", Data.valueOf("average"))
-        runRequest.add("Start Delay", Data.valueOf(this.getStartDelay().toLong))
-        //runRequest.add("ADC Filter Func", Data.valueOf("balhQLIYFGDSVF"), Data.valueOf(42L), Data.valueOf(42L))
+        packets += "ADC Run Mode" -> Str("average")
+        packets += "Start Delay" -> UInt(getStartDelay())
 
       case AdcMode.DEMODULATE =>
-        require(getStartDelay() > -1, s"ADC Start Delay not set for channel '${this.name}'")
-        //require(stretchLen > -1 && stretchAt > -1, s"ADC Filter Func not set for channel '${this.name}'")
-        runRequest.add("ADC Run Mode", Data.valueOf("demodulate"))
-        runRequest.add("Start Delay", Data.valueOf(this.getStartDelay().toLong))
-        //runRequest.add("ADC Filter Func", Data.valueOf(this.filterFunction),
-        //Data.valueOf(this.stretchLen.toLong), Data.valueOf(this.stretchAt.toLong))
+        require(getStartDelay() > -1, s"ADC Start Delay not set for channel $name")
+        packets += "ADC Run Mode" -> Str("demodulate")
+        packets += "Start Delay" -> UInt(getStartDelay())
 
       case AdcMode.UNSET =>
         sys.error(s"ADC channel ${this.name} has no mode (avg/demod) set!")
     }
-    if (this.triggerTable != null) {
-      runRequest.add("ADC Trigger Table", this.triggerTable);
+    if (triggerTable != null) {
+      packets += "ADC Trigger Table" -> triggerTable
     }
+    packets.result
   }
 
   // add local packets. only really applicable for demod mode
-  def addLocalPackets(runRequest: Request): Unit = {
+  def localPackets: Seq[(String, Data)] = {
+    val packets = Seq.newBuilder[(String, Data)]
     /*
     if (this.mode == AdcMode.DEMODULATE) {
       Preconditions.checkState(ampSin > -1 && ampCos > -1, "ADC Trig Magnitude not set on demod channel %s on channel '%s'", this.demodChannel, this.name);
@@ -148,9 +146,10 @@ class AdcChannel(val name: String, protected val board: AdcBoard) extends Channe
       runRequest.add("ADC Trig Magnitude", Data.valueOf((long)this.demodChannel), Data.valueOf((long)ampSin), Data.valueOf((long)ampCos));
     }
     */
-    if (this.mixerTable != null) {
-      runRequest.add("ADC Mixer Table", Data.valueOf(this.demodChannel.toLong), this.mixerTable)
+    if (mixerTable != null) {
+      packets += "ADC Mixer Table" -> Cluster(UInt(demodChannel), mixerTable)
     }
+    packets.result
   }
 
   //

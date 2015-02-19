@@ -3,7 +3,6 @@ package org.labrad.qubits.templates
 import org.labrad.data.Data
 import org.labrad.qubits.Experiment
 import org.labrad.qubits.resources.Resources
-import scala.collection.JavaConverters._
 
 object ExperimentBuilder {
   /**
@@ -14,7 +13,7 @@ object ExperimentBuilder {
    * @return
    */
   def fromData(devices: Data, resources: Resources): ExperimentBuilder = {
-    val deviceBuilders = devices.getDataList().asScala.toSeq.map { device =>
+    val deviceBuilders = devices.get[Seq[Data]].map { device =>
       DeviceBuilder.fromData(device, resources)
     }
     new ExperimentBuilder(deviceBuilders)

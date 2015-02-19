@@ -1,6 +1,6 @@
 package org.labrad.qubits.config
 
-import org.labrad.data.Data
+import org.labrad.data._
 import org.labrad.qubits.channels.PreampChannel
 
 object PreampConfig {
@@ -44,18 +44,18 @@ case class PreampConfig(offset: Long, polarity: Boolean, highPassName: String, l
     val linkName = chName.substring(0, linkNameEnd)
     val cardId = (chName.substring(linkNameEnd + "Preamp".length() + 2)).toLong
 
-    val data = Data.ofType("(ss)(sw)(s(s(wwww)))(s)")
-    data.get(0).setString("Connect", 0).setString(linkName, 1)
-    data.get(1).setString("Select Card", 0).setWord(cardId, 1)
-    data.get(2).setString("Register", 0).setString(ch.getPreampChannel().toString().toUpperCase(), 1, 0)
-    .setWord(highPass, 1, 1, 0)
-    .setWord(lowPass, 1, 1, 1)
-    .setWord(if (polarity) 1L else 0L, 1, 1, 2)
-    .setWord(offset, 1, 1, 3)
-    data.get(3).setString("Disconnect", 0)
+    val settings = Seq(
+      "Connect" -> Str(linkName),
+      "Select Card" -> UInt(cardId),
+      "Register" -> Cluster(
+        Str(ch.getPreampChannel.toString.toUpperCase),
+        Cluster(UInt(highPass), UInt(lowPass), UInt(if (polarity) 1 else 0), UInt(offset))
+      ),
+      "Disconnect" -> Data.NONE
+    )
 
     val state = s"${ch.getPreampBoard.name}${ch.getPreampChannel}: offset=$offset polarity=$polarity highPass=$highPass lowPass=$lowPass"
 
-    new SetupPacket(state, data)
+    SetupPacket(state, settings)
   }
 }

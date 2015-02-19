@@ -1,9 +1,8 @@
 package org.labrad.qubits.templates
 
-import org.labrad.data.Data
+import org.labrad.data._
 import org.labrad.qubits.Device
 import org.labrad.qubits.resources.Resources
-import scala.collection.JavaConverters._
 
 object DeviceBuilder {
   /**
@@ -12,10 +11,9 @@ object DeviceBuilder {
    * @return
    */
   def fromData(template: Data, resources: Resources): DeviceBuilder = {
-    val name = template.get(0).getString()
-    val channels = template.get(1)
+    val (name, channels) = template.get[(String, Seq[Data])]
 
-    val channelBuilders = channels.getDataList().asScala.toSeq.map { channel =>
+    val channelBuilders = channels.map { channel =>
       ChannelBuilders.fromData(channel, resources)
     }
     new DeviceBuilder(name, channelBuilders)

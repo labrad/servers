@@ -17,8 +17,8 @@ class JumpTableController(fpga: FpgaModelDac) extends FpgaController(fpga) {
     false
   }
 
-  override def addPackets(runRequest: Request): Unit = {
-    jumpTable.addPackets(runRequest)
+  override def packets: Seq[(String, Data)] = {
+    jumpTable.packets
   }
 
   //

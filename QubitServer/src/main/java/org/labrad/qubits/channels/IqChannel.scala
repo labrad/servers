@@ -9,7 +9,6 @@ import org.labrad.qubits.config.MicrowaveSourceOffConfig
 import org.labrad.qubits.config.MicrowaveSourceOnConfig
 import org.labrad.qubits.resources.MicrowaveSource
 import org.labrad.qubits.util.ComplexArray
-import scala.collection.JavaConverters._
 
 class IqChannel(name: String) extends SramChannelBase[IqData](name) {
 

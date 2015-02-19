@@ -1,8 +1,6 @@
 package org.labrad.qubits.config
 
-import java.util.Map
-
-import org.labrad.data.Request
+import org.labrad.data.Data
 
 abstract class AdcBaseConfig(channelName: String, builProperties: Map[String, Long]) {
 
@@ -22,7 +20,7 @@ abstract class AdcBaseConfig(channelName: String, builProperties: Map[String, Lo
    * @param runRequest The request to which we add the packets.
    * @author pomalley
    */
-  def addPackets(runRequest: Request): Unit
+  def packets: Seq[(String, Data)]
 
   /**
    * Converts Is and Qs to T/F based on the previously given critical phase.

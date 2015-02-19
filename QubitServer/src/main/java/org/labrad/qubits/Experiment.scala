@@ -8,9 +8,9 @@ import org.labrad.qubits.resources.AdcBoard
 import org.labrad.qubits.resources.AnalogBoard
 import org.labrad.qubits.resources.DacBoard
 import org.labrad.qubits.resources.MicrowaveBoard
+import org.labrad.types._
 import scala.collection.mutable
 import scala.reflect.ClassTag
-
 
 /**
  * "Experiment holds all the information about the fpga sequence as it is being built,
@@ -430,14 +430,17 @@ class TimingOrderItem(channel: TimingChannel, subChannel: Int = -1) {
    * @return T/F for 1/0 qubit state for each item in data.
    */
   def interpretData(data: Data): Array[Boolean] = {
-    if (isAdc()) {
-      require(data.matchesType("(*i, *i)"),
-          s"interpretData called with data type ${data.getType} on an ADC channel. Qubit Sequencer mixup.")
-      channel.asInstanceOf[AdcChannel].interpretPhases(data.get(0).getIntArray(), data.get(1).getIntArray())
-    } else {
-      require(data.matchesType("*w"),
-          s"interpretData called with data type ${data.getType} on a DAC channel. Qubit Sequencer mixup.")
-      channel.asInstanceOf[PreampChannel].interpretSwitches(data.getWordArray())
+    channel match {
+      case adc: AdcChannel =>
+        require(data.t == Type("(*i, *i)"),
+            s"interpretData called with data type ${data.t} on an ADC channel. Qubit Sequencer mixup.")
+        val (is, qs) = data.get[(Array[Int], Array[Int])]
+        adc.interpretPhases(is, qs)
+
+      case preamp: PreampChannel =>
+        require(data.t == Type("*w"),
+            s"interpretData called with data type ${data.t} on a DAC channel. Qubit Sequencer mixup.")
+        preamp.interpretSwitches(data.get[Array[Long]])
     }
   }
 

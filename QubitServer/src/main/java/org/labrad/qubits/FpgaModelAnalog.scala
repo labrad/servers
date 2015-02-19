@@ -4,7 +4,6 @@ import org.labrad.qubits.channels.AnalogChannel
 import org.labrad.qubits.enums.DacAnalogId
 import org.labrad.qubits.proxies.DeconvolutionProxy
 import org.labrad.qubits.resources.AnalogBoard
-import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
 

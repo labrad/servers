@@ -1,10 +1,6 @@
 package org.labrad.qubits.config
 
-
-import java.util.Map
-
-import org.labrad.data.Data
-import org.labrad.data.Request
+import org.labrad.data._
 
 /**
  * This holds the configuration info for an ADC in demod mode.
@@ -25,12 +21,12 @@ import org.labrad.data.Request
  */
 class AdcDemodConfig(name: String, buildProperties: Map[String, Long]) extends AdcBaseConfig(name, buildProperties) {
 
-  val MAX_CHANNELS = buildProperties.get("DEMOD_CHANNELS").intValue()
-  val DEMOD_CHANNELS_PER_PACKET = buildProperties.get("DEMOD_CHANNELS_PER_PACKET").intValue()
-  val TRIG_AMP = buildProperties.get("TRIG_AMP").intValue()
+  val MAX_CHANNELS = buildProperties("DEMOD_CHANNELS").toInt
+  val DEMOD_CHANNELS_PER_PACKET = buildProperties("DEMOD_CHANNELS_PER_PACKET").toInt
+  val TRIG_AMP = buildProperties("TRIG_AMP").toInt
   // see fpga server documentation on the "ADC Demod Phase" setting for an explanation of the two below.
-  val LOOKUP_ACCUMULATOR_BITS = buildProperties.get("LOOKUP_ACCUMULATOR_BITS").intValue()
-  val DEMOD_TIME_STEP = buildProperties.get("DEMOD_TIME_STEP").intValue() // in ns
+  val LOOKUP_ACCUMULATOR_BITS = buildProperties("LOOKUP_ACCUMULATOR_BITS").toInt
+  val DEMOD_TIME_STEP = buildProperties("DEMOD_TIME_STEP").toInt // in ns
 
   /**
    * Each byte is the weight for a 4 ns interval.
@@ -187,7 +183,7 @@ class AdcDemodConfig(name: String, buildProperties: Map[String, Long]) extends A
    * @param runRequest The request to which we add the packets.
    * @author pomalley
    */
-  def addPackets(runRequest: Request): Unit = {
+  def packets: Seq[(String, Data)] = {
     // check that the user has set everything that needs to be set
     require(startDelay > -1, s"ADC Start Delay not set for channel '$name'")
     require(stretchLen > -1 && stretchAt > -1, s"ADC Filter Func not set for channel '$name'")
@@ -195,19 +191,20 @@ class AdcDemodConfig(name: String, buildProperties: Map[String, Long]) extends A
     for (i <- 0 until MAX_CHANNELS) {
       if (inUse(i)) {
         //Preconditions.checkState(phi0[i] > -1, " %s on channel '%s'", i, this.channelName);
-        require(ampSin(i) > -1 && ampCos(i) > -1, s"ADC Trig Magnitude not set on activated demod channel $i on channel '$name'")
+        require(ampSin(i) > -1 && ampCos(i) > -1, s"ADC Trig Magnitude not set on activated demod channel $i on channel $name")
       }
     }
     // add the requests
-    runRequest.add("ADC Run Mode", Data.valueOf("demodulate"))
-    runRequest.add("Start Delay", Data.valueOf(this.startDelay.toLong))
-    runRequest.add("ADC Filter Func", Data.valueOf(this.filterFunction),
-        Data.valueOf(this.stretchLen.toLong), Data.valueOf(this.stretchAt.toLong))
+    val records = Seq.newBuilder[(String, Data)]
+    records += "ADC Run Mode" -> Str("demodulate")
+    records += "Start Delay" -> UInt(startDelay)
+    records += "ADC Filter Func" -> Cluster(Str(filterFunction), UInt(stretchLen), UInt(stretchAt))
     for (i <- 0 until MAX_CHANNELS) {
       if (inUse(i)) {
-        runRequest.add("ADC Demod Phase", Data.valueOf(i.toLong), Data.valueOf(dPhi(i)), Data.valueOf(phi0(i)))
-        runRequest.add("ADC Trig Magnitude", Data.valueOf(i.toLong), Data.valueOf(ampSin(i).toLong), Data.valueOf(ampCos(i).toLong));
+        records += "ADC Demod Phase" -> Cluster(UInt(i), Integer(dPhi(i)), Integer(phi0(i)))
+        records += "ADC Trig Magnitude" -> Cluster(UInt(i), UInt(ampSin(i)), UInt(ampCos(i)))
       }
     }
+    records.result
   }
 }

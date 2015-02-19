@@ -2,14 +2,15 @@ organization := "org.labrad"
 
 name := "QubitServer"
 
-version := "0.6.2"
+version := "0.7.0"
 
-scalaVersion := "2.11.6"
+scalaVersion := "2.11.7"
 
 resolvers += "bintray" at "http://jcenter.bintray.com/"
 
 libraryDependencies ++= Seq(
-  "org.labrad" % "jlabrad" % "0.2.0-M1",
+  "com.google.guava" % "guava" % "18.0",
+  "org.labrad" %% "scalabrad" % "0.5.1",
   "org.scalatest" %% "scalatest" % "2.2.4" % "test"
 )
 
