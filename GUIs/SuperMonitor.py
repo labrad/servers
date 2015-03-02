@@ -5,12 +5,13 @@ New and improved DR monitor.
 '''
 
 import sys
+from twisted.internet.defer import inlineCallbacks, Deferred
 
 import PyQt4.Qt as Qt
 import PyQt4.QtGui as QtGui
-from twisted.internet.defer import inlineCallbacks
+import PyQt4.QtCore as QtCore
 
-from ADR.LabRADPlotWidget3 import LabRADPlotWidget3
+from LabRADPlotWidget3 import LabRADPlotWidget3
 
 DEFAULT = 'Vince'
 BASE_PATH = ['', 'DR']
@@ -29,6 +30,7 @@ class AppForm(Qt.QMainWindow):
             import labrad.async
             cxnDef = labrad.async.connectAsync(name=labrad.util.getNodeName() + ' SuperMonitor')
         cxnDef.addCallback(self.set_cxn)
+        cxnDef.addErrback(self.err_cxn)
     
     def init_qt(self):
         self.setWindowTitle('SuperMonitor')
@@ -61,9 +63,31 @@ class AppForm(Qt.QMainWindow):
         self.plotWidget.maxPointsLE.setText('1000')
 
     @inlineCallbacks
+    def err_cxn(self, failure):
+        print "Connection failure!"
+        message = "Could not connect to LabRAD:\n" + ':\n'.join(failure.getErrorMessage().split(':'))
+        label = Qt.QLabel(message)
+        label.setAlignment(QtCore.Qt.AlignHCenter)
+        label.setStyleSheet("* {font-weight: bold; font-size: 15pt;}")
+        self.setCentralWidget(label)
+        # wait and do it again
+        d = Deferred()
+        reactor.callLater(1, d.callback, 1)
+        yield d
+        try:
+            import labrad
+            cxnDef = labrad.connectAsync(name=labrad.util.getNodeName() + ' SuperMonitor')
+        except AttributeError:
+            import labrad.async
+            cxnDef = labrad.async.connectAsync(name=labrad.util.getNodeName() + ' SuperMonitor')
+        cxnDef.addCallback(self.set_cxn)
+        cxnDef.addErrback(self.err_cxn)
+
+
+    @inlineCallbacks
     def check_dr_logger(self, node):
         running = yield node.running_servers()
-        if LOGGER_SERVER not in [x[0] for x in running]:
+        if LOGGER_SERVER not in [x[0] for x in running] + list(self.cxn.servers):
             print "%s not running, attempting to start... " % LOGGER_SERVER,
             try:
                 yield node.start(LOGGER_SERVER)
@@ -85,9 +109,7 @@ class AppForm(Qt.QMainWindow):
 if __name__ == '__main__':        
     # look for DR name in args
     if len(sys.argv) > 1:
-        default = sys.argv[1]
-    else:
-        default = DEFAULT
+        DEFAULT = sys.argv[1]
     app = Qt.QApplication(sys.argv)
     import qt4reactor
     qt4reactor.install()

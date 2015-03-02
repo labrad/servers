@@ -108,7 +108,7 @@ class SerialServer(LabradServer):
         if not port:
             for i in range(len(self.SerialPorts)):
                 try:
-                    c['PortObject'] = Serial('\\\\.\\' + self.SerialPorts[i], timeout=0)
+                    c['PortObject'] = Serial('\\\\.\\' + self.SerialPorts[i], timeout=0.01)
                     break
                 except SerialException:
                     pass
@@ -116,7 +116,7 @@ class SerialServer(LabradServer):
                 raise NoPortsAvailableError()
         else:
             try:
-                c['PortObject'] = Serial('\\\\.\\' + port, timeout=0)
+                c['PortObject'] = Serial('\\\\.\\' + port, timeout=0.01)
             except SerialException, e:
                 if e.message.find('cannot find') >= 0:
                     raise Error(code=1, msg=e.message)

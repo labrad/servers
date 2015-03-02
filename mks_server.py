@@ -154,9 +154,12 @@ class MKSServer(LabradServer):
                 G['ready'] = False
 
             # create a packet to read the pressure
+            pause_len = T.Value(0.02, 's')
             p = ser.packet(context=ctx)\
-                   .write_line('p').pause(T.Value(0.02, 's'))\
-                   .read_line(key='pressure').pause(T.Value(0.02, 's'))
+                   .write_line('p').pause(pause_len)\
+                   .read_line(key='pressure').pause(pause_len)\
+                   .write_line('f').pause(pause_len)\
+                   .read_line(key='full_scale').pause(pause_len)
             G['packet'] = p
 
             G['server'] = ser
@@ -187,13 +190,34 @@ class MKSServer(LabradServer):
                 try:
                     (rdg1, rdg2) = result.pressure.split()
                 except Exception:
-                    (rdg1, rdg2) = ('Off', 'Off')
-                try: data1 = float(rdg1) 
-                except Exception: data1 = float('NaN')
-                try: data2 = float(rdg2) 
-                except Exception: data2 = float('NaN')
-                if G['ch1'] and math.isnan(data1): print 'gauge %s returns NaN (%s:ch1)' % (G['ch1'], G['port'])
-                if G['ch2'] and math.isnan(data2): print 'gauge %s returns NaN (%s:ch2)' % (G['ch2'], G['port'])
+                    (rdg1, rdg2) = ('NaN', 'NaN')
+                try:
+                    fs1, fs2 = result.full_scale.split()
+                    fs1, fs2 = float(fs1), float(fs2)
+                except Exception:
+                    fs1, fs2 = float('NaN'), float('NaN')
+                try:
+                    if rdg1.upper() == 'OFF':
+                        data1 = fs1
+                    elif rdg1.upper() == 'LO':
+                        data1 = 0
+                    else:
+                        data1 = float(rdg1)
+                except ValueError:
+                    data1 = float('NaN')
+                try:
+                    if rdg2.upper() == 'OFF':
+                        data2 = fs2
+                    elif rdg1.upper() == 'LO':
+                        data2 = 0
+                    else:
+                        data2 = float(rdg2)
+                except ValueError:
+                    data2 = float('NaN')
+                if G['ch1'] and math.isnan(data1):
+                    print 'gauge %s returns NaN (%s:ch1)' % (G['ch1'], G['port'])
+                if G['ch2'] and math.isnan(data2):
+                    print 'gauge %s returns NaN (%s:ch2)' % (G['ch2'], G['port'])
                 G['reading'] = T.Value(data1, 'Torr'), T.Value(data2, 'Torr')
                 
     @setting(1, 'Get Readings', returns=['*v[Torr]: Readings'])
