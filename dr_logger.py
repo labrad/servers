@@ -34,31 +34,34 @@ timeout = 20
 
 import time
 
-from twisted.internet.defer import inlineCallbacks, returnValue, Deferred
+from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.task import LoopingCall
 
-from labrad import types as T, gpib
+from labrad import types as T
 from labrad.server import setting
 from labrad.gpib import DeviceWrapper, DeviceServer
 from labrad.errors import NoSuchDeviceError
-
+from labrad.units import Unit, Value
 
 CONFIG_PATH = ['', 'Servers', 'DR Logger']
 DIODE_LIST = ["4Kin", "4Kout", "77K", "Ret", "Mix", "Xchg", "Still", "Pot"]
 
+
 class WatchedServer(object):
     server_name = 'none'
+
     def __init__(self, name, cxn, ctx, device=None):
-        self.name=name
+        self.name = name
         self.cxn = cxn
         self.ctx = ctx
         self.device = device
         self.server = None
         self.active = False
+
     def get_variables(self):
-        ''' Get the variables (for the data vault) logged by this server. '''
+        """ Get the variables (for the data vault) logged by this server. """
         raise NotImplementedError()
-        
+
     @inlineCallbacks
     def select_device(self):
         devs = yield self.server.list_devices(context=self.ctx)
@@ -76,9 +79,9 @@ class WatchedServer(object):
 
     @inlineCallbacks
     def take_point(self):
-        ''' Take a single data point. '''
+        """ Take a single data point. """
         if not self.server:
-            self.server = self.cxn[self.name]    
+            self.server = self.cxn[self.name]
         try:
             r = yield self._take_point()
             self.active = True
@@ -92,15 +95,19 @@ class WatchedServer(object):
                 returnValue(r)
             else:
                 raise err
+
     def _take_point(self):
         raise NotImplementedError()
-        
+
+
+# noinspection PyAttributeOutsideInit
 class MKS(WatchedServer):
-    ''' for MKS servers, we have an optional "device" argument in the form of
+    """ for MKS servers, we have an optional "device" argument in the form of
     (reading_name, multiplier), which tells us which reading to convert into
     a He flow.
-    '''
+    """
     server_name = 'mks_gauge_server'
+
     @inlineCallbacks
     def _take_point(self):
         r = yield self.server.get_readings(context=self.ctx)
@@ -112,7 +119,7 @@ class MKS(WatchedServer):
             except IndexError:
                 print "Bad point"
         returnValue(r)
-        
+
     @inlineCallbacks
     def get_variables(self):
         point = yield self.take_point()
@@ -123,7 +130,7 @@ class MKS(WatchedServer):
         if self.channel != -1:
             rv.append('He Flow (LHe) [L/h]')
         returnValue(rv)
-        
+
     @inlineCallbacks
     def setup_he_flow(self):
         if self.device:
@@ -139,22 +146,27 @@ class MKS(WatchedServer):
                 print "ERROR: could not find gauge reading named '%s'" % self.device[0]
         else:
             self.channel = -1
-        
+
+
 class MKSHack(MKS):
     server_name = 'mks_gauge_server_testhack'
-    
-        
+
+
 class Diodes(WatchedServer):
     server_name = 'lakeshore_diodes'
+
     @inlineCallbacks
     def _take_point(self):
         r = yield self.server.temperatures(context=self.ctx)
         returnValue(r)
+
     def get_variables(self):
         return ['%s (Diode) [K]' % x for x in DIODE_LIST]
-        
+
+
 class Ruox(WatchedServer):
     server_name = 'lakeshore_ruox'
+
     @inlineCallbacks
     def _take_point(self):
         p = self.server.packet(context=self.ctx)
@@ -164,24 +176,27 @@ class Ruox(WatchedServer):
         temps = [x[0] for x in result.temperatures]
         res = [x[0] for x in result.resistances]
         returnValue(temps + res)
-        
+
     @inlineCallbacks
     def get_variables(self):
-        yield self.take_point()   # make sure we're connected
+        yield self.take_point()  # make sure we're connected
         t = yield self.server.named_temperatures(context=self.ctx)
         temp_vars = ['%s (Ruox) [%s]' % (x[0], str(x[1][0].unit)) for x in t]
         r = yield self.server.named_resistances(context=self.ctx)
         res_vars = ['%s (Ruox Res) [%s]' % (x[0], str(x[1][0].unit)) for x in r]
-        returnValue(temp_vars+res_vars)
+        returnValue(temp_vars + res_vars)
+
 
 WATCHERS = [MKS, MKSHack, Diodes, Ruox]
 
+
+# noinspection PyAttributeOutsideInit
 class DRLogger(DeviceWrapper):
-    #@inlineCallbacks
+    # @inlineCallbacks
     def connect(self, *args, **kwargs):
-        ''' args: cxn (e.g. vince, jules, ivan)
-            kwargs: values from registry under that name. '''
-        #self.name = assigned by LabRAD stuff
+        """ args: cxn (e.g. vince, jules, ivan)
+            kwargs: values from registry under that name. """
+        # self.name = assigned by LabRAD stuff
         print "Creating DR Logger for %s" % self.name
         self.cxn = args[0]
         self.ctx = self.cxn.context()
@@ -208,10 +223,10 @@ class DRLogger(DeviceWrapper):
                 self.watchers.append(cls(server_name, self.cxn, self.ctx, device=devName))
             else:
                 print "ERROR: No watcher class found for server: %s" % server_name
-                
+
         self.isLogging = False
         self.logging(True)  # start logging
-            
+
     @inlineCallbacks
     def logging(self, start):
         if not self.isLogging and start:
@@ -229,7 +244,7 @@ class DRLogger(DeviceWrapper):
                 pass
             print 'loop stopped'
             self.isLogging = False
-            
+
     @inlineCallbacks
     def shutdown(self):
         yield self.logging(False)
@@ -247,19 +262,19 @@ class DRLogger(DeviceWrapper):
             deps.extend(r)
         print "Indep vars: %s" % str(indeps)
         print "Dependent vars: %s" % str(deps)
-        
+
         yield self.data_vault.new(name, indeps, deps, context=self.ctx)
-        
+
     @inlineCallbacks
     def take_point(self):
         try:
             # gather data
-            data = [time.time()*T.U.s]
+            data = [time.time() * Unit('s')]
             for w in self.watchers:
                 r = yield w.take_point()
                 data.extend(r)
             # strip units
-            data = [x._value for x in data]
+            data = [x[x.unit] for x in data]
             # did the day roll over?
             if self.currentDay != time.strftime("%d"):
                 self.new_dataset()
@@ -275,9 +290,10 @@ class DRLogger(DeviceWrapper):
             else:
                 print "ERROR in take_point:"
                 print err
-                
+
     def new_dataset(self):
         self.data_vault = None
+
 
 class DRLoggerServer(DeviceServer):
     name = 'DR Logger'
@@ -286,8 +302,8 @@ class DRLoggerServer(DeviceServer):
 
     @inlineCallbacks
     def findDevices(self):
-        ''' finds all configurations in CONFIG_PATH and returns (name, (cxn,), serverDict) '''
-        deviceList=[]
+        """ finds all configurations in CONFIG_PATH and returns (name, (cxn,), serverDict) """
+        deviceList = []
         reg = self.client.registry
         yield reg.cd(CONFIG_PATH)
         resp = yield reg.dir()
@@ -308,43 +324,45 @@ class DRLoggerServer(DeviceServer):
                 if "node_" + node.lower() not in self.client.servers:
                     missingNodes.append(node)
             if not missingNodes:
-                deviceList.append((name,(self.client,), serverDict))
+                deviceList.append((name, (self.client,), serverDict))
             else:
                 print "device %s missing nodes %s" % (name, str(list(set(missingNodes))))
-            yield reg.cd(1)                
+            yield reg.cd(1)
         returnValue(deviceList)
-        
+
     @setting(10, "Take Point")
     def take_point(self, c):
-        ''' Take a single data point. '''
+        """ Take a single data point. """
         self.selectedDevice(c).take_point()
-        
+
     @setting(11, "New Dataset")
     def new_dataset(self, c):
-        ''' Start a new dataset. '''
+        """ Start a new dataset. """
         self.selectedDevice(c).newDataset()
-        
+
     @setting(12, 'Logging', start='b', returns='b')
     def logging(self, c, start=None):
-        ''' Get/set whether we are currently logging. '''
+        """ Get/set whether we are currently logging. """
         dev = self.selectedDevice(c)
         if start is not None:
             yield dev.logging(start)
         returnValue(dev.isLogging)
-        
+
     @setting(13, 'Time Interval', ti='v[s]', returns='v[s]')
     def time_interval(self, c, ti=None):
-        ''' Get/set the logging time interval. '''
+        """ Get/set the logging time interval. """
         dev = self.selectedDevice(c)
         if ti is not None:
-            dev.timeInterval = ti
+            dev.timeInterval = ti['s']
             if dev.isLogging:
                 yield dev.logging(False)
                 yield dev.logging(True)
-        returnValue(dev.timeInterval*T.U.s)
+        returnValue(Value(dev.timeInterval, 's'))
+
 
 __server__ = DRLoggerServer()
 
 if __name__ == '__main__':
     from labrad import util
+
     util.runServer(__server__)
