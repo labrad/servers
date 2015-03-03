@@ -1,28 +1,30 @@
-import os, sys, time
+import sys
 
 import PyQt4.Qt as Qt
-import PyQt4.QtCore as QtCore
-
-from twisted.internet.defer import inlineCallbacks, returnValue
-
-import numpy as np, matplotlib as mp, matplotlib.pyplot as plt
+import numpy as np
+import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbar
 from matplotlib.figure import Figure
 
-UPDATE_PERIOD = 1.0         # (in seconds)
-DR_LOGGER_CHECK_SKIP = 5    # check the DR Logger every X updates
-COLORS = ['red', 'green', 'blue', 'magenta', 'black', 'darkgoldenrod', 'Brown', 'darkslategrey', 'orangered', 'OliveDrab']
+UPDATE_PERIOD = 1.0          # (in seconds)
+DR_LOGGER_CHECK_SKIP = 5     # check the DR Logger every X updates
+COLORS = ['red', 'green', 'blue', 'magenta', 'black', 'darkgoldenrod',
+          'Brown', 'darkslategrey', 'orangered', 'OliveDrab']
 plt.rcParams['axes.color_cycle'] = COLORS
-PLOT_BACKGROUND = '#E5E5E5' # HTML colors are allowed
+PLOT_BACKGROUND = '#E5E5E5'  # HTML colors are allowed
 NEW_DATASET_SIGNAL = 99901
 NEW_DATA_SIGNAL = 99902
 
-HISTORY_TOOLTIP = 'For example: \n60 - last 60 data points \n60s - last 60 seconds \n' + \
-                  '60m - last 60 minutes \n60d - last 60 days'
-FILTER_TOOLTIP = "Filter out excess points to make graph more responsive.\n" + \
-                  "This means not all data will be displayed for long histories or small numbers of points."
-                  
+HISTORY_TOOLTIP = """For example:
+60 - last 60 data points
+60s - last 60 seconds
+60m - last 60 minutes
+60d - last 60 days"""
+
+FILTER_TOOLTIP = """Filter out excess points to make graph more responsive.
+This means not all data will be displayed for long histories or small numbers of points."""
+
 NO_SERVER_STYLE = 'QPushButton {color: red; font-weight: bold;}'
 NO_SERVER_TEXT = 'Not Running!'
 NOT_LOGGING_STYLE = 'QPushButton {color: red; font-weight: bold;}'
@@ -30,12 +32,21 @@ NOT_LOGGING_TEXT = 'Not Logging!'
 LOGGING_STYLE = 'QPushButton {color: green; font-weight: bold;}'
 LOGGING_TEXT = 'Logging'
 
-# A Qt Widget wrapper with some added functionality for selecting parts of a dataset		
+
+# noinspection PyAttributeOutsideInit
 class LabRADPlotWidget3(Qt.QWidget):
 
-    def __init__(self, parent, cxn=None, path=[], dataset=None, timer=None, drLoggerName=None):
-        """
-        A Qt widget that plots a labrad dataset, using Matplotlib.
+    def __init__(self, parent, cxn=None, path=None, dataset=None, timer=None, drLoggerName=None):
+        """A Qt widget that plots a labrad dataset, using Matplotlib.
+
+        Intended for use with the DR Logger.
+        :param parent: Parent widget
+        :param cxn: LabRAD connection
+        :param list[str] path: data vault path
+        :param str or int dataset: dataset name or number
+        :param timer: Qt timer to use for updating--timeout signal is used.
+            If None, create own timer.
+        :param str drLoggerName: name of the DR logger server to monitor
         """
         # run qwidget init
         Qt.QWidget.__init__(self, parent)
@@ -50,12 +61,14 @@ class LabRADPlotWidget3(Qt.QWidget):
         self.tab = Qt.QTabWidget(self)
         self.layout.addWidget(self.tab)
         # labrad variables
-        self.path = path
+        self.path = path if path is not None else []
         self.dataset = dataset
+        self.waitingOnLabrad = False
         # start the labrad connection
         if cxn is None:
             self.ownCxn = True
             import labrad
+            import labrad.util
             try:
                 cxnDef = labrad.connectAsync(name=labrad.util.getNodeName() + ' Plot Widget')
             except AttributeError:
@@ -74,19 +87,20 @@ class LabRADPlotWidget3(Qt.QWidget):
         else:
             self.updateTimer = timer
             self.updateTimer.timeout.connect(self.timerFunc)
-            
+
     def closeEvent(self, event):
         self.destroyPlot()
         self.updateTimer.stop()
         if self.ownCxn:
-            self.cxn.disconnect()           
-        
+            self.cxn.disconnect()
+
     def _makeLine(self):
-        line = Qt.QFrame(self);
-        line.setFrameShape(Qt.QFrame.HLine);
-        line.setFrameShadow(Qt.QFrame.Sunken);
+        line = Qt.QFrame(self)
+        line.setFrameShape(Qt.QFrame.HLine)
+        line.setFrameShadow(Qt.QFrame.Sunken)
         return line
-        
+
+    # noinspection PyAttributeOutsideInit
     def makeOptionsBox(self):
         # checkboxes
         self.optionsLayout.addWidget(Qt.QLabel("<b>Options:</b>"))
@@ -138,39 +152,39 @@ class LabRADPlotWidget3(Qt.QWidget):
             self.drLoggerPB = None
         # add stretch to move them all to the top
         self.optionsLayout.addStretch()
-        
+
     def setCxn(self, cxn):
         self.cxn = cxn
         if self.dataset:
             self.loadDataset()
-        self.waitingOnLabrad=False
-        
-    def setDataset(self, path=[], dataset=None):
+        self.waitingOnLabrad = False
+
+    def setDataset(self, path=None, dataset=None):
         if path:
             self.path = path
         if dataset:
             self.dataset = dataset
         self.loadDataset()
-        
+
     def getDataset(self):
         return self.dataset
-        
+
     def loadDataset(self):
         p = self.cxn.data_vault.packet()
         p.cd(self.path)
         p.dir()
         d = p.send()
         d.addCallback(self.loadDatasetCallback)
-        
+
     def loadDatasetCallback(self, response):
         # load up our dataset.
         dsList = response.dir[1]
-        if type(self.dataset) == str and not self.dataset in dsList:
+        if type(self.dataset) == str and self.dataset not in dsList:
             for ds in dsList:
                 if self.dataset in ds:
                     self.dataset = ds
                     break
-            else:   # note this else is for the for loop, not the if statement
+            else:
                 self.dataset = None
                 print "Dataset %s not found!" % self.dataset
         p = self.cxn.data_vault.packet()
@@ -180,8 +194,8 @@ class LabRADPlotWidget3(Qt.QWidget):
         # automatically switch datasets when new one created in our current directory
         dv = self.cxn.data_vault
         dv.signal__new_dataset(NEW_DATASET_SIGNAL)
-        dv.addListener(listener = self.switchDataset, source=None, ID=NEW_DATASET_SIGNAL)
-        
+        dv.addListener(listener=self.switchDataset, source=None, ID=NEW_DATASET_SIGNAL)
+
     def switchDataset(self, msgContext, newDataset):
         # we've received a signal for a new dataset. switch to it.
         print "Switching dataset to: %s" % newDataset
@@ -189,7 +203,7 @@ class LabRADPlotWidget3(Qt.QWidget):
         p = self.cxn.data_vault.packet()
         p.open(self.dataset)
         p.send()
-        
+
     def timerFunc(self):
         if self.waitingOnLabrad:
             return
@@ -213,10 +227,10 @@ class LabRADPlotWidget3(Qt.QWidget):
                 d.addCallback(self.drLoggerCallback)
         self.drLoggerCounter += 1
         self.drLoggerCounter %= DR_LOGGER_CHECK_SKIP
-        
+
     def drLoggerCallback(self, response):
-        ''' update the DR Logger monitoring stuff.
-        if response is None, then there was no DR Logger server '''
+        """ update the DR Logger monitoring stuff.
+        if response is None, then there was no DR Logger server """
         if response is None:
             self.drLoggerPB.setStyleSheet(NO_SERVER_STYLE)
             self.drLoggerPB.setText(NO_SERVER_TEXT)
@@ -226,7 +240,7 @@ class LabRADPlotWidget3(Qt.QWidget):
         elif response.logging:
             self.drLoggerPB.setStyleSheet(LOGGING_STYLE)
             self.drLoggerPB.setText(LOGGING_TEXT)
-    
+
     def drLoggerPBClicked(self):
         if str(self.drLoggerPB.text()) == LOGGING_TEXT:
             self.drLoggerPB.setText('Nothing to do!')
@@ -246,10 +260,10 @@ class LabRADPlotWidget3(Qt.QWidget):
                 return
             self.cxn[s].start(self.drLoggerName)
             self.drLoggerPB.setText('Starting...')
-        
+
     def datavaultCallback(self, response):
         self.newData = response.get
-        if hasattr(self.newData, 'asarray'): # Backwards compatibility
+        if hasattr(self.newData, 'asarray'):  # Backwards compatibility
             self.newData = self.newData.asarray
         if 'variables' in response.settings:
             self.variables = response.variables
@@ -264,7 +278,7 @@ class LabRADPlotWidget3(Qt.QWidget):
             self.plotNewData()
 
     def destroyPlot(self):
-        ''' Delete the current plot. '''
+        """ Delete the current plot. """
         self.tab.clear()
         self.tabs = {}
         self.canvases = {}
@@ -273,14 +287,14 @@ class LabRADPlotWidget3(Qt.QWidget):
         self.linesByLabel = {}
 
     def buildPlot(self):
-        ''' build a new plot. '''
+        """ build a new plot. """
         self.destroyPlot()
         self.dirtyPlots = True
         # parse the variables
-        xlabel = '%s [%s]' % (self.variables[0][0])
+        xlabel = '{0} [{1}]'.format(*self.variables[0][0])
         labels = []
         legends = {}
-        units = {}        
+        units = {}
         for legend, label, unit in self.variables[1]:
             if label not in labels:
                 labels.append(label)
@@ -317,7 +331,7 @@ class LabRADPlotWidget3(Qt.QWidget):
                 ax = self.figures[label].add_subplot(111, axisbg=PLOT_BACKGROUND)
             # the data are stored in self.data
             self.data = self.newData.copy()
-            line = ax.plot(self.data[:,0], self.data[:,i+1], '.-', label=legend)[0]
+            line = ax.plot(self.data[:, 0], self.data[:, i+1], '.-', label=legend)[0]
             self.lines.append(line)
             self.linesByLabel[label].append(line)
             ax.set_xlabel(xlabel, fontsize=19)
@@ -327,7 +341,7 @@ class LabRADPlotWidget3(Qt.QWidget):
         self.rescale()
         self.buildLineButtons()
         self.rebuildPlot = False
-        
+
     def plotNewData(self):
         if self.newData is not None and self.newData.shape[0] != 0:
             # update data
@@ -340,7 +354,7 @@ class LabRADPlotWidget3(Qt.QWidget):
         else:
             label = str(self.tab.tabText(self.tab.currentIndex()))
             xmin, xmax = self.figures[label].axes[0].get_xlim()
-        imin, imax = np.searchsorted(self.data[:,0], [xmin, xmax])
+        imin, imax = np.searchsorted(self.data[:, 0], [xmin, xmax])
         # are we filtering points?
         try:
             if self.filterCB.isChecked():
@@ -354,14 +368,14 @@ class LabRADPlotWidget3(Qt.QWidget):
         else:
             step = 1
         start = imin
-        while start % step != (imax-1)%step:
+        while start % step != (imax-1) % step:
             start += 1
         # now slice out those data points and plot them
         for i, (legend, label, unit) in enumerate(self.variables[1]):
-            self.lines[i].set_xdata(self.data[start::step,0])
-            self.lines[i].set_ydata(self.data[start::step,i+1])
+            self.lines[i].set_xdata(self.data[start::step, 0])
+            self.lines[i].set_ydata(self.data[start::step, i+1])
             d = self.data[-1, i+1]
-            if d < 1 and d > 1e-3:
+            if 1 > d > 1e-3:
                 self.lines[i].my_label.setText('{0:.3f}'.format(d))
             else:
                 self.lines[i].my_label.setText('{0:.3g}'.format(d))
@@ -374,21 +388,21 @@ class LabRADPlotWidget3(Qt.QWidget):
         if self.zeroXAxisCB.isChecked():
             if self.xAxisZero is not None:
                 # if we've already done it, just do to new data
-                self.newData[:,0] -= self.xAxisZero
+                self.newData[:, 0] -= self.xAxisZero
             else:
                 # if not, do it to all data
-                self.xAxisZero = self.data[0,0]
-                self.data[:,0] -= self.xAxisZero
-                self.newData[:,0] -= self.xAxisZero
+                self.xAxisZero = self.data[0, 0]
+                self.data[:, 0] -= self.xAxisZero
+                self.newData[:, 0] -= self.xAxisZero
                 self.dirtyPlots = True
         # have we previously zeroed the data and now we undo it?
         elif self.xAxisZero is not None:
-            self.data[:,0] += self.xAxisZero
+            self.data[:, 0] += self.xAxisZero
             self.dirtyPlots = True
             self.xAxisZero = None
-            
+
     def handleUnitConversion(self):
-        ''' Note that we only do unit conversion for the (shared) X-axis. '''
+        """ Note that we only do unit conversion for the (shared) X-axis. """
         import labrad.units as U
         newUnit = str(self.xAxisUnitsLE.text()).strip()
         currentUnit = U.Unit(self.xAxisCurrentUnit)
@@ -399,32 +413,28 @@ class LabRADPlotWidget3(Qt.QWidget):
         if newUnit != self.xAxisCurrentUnit:
             try:
                 conversion = currentUnit.conversionTupleTo(newUnit)
-                self.data[:,0] = (self.data[:,0] + conversion[1]) * conversion[0]
+                self.data[:, 0] = (self.data[:, 0] + conversion[1]) * conversion[0]
                 if self.xAxisZero is not None:
                     self.xAxisZero = (self.xAxisZero + conversion[1])*conversion[0]
                 self.xAxisCurrentUnit = newUnit
                 for figure in self.figures.values():
                     figure.axes[0].set_xlabel('%s [%s]' % (self.variables[0][0][0], self.xAxisCurrentUnit))
                 self.dirtyPlots = True
-            except TypeError as e:
+            except TypeError:
                 pass
         # run new data through conversion
         if self.newData is not None and self.newData.shape[0] > 0:
             conversion = originalUnit.conversionTupleTo(self.xAxisCurrentUnit)
-            self.newData[:,0] = (self.newData[:,0]+conversion[1])*conversion[0]
+            self.newData[:, 0] = (self.newData[:, 0]+conversion[1])*conversion[0]
 
     def rescale(self):
-        ''' scale the plots to show all the data. only use visible lines. account for absolute limits in settings. '''
+        """ scale the plots to show all the data. only use visible lines. account for absolute limits in settings. """
         for figure in self.figures.values():
-            ax = figure.axes[0]            
+            ax = figure.axes[0]
             if self.rescaleXCB.isChecked():
                 xmin, xmax = self.handleHistory()
                 ax.set_xlim(xmin, xmax)
-            else:
-                xmin, xmax = ax.get_xlim()
             if self.rescaleYCB.isChecked():
-                xdata = self.data[:,0]
-                imin, imax = np.searchsorted(xdata, [xmin, xmax])
                 ymax, ymin = None, sys.float_info.max
                 for i, l in enumerate(ax.lines):
                     if not l.get_visible():
@@ -437,12 +447,12 @@ class LabRADPlotWidget3(Qt.QWidget):
         # and redraw
         for canvas in self.canvases.values():
             canvas.draw()
-                
-            
+
+    # noinspection PyUnresolvedReferences
     def handleHistory(self):
         import labrad.units as U
         hist = str(self.historyLE.text()).strip()
-        xdata = self.data[:,0]
+        xdata = self.data[:, 0]
         xunit = self.xAxisCurrentUnit
         xmax = xdata.max()
         try:
@@ -457,35 +467,35 @@ class LabRADPlotWidget3(Qt.QWidget):
             else:
                 xmin = xdata[-int(hist):].min()
             return max(xmin, xdata.min()), xmax
-        except (ValueError, IndexError) as e:
+        except (ValueError, IndexError):
             return xdata.min(), xdata.max()
-            
+
     def buildLineButtons(self):
-        ''' Create a toggle button for each line on each graph.
-            Create a label with the current value underneath. '''
+        """ Create a toggle button for each line on each graph.
+            Create a label with the current value underneath. """
         # the button callback factory
-        def make_callback(button):
-            ''' wrap the callback in another function to keep the variable
-                'button' in the closure. Yay Python!'''
+        def make_callback(closed_button):
+            """ wrap the callback in another function to keep the variable
+                'closed_button' in the closure. Yay Python!"""
             def callback():
-                button._my_line.set_visible(button.isChecked())
-                button._my_canvas.draw()
+                closed_button.my_line.set_visible(closed_button.isChecked())
+                closed_button.my_canvas.draw()
                 self.rescale()
             return callback
-        
+
         for label, lines in self.linesByLabel.items():
             # line them up in a row
             layout = Qt.QHBoxLayout()
             dataLayout = Qt.QHBoxLayout()
             for line in lines:
                 # button
-                button = Qt.QPushButton(unichr(9644) +' '+ line.get_label(), self.tabs[label])
+                button = Qt.QPushButton(unichr(9644) + ' ' + line.get_label(), self.tabs[label])
                 button.setStyleSheet('QPushButton {color: %s; font-weight: bold; font-size: 16px}' % line.get_color())
                 button.setCheckable(True)
                 button.setChecked(line.get_visible())
                 button.setMinimumHeight(50)
-                button._my_line = line
-                button._my_canvas = self.canvases[label]
+                button.my_line = line
+                button.my_canvas = self.canvases[label]
                 button.clicked.connect(make_callback(button))
                 layout.addWidget(button)
                 # label
@@ -493,11 +503,12 @@ class LabRADPlotWidget3(Qt.QWidget):
                 lab.setStyleSheet('QLabel {font-weight: bold; font-size: 18pt; qproperty-alignment: AlignCenter;}')
                 dataLayout.addWidget(lab)
                 line.my_label = lab
-                
+
             # add to the tab
             self.tabs[label].layout().addLayout(layout)
             self.tabs[label].layout().addLayout(dataLayout)
-        
+
+
 def make():
     demo = LabRADPlotWidget3(None, path=["", "DR", "Danko"], dataset=25)
     demo.resize(1000, 800)
@@ -507,12 +518,11 @@ def make():
 
 def main(args):
     app = Qt.QApplication(args)
-    
+
     import qt4reactor
     qt4reactor.install()
     from twisted.internet import reactor
-    import labrad, labrad.util
-    
+
     reactor.runReturn()
     demo = make()
     v = app.exec_()
