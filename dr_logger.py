@@ -67,7 +67,22 @@ class WatchedServer(object):
         self.active = False
 
     def get_variables(self):
-        """ Get the variables (for the data vault) logged by this server. """
+        """ Get the variables (for the data vault) logged by this server.
+
+        This is called on dataset creation to figure out how to define the dataset.
+        :return: list of strings, one per variable, of the form "label (legend) [unit]"
+        :rtype: list[str]
+        """
+        raise NotImplementedError()
+
+    def _take_point(self):
+        """ Get data from the device.
+
+        This is called once per cycle to record the data.
+        The return values must correspond with those of get_variables.
+        :return: list of values, one per variable.
+        :rtype: list[Value]
+        """
         raise NotImplementedError()
 
     @inlineCallbacks
@@ -89,7 +104,10 @@ class WatchedServer(object):
 
     @inlineCallbacks
     def take_point(self):
-        """ Take a single data point. """
+        """ Take a single data point.
+
+        Call self._take_point, and handle server selection and device selection.
+        """
         try:
             self.server = self.cxn[self.name]
             r = yield self._take_point()
@@ -97,8 +115,7 @@ class WatchedServer(object):
             returnValue(r)
         except KeyError as err:
             raise ServerNotFoundError(
-                "'{}' not found in cxn object--is the server running?".format(
-                    self.name), payload=err
+                "'{}' server not found".format(self.name), payload=err
             )
         except T.Error as err:
             self.active = False
@@ -109,9 +126,6 @@ class WatchedServer(object):
                 returnValue(r)
             else:
                 raise err
-
-    def _take_point(self):
-        raise NotImplementedError()
 
 
 # noinspection PyAttributeOutsideInit
@@ -244,7 +258,7 @@ class DRLogger(DeviceWrapper):
                 print "Found watcher for %s" % server_name
                 self.watchers.append(cls(server_name, self.cxn, self.ctx, device=devName))
             else:
-                print "ERROR: No watcher class found for server: %s" % server_name
+                raise ValueError("ERROR: No watcher class found for:", server_name)
 
         self.isLogging = False
         self.logging(True)  # start logging
@@ -301,13 +315,16 @@ class DRLogger(DeviceWrapper):
                 data.extend(r)
             except T.Error as err:
                 errors.append((w.server_name, err.msg))
+        if errors:
+            self.errors = errors
+            returnValue(None)
         # strip units
         data = [x[x.unit] for x in data]
         # did the day roll over?
         if self.currentDay != time.strftime("%d"):
             self.new_dataset()
-        # make dataset if first time
         try:
+            # make dataset if first time
             if not self.data_vault:
                 yield self.make_dataset()
             # add data
