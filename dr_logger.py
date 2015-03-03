@@ -40,11 +40,19 @@ from twisted.internet.task import LoopingCall
 from labrad import types as T
 from labrad.server import setting
 from labrad.gpib import DeviceWrapper, DeviceServer
-from labrad.errors import NoSuchDeviceError
+from labrad.errors import NoSuchDeviceError, Error
 from labrad.units import Unit, Value
 
 CONFIG_PATH = ['', 'Servers', 'DR Logger']
 DIODE_LIST = ["4Kin", "4Kout", "77K", "Ret", "Mix", "Xchg", "Still", "Pot"]
+
+
+class NoMKSDataError(Error):
+    pass
+
+
+class ServerNotFoundError(Error):
+    pass
 
 
 class WatchedServer(object):
@@ -66,6 +74,8 @@ class WatchedServer(object):
     def select_device(self):
         devs = yield self.server.list_devices(context=self.ctx)
         print "looking for device %s" % self.device
+        if self.device is None:
+            yield self.server.select_device(context=self.ctx)
         if self.device in [x[1] for x in devs]:
             yield self.server.select_device(self.device, context=self.ctx)
         else:
@@ -80,12 +90,16 @@ class WatchedServer(object):
     @inlineCallbacks
     def take_point(self):
         """ Take a single data point. """
-        if not self.server:
-            self.server = self.cxn[self.name]
         try:
+            self.server = self.cxn[self.name]
             r = yield self._take_point()
             self.active = True
             returnValue(r)
+        except KeyError as err:
+            raise ServerNotFoundError(
+                "'{}' not found in cxn object--is the server running?".format(
+                    self.name), payload=err
+            )
         except T.Error as err:
             self.active = False
             if 'DeviceNotSelectedError' in err.msg:
@@ -113,11 +127,10 @@ class MKS(WatchedServer):
         r = yield self.server.get_readings(context=self.ctx)
         if not hasattr(self, 'channel'):
             yield self.setup_he_flow()
+        if not r:
+            raise NoMKSDataError("MKS server did not return data.")
         if self.channel != -1:
-            try:
-                r.append(self.multiplier * r[self.channel])
-            except IndexError:
-                print "Bad point"
+            r.append(self.multiplier * r[self.channel])
         returnValue(r)
 
     @inlineCallbacks
@@ -187,7 +200,15 @@ class Ruox(WatchedServer):
         returnValue(temp_vars + res_vars)
 
 
-WATCHERS = [MKS, MKSHack, Diodes, Ruox]
+# some tomfoolery to pull together all our watchers
+WATCHERS = []
+for obj in vars().values():
+    try:
+        if issubclass(obj, WatchedServer) and obj is not WatchedServer:
+            WATCHERS.append(obj)
+    except TypeError:
+        pass
+print "Found these watchers: ", WATCHERS
 
 
 # noinspection PyAttributeOutsideInit
@@ -202,10 +223,11 @@ class DRLogger(DeviceWrapper):
         self.ctx = self.cxn.context()
         self.watchers = []
         self.data_vault = None
+        self.errors = []
         self.dvPath = kwargs.pop('dvPath', ['', 'DR', self.name])
         self.datasetName = kwargs.pop('datasetName', '%s log - [t]' % self.name)
         self.timeInterval = kwargs.pop('timeInterval', 1.0)
-        self.currentDay = time.strftime("%d")
+        self.currentDay = ''
         # now make our watchers
         for k, v in kwargs.iteritems():
             server_name = v[0]
@@ -249,6 +271,9 @@ class DRLogger(DeviceWrapper):
     def shutdown(self):
         yield self.logging(False)
 
+    def new_dataset(self):
+        self.data_vault = None
+
     @inlineCallbacks
     def make_dataset(self):
         self.data_vault = self.cxn['data_vault']
@@ -267,32 +292,36 @@ class DRLogger(DeviceWrapper):
 
     @inlineCallbacks
     def take_point(self):
-        try:
-            # gather data
-            data = [time.time() * Unit('s')]
-            for w in self.watchers:
+        # gather data
+        data = [time.time() * Unit('s')]
+        errors = []
+        for w in self.watchers:
+            try:
                 r = yield w.take_point()
                 data.extend(r)
-            # strip units
-            data = [x[x.unit] for x in data]
-            # did the day roll over?
-            if self.currentDay != time.strftime("%d"):
-                self.new_dataset()
-            # make dataset if first time
+            except T.Error as err:
+                errors.append((w.server_name, err.msg))
+        # strip units
+        data = [x[x.unit] for x in data]
+        # did the day roll over?
+        if self.currentDay != time.strftime("%d"):
+            self.new_dataset()
+        # make dataset if first time
+        try:
             if not self.data_vault:
                 yield self.make_dataset()
             # add data
             yield self.data_vault.add(data, context=self.ctx)
         except T.Error as err:
             if 'NoDatasetError' in err.msg:
-                yield self.make_dataset()
-                yield self.data_vault.add(data, context=self.ctx)
+                try:
+                    yield self.make_dataset()
+                    yield self.data_vault.add(data, context=self.ctx)
+                except T.Error as err:
+                    errors.append(("Data Vault", str(err)))
             else:
-                print "ERROR in take_point:"
-                print err
-
-    def new_dataset(self):
-        self.data_vault = None
+                errors.append(("General", str(err)))
+        self.errors = errors
 
 
 class DRLoggerServer(DeviceServer):
@@ -358,6 +387,22 @@ class DRLoggerServer(DeviceServer):
                 yield dev.logging(False)
                 yield dev.logging(True)
         returnValue(Value(dev.timeInterval, 's'))
+
+    @setting(14, 'Errors', returns='*(s, s)')
+    def errors(self, c):
+        """ Retrieve outstanding errors.
+
+        Each error is given as a pair of strings:
+        (source or type, error message)
+        """
+        dev = self.selectedDevice(c)
+        return dev.errors
+
+    @setting(15, 'Current Time', returns='v['']')
+    def current_time(self, c):
+        """ Return the current time, in seconds (i.e. time.time()).
+        """
+        return time.time()
 
 
 __server__ = DRLoggerServer()
