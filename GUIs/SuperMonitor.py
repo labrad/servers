@@ -109,9 +109,7 @@ class AppForm(Qt.QMainWindow):
 if __name__ == '__main__':        
     # look for DR name in args
     if len(sys.argv) > 1:
-        default = sys.argv[1]
-    else:
-        default = DEFAULT
+        DEFAULT = sys.argv[1]
     app = Qt.QApplication(sys.argv)
     import qt4reactor
     qt4reactor.install()
