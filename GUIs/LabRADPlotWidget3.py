@@ -278,6 +278,8 @@ class LabRADPlotWidget3(Qt.QWidget):
         except (AttributeError, TypeError):
             self.drLoggerTimeLabel.setText(TIME_LABEL.format(time='unknown', unit=''))
             self.drLoggerTimeLabel.setStyleSheet(TIME_UNKNOWN_STYLE)
+        if response is None:
+            return
         # errors
         if not len(response.errors):
             # don't bother if we didn't have errors last time
