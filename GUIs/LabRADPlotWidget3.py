@@ -1,6 +1,6 @@
 import sys
 
-import PyQt4.Qt as Qt
+from PyQt4 import Qt, QtCore
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
@@ -8,7 +8,8 @@ from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as Naviga
 from matplotlib.figure import Figure
 
 UPDATE_PERIOD = 1.0          # (in seconds)
-DR_LOGGER_CHECK_SKIP = 5     # check the DR Logger every X updates
+DR_LOGGER_CHECK_SKIP = 1     # check the DR Logger every X updates
+TIME_DELAY_WARNING = 10      # display in bold red if last data point older than X seconds
 COLORS = ['red', 'green', 'blue', 'magenta', 'black', 'darkgoldenrod',
           'Brown', 'darkslategrey', 'orangered', 'OliveDrab']
 plt.rcParams['axes.color_cycle'] = COLORS
@@ -25,13 +26,18 @@ HISTORY_TOOLTIP = """For example:
 FILTER_TOOLTIP = """Filter out excess points to make graph more responsive.
 This means not all data will be displayed for long histories or small numbers of points."""
 
-NO_SERVER_STYLE = 'QPushButton {color: red; font-weight: bold;}'
+NO_SERVER_STYLE = '* {color: red; font-weight: bold; font-size: 18pt;}'
 NO_SERVER_TEXT = 'Not Running!'
-NOT_LOGGING_STYLE = 'QPushButton {color: red; font-weight: bold;}'
+NOT_LOGGING_STYLE = NO_SERVER_STYLE
 NOT_LOGGING_TEXT = 'Not Logging!'
-LOGGING_STYLE = 'QPushButton {color: green; font-weight: bold;}'
+LOGGING_STYLE = '* {color: green; font-weight: bold;}'
 LOGGING_TEXT = 'Logging'
-
+TIME_LABEL = """Time since last point:
+{time} {unit}"""
+TIME_DELAY_STYLE = '* {color: darkorange; font-weight: bold; font-size: 15pt;}'
+TIME_UNKNOWN_STYLE = '* {color: purple; font-weight: bold; font-size: 15pt;}'
+TIME_NORMAL_STYLE = '* {color: black; font-size: 12pt;}'
+ERROR_TITLE_STYLE = '* {color: red; font-weight: bold; font-size: 15pt;}'
 
 # noinspection PyAttributeOutsideInit
 class LabRADPlotWidget3(Qt.QWidget):
@@ -45,7 +51,7 @@ class LabRADPlotWidget3(Qt.QWidget):
         :param list[str] path: data vault path
         :param str or int dataset: dataset name or number
         :param timer: Qt timer to use for updating--timeout signal is used.
-            If None, create own timer.
+            If None, create our own timer.
         :param str drLoggerName: name of the DR logger server to monitor
         """
         # run qwidget init
@@ -144,12 +150,30 @@ class LabRADPlotWidget3(Qt.QWidget):
         # DR Logger server monitoring
         if self.drLoggerName:
             self.optionsLayout.addWidget(self._makeLine())
-            self.optionsLayout.addWidget(Qt.QLabel("DR Logger is: "))
-            self.drLoggerPB = Qt.QPushButton("Unchecked", self)
-            self.drLoggerPB.clicked.connect(self.drLoggerPBClicked)
-            self.optionsLayout.addWidget(self.drLoggerPB)
+            label = Qt.QLabel("DR Logger")
+            label.setAlignment(QtCore.Qt.AlignHCenter)
+            label.setStyleSheet("* {font-weight: bold; font-size: 14pt}")
+            self.optionsLayout.addWidget(label)
+            self.drLoggerLabel = Qt.QLabel("Unchecked", self)
+            self.drLoggerLabel.setAlignment(QtCore.Qt.AlignHCenter)
+            self.optionsLayout.addWidget(self.drLoggerLabel)
+            self.drLoggerTimeLabel = Qt.QLabel(TIME_LABEL, self)
+            self.drLoggerTimeLabel.setAlignment(QtCore.Qt.AlignHCenter)
+            self.optionsLayout.addWidget(self.drLoggerTimeLabel)
+            self.drLoggerErrorsLayout = Qt.QVBoxLayout()
+            label = Qt.QLabel("Errors")
+            label.setAlignment(QtCore.Qt.AlignHCenter)
+            label.setStyleSheet("* {font-weight: bold; font-size: 12pt}")
+            self.drLoggerErrorsLayout.addWidget(label)
+            label = Qt.QLabel("None")
+            label.setToolTip("Callooh! Callay!")
+            label.setAlignment(QtCore.Qt.AlignHCenter)
+            self.drLoggerErrorsLayout.addWidget(label)
+            self.drLoggerLastHadErrors = False
+            self.optionsLayout.addLayout(self.drLoggerErrorsLayout)
+
         else:
-            self.drLoggerPB = None
+            self.drLoggerLabel = None
         # add stretch to move them all to the top
         self.optionsLayout.addStretch()
 
@@ -223,6 +247,8 @@ class LabRADPlotWidget3(Qt.QWidget):
                 p = self.cxn[self.drLoggerName].packet()
                 p.select_device()
                 p.logging()
+                p.current_time()
+                p.errors()
                 d = p.send()
                 d.addCallback(self.drLoggerCallback)
         self.drLoggerCounter += 1
@@ -231,40 +257,71 @@ class LabRADPlotWidget3(Qt.QWidget):
     def drLoggerCallback(self, response):
         """ update the DR Logger monitoring stuff.
         if response is None, then there was no DR Logger server """
+        # server status
         if response is None:
-            self.drLoggerPB.setStyleSheet(NO_SERVER_STYLE)
-            self.drLoggerPB.setText(NO_SERVER_TEXT)
+            self.drLoggerLabel.setStyleSheet(NO_SERVER_STYLE)
+            self.drLoggerLabel.setText(NO_SERVER_TEXT)
         elif not response.logging:
-            self.drLoggerPB.setStyleSheet(NOT_LOGGING_STYLE)
-            self.drLoggerPB.setText(NOT_LOGGING_TEXT)
+            self.drLoggerLabel.setStyleSheet(NOT_LOGGING_STYLE)
+            self.drLoggerLabel.setText(NOT_LOGGING_TEXT)
         elif response.logging:
-            self.drLoggerPB.setStyleSheet(LOGGING_STYLE)
-            self.drLoggerPB.setText(LOGGING_TEXT)
-
-    def drLoggerPBClicked(self):
-        if str(self.drLoggerPB.text()) == LOGGING_TEXT:
-            self.drLoggerPB.setText('Nothing to do!')
-        elif str(self.drLoggerPB.text()) == NOT_LOGGING_TEXT:
-            p = self.cxn[self.drLoggerName].packet()
-            p.select_device()
-            p.logging(True)
-            p.send()
-            self.drLoggerPB.setText('Starting...')
-        elif str(self.drLoggerPB.text()) == NO_SERVER_TEXT:
-            # find node
-            for s in self.cxn.servers:
-                if s.lower().startswith('node'):
-                    break
+            self.drLoggerLabel.setStyleSheet(LOGGING_STYLE)
+            self.drLoggerLabel.setText(LOGGING_TEXT)
+        # time since last point
+        try:
+            t = round(abs(response.current_time - self.last_data_time), 1)
+            self.drLoggerTimeLabel.setText(TIME_LABEL.format(time=t, unit='s'))
+            if t > TIME_DELAY_WARNING:
+                self.drLoggerTimeLabel.setStyleSheet(TIME_DELAY_STYLE)
             else:
-                self.drLoggerPB.setText('No node found!')
-                return
-            self.cxn[s].start(self.drLoggerName)
-            self.drLoggerPB.setText('Starting...')
+                self.drLoggerTimeLabel.setStyleSheet(TIME_NORMAL_STYLE)
+        except (AttributeError, TypeError):
+            self.drLoggerTimeLabel.setText(TIME_LABEL.format(time='unknown', unit=''))
+            self.drLoggerTimeLabel.setStyleSheet(TIME_UNKNOWN_STYLE)
+        # errors
+        if not len(response.errors):
+            # don't bother if we didn't have errors last time
+            if self.drLoggerLastHadErrors:
+                # remove all but first
+                layout_item = self.drLoggerErrorsLayout.takeAt(1)
+                while layout_item:
+                    layout_item.widget().setParent(None)
+                    layout_item = self.drLoggerErrorsLayout.takeAt(1)
+                # add None label
+                label = Qt.QLabel("None")
+                label.setToolTip("O frabjous day!")
+                label.setAlignment(QtCore.Qt.AlignHCenter)
+                self.drLoggerErrorsLayout.addWidget(label)
+                self.drLoggerLastHadErrors = False
+        else:
+            self.drLoggerLastHadErrors = True
+            i = 1
+            layout_item = self.drLoggerErrorsLayout.takeAt(i)
+            err_dict = dict(response.errors)
+            while layout_item:
+                widget = layout_item.widget()
+                if str(widget.text()) in err_dict:
+                    msg = err_dict.pop(str(widget.text()), "No message given.")
+                    if msg != str(widget.toolTip()):
+                        widget.setToolTip(msg)
+                    self.drLoggerErrorsLayout.insertWidget(i, widget)
+                    i += 1
+                else:
+                    layout_item.widget().setParent(None)
+                layout_item = self.drLoggerErrorsLayout.takeAt(i)
+            for title, msg in err_dict.items():
+                label = Qt.QLabel(title)
+                label.setToolTip(msg)
+                label.setAlignment(QtCore.Qt.AlignHCenter)
+                label.setStyleSheet(ERROR_TITLE_STYLE)
+                self.drLoggerErrorsLayout.addWidget(label)
 
     def datavaultCallback(self, response):
         self.newData = response.get
         if hasattr(self.newData, 'asarray'):  # Backwards compatibility
             self.newData = self.newData.asarray
+        if len(self.newData):
+            self.last_data_time = self.newData[-1, 0]
         if 'variables' in response.settings:
             self.variables = response.variables
             self.xAxisCurrentUnit = self.variables[0][0][1]

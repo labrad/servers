@@ -63,7 +63,7 @@ class AppForm(Qt.QMainWindow):
     @inlineCallbacks
     def check_dr_logger(self, node):
         running = yield node.running_servers()
-        if LOGGER_SERVER not in [x[0] for x in running]:
+        if LOGGER_SERVER not in [x[0] for x in running] + list(self.cxn.servers):
             print "%s not running, attempting to start... " % LOGGER_SERVER,
             try:
                 yield node.start(LOGGER_SERVER)
