@@ -244,23 +244,31 @@ class LabRADPlotWidget3(Qt.QWidget):
             if self.drLoggerName not in self.cxn.servers:
                 self.drLoggerCallback(None)
             else:
-                p = self.cxn[self.drLoggerName].packet()
-                p.select_device()
-                p.logging()
-                p.current_time()
-                p.errors()
-                d = p.send()
-                d.addCallback(self.drLoggerCallback)
+                try:
+                    p = self.cxn[self.drLoggerName].packet()
+                    p.select_device()
+                    p.logging()
+                    p.current_time()
+                    p.errors()
+                    d = p.send()
+                    d.addCallback(self.drLoggerCallback)
+                except Exception as e:
+                    self.drLoggerCallback(None, err=e)
         self.drLoggerCounter += 1
         self.drLoggerCounter %= DR_LOGGER_CHECK_SKIP
 
-    def drLoggerCallback(self, response):
+    def drLoggerCallback(self, response, err=None):
         """ update the DR Logger monitoring stuff.
         if response is None, then there was no DR Logger server """
         # server status
+        self.drLoggerLabel.setToolTip('')
         if response is None:
             self.drLoggerLabel.setStyleSheet(NO_SERVER_STYLE)
-            self.drLoggerLabel.setText(NO_SERVER_TEXT)
+            if err:
+                self.drLoggerLabel.setToolTip(str(err))
+                self.drLoggerLabel.setText("ERROR\n (see mouseover)")
+            else:
+                self.drLoggerLabel.setText(NO_SERVER_TEXT)
         elif not response.logging:
             self.drLoggerLabel.setStyleSheet(NOT_LOGGING_STYLE)
             self.drLoggerLabel.setText(NOT_LOGGING_TEXT)
