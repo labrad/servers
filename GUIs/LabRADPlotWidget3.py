@@ -431,8 +431,12 @@ class LabRADPlotWidget3(Qt.QWidget):
             start += 1
         # now slice out those data points and plot them
         for i, (legend, label, unit) in enumerate(self.variables[1]):
-            self.lines[i].set_xdata(self.data[start::step, 0])
-            self.lines[i].set_ydata(self.data[start::step, i+1])
+            # filter out any NaN, inf, etc.
+            x_slice = self.data[start::step, 0]
+            y_slice = self.data[start::step, i+1]
+            valid_inds = np.isfinite(y_slice)
+            self.lines[i].set_xdata(x_slice[valid_inds])
+            self.lines[i].set_ydata(y_slice[valid_inds])
             d = self.data[-1, i+1]
             if 1 > d > 1e-3:
                 self.lines[i].my_label.setText('{0:.3f}'.format(d))
