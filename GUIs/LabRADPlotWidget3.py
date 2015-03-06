@@ -26,7 +26,7 @@ HISTORY_TOOLTIP = """For example:
 FILTER_TOOLTIP = """Filter out excess points to make graph more responsive.
 This means not all data will be displayed for long histories or small numbers of points."""
 
-NO_SERVER_STYLE = '* {color: red; font-weight: bold; font-size: 18pt;}'
+NO_SERVER_STYLE = 'QLabel {color: red; font-weight: bold; font-size: 15pt;}'
 NO_SERVER_TEXT = 'Not Running!'
 NOT_LOGGING_STYLE = NO_SERVER_STYLE
 NOT_LOGGING_TEXT = 'Not Logging!'
@@ -34,10 +34,10 @@ LOGGING_STYLE = '* {color: green; font-weight: bold;}'
 LOGGING_TEXT = 'Logging'
 TIME_LABEL = """Time since last point:
 {time} {unit}"""
-TIME_DELAY_STYLE = '* {color: darkorange; font-weight: bold; font-size: 15pt;}'
-TIME_UNKNOWN_STYLE = '* {color: purple; font-weight: bold; font-size: 15pt;}'
-TIME_NORMAL_STYLE = '* {color: black; font-size: 12pt;}'
-ERROR_TITLE_STYLE = '* {color: red; font-weight: bold; font-size: 15pt;}'
+TIME_DELAY_STYLE = 'QLabel {color: darkorange; font-weight: bold; font-size: 15pt;}'
+TIME_UNKNOWN_STYLE = 'QLabel {color: purple; font-weight: bold; font-size: 15pt;}'
+TIME_NORMAL_STYLE = 'QLabel {color: black; font-size: 12pt;}'
+ERROR_TITLE_STYLE = 'QLabel {color: red; font-weight: bold; font-size: 15pt;}'
 
 # noinspection PyAttributeOutsideInit
 class LabRADPlotWidget3(Qt.QWidget):
@@ -265,8 +265,9 @@ class LabRADPlotWidget3(Qt.QWidget):
         if response is None:
             self.drLoggerLabel.setStyleSheet(NO_SERVER_STYLE)
             if err:
-                self.drLoggerLabel.setToolTip(str(err))
-                self.drLoggerLabel.setText("ERROR\n (see mouseover)")
+                self.drLoggerLabel.setText("Server Error")
+                response = type('dummy', (object,), {})
+                response.errors = [('DR Logger', str(err))]
             else:
                 self.drLoggerLabel.setText(NO_SERVER_TEXT)
         elif not response.logging:
