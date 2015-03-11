@@ -155,25 +155,25 @@ class SpectrumAnalyzer(GPIBManagedServer):
     def set_centerfreq(self, c, f):
         """Sets the center frequency"""
         dev = self.selectedDevice(c)
-        dev.write(':FREQ:CENT %gMHz\n' % float(f))
+        dev.write(':FREQ:CENT %gMHz\n' % f['MHz'])
 
     @setting(522, 'Set Span', f='v[MHz]', returns='')
     def set_span(self, c, f):
         """Sets the Frequency Span"""
         dev = self.selectedDevice(c)
-        dev.write(':FREQ:SPAN %gMHz' % float(f))
+        dev.write(':FREQ:SPAN %gMHz' % f['MHz'])
         
-    @setting(523, 'Set Resolution Bandwidth MHz', f = 'v[MHz]', returns='')
+    @setting(523, 'Set Resolution Bandwidth', f = 'v[MHz]', returns='')
     def set_resolutionbandwidth(self,c,f):
-        """Set the Resolution Bandwidth units in MHz"""
+        """Set the Resolution Bandwidth"""
         dev = self.selectedDevice(c)
-        dev.write(':BAND %gMHz' % float(f))
+        dev.write(':BAND %gMHz' % f['MHz'])
 
-    @setting(524, 'Set Video Bandwidth kHz', f = 'v[kHz]', returns='')
+    @setting(524, 'Set Video Bandwidth', f = 'v[kHz]', returns='')
     def set_videobandwidth(self,c,f):
-        """Set the video Bandwidth units in kHz"""
+        """Set the video Bandwidth"""
         dev = self.selectedDevice(c)
-        dev.write(':BAND:VID %gkHz' % float(f))
+        dev.write(':BAND:VID %gkHz' % f['kHz'])
 
     @setting(600, 'Y Scale',setting='s', returns='')
     def set_yscale(self,c,setting):
@@ -184,17 +184,17 @@ class SpectrumAnalyzer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         dev.write('DISP:WIND:TRAC:Y:SPAC %s' % setting)
 
-    @setting(602, 'Reference Level dBm',f='v[dBm]', returns=[''])
-    def set_referencelevel(self,c,f):
-        """This sets the Reference Level in dBm"""
+    @setting(602, 'Reference Level',f='v[dBm]', returns=[''])
+    def set_referencelevel(self, c, f):
+        """Set the reference level"""
         dev = self.selectedDevice(c)
-        dev.write('DISP:WIND:TRAC:Y:RLEV %gdBm' % float(f))
+        dev.write('DISP:WIND:TRAC:Y:RLEV %gdBm' % f['dBm'])
 
-    @setting(603, 'Sweep time msec', f='v[ms]', returns='')
+    @setting(603, 'Sweep time', f='v[ms]', returns='')
     def set_sweeprate(self, c, f):
-        """This sets the sweep rate of the spectrum analyzer in mSeconds"""
+        """Set the sweep rate"""
         dev = self.selectedDevice(c)
-        dev.write(':SWE:TIME %gms' % float(f))
+        dev.write(':SWE:TIME %gms' % f['ms'])
 
     @setting(604, 'Detector type', setting='s', returns='')
     def set_detector(self, c, setting='POS'):
@@ -224,18 +224,18 @@ class SpectrumAnalyzer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         dev.write(':AVER %s' % setting)
 
-    @setting(702, 'Start Frequency MHz', f='v[MHz]',returns='')
+    @setting(702, 'Start Frequency', f='v[MHz]', returns='')
     def start_frequency(self, c, f):
-        """This will set the starting frequency"""
+        """Set the starting frequency"""
         dev = self.selectedDevice(c)
-        dev.write(':FREQ:STAR %gMHz' % float(f) )
+        dev.write(':FREQ:STAR %gMHz' % f['MHz'] )
 
 
-    @setting(703, 'Stop Frequency MHz', f='v[MHz]',returns='')
+    @setting(703, 'Stop Frequency', f='v[MHz]',returns='')
     def stop_frequency(self, c, f):
-        """This will set the stopping frequency"""
+        """Set the stop frequency"""
         dev = self.selectedDevice(c)
-        dev.write(':FREQ:STOP %gMHz' % float(f) )
+        dev.write(':FREQ:STOP %gMHz' % f['MHz'] )
         
 
     @setting(704, 'Number Of Averages', n=[':Default, get number of averages','w: Set number of averages'], returns=['w'])
@@ -246,7 +246,7 @@ class SpectrumAnalyzer(GPIBManagedServer):
             yield dev.write(':AVER:COUN %d' % n)
         numavs = yield dev.query(':AVER:COUN?')
         returnValue(int(numavs))
-        
+
     @setting(705, 'Query 10 MHz ref', returns=['s'])
     def check_extref(self, c):
         """Checks whether EXT 10 MHz ref is used. Returns 'EXT' or 'INT'."""
