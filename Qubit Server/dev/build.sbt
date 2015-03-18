@@ -2,7 +2,7 @@ organization := "org.labrad"
 
 name := "QubitServer"
 
-version := "0.4.9"
+version := "0.4.10"
 
 resolvers += "bintray" at "http://jcenter.bintray.com/"
 
