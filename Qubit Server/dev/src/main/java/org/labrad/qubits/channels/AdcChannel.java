@@ -100,8 +100,8 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
         "Conflicting modes for ADC board %s", this.board.getName());
     Preconditions.checkArgument(this.getStartDelay() == other.getStartDelay(),
         "Conflicting start delays for ADC board %s", this.board.getName());
-    Preconditions.checkArgument(this.triggerTable.equals(other.triggerTable),
-        "Conflicting trigger tables for ADC board %s", this.board.getName());
+    Preconditions.checkArgument(this.triggerTable.pretty().equals(other.triggerTable.pretty()),
+        "Conflicting trigger tables for ADC board %s, (this: %s, other, %s)", this.board.getName(), this.triggerTable.pretty(), other.triggerTable.pretty());
     if (this.mode == AdcMode.DEMODULATE) {
       Preconditions.checkArgument(this.filterFunction.equals(other.filterFunction),
           "Conflicting filter functions for ADC board %s", this.board.getName());
