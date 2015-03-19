@@ -103,8 +103,6 @@ class CalibrationServer(LabradServer):
             'bandwidthZ': 0.13, #original default: 0.13
             'maxfreqZ': 0.45, #optimal parameter: 10% below Nyquist frequency of dac, 0.45
             'maxvalueZ': 5.0, #optimal parameter: 5.0, from the jitter in 1/H fourier amplitudes
-            'zeroIQ': False,
-            'zeroZ': True
         }
         for key in keys.SERVERSETTINGVALUES:
             default = defaults.get(key, None)
@@ -122,11 +120,8 @@ class CalibrationServer(LabradServer):
         c['t0'] = 0
         c['Settling'] = ([], [])
         c['Filter'] = 0.2
-        c['zeroIQ'] = self.serverSettings['zeroIQ']
-        c['zeroZ'] = self.serverSettings['zeroZ']
         c['deconvIQ'] = self.serverSettings['deconvIQ']
         c['deconvZ'] = self.serverSettings['deconvZ']
-        c['borderValues'] = [0.0, 0.0]
 
     @inlineCallbacks
     def call_sync(self, *args, **kw):
@@ -198,8 +193,8 @@ class CalibrationServer(LabradServer):
     @setting(2, 'borderValues', borderValues= ['*v'], returns=['*v'])
     def set_border_values(self, c, borderValues):
         """Sets the end value to be enforced on the deconvolved output. By default it is zero, for single block. For dual block this must be set"""
-        c['borderValues']=borderValues
-        return c['borderValues']
+        print "Border values is deprecated, it is always set to average."
+        return borderValues
 
     @setting(10, 'Frequency', frequency=['v[GHz]'], returns=['v[GHz]'])
     def frequency(self, c, frequency):
@@ -284,8 +279,7 @@ class CalibrationServer(LabradServer):
                                                       data,
                                                       loop=c['Loop'],
                                                       zipSRAM=False,
-                                                      deconv=deconv,
-                                                      zeroBoards=c['zeroIQ'])
+                                                      deconv=deconv)
             if deconv is False:
                 print 'No deconv on board ' + c['Board'] 
         else:
@@ -295,9 +289,7 @@ class CalibrationServer(LabradServer):
             corrected = yield self.call_sync(calset.DACify, data,
                                                       loop=c['Loop'],
                                                       fitRange=False,
-                                                      deconv=deconv,
-                                                      borderValues=c['borderValues'],
-                                                      zeroBoards=c['zeroZ'])
+                                                      deconv=deconv)
             if deconv is False:
                 print 'No deconv on board ' + c['Board']
         returnValue(corrected)
@@ -328,8 +320,7 @@ class CalibrationServer(LabradServer):
                                                               t0=c['t0'],
                                                               loop=c['Loop'],
                                                               zipSRAM=False,
-                                                              deconv=deconv,
-                                                              zeroBoards=c['zeroIQ'])
+                                                              deconv=deconv)
             if deconv is False:
                 print 'No deconv on board ' + c['Board']
         else:
@@ -344,8 +335,6 @@ class CalibrationServer(LabradServer):
                                                               loop=c['Loop'],
                                                               fitRange=False,
                                                               deconv=deconv,
-                                                              zeroBoards=c['zeroZ'],
-                                                              borderValues=c['borderValues'],
                                                               maxvalueZ=self.serverSettings['maxvalueZ'])
             if deconv is False:
                 print 'No deconv on board ' + c['Board']
