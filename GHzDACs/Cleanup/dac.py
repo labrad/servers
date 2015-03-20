@@ -1064,16 +1064,18 @@ class MemorySequence(list):
         if opcode in [0x0, 0x1, 0x2, 0x4, 0x8, 0xA]:
             return 1
         #branch to start
-        if opcode == 0xF:
+        elif opcode == 0xF:
             return 2
         #delay
-        if opcode == 0x3:
+        elif opcode == 0x3:
             return MemorySequence.getAddress(cmd) + 1
         #run sram
-        if opcode == 0xC:
+        elif opcode == 0xC:
             # TODO: Incorporate SRAMoffset when calculating sequence time.
             #       This gives a max of up to 12 + 255 us
             return 25*12 # maximum SRAM length is 12us, with 25 cycles per us
+        else:
+            raise Exception("Unknown opcode: %s address: %s" % (opcode, MemorySequence.getAddress(cmd)))
     
     @staticmethod
     def sequenceTime_sec(cmds):
