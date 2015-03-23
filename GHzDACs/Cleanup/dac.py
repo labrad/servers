@@ -594,7 +594,7 @@ class DAC_Build7(DAC):
         """Update a packet for the ethernet server with Memory commands."""
         if len(data) > cls.MEM_PAGE_LEN:
             msg = "Memory length %d exceeds maximum length %d (one page)."
-            raise Exception(msg % (len(data), CLS.MEM_PAGE_LEN))
+            raise Exception(msg % (len(data), cls.MEM_PAGE_LEN))
         # translate SRAM addresses for higher pages
         if page:
             data = cls.shiftSRAM(data, page)
@@ -620,8 +620,8 @@ class DAC_Build7(DAC):
                 data, pkt = pkt[:8], pkt[8:]
     
                 bytes = [(b if b <= 0xFF else 0) for b in data]
-                read = [b & I2C_RB for b in data]
-                ack = [b & I2C_ACK for b in data]
+                read = [b & self.I2C_RB for b in data]
+                ack = [b & self.I2C_ACK for b in data]
                 
                 regs = self.regI2C(bytes, read, ack)
                 r = yield self._sendRegisters(regs)
