@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Agilent 7104B Oscilloscope
-version = 0.2
+version = 0.2.1
 description = Talks to the Agilent 7104B oscilloscope
 
 [startup]
@@ -38,6 +38,7 @@ from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad.types import Value
 from struct import unpack
+from labrad.units import mV,ns
 
 import time
 import numpy, re
@@ -208,14 +209,14 @@ class Agilent7104BServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         #first: get vertical scale        
         resp = yield dev.query(':CHAN%d:SCAL?' %channel)
-        scale = (Value(float(resp),'V'))
+        scale_V = float(resp)
         if position is None:
             resp = yield dev.query(':CHAN%d:OFFS?' %channel)
         else:
-            pos=-position*scale
-            yield dev.write((':CHAN%d:OFFS %g V') %(channel,pos))
+            pos_V=-position*scale_V
+            yield dev.write((':CHAN%d:OFFS %g V') %(channel,pos_V))
             resp = yield dev.query(':CHAN%d:OFFS?' %channel)
-        position = float(resp)/float(scale)
+        position = float(resp)/float(scale_V)
         returnValue(position)
 
     '''
@@ -379,8 +380,8 @@ class Agilent7104BServer(GPIBManagedServer):
         
         #voltUnitScaler = 1 #Value(1, voltUnits)['V'] # converts the units out of the scope to V
         #timeUnitScaler = 1 #Value(1, timeUnits)['s']
-        voltUnitScaler = 1000.0 #in mV
-        timeUnitScaler = 1.0e9  #in ns
+        voltUnitScaler = 1000.0*mV
+        timeUnitScaler = 1.0e9*ns
         #Parse binary
         trace = _parseBinaryData(binary,wordLength = wordLength)
         trace = trace[-points:]
