@@ -1110,6 +1110,7 @@ class DACcorrection:
 
         # TODO: Remove this hack that strips units
         decayRates = np.array([x['GHz'] for x in self.decayRates])
+        decayAmplitudes = self.decayAmplitudes
 
         #read DAC zeros
         if zerocor:
@@ -1134,7 +1135,7 @@ class DACcorrection:
         elif signal is None:
             signal = np.int32(np.round(fullscale*offset+zero))
             if fitRange:
-                signal = np.clip(signal,-0x2000,0x1FFF)
+                signal = np.clip(signal, -0x2000,0x1FFF)
                 signal = np.uint32(signal & 0x3FFF)
             return np.resize(signal, n)
         else:
@@ -1161,7 +1162,6 @@ class DACcorrection:
                 # pulse correction
                 for correction in self.correction:
                     l = np.alen(correction)
-                    #precalc *= interpol(correction, freqs*2.0*(l-1),extrapolate=True) #orig. Fast
                     precalc *= interpol_cubic(correction, freqs*2.0*(l-1)) #cubic, as fast as linear interpol
                     
                 #decay times:
@@ -1170,11 +1170,7 @@ class DACcorrection:
                 # settlingRates = [0.012]    #rate is in GHz, (1/ns)
                 if np.alen(decayRates):
                     freqs = 2j*np.pi*freqs
-                    #print "correction: decayAmplitudes: %s, type: %s" % (self.decayAmplitudes, type(self.decayAmplitudes))
-                    #print "correction: decayRates: %s, type: %s" % (self.decayRates, type(self.decayRates))
-                    #print "correction: freqs: %s, shape: %s, type: %s" % (freqs, freqs.shape, type(freqs))
-
-                    precalc /= (1.0 + np.sum(self.decayAmplitudes[:,None] * freqs[None,:] / (freqs[None,:] + decayRates[:,None]), axis=0))
+                    precalc /= (1.0 + np.sum(decayAmplitudes[:, None] * freqs[None, :] / (freqs[None, :] + decayRates[:, None]), axis=0))
 
                 
                 #the correction window can have very large amplitudes, therefore the time domain signal can have large oscillations which will be truncated digitally, 
@@ -1182,7 +1178,7 @@ class DACcorrection:
                 #Here, we apply a maximum value, i.e. truncate the value, but keep the phase. This way we still have a partial correction, within the limits of the boards. 
                 #Doing it this way also helps a lot with the waveforms being scalable.
                 if maxvalueZ:
-                    precalc = precalc * (1.0 * (abs(precalc)<=maxvalueZ))   +  np.exp(1j*np.angle(precalc))*maxvalueZ * 1.0 * (abs(precalc)>maxvalueZ)           
+                    precalc = precalc * (1.0 * (abs(precalc)<=maxvalueZ)) + np.exp(1j*np.angle(precalc))*maxvalueZ * 1.0 * (abs(precalc) > maxvalueZ)
                 
                 self.precalc = precalc
             signal *= self.precalc
@@ -1222,8 +1218,7 @@ class DACcorrection:
         dithering[-4:] = 0.0
     
         signal = np.round(1.0*signal * fullscale + zero + dithering).astype(np.int32)
-        #print "correction: signal: %s, shape: %s, type: %s" % (signal, signal.shape, type(signal))
-   
+
         if not rescale:
             if (np.max(signal) > 0x1FFF) or (np.min(signal) < -0x2000):
                 print 'Corrected Z signal beyond DAC range, clipping'
