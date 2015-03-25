@@ -286,6 +286,7 @@ class CalibrationServer(LabradServer):
             # Single Channel Calibration
             calset = yield self.getDACcalset(c)
             deconv = c['deconvZ']
+            calset.setSettling(*c['Settling'])
             corrected = yield self.call_sync(calset.DACify, data,
                                                       loop=c['Loop'],
                                                       fitRange=False,
