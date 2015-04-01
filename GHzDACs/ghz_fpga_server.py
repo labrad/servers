@@ -1011,7 +1011,11 @@ class FPGAServer(DeviceServer):
         """Choose which FPGA class to use for this device"""
         _, boardGroup, ethernetServer, port, boardNumber, build = args
         _, boardType, _ = name.rsplit(' ', 2)
-        return fpga.REGISTRY[(boardType, build)]
+        try:
+            return fpga.REGISTRY[(boardType, build)]
+        except KeyError as e:
+            raise Exception("Unknown fpga build: boardType={}, build={}, ethernetServer={}, port={}, boardNumber={}".format(
+                            boardType, build, ethernetServer.name, port, boardNumber))
     
     ## Trigger refreshes if a direct ethernet server connects or disconnects
     def serverConnected(self, ID, name):
