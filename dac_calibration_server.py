@@ -103,6 +103,7 @@ class CalibrationServer(LabradServer):
             'bandwidthZ': 0.13, #original default: 0.13
             'maxfreqZ': 0.45, #optimal parameter: 10% below Nyquist frequency of dac, 0.45
             'maxvalueZ': 5.0, #optimal parameter: 5.0, from the jitter in 1/H fourier amplitudes
+            'dither': True #enable dithering on Z.
         }
         for key in keys.SERVERSETTINGVALUES:
             default = defaults.get(key, None)
@@ -122,6 +123,7 @@ class CalibrationServer(LabradServer):
         c['Filter'] = 0.2
         c['deconvIQ'] = self.serverSettings['deconvIQ']
         c['deconvZ'] = self.serverSettings['deconvZ']
+        c['dither']  = self.serverSettings['dither']
 
     @inlineCallbacks
     def call_sync(self, *args, **kw):
@@ -290,7 +292,8 @@ class CalibrationServer(LabradServer):
             corrected = yield self.call_sync(calset.DACify, data,
                                                       loop=c['Loop'],
                                                       fitRange=False,
-                                                      deconv=deconv)
+                                                      deconv=deconv,
+                                                      dither=c['dither'])
             if deconv is False:
                 print 'No deconv on board ' + c['Board']
         returnValue(corrected)
@@ -336,7 +339,8 @@ class CalibrationServer(LabradServer):
                                                               loop=c['Loop'],
                                                               fitRange=False,
                                                               deconv=deconv,
-                                                              maxvalueZ=self.serverSettings['maxvalueZ'])
+                                                              maxvalueZ=self.serverSettings['maxvalueZ'],
+                                                              dither=c['dither'])
             if deconv is False:
                 print 'No deconv on board ' + c['Board']
         returnValue(corrected)

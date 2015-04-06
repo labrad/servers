@@ -64,8 +64,6 @@ import numpy as np
 #
 # Removed a tab
 
-DITHER = True
-
 def cosinefilter(n, width=0.4):
     """cosinefilter(n,width) cosine lowpass filter
     n samples from 0 to 1 GHz
@@ -1020,7 +1018,7 @@ class DACcorrection:
         
         
     def DACify(self, signal, loop=False, rescale=False, fitRange=True,
-               zerocor=True, deconv=True, volts=True):
+               zerocor=True, deconv=True, volts=True, dither=True):
         """
         Computes a SRAM sequence for one DAC channel. If volts is
         True, the input is expected in volts. Otherwise inputs of -1
@@ -1092,12 +1090,12 @@ class DACcorrection:
         signal = self.DACifyFT(signal_FD, t0=0, n=n, nfft=nfft, offset=background,
                              loop=loop,
                              rescale=rescale, fitRange=fitRange, deconv=deconv,
-                             zerocor=zerocor, volts=volts)
+                             zerocor=zerocor, volts=volts, dither=dither)
         return signal
 
     def DACifyFT(self, signal, t0=0, n=8192, offset=0, nfft=None, loop=False,
                  rescale=False, fitRange=True, deconv=True, zerocor=True,
-                 volts=True, maxvalueZ=5.0):
+                 volts=True, maxvalueZ=5.0, dither=True):
         """
         Works like DACify but takes the Fourier transform of the
         signal as input instead of the signal. n gives the number of
@@ -1209,14 +1207,15 @@ class DACcorrection:
                or rescale < self.min_rescale_factor:
                 self.min_rescale_factor = rescale
             fullscale *= rescale
-        if DITHER:
+            
+        if dither:
             ditheringspan = 2. #a dithering span of 3 goes from -1.5.. 1.5, i.e. 0..3 = 0,1,2,3 = 4 numbers = 2 bits exactly
         else:
             ditheringspan = 0.
         dithering = ditheringspan * (np.random.rand( len(signal ) )-0.5)
         dithering[0:4] = 0.0
         dithering[-4:] = 0.0
-    
+
         signal = np.round(1.0*signal * fullscale + zero + dithering).astype(np.int32)
 
         if not rescale:
