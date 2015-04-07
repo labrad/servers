@@ -171,8 +171,8 @@ class DataVault(LabradServer):
         c['writing'] = True
         return c['path'], c['dataset']
 
-    @setting(10, name=['s', 'w'], returns='(*s{path}, s{name})')
-    def open(self, c, name):
+    @setting(10, name=['s', 'w'], append='b', returns='(*s{path}, s{name})')
+    def open(self, c, name, append=False):
         """Open a Dataset for reading.
 
         You can specify the dataset by name or number.
@@ -184,7 +184,7 @@ class DataVault(LabradServer):
         c['datasetObj'] = dataset
         c['filepos'] = 0
         c['commentpos'] = 0
-        c['writing'] = False
+        c['writing'] = append
         key = self.contextKey(c)
         dataset.keepStreaming(key, 0)
         dataset.keepStreamingComments(key, 0)
@@ -232,8 +232,8 @@ class DataVault(LabradServer):
         traces, while legend is unique to each trace.
         """
         ds = self.getDataset(c)
-        ind = [(i['label'], i['units']) for i in ds.independents]
-        dep = [(d['category'], d['label'], d['units']) for d in ds.dependents]
+        ind = ds.getIndependents()
+        dep = ds.getDependents()
         return ind, dep
 
     @setting(120, returns='*s')
@@ -242,7 +242,7 @@ class DataVault(LabradServer):
         dataset = self.getDataset(c)
         key = self.contextKey(c)
         dataset.param_listeners.add(key) # send a message when new parameters are added
-        return [par['label'] for par in dataset.parameters]
+        return dataset.getParamNames()
 
     @setting(121, 'add parameter', name='s', returns='')
     def add_parameter(self, c, name, data):
@@ -279,7 +279,7 @@ class DataVault(LabradServer):
         are not allowed).
         """
         dataset = self.getDataset(c)
-        names = [par['label'] for par in dataset.parameters]
+        names = dataset.getParamNames()
         params = tuple((name, dataset.getParameter(name)) for name in names)
         key = self.contextKey(c)
         dataset.param_listeners.add(key) # send a message when new parameters are added
