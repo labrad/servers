@@ -13,8 +13,7 @@ import sys
 
 from labrad.units import V, torr, A, degC, min, h, d, y, K
 
-from pyle import registry, datavault
-from pyle.workflow import switchSession
+from pyle import datavault
 
 
 cxn = labrad.connect()

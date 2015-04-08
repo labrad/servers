@@ -37,6 +37,8 @@
 # > grape.set_control_z_parameters(Value(40.0,'ns'), ..., ..., ...)
 # > result = grape.controlz(index1, index2)
 
+import os
+
 import numpy as np
 
 from labrad.units import Value
@@ -45,11 +47,6 @@ from labrad import util
 
 from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
-
-from pyle.dataking import util as datakingUtil
-from pyle import registry
-
-import os
 
 KEYS = ['swapTimeBus', 'f10', 'f21']
 
