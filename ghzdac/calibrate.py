@@ -275,7 +275,7 @@ def measureImpulseResponse(fpga, scope, baseline, pulse, dacoffsettime=6, pulsel
 
 
 def measureImpulseResponse_infiniium(fpga, scope, baseline, pulse,
-                                     dacoffsettime=6, pulselength=1, wait=50, looplength=6000):
+                                     dacoffsettime=6, pulselength=1, wait=75, looplength=6000):
     """Measure the response to a DAC pulse
     looplength: time between triggers, keep this above pulselength , 6000 for short dacs
     fpga: connected fpga server
@@ -298,46 +298,14 @@ def measureImpulseResponse_infiniium(fpga, scope, baseline, pulse,
     if wait:
         time.sleep(wait) #keep this long enough!! 40 sec for 4096, 20 sec for 2048
 
-    [timeAxis,y] = (scope.get_trace(SCOPECHANNEL_infiniium)) #start and stop in ns
-    timeAxis = [t*1.0e9 for t in timeAxis] #Agilent returns it in s, here we make ns
+    t, y = scope.get_trace(SCOPECHANNEL_infiniium) #start and stop in ns
 
+    # Truncate data before t=0
+    after_zero_idx = np.argwhere(t > 0).flatten()
+    t = t[after_zero_idx]
+    y = y[after_zero_idx]
 
-    #kick out stuff below zero time in the trace
-    kickOutStuffBelowZero=True
-    if kickOutStuffBelowZero:
-        timeAxisTrunc=[]
-        yTrunc=[]
-        for idx in range(len(timeAxis)):
-            t=timeAxis[idx]
-            if t['ns']>=0:
-                timeAxisTrunc.append(t)
-                yTrunc.append(y[idx])
-        timeAxis=timeAxisTrunc
-        y=yTrunc
-
-    kickOutStuffAbove=False
-    if kickOutStuffAbove:
-        timeAxisTrunc=[]
-        yTrunc=[]
-        for idx in range(len(timeAxis)):
-            t=timeAxis[idx]
-            if t['ns']<=100:
-                timeAxisTrunc.append(t)
-                yTrunc.append(y[idx])
-        timeAxis=timeAxisTrunc
-        y=yTrunc
-
-    #standard
-    starttime = (timeAxis[0])
-    timestep = (timeAxis[1] - starttime)
-    data=[]
-    data.append( starttime['ns']*1.0e-9 )
-    data.append( timestep['ns']*1.0e-9 )
-    for yy in y:
-        data.append( yy['V'] )
-
-    data = np.hstack(data)
-    return data
+    return t, y
 
 
 def calibrateACPulse(cxn, boardname, baselineA, baselineB):
@@ -497,7 +465,7 @@ def calibrateDCPulse(cxn,boardname,channel):
     return (datasetNumber(dataset))
 
 
-def calibrateDCPulse_infiniium(cxn, boardname, channel, intorext10mhz):
+def calibrateDCPulse_infiniium(cxn, boardname, channel, conf_10_MHz):
 
     reg = cxn.registry
     reg.cd(['', keys.SESSIONNAME,boardname])
@@ -526,7 +494,7 @@ def calibrateDCPulse_infiniium(cxn, boardname, channel, intorext10mhz):
     numberofaverages=4096
 
     p = scope.packet().\
-    gpib_write('TIM:REFC '+str(intorext10mhz)).\
+    gpib_write('TIM:REFC '+str(conf_10_MHz)).\
     channelonoff(SCOPECHANNEL_infiniium, 'ON').\
     channelonoff(TRIGGERCHANNEL_infiniium, 'ON').\
     scale(SCOPECHANNEL_infiniium, 0.1).\
@@ -545,18 +513,18 @@ def calibrateDCPulse_infiniium(cxn, boardname, channel, intorext10mhz):
     p.send()
     print 'scope packet sent'
     time.sleep(1)
-    refon10mhz = scope.gpib_query(':TIM:REFC?')
+    ref_10_MHz = scope.gpib_query(':TIM:REFC?')
 
-    if refon10mhz=='1':
-        reftext='EXT'
+    if ref_10_MHz == '1':
+        ref_str_rep = 'EXT'
     else:
-        reftext='INT'
-    print '10 MHz ref: '+reftext
+        ref_str_rep = 'INT'
+    print '10 MHz ref: ' + ref_str_rep
 
     offsettime = reg.get(keys.TIMEOFFSET)
 
     print 'Measuring step response...'
-    trace = measureImpulseResponse_infiniium(fpga, scope, baseline, pulse,
+    t, y = measureImpulseResponse_infiniium(fpga, scope, baseline, pulse,
                                              dacoffsettime=offsettime['ns'], pulselength=3000, looplength=6000)
 
     # set the output to zero so that the fridge does not warm up when the
@@ -569,11 +537,10 @@ def calibrateDCPulse_infiniium(cxn, boardname, channel, intorext10mhz):
     ds.add_parameter(keys.TIMEOFFSET, offsettime)
     ds.add_parameter('dac baseline', dac_baseline)
     ds.add_parameter('dac pulse', dac_pulse)
-    ds.add_parameter('10 MHz ref', reftext)
+    ds.add_parameter('10 MHz ref', ref_str_rep)
     ds.add_parameter('scope', 'Agilent13GHz')
     ds.add_parameter('stats', numberofaverages)
-    ds.add(np.transpose([1e9*(trace[0]+trace[1]*np.arange(np.alen(trace)-2)),
-           trace[2:]]))
+    ds.add(np.vstack((t['ns'], y['V'])).transpose())
     return datasetNumber(dataset)
 
 
