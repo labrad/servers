@@ -373,11 +373,13 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         #Parse binary
         trace = _parseBinaryData(binary, wordLength = wordLength) * 1.0e3
         #Convert from binary to volts
-        traceVolts = ((trace*float(preambleDict['yStep'])+float(preambleDict['yOrigin']))) #* (1/32768.0))# * VERT_DIVISIONS/2 - float(0)) * float(preambleDict['yStep']) * voltUnitScaler
+        traceVolts = ((trace*float(preambleDict['yStep'])+float(preambleDict['yOrigin'])))
         numPoints = int(preambleDict['numPoints'])
-        time = numpy.linspace(float(preambleDict['xFirst']), (numPoints-1) * float(preambleDict['xStep'])+float(preambleDict['xFirst']),numPoints)#recordLength)
+        time = numpy.linspace(float(preambleDict['xFirst']),
+                              (numPoints-1) * float(preambleDict['xStep'])+float(preambleDict['xFirst']),
+                              numPoints)
 
-        returnValue((time*U.ns, traceVolts*U.V))
+        returnValue((time*U.ns*1e9, traceVolts*U.V))
 
 def _parsePreamble(preamble):
     preambleVals = preamble.split(',')
