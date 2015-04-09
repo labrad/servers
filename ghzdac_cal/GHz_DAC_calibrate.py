@@ -18,7 +18,7 @@
 
 from __future__ import with_statement, absolute_import
 
-from numpy import floor, clip
+from numpy import clip
 
 import labrad
 import labrad.async
@@ -32,15 +32,19 @@ import ghzdac.keys as keys
 
 FPGA_SERVER_NAME = 'ghz_fpgas'
 
-def calibrate_dc_pulse(fpga_name, channel):
+def calibrate_dc_pulse(fpga_name, channel, dc_scope=None):
     """ Calls ghzdac.calibrate.calibrateDCPulse, synchronously.
 
     :param str fpga_name: e.g. "Vince DAC 11"
     :param int channel: 0 for A, 1 for B
+    :param str dc_scope: 'sampling_scope' or 'infiniium'
     :return int: dataset number
     """
     with labrad.connect() as cxn:
-        return calibrate.calibrateDCPulse(cxn, fpga_name, channel)
+        if dc_scope == 'sampling_scope':
+            return calibrate.calibrateDCPulse(cxn, fpga_name, channel)
+        elif dc_scope == 'infiniium':
+            return calibrate.calibrateDCPulse_infiniium(cxn, fpga_name, channel, 'EXT')
 
 
 def zero_fixed_carrier(fpga_name):
@@ -64,10 +68,11 @@ def calibrate_ac_pulse(fpga_name, zero_a, zero_b):
         return calibrate.calibrateACPulse(cxn, fpga_name, zero_a, zero_b)
 
 
-def calibrate_pulse(cxn, fpga_name):
+def calibrate_pulse(cxn, fpga_name, dc_scope = 'infiniium'):
     """
     :param labrad connection object cxn:
     :param str fpga_name: corresponds with registry, e.g. "Vince DAC 11"
+    :param str dc_scope: 'sampling_scope' or 'infiniium'
     :return:
     """
 
@@ -91,7 +96,7 @@ def calibrate_pulse(cxn, fpga_name):
         reg.set(keys.PULSENAME, [dataset])
     elif board_type == 'dc':
         channel = int(raw_input('Select channel: 0 (DAC A) or 1 (DAC B): '))
-        dataset = calibrate_dc_pulse(fpga_name, channel)
+        dataset = calibrate_dc_pulse(fpga_name, channel, dc_scope=dc_scope)
         reg.set(keys.CHANNELNAMES[channel], [dataset])
 
 
