@@ -18,11 +18,9 @@
 # calibration but also for recalibration. The user interface is provided
 # by GHz_DAC_calibrate in "scripts".
 
+import time
 import numpy as np
-
-import labrad
 from labrad.types import Value
-
 import keys
 
 #trigger to be set:
@@ -39,6 +37,8 @@ DACMAX= 1 << 13 - 1
 DACMIN= 1 << 13
 PERIOD = 2000
 SCOPECHANNEL = 2
+SCOPECHANNEL_infiniium = 1
+TRIGGERCHANNEL_infiniium = 2
 
 
 def assertSpecAnalLock(server, device):
@@ -274,6 +274,72 @@ def measureImpulseResponse(fpga, scope, baseline, pulse, dacoffsettime=6, pulsel
     return (data)
 
 
+def measureImpulseResponse_infiniium(fpga, scope, baseline, pulse,
+                                     dacoffsettime=6, pulselength=1, wait=50, looplength=6000):
+    """Measure the response to a DAC pulse
+    looplength: time between triggers, keep this above pulselength , 6000 for short dacs
+    fpga: connected fpga server
+    scope: connected scope server
+    dac: 'a' or 'b'
+    returns: list
+    list[0] : start time (s)
+    list[1] : time step (s)
+    list[2:]: actual data (V)
+    """
+    #units clock cycles
+    dacoffsettime = int(round(dacoffsettime))
+    triggerdelay = 30 #keep at least at 30
+    pulseindex = triggerdelay-dacoffsettime
+
+    data = np.resize(baseline, looplength)
+    data[pulseindex:pulseindex+pulselength] = pulse
+    data[0] |= trigger
+    fpga.dac_run_sram(data,True)
+    if wait:
+        time.sleep(wait) #keep this long enough!! 40 sec for 4096, 20 sec for 2048
+
+    [timeAxis,y] = (scope.get_trace(SCOPECHANNEL_infiniium)) #start and stop in ns
+    timeAxis = [t*1.0e9 for t in timeAxis] #Agilent returns it in s, here we make ns
+
+
+    #kick out stuff below zero time in the trace
+    kickOutStuffBelowZero=True
+    if kickOutStuffBelowZero:
+        timeAxisTrunc=[]
+        yTrunc=[]
+        for idx in range(len(timeAxis)):
+            t=timeAxis[idx]
+            if t['ns']>=0:
+                timeAxisTrunc.append(t)
+                yTrunc.append(y[idx])
+        timeAxis=timeAxisTrunc
+        y=yTrunc
+
+    kickOutStuffAbove=False
+    if kickOutStuffAbove:
+        timeAxisTrunc=[]
+        yTrunc=[]
+        for idx in range(len(timeAxis)):
+            t=timeAxis[idx]
+            if t['ns']<=100:
+                timeAxisTrunc.append(t)
+                yTrunc.append(y[idx])
+        timeAxis=timeAxisTrunc
+        y=yTrunc
+
+    #standard
+    starttime = (timeAxis[0])
+    timestep = (timeAxis[1] - starttime)
+    data=[]
+    data.append( starttime['ns']*1.0e-9 )
+    data.append( timestep['ns']*1.0e-9 )
+    for yy in y:
+        data.append( yy['V'] )
+
+    data = np.hstack(data)
+    return data
+
+
 def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     """Measures the impulse response of the DACs after the IQ mixer"""
     pulseheight = 0x1800
@@ -288,9 +354,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     uwaveSourcePower = reg.get(keys.ANRITSUPOWER)
     carrierFreq = reg.get(keys.PULSECARRIERFREQ)
     sens = reg.get(keys.SCOPESENSITIVITY)
-    try:offs = reg.get(keys.SCOPEOFFSET)
-    except:
-        offs=Value(0.,'mV')
+    offs = reg.get(keys.SCOPEOFFSET, Value(0,'mV'))
     switch.switch(boardname) #Hack to select the correct microwave switch
     switch.switch(0)
     uwaveSource.select_device(uwaveSourceID)
@@ -390,7 +454,7 @@ def calibrateDCPulse(cxn,boardname,channel):
     dac_pulse = 0x1FFF
     dac_neutral = 0x0000
     if channel:
-        pulse = makeSample(dac_neutral,dac_pulse)
+        pulse = makeSample(dac_neutral, dac_pulse)
         baseline = makeSample(dac_neutral, dac_baseline)
     else:
         pulse = makeSample(dac_pulse, dac_neutral)
@@ -431,6 +495,86 @@ def calibrateDCPulse(cxn,boardname,channel):
     ds.add(np.transpose([1e9*(trace[0]+trace[1]*np.arange(np.alen(trace)-2)),
         trace[2:]]))
     return (datasetNumber(dataset))
+
+
+def calibrateDCPulse_infiniium(cxn, boardname, channel, intorext10mhz):
+
+    reg = cxn.registry
+    reg.cd(['', keys.SESSIONNAME,boardname])
+
+    fpga = cxn[FPGA_SERVER_NAME]
+    fpga.select_device(boardname)
+
+    dac_baseline = 0x000
+    dac_pulse = 0x1000
+    dac_neutral = 0x0000
+    if channel:
+        pulse = makeSample(dac_neutral,dac_pulse)
+        baseline = makeSample(dac_neutral, dac_baseline)
+    else:
+        pulse = makeSample(dac_pulse, dac_neutral)
+        baseline = makeSample(dac_baseline, dac_neutral)
+    scope = cxn.agilent_infiniium_oscilloscope()
+    scope.select_device()
+
+    scope.reset()
+    print 'scope reset'
+
+    fpga.dac_run_sram([makeSample(dac_neutral, dac_neutral)]*4,False) #set DAC to zero BEFORE setting the scope to acquire
+    time.sleep(2)
+
+    numberofaverages=4096
+
+    p = scope.packet().\
+    gpib_write('TIM:REFC '+str(intorext10mhz)).\
+    channelonoff(SCOPECHANNEL_infiniium, 'ON').\
+    channelonoff(TRIGGERCHANNEL_infiniium, 'ON').\
+    scale(SCOPECHANNEL_infiniium, 0.1).\
+    scale(TRIGGERCHANNEL_infiniium, 0.5).\
+    position(SCOPECHANNEL_infiniium, 0.02).\
+    position(TRIGGERCHANNEL_infiniium,0.0).\
+    horiz_scale(500.0e-9).\
+    horiz_position(0.0).\
+    trigger_sweep('TRIG').\
+    trigger_mode('EDGE').\
+    trigger_edge_slope('POS').\
+    trigger_at(TRIGGERCHANNEL_infiniium, 1.0).\
+    averagemode(1).\
+    numavg(numberofaverages)
+
+    p.send()
+    print 'scope packet sent'
+    time.sleep(1)
+    refon10mhz = scope.gpib_query(':TIM:REFC?')
+
+    if refon10mhz=='1':
+        reftext='EXT'
+    else:
+        reftext='INT'
+    print '10 MHz ref: '+reftext
+
+    offsettime = reg.get(keys.TIMEOFFSET)
+
+    print 'Measuring step response...'
+    trace = measureImpulseResponse_infiniium(fpga, scope, baseline, pulse,
+                                             dacoffsettime=offsettime['ns'], pulselength=3000, looplength=6000)
+
+    # set the output to zero so that the fridge does not warm up when the
+    # cable is plugged back in
+    fpga.dac_run_sram([makeSample(dac_neutral, dac_neutral)]*4,False)
+    ds = cxn.data_vault
+    ds.cd(['', keys.SESSIONNAME, boardname],True)
+    dataset = ds.new(keys.CHANNELNAMES[channel], [('Time', 'ns')],
+                           [('Voltage', '', 'V')])
+    ds.add_parameter(keys.TIMEOFFSET, offsettime)
+    ds.add_parameter('dac baseline', dac_baseline)
+    ds.add_parameter('dac pulse', dac_pulse)
+    ds.add_parameter('10 MHz ref', reftext)
+    ds.add_parameter('scope', 'Agilent13GHz')
+    ds.add_parameter('stats', numberofaverages)
+    ds.add(np.transpose([1e9*(trace[0]+trace[1]*np.arange(np.alen(trace)-2)),
+           trace[2:]]))
+    return datasetNumber(dataset)
 
 
 ####################################################################

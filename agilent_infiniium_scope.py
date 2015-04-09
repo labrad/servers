@@ -16,7 +16,7 @@
 """
 ### BEGIN NODE INFO
 [info]
-name = Agilent 13GHz DSO91304A Oscilloscope
+name = Agilent Infiniium Oscilloscope
 version = 0.2
 description = Talks to the Agilent DSO91304A 13GHz oscilloscope
 
@@ -36,7 +36,7 @@ from labrad import types as T, util
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
-from labrad.types import Value
+import labrad.units as U
 from struct import unpack, calcsize
 
 import numpy, re
@@ -48,8 +48,8 @@ HORZ_DIVISIONS = 10.0
 SCALES = []
 
 class AgilentDSO91304AServer(GPIBManagedServer):
-    name = 'AGILENT DSO91304A OSCILLOSCOPE'
-    deviceName = 'Agilent Technologies DSO91304A'
+    name = 'Agilent Infiniium Oscilloscope'
+    deviceName = ['Agilent Technologies DSO91304A', 'KEYSIGHT TECHNOLOGIES DSO90804A']
         
     @setting(11, returns=[])
     def reset(self, c):
@@ -353,11 +353,9 @@ class AgilentDSO91304AServer(GPIBManagedServer):
 ##        RPB - unsigned, MSB first
 ##        SRI - signed, LSB first
 ##        SRP - unsigned, LSB first
-        recordLength = stop-start+1
         wordLength = 2 #Hardcoding to set data transer word length to 2 bytes
         
         dev = self.selectedDevice(c)
-        #DAT:SOU - set waveform source channel
         yield dev.write('WAV:SOUR CH%d' %channel)
 
         #Read data MSB first
@@ -365,26 +363,21 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         #Set 2 bytes per point
         yield dev.write('WAV:FORM WORD')
         #Starting and stopping point
-        #yield dev.write('DAT:STAR %d' %start)
-        #yield dev.write('DAT:STOP %d' %stop)
         #Transfer waveform preamble
         preamble = yield dev.query('WAV:PRE?')
-        #position = yield dev.query('CH%d:POSITION?' %channel) # in units of divisions
         #Transfer waveform data
         binary = yield dev.query('WAV:DATA?')
         #Parse waveform preamble
         preambleDict = _parsePreamble(preamble)
         print preambleDict
-        voltUnitScaler = Value(1, preambleDict['yUnit'])['V'] # converts the units out of the scope to V
-        timeUnitScaler = Value(1e9, preambleDict['xUnit'])['ns']
         #Parse binary
-        trace = _parseBinaryData(binary,wordLength = wordLength) *1.0e3
+        trace = _parseBinaryData(binary, wordLength = wordLength) * 1.0e3
         #Convert from binary to volts
         traceVolts = ((trace*float(preambleDict['yStep'])+float(preambleDict['yOrigin']))) #* (1/32768.0))# * VERT_DIVISIONS/2 - float(0)) * float(preambleDict['yStep']) * voltUnitScaler
         numPoints = int(preambleDict['numPoints'])
         time = numpy.linspace(float(preambleDict['xFirst']), (numPoints-1) * float(preambleDict['xStep'])+float(preambleDict['xFirst']),numPoints)#recordLength)
 
-        returnValue((time, traceVolts))
+        returnValue((time*U.ns, traceVolts*U.V))
 
 def _parsePreamble(preamble):
     preambleVals = preamble.split(',')
