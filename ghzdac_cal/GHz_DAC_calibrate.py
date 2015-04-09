@@ -32,7 +32,7 @@ import ghzdac.keys as keys
 
 FPGA_SERVER_NAME = 'ghz_fpgas'
 
-def calibrate_dc_pulse(fpga_name, channel, dc_scope=None):
+def calibrate_dc_pulse(fpga_name, channel, dc_scope):
     """ Calls ghzdac.calibrate.calibrateDCPulse, synchronously.
 
     :param str fpga_name: e.g. "Vince DAC 11"
