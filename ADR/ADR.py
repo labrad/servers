@@ -527,7 +527,7 @@ class ADRWrapper(DeviceWrapper):
         if ls_temps[1] > self.state('ruoxTempCutoff'):
             return ls_temps[1], ruox_resistance
         if self.state('useRuoxInterpolation'):
-            temp = self.state('ruoxInterpolation')(ruox_resistance['Ohm']) * K
+            temp = self.state('ruoxInterpolation')(ruox_resistance['Ohm'])[()] * K
         elif ruox_resistance < self.state('resistanceCutoff'):
             # high temp (2 to 20 K)
             # noinspection PyUnusedLocal
@@ -735,7 +735,7 @@ class ADRWrapper(DeviceWrapper):
                 self.state('tempDatasetName', None)
             if not self.state('tempDatasetName'):
                 # we need to create a new dataset
-                dv.cd(self.state('datavaultPath'), context=self.ctxt)
+                dv.cd(self.state('datavaultPath'), True, context=self.ctxt)
                 self.indeps = [('time', 's')]
                 self.deps = [
                     ('temperature', 'ch1: 50K', 'K'),
