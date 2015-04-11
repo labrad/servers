@@ -16,6 +16,13 @@
 # This is the user interface to the calibration scripts for a initial
 # calibration
 
+# HOW TO USE
+#
+# 1 calibrate_pulse. This calibrates the microwave envelope shape.
+# 2 calibrate_iq. This calibrates the I and Q dc levels needed to zero the rf
+#   output, and also calibrates the I and Q amplitudes needed to null the
+#   unwanted sideband.
+
 from __future__ import with_statement, absolute_import
 
 from numpy import clip
@@ -26,9 +33,9 @@ import labrad.async
 # GHz_DAC_calibrate is only a front-end, the actual calibration
 # routines are in ghzdac.calibrate
 
-import ghzdac
-import ghzdac.calibrate as calibrate
-import ghzdac.keys as keys
+import servers.ghzdac as ghzdac
+import servers.ghzdac.calibrate as calibrate
+import servers.ghzdac.keys as keys
 
 FPGA_SERVER_NAME = 'ghz_fpgas'
 
@@ -100,7 +107,7 @@ def calibrate_pulse(cxn, fpga_name, dc_scope = 'infiniium'):
         reg.set(keys.CHANNELNAMES[channel], [dataset])
 
 
-def zero_scan_carrier(fpga_name, scan_params):
+def zero_scan_carrier(fpga_name, scan_params, use_switch=True):
     """ Calls ghzdac.calibrate.zeroScanCarrier, synchronously.
 
     :param str fpga_name: corresponds with registry, e.g. "Vince DAC 11"
@@ -108,7 +115,7 @@ def zero_scan_carrier(fpga_name, scan_params):
     :return int: dataset number
     """
     with labrad.connect() as cxn:
-        return calibrate.zeroScanCarrier(cxn, scan_params, fpga_name)
+        return calibrate.zeroScanCarrier(cxn, scan_params, fpga_name, use_switch=use_switch)
 
 
 def iq_corrector(fpga_name):
@@ -121,7 +128,7 @@ def iq_corrector(fpga_name):
         return ghzdac.IQcorrector(fpga_name, cxn, pulsecor=False)
 
 
-def sideband_scan_carrier(fpga_name, scan_params, corrector):
+def sideband_scan_carrier(fpga_name, scan_params, corrector, use_switch=True):
     """ Calls ghzdac.calibrate.sidebandScanCarrier, synchronously.
 
     :param fpga_name: e.g. "Vince DAC 11"
@@ -131,7 +138,7 @@ def sideband_scan_carrier(fpga_name, scan_params, corrector):
     """
     with labrad.connect() as cxn:
         corrector.dynamicReserve = 4.0  # TODO: I don't know why we do this.
-        return calibrate.sidebandScanCarrier(cxn, scan_params, fpga_name, corrector)
+        return calibrate.sidebandScanCarrier(cxn, scan_params, fpga_name, corrector, use_switch=use_switch)
 
 
 def modify_scan_params(carrier_start, carrier_stop, carrier_step, sideband_carrier_step, sideband_step, sideband_count):
@@ -188,7 +195,7 @@ def calibrate_iq(cxn, dacs_to_calibrate, zero=True, sideband=True,
                  carrier_start= 4*labrad.units.GHz, carrier_stop=7*labrad.units.GHz,
                  carrier_step=0.025*labrad.units.GHz,
                  sideband_carrier_step=0.05*labrad.units.GHz, sideband_step=0.05*labrad.units.GHz,
-                 sideband_count=14):
+                 sideband_count=14, use_switch=True):
     """
     Runs IQ mixer calibration for one or more DACs
 
@@ -225,11 +232,11 @@ def calibrate_iq(cxn, dacs_to_calibrate, zero=True, sideband=True,
     reg = cxn.registry
     for dac in dacs_to_calibrate:
         if zero:
-            iq_dataset = zero_scan_carrier(dac, scan_params)
+            iq_dataset = zero_scan_carrier(dac, scan_params, use_switch=use_switch)
             reg.cd(['', keys.SESSIONNAME, dac], True)
             reg.set(keys.ZERONAME, [iq_dataset])
         if sideband:
             corrector = iq_corrector(dac)
-            sideband_dataset = sideband_scan_carrier(dac, scan_params, corrector)
+            sideband_dataset = sideband_scan_carrier(dac, scan_params, corrector, use_switch=use_switch)
             reg.cd(['', keys.SESSIONNAME, dac], True)
             reg.set(keys.IQNAME, [sideband_dataset])

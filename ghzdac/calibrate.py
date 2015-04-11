@@ -165,15 +165,16 @@ def zero(anr, spec, fpga, freq):
     return ([a, b])
 
 
-def zeroFixedCarrier(cxn, boardname):
+def zeroFixedCarrier(cxn, boardname, use_switch=True):
     reg = cxn.registry
     reg.cd(['',keys.SESSIONNAME,boardname])
 
     fpga = cxn[FPGA_SERVER_NAME]
     fpga.select_device(boardname)
 
-    switch = cxn.microwave_switch
-    switch.switch(boardname)
+    if use_switch:
+        switch = cxn.microwave_switch
+        switch.switch(boardname)
     
     spec = cxn.spectrum_analyzer_server
     spectID = reg.get(keys.SPECTID)
@@ -195,12 +196,13 @@ def zeroFixedCarrier(cxn, boardname):
 
     uwaveSource.output(False)
     spectDeInit(spec)
-    switch.switch(0)
+    if use_switch:
+        switch.switch(0)
     return daczeros
 
 
 
-def zeroScanCarrier(cxn, scanparams, boardname):
+def zeroScanCarrier(cxn, scanparams, boardname, use_switch=True):
     """Measures the DAC zeros in function of the carrier frequency."""
     reg = cxn.registry
     reg.cd(['', keys.SESSIONNAME, boardname])
@@ -208,8 +210,9 @@ def zeroScanCarrier(cxn, scanparams, boardname):
     fpga = cxn[FPGA_SERVER_NAME]
     fpga.select_device(boardname)
 
-    switch = cxn.microwave_switch
-    switch.switch(boardname)
+    if use_switch:
+        switch = cxn.microwave_switch
+        switch.switch(boardname)
     
     spec = cxn.spectrum_analyzer_server
     spectID = reg.get(keys.SPECTID)
@@ -239,7 +242,8 @@ def zeroScanCarrier(cxn, scanparams, boardname):
         freq += scanparams['carrierStep']
     uwaveSource.output(False)
     spectDeInit(spec)
-    cxn.microwave_switch.switch(0)
+    if use_switch:
+        cxn.microwave_switch.switch(0)
     return (int(dataset[1][:5]))
                 
 ####################################################################
@@ -308,14 +312,15 @@ def measureImpulseResponse_infiniium(fpga, scope, baseline, pulse,
     return t, y
 
 
-def calibrateACPulse(cxn, boardname, baselineA, baselineB):
+def calibrateACPulse(cxn, boardname, baselineA, baselineB, use_switch=True):
     """Measures the impulse response of the DACs after the IQ mixer"""
     pulseheight = 0x1800
 
     reg = cxn.registry
     reg.cd(['', keys.SESSIONNAME, boardname])
 
-    switch = cxn.microwave_switch
+    if use_switch:
+        switch = cxn.microwave_switch
 
     uwaveSourceID = reg.get(keys.ANRITSUID)    
     uwaveSource = microwaveSourceServer(cxn,uwaveSourceID)
@@ -323,8 +328,9 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     carrierFreq = reg.get(keys.PULSECARRIERFREQ)
     sens = reg.get(keys.SCOPESENSITIVITY)
     offs = reg.get(keys.SCOPEOFFSET, Value(0,'mV'))
-    switch.switch(boardname) #Hack to select the correct microwave switch
-    switch.switch(0)
+    if use_switch:
+        switch.switch(boardname) #Hack to select the correct microwave switch
+        switch.switch(0)
     uwaveSource.select_device(uwaveSourceID)
     uwaveSource.frequency(carrierFreq)
     uwaveSource.amplitude(uwaveSourcePower)
@@ -605,7 +611,7 @@ def sideband(anr, spect, fpga, corrector, carrierfreq, sidebandfreq):
     return (comp)
 
 
-def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
+def sidebandScanCarrier(cxn, scanparams, boardname, corrector, use_switch=True):
     """Determines relative I and Q amplitudes by canceling the undesired
        sideband at different sideband frequencies."""
 
@@ -619,7 +625,6 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
     uwaveSource = microwaveSourceServer(cxn, uwaveSourceID)
 
     spec = cxn.spectrum_analyzer_server
-    scope = cxn.sampling_scope
     ds = cxn.data_vault
     spectID = reg.get(keys.SPECTID)
     spec.select_device(spectID)
@@ -627,7 +632,8 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
     assertSpecAnalLock(spec, spectID)
     
     uwaveSourcePower = reg.get(keys.ANRITSUPOWER)
-    cxn.microwave_switch.switch(boardname)
+    if use_switch:
+        cxn.microwave_switch.switch(boardname)
     uwaveSource.select_device(uwaveSourceID)
     uwaveSource.amplitude(uwaveSourcePower)
     uwaveSource.output(True)
@@ -665,5 +671,6 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
         freq += scanparams['sidebandCarrierStep']
     uwaveSource.output(False)
     spectDeInit(spec)
-    cxn.microwave_switch.switch(0)
+    if use_switch:
+        cxn.microwave_switch.switch(0)
     return (datasetNumber(dataset))
