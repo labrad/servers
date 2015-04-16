@@ -56,13 +56,23 @@ class ServerNotFoundError(Error):
 
 
 class WatchedServer(object):
+    """Proxy for another server from which we pull data
+
+    Attributes:
+        name (str): Name of proxied server.
+        cxn (labrad.client.Client): Connection to LabRAD.
+        ctx (tuple of int): Context for requests to the proxied servers.
+        device (str or int): Specific hardware device to access through the
+            proxied server. If None (the default) we select the first available
+            device, which is the pylabrad default.
+    """
     server_name = 'none'
 
-    def __init__(self, name, cxn, ctx, device=None):
+    def __init__(self, name, cxn, ctx, options):
         self.name = name
         self.cxn = cxn
         self.ctx = ctx
-        self.device = device
+        self.options = dict(options)
         self.server = None
         self.active = False
 
@@ -87,15 +97,17 @@ class WatchedServer(object):
 
     @inlineCallbacks
     def select_device(self):
+        deviceName = self.options.get('device', None)
+        print("deviceName: {}".format(deviceName))
         devs = yield self.server.list_devices(context=self.ctx)
-        print "looking for device %s" % self.device
-        if self.device is None:
+        print "looking for device %s" % deviceName
+        if deviceName is None:
             yield self.server.select_device(context=self.ctx)
-        if self.device in [x[1] for x in devs]:
-            yield self.server.select_device(self.device, context=self.ctx)
+        elif deviceName in [x[1] for x in devs]:
+            yield self.server.select_device(deviceName, context=self.ctx)
         else:
             for i, n in devs:
-                if self.device in n:
+                if deviceName in n:
                     print "selecting device: %s" % n
                     yield self.server.select_device(n, context=self.ctx)
                     break
@@ -144,7 +156,7 @@ class MKS(WatchedServer):
             yield self.setup_he_flow()
         if not r:
             raise NoMKSDataError("MKS server did not return data.")
-        if self.channel != -1:
+        if self.channel is not None:
             r.append(self.multiplier * r[self.channel])
         returnValue(r)
 
@@ -155,25 +167,25 @@ class MKS(WatchedServer):
         rv = []
         for p, n in zip(point, names):
             rv.append('%s (Pressure) [%s]' % (n, str(p.unit)))
-        if self.channel != -1:
+        if self.channel is not None:
             rv.append('He Flow (LHe) [L/h]')
         returnValue(rv)
 
     @inlineCallbacks
     def setup_he_flow(self):
-        if self.device:
+        if 'he_flow_rate' in self.options and 'channel' in self.options:
             names = yield self.server.get_gauge_list(context=self.ctx)
-            for i, n in enumerate(names):
-                if n == self.device[0]:
+            for i, name in enumerate(names):
+                if name == self.options['channel']:
                     self.channel = i
-                    self.multiplier = self.device[1]
-                    print "Using gauge reading %s (%s) for He flow with multiplier %s" % (str(i), n, self.multiplier)
+                    self.multiplier = self.options['he_flow_rate']
+                    print "Using gauge reading %s (%s) for He flow with multiplier %s" % (str(i), name, self.multiplier)
                     break
             else:
-                self.channel = -1
+                self.channel = None
                 print "ERROR: could not find gauge reading named '%s'" % self.device[0]
         else:
-            self.channel = -1
+            self.channel = None
 
 
 class MKSHack(MKS):
@@ -228,11 +240,24 @@ print "Found these watchers: ", WATCHERS
 
 # noinspection PyAttributeOutsideInit
 class DRLogger(DeviceWrapper):
-    # @inlineCallbacks
+    """
+
+    Attributes:
+        name (str): Name of this DR setup. Assigned by pylabrad's device server
+            code.
+        watchers (list of WatchedServer): Server proxies we watch.
+    """
+    @inlineCallbacks
     def connect(self, *args, **kwargs):
-        """ args: cxn (e.g. vince, jules, ivan)
-            kwargs: values from registry under that name. """
-        # self.name = assigned by LabRAD stuff
+        """Connect to a DR device
+
+        Args:
+            args (tuple of (cxn,)): A tuple with a single element, which is a
+                LabRAD connection.
+        kwargs (dict):
+            Maps hardware types (e.g. 'ruox') to configuration data. See
+            DRLoggerServer.findDevices for format.
+        """
         print "Creating DR Logger for %s" % self.name
         self.cxn = args[0]
         self.ctx = self.cxn.context()
@@ -246,23 +271,24 @@ class DRLogger(DeviceWrapper):
         # now make our watchers
         for k, v in kwargs.iteritems():
             server_name = v[0]
-            if len(v) > 1:
-                devName = v[1]
+            nodeName = v[1]
+            if len(v) > 2:
+                options = v[2]
             else:
-                devName = None
+                options = {}
             for cls in WATCHERS:
                 if cls.server_name == server_name:
                     break
             else:
                 cls = None
-            if cls:
+            if cls is not None:
                 print "Found watcher for %s" % server_name
-                self.watchers.append(cls(server_name, self.cxn, self.ctx, device=devName))
+                self.watchers.append(cls(server_name, self.cxn, self.ctx, options=options))
             else:
                 raise ValueError("ERROR: No watcher class found for:", server_name)
 
         self.isLogging = False
-        self.logging(True)  # start logging
+        yield self.logging(True)  # start logging
 
     @inlineCallbacks
     def logging(self, start):
@@ -307,73 +333,105 @@ class DRLogger(DeviceWrapper):
 
     @inlineCallbacks
     def take_point(self):
-        # gather data
-        data = [time.time() * Unit('s')]
-        errors = []
-        for w in self.watchers:
-            try:
-                r = yield w.take_point()
-                data.extend(r)
-            except T.Error as err:
-                errors.append((w.server_name, err.msg))
-        if errors:
-            self.errors = errors
-            returnValue(None)
-        # strip units
-        data = [x[x.unit] for x in data]
-        # did the day roll over?
-        if self.currentDay != time.strftime("%d"):
-            self.new_dataset()
         try:
-            # make dataset if first time
-            if not self.data_vault:
-                yield self.make_dataset()
-            # add data
-            yield self.data_vault.add(data, context=self.ctx)
-        except T.Error as err:
-            if 'NoDatasetError' in err.msg:
+            # gather data
+            data = [time.time() * Unit('s')]
+            errors = []
+            for w in self.watchers:
                 try:
-                    yield self.make_dataset()
-                    yield self.data_vault.add(data, context=self.ctx)
+                    r = yield w.take_point()
+                    data.extend(r)
                 except T.Error as err:
-                    errors.append(("Data Vault", str(err)))
-            else:
-                errors.append(("General", str(err)))
-        self.errors = errors
+                    errors.append((w.server_name, err.msg))
+            if errors:
+                self.errors = errors
+                returnValue(None)
+            # strip units
+            data = [x[x.unit] for x in data]
+            # did the day roll over?
+            if self.currentDay != time.strftime("%d"):
+                self.new_dataset()
+            try:
+                # make dataset if first time
+                if self.data_vault is None:
+                    print("Making new dataset")
+                    yield self.make_dataset()
+                # add data
+                yield self.data_vault.add(data, context=self.ctx)
+            except T.Error as err:
+                print("Error when writing data to data vault: {}".format(err))
+                if 'NoDatasetError' in err.msg:
+                    try:
+                        yield self.make_dataset()
+                        yield self.data_vault.add(data, context=self.ctx)
+                    except T.Error as err:
+                        errors.append(("Data Vault", str(err)))
+                else:
+                    errors.append(("General", str(err)))
+            self.errors = errors
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
 
 
 class DRLoggerServer(DeviceServer):
+    """Log DR temperatures and pressures
+
+    Registry format:
+        >> Servers >> DR Logger >> <DR name> (e.g. 'Ivan')
+            <thing to measure> -> (<server>, <node>, <options>):
+                <thing to measure> (s): Either 'diodes', 'mks', or 'ruox'.
+                <server> (s): pylabrad name of the server servicing the thing
+                    being measure. For example, for the diodes <server name> is
+                    'lakeshore_diodes'.
+                <node> (s): Name of node running <server>.
+                <options> ((s, ?),...): Tuple of (key, value) tuples. Provides
+                    additional data to configure measurements.
+    """
     name = 'DR Logger'
     deviceName = 'DR'
     deviceWrapper = DRLogger
 
     @inlineCallbacks
     def findDevices(self):
-        """ finds all configurations in CONFIG_PATH and returns (name, (cxn,), serverDict) """
+        """Get device configurations from registry
+
+        all configurations in CONFIG_PATH and returns
+
+        Returns list of (drName, (cxn,), serverDict).
+            serverDict is a mapping from a device type (i.e. 'mks', 'ruox', or
+            'diodes') to a tuple of either
+            (server name, node name, options) or
+            (server name, node name).
+            For example, for the Jules DR, we would have entries mapping
+            'ruox' -> ('lakeshore_ruox', 'DR') and
+            'mks' -> ('mks_gauge_server', 'DR', (('He Flow', 24.7 L/h/Torr)))
+        """
         deviceList = []
         reg = self.client.registry
         yield reg.cd(CONFIG_PATH)
         resp = yield reg.dir()
-        names = resp[0].aslist
-        for name in names:
+        drNames = resp[0].aslist
+        for drName in drNames:
             # all required nodes must be present to create this device
-            yield reg.cd(name)
+            yield reg.cd(drName)
             devs = yield reg.dir()
-            devs = devs[1].aslist
+            devs = devs[1].aslist  # e.g. 'diodes', 'mks'
             missingNodes = []
             serverDict = {}
             for dev in devs:
-                node = yield reg.get(dev)
-                serverDict[dev] = node
-                if len(node) == 1 or isinstance(node[1], tuple) or isinstance(node[1], list):
-                    continue
-                node = node[1].split(' ')[0]
+                config = yield reg.get(dev)
+                print("config: {}".format(config))
+                # config is a tuple of (server name, node name) or
+                #                      (server name, node name, options)
+                serverDict[dev] = config
+                node = config[1]
                 if "node_" + node.lower() not in self.client.servers:
                     missingNodes.append(node)
             if not missingNodes:
-                deviceList.append((name, (self.client,), serverDict))
+                deviceList.append((drName, (self.client,), serverDict))
             else:
-                print "device %s missing nodes %s" % (name, str(list(set(missingNodes))))
+                print "device %s missing nodes %s" % (drName, str(list(set(missingNodes))))
             yield reg.cd(1)
         returnValue(deviceList)
 
@@ -385,7 +443,7 @@ class DRLoggerServer(DeviceServer):
     @setting(11, "New Dataset")
     def new_dataset(self, c):
         """ Start a new dataset. """
-        self.selectedDevice(c).newDataset()
+        self.selectedDevice(c).new_dataset()
 
     @setting(12, 'Logging', start='b', returns='b')
     def logging(self, c, start=None):
