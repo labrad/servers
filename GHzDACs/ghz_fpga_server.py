@@ -226,7 +226,6 @@ import servers.GHzDACs.Cleanup.fpga as fpga
 from util import TimedLock, LoggingPacket
 LOGGING_PACKET=False
 
-from matplotlib import pyplot as plt
 
 NUM_PAGES = 2
 
