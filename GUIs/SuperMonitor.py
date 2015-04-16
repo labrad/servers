@@ -15,7 +15,7 @@ from LabRADPlotWidget3 import LabRADPlotWidget3
 
 DEFAULT = 'Vince'
 BASE_PATH = ['', 'DR']
-NODE_LOOKUP = {'node_vince': 'Vince', 'node_dr': 'Jules', 'node_ivan': 'Ivan'}
+NODE_LOOKUP = {'node_vince': 'Vince', 'node_dr': 'DR', 'node_ivan': 'Ivan'}
 LOGGER_SERVER = 'DR Logger'
 
 class AppForm(Qt.QMainWindow):
