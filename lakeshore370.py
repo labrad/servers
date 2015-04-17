@@ -13,9 +13,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# Version 2.1	pomalley	7/23/2010	Added reading of calibrations from
+# Version 2.1    pomalley    7/23/2010    Added reading of calibrations from
 # LabRAD registry.
-# Version 2.2	pomalley	8/17/2010	Fixed some issues with above, added
+# Version 2.2    pomalley    8/17/2010    Fixed some issues with above, added
 # reading of Read Order from registry.
 # Version 2.3   pomalley    4/01/2010   Added r and auto_sensitivity settings
 # Version 2.4   Daniel Sank 2013/10/23  Support multiple devices on a single
@@ -40,25 +40,25 @@
 # (note that the node name is actually taken from the first word of the device
 # wrapper's self.name) A given calibration consists of three keys:
 #   Calibration Type: must either be "Interpolation", "VRHopping", or "Function"
-# 	For an interpolation, there must be two more keys:
-#		"Resistances", an array of resistance values, and
-#		"Temperatures", an array of corresponding temperatures.
-#		In this case, the server will do a log-log interpolation of the given
+#     For an interpolation, there must be two more keys:
+#        "Resistances", an array of resistance values, and
+#        "Temperatures", an array of corresponding temperatures.
+#        In this case, the server will do a log-log interpolation of the given
 #       data to convert a resistance to a temperature.
 #   For VRHopping, we use a variable-range hopping model.  Two extra keys are required
 #       R0[Ohm] is the extrapolated resistance at infinite temperature (obtained from fitting)
 #       T0[K] is the characteristic temperature.
-#	For a function, there must be one more key:
-#		"Function", which is a string of a Python expression for converting a
+#    For a function, there must be one more key:
+#        "Function", which is a string of a Python expression for converting a
 #       res to a temp, and "Inverse", which is also a Python expression, but
 #       inverted (for converting a temp to a res). In the Function, the
 #       resistance variable is r; in the Inverse, the temperature variable is
-#       t. In both cases, math functions are imported in the namespace	math
+#       t. In both cases, math functions are imported in the namespace    math
 #       (e.g. use math.log(r) to take the log). The server will run the
 #       Function code to convert a resistance to a temperature. For example,
 #       the function that is used for Jules' resistors is:
 #       '((math.log(r) - 6.02) / 1.76) ** (-1/.345)'
-#		The Inverse code is used for temperature regulation. (Note that for
+#        The Inverse code is used for temperature regulation. (Note that for
 #       interpolation calibrations the server can simply reverse the arguments
 #       of the interpolation to convert a temp to a res).
 #
@@ -139,7 +139,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
         # also we should set the box settings here
         yield self.write('RDGRNG 0,0,04,15,1,0')
         self.alive = True
-        self.readLoop().addErrback(log.err)	
+        self.readLoop().addErrback(log.err)    
     
     @inlineCallbacks
     def loadDeviceInformation(self):
@@ -409,7 +409,7 @@ class RuOxWrapper(GPIBDeviceWrapper):
                 #     resistance, in ohms.
                 # (3) very unsafe if anyone ever hacks the registry. of course,
                 #     then we have bigger problems
-                r = self.readings[channel][0]
+                r = self.readings[channel][0][units.Ohm]
                 return eval(self.calibrations[calIndex][1]) * units.K
             elif self.calibrations[calIndex][0] == DEFAULT:
                 if calIndex > 0:
