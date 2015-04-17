@@ -1345,10 +1345,13 @@ class FPGAServer(DeviceServer):
         info = c.setdefault(dev, {})
         info['triggerTable'] = data
     
-    @setting(48, 'ADC Mixer Table', channel='w', data='*2i {Nx2 array of IQ values}')
+    @setting(48, 'ADC Mixer Table', channel='w', data='*2i')
     def adc_mixer_table(self, c, channel, data):
-        """
-        Set the ADC mixer table for a given demodulator channel
+        """Set the ADC mixer table for a given demodulator channel
+
+        Args:
+            channel (int): demodulator channel for which to write mixer table.
+            data (numpy.ndarray): Nx2 array of IQ values from -128 to +127
         """
         dev = self.selectedADC(c)
         info = c.setdefault(dev, {})
