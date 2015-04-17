@@ -177,7 +177,7 @@ cmdTime_cycles does not properly estimate sram length
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 4.0.1
+version = 4.0.2
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -753,6 +753,9 @@ class BoardGroup(object):
                         channel = int(channel)
                     elif 'DAC' in dataChannelName:
                         raise RuntimeError("DAC data readback not supported")
+                    elif 'ADC' in dataChannelName:
+                        boardName = dataChannelName
+                        channel = None
                     else:
                         raise RuntimeError('channel format not understood')
                     
@@ -760,7 +763,6 @@ class BoardGroup(object):
                     # cached result.
                     if boardName in extractedData:
                         extracted = extractedData[boardName]
-                        extracted = extracted[0][channel]
                     # Otherwise, extract the data, cache it, and add the relevant part
                     # to the list of returned data.
                     else:
@@ -782,10 +784,10 @@ class BoardGroup(object):
                         # If this is an ADC demod channel, grab that channel's
                         # data only
                         # print("fpga_server: extracted: %s"%(extracted,))
-                        extracted = extracted[0]
                         # print("fpga_server: extacted no pkt counters: %s"%(type(extracted),))
                         # print("fpga_server: channel: %d"%(channel,))
-                        extracted = extracted[channel]
+                    if channel != None:
+                        extracted = extracted[0][channel]
                     answers.append(extracted)
                 returnValue(tuple(answers))
         finally:
@@ -1363,7 +1365,7 @@ class FPGAServer(DeviceServer):
     @setting(50, 'Run Sequence', reps='w', getTimingData='b',
                              setupPkts='?{(((ww), s, ((s?)(s?)(s?)...))...)}',
                              setupState='*s',
-                             returns=['*4i',''])
+                             returns=['*4i','*3i',''])
     def run_sequence(self, c, reps=30, getTimingData=True, setupPkts=[],
                      setupState=[]):
         """Executes a sequence on one or more boards.
