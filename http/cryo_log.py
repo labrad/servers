@@ -180,7 +180,7 @@ class CryoStatusPage(Element):
     @render_safe
     @inlineCallbacks
     def MKS(self, request, tag):
-        p = self._cxn.mks_gauge_server_testhack.packet()
+        p = self._cxn.mks_gauge_server.packet()
         p.get_gauge_list()
         p.get_readings()
         result = yield p.send()
