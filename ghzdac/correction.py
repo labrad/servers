@@ -587,7 +587,8 @@ class IQcorrection:
 
 
     def DACify(self, carrierFreq, i, q=None, loop=False, rescale=False,
-               zerocor=True, deconv=True, iqcor=True, zipSRAM=True):
+               zerocor=True, deconv=True, iqcor=True, zipSRAM=True,
+               zeroEnds=False):
         """
         Computes a SRAM sequence from I and Q values in the range from
         -1 to 1.  If Q is omitted, the imaginary part of I sets the Q
@@ -666,12 +667,13 @@ class IQcorrection:
             i = np.fft.fft(i-background,n=nfft)
             i[0] += background * nfft
         return self.DACifyFT(carrierFreq, i, n=n, loop=loop, rescale=rescale,
-               zerocor=zerocor, deconv=deconv, iqcor=iqcor, zipSRAM=zipSRAM)
+               zerocor=zerocor, deconv=deconv, iqcor=iqcor, zipSRAM=zipSRAM,
+               zeroEnds=zeroEnds)
 
     
     def DACifyFT(self, carrierFreq, signal, t0=0, n=8192, loop=False,
                  rescale=False, zerocor=True, deconv=True, iqcor=True,
-                 zipSRAM=True):
+                 zipSRAM=True, zeroEnds=False):
         """
         Works like DACify but takes the Fourier transform of the
         signal as input instead of the signal itself. Because of that
@@ -780,12 +782,15 @@ class IQcorrection:
                 self.min_rescale_factor = rescale
             fullscale *= rescale
 
-        #due to deconvolution, the signal to put in the dacs can be nonzero at the end of a sequence with even a short pulse. 
-        #This nonzero value persists, even when running the board with an empty envelope. To remove this, the first and last 4 (FOUR) values must be set.
-        i[:4] = 0.0
-        i[-4:] = 0.0
-        q[:4] = 0.0
-        q[-4:] = 0.0
+        # Due to deconvolution, the signal to put in the dacs can be nonzero at
+        # the end of a sequence even with a short pulse. This nonzero value
+        # exists even when running the board with an empty envelope. To remove
+        # it, the first and last 4 (FOUR) values must be set to zero.
+        if zeroEnds:
+            i[:4] = 0.0
+            i[-4:] = 0.0
+            q[:4] = 0.0
+            q[-4:] = 0.0
         i = np.round(i * fullscale + zeroI).astype(np.int32)
         q = np.round(q * fullscale + zeroQ).astype(np.int32)
         
@@ -1013,12 +1018,10 @@ class DACcorrection:
             self.bandwidth = bandwidth
             self.precalc = np.array([])
 
-        
-        
-        
-        
+
     def DACify(self, signal, loop=False, rescale=False, fitRange=True,
-               zerocor=True, deconv=True, volts=True, dither=True):
+               zerocor=True, deconv=True, volts=True, dither=False,
+               averageEnds=False):
         """
         Computes a SRAM sequence for one DAC channel. If volts is
         True, the input is expected in volts. Otherwise inputs of -1
@@ -1090,12 +1093,14 @@ class DACcorrection:
         signal = self.DACifyFT(signal_FD, t0=0, n=n, nfft=nfft, offset=background,
                              loop=loop,
                              rescale=rescale, fitRange=fitRange, deconv=deconv,
-                             zerocor=zerocor, volts=volts, dither=dither)
+                             zerocor=zerocor, volts=volts, dither=dither,
+                             averageEnds=averageEnds)
         return signal
+
 
     def DACifyFT(self, signal, t0=0, n=8192, offset=0, nfft=None, loop=False,
                  rescale=False, fitRange=True, deconv=True, zerocor=True,
-                 volts=True, maxvalueZ=5.0, dither=True):
+                 volts=True, maxvalueZ=5.0, dither=False, averageEnds=False):
         """
         Works like DACify but takes the Fourier transform of the
         signal as input instead of the signal. n gives the number of
@@ -1187,14 +1192,15 @@ class DACcorrection:
         signal = np.fft.irfft(signal, n=nfft)
         signal = signal[0:n]
         
-        #due to deconvolution, the signal to put in the dacs can be nonzero at the end of a sequence with even a short pulse. 
-        #This nonzero value persists, even when running the board with an empty envelope. To remove this, the first and last 4 (FOUR) values must be set.
-
-        signal[0:4] = np.mean(signal[0:4])
-        signal[-4:] = np.mean(signal[-4:])
+        # Due to deconvolution, the signal to put in the dacs can be nonzero at
+        # the end of a sequence with even a short pulse. This nonzero value
+        # exists even when running the board with an empty envelope. To remove
+        # this, the first and last 4 values must be set.
+        if averageEnds:
+            signal[0:4] = np.mean(signal[0:4])
+            signal[-4:] = np.mean(signal[-4:])
 
         if rescale:
-            print 'rescale in single DAC deconv'
             rescale = np.min([1.0,
                            ( 0x1FFF - zero) / fullscale / np.max(signal),
                            (-0x2000 - zero) / fullscale / np.min(signal)])

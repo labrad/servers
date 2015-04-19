@@ -103,7 +103,6 @@ class CalibrationServer(LabradServer):
             'bandwidthZ': 0.13, #original default: 0.13
             'maxfreqZ': 0.45, #optimal parameter: 10% below Nyquist frequency of dac, 0.45
             'maxvalueZ': 5.0, #optimal parameter: 5.0, from the jitter in 1/H fourier amplitudes
-            'dither': True #enable dithering on Z.
         }
         for key in keys.SERVERSETTINGVALUES:
             default = defaults.get(key, None)
@@ -123,7 +122,6 @@ class CalibrationServer(LabradServer):
         c['Filter'] = 0.2
         c['deconvIQ'] = self.serverSettings['deconvIQ']
         c['deconvZ'] = self.serverSettings['deconvZ']
-        c['dither']  = self.serverSettings['dither']
 
     @inlineCallbacks
     def call_sync(self, *args, **kw):
@@ -261,8 +259,9 @@ class CalibrationServer(LabradServer):
 
 
     @setting(30, 'Correct', data=['*v: Single channel data', '*(v, v): I/Q data', '*c: I/Q data'],
-             returns=['*i: Single channel DAC values', '(*i, *i): Dual channel DAC values'])
-    def correct(self, c, data):
+        average_ends='b', zero_ends='b', dither='b',
+        returns=['*i: Single channel DAC values', '(*i, *i): Dual channel DAC values'])
+    def correct(self, c, data, average_ends=False, zero_ends=False, dither=False):
         """Corrects data specified in the time domain."""
         # All settings there?
         if 'DAC' not in c:
@@ -281,7 +280,8 @@ class CalibrationServer(LabradServer):
                                                       data,
                                                       loop=c['Loop'],
                                                       zipSRAM=False,
-                                                      deconv=deconv)
+                                                      deconv=deconv,
+                                                      zeroEnds=zero_ends)
             if deconv is False:
                 print 'No deconv on board ' + c['Board'] 
         else:
@@ -293,14 +293,16 @@ class CalibrationServer(LabradServer):
                                                       loop=c['Loop'],
                                                       fitRange=False,
                                                       deconv=deconv,
-                                                      dither=c['dither'])
+                                                      dither=dither,
+                                                      averageEnds=average_ends)
             if deconv is False:
                 print 'No deconv on board ' + c['Board']
         returnValue(corrected)
 
     @setting(31, 'Correct FT', data=['*v: Single channel data', '*(v, v): I/Q data', '*c: I/Q data'],
-             returns=['*i: Single channel DAC values', '(*i, *i): Dual channel DAC values'])
-    def correct_ft(self, c, data):
+        average_ends='b', zero_ends='b', dither='b',
+        returns=['*i: Single channel DAC values', '(*i, *i): Dual channel DAC values'])
+    def correct_ft(self, c, data, average_ends=False, zero_ends=False, dither=False):
         """Corrects data specified in the frequency domain.
 
         This allows for sub-nanosecond timing resolution.
@@ -324,7 +326,8 @@ class CalibrationServer(LabradServer):
                                                               t0=c['t0'],
                                                               loop=c['Loop'],
                                                               zipSRAM=False,
-                                                              deconv=deconv)
+                                                              deconv=deconv,
+                                                              zeroEnds=zero_ends)
             if deconv is False:
                 print 'No deconv on board ' + c['Board']
         else:
@@ -340,7 +343,8 @@ class CalibrationServer(LabradServer):
                                                               fitRange=False,
                                                               deconv=deconv,
                                                               maxvalueZ=self.serverSettings['maxvalueZ'],
-                                                              dither=c['dither'])
+                                                              dither=dither,
+                                                              averageEnds=average_ends)
             if deconv is False:
                 print 'No deconv on board ' + c['Board']
         returnValue(corrected)
