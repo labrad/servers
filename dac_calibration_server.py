@@ -52,7 +52,7 @@ import labrad
 from labrad.types import Error
 from labrad.server import LabradServer, setting
 
-from ghzdac import IQcorrector, DACcorrector, keys #,loadServerSettings
+from ghzdac import IQcorrector, DACcorrector, keys
 from ghzdac.correction import fastfftlen
 
 
@@ -86,15 +86,12 @@ class CalibrationServer(LabradServer):
         self.IQcalsets = {}
         self.DACcalsets = {}
         print 'loading server settings...',
-        yield self.loadServerSettings()
+        self.loadServerSettings()
         print 'done.'
         yield LabradServer.initServer(self)
 
-    @inlineCallbacks
     def loadServerSettings(self):
         """Load configuration information from the registry."""
-        reg = self.client.registry()
-        yield reg.cd(['', 'Servers', 'DAC Calibration', keys.SERVERSETTINGS], True)
         d = {}
         defaults = {
             'deconvIQ': True,
@@ -102,14 +99,11 @@ class CalibrationServer(LabradServer):
             'bandwidthIQ': 0.4, #original default: 0.4
             'bandwidthZ': 0.13, #original default: 0.13
             'maxfreqZ': 0.45, #optimal parameter: 10% below Nyquist frequency of dac, 0.45
-            'maxvalueZ': 5.0, #optimal parameter: 5.0, from the jitter in 1/H fourier amplitudes
+            'maxvalueZ': 5.0 #optimal parameter: 5.0, from the jitter in 1/H fourier amplitudes
         }
         for key in keys.SERVERSETTINGVALUES:
             default = defaults.get(key, None)
-            keyval = yield reg.get(key, False, default)
-            if not isinstance(keyval, bool):
-                #keyval is a number, in labrad units
-                keyval = keyval
+            keyval = default
             print key, ':', keyval
             d[key] = keyval
         self.serverSettings = d
