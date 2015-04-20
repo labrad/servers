@@ -26,7 +26,7 @@ public class IqChannel extends SramChannelBase<IqData> {
   public void setFpgaModel(FpgaModel fpga) {
     Preconditions.checkArgument(fpga instanceof FpgaModelMicrowave,
         "IqChannel '%s' requires microwave board.", getName());
-    FpgaModelMicrowave fpgaMicrowave = (FpgaModelMicrowave)fpga; 
+    FpgaModelMicrowave fpgaMicrowave = (FpgaModelMicrowave)fpga;
     this.fpga = fpgaMicrowave;
     fpgaMicrowave.setIqChannel(this);
   }
@@ -56,7 +56,7 @@ public class IqChannel extends SramChannelBase<IqData> {
       // create a dummy data set with zeros
       int expected = fpga.getBlockLength(name);
       double[] zeros = new double[expected];
-      data = new IqDataFourier(new ComplexArray(zeros, zeros), 0);
+      data = new IqDataFourier(new ComplexArray(zeros, zeros), 0, true);
       data.setChannel(this);
       blocks.put(name, data);
     }

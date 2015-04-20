@@ -44,12 +44,12 @@ public class DeconvolutionProxy {
    * @return
    */
   public Future<int[]> deconvolveAnalog(DacBoard board, DacAnalogId id, double[] data,
-      double[] settlingRates, double[] settlingTimes) {
+      double[] settlingRates, double[] settlingTimes, boolean averageEnds) {
     Request req = startRequest();
     req.add("Board", Data.valueOf(board.getName()));
     req.add("DAC", Data.valueOf(id.toString()));
     req.add("Set Settling", Data.valueOf(settlingRates), Data.valueOf(settlingTimes));
-    final int idx = req.addRecord("Correct", Data.valueOf(data));
+    final int idx = req.addRecord("Correct Analog", Data.valueOf(data), Data.valueOf(averageEnds));
     return Futures.chain(cxn.send(req), new Function<List<Data>, int[]>() {
       @Override
       public int[] apply(List<Data> result) {
@@ -69,14 +69,14 @@ public class DeconvolutionProxy {
    * @return
    */
   public Future<int[]> deconvolveAnalogFourier(DacBoard board, DacAnalogId id, ComplexArray data, double t0,
-      double[] settlingRates, double[] settlingTimes) {
+      double[] settlingRates, double[] settlingTimes, boolean averageEnds) {
     Request req = startRequest();
     req.add("Board", Data.valueOf(board.getName()));
     req.add("DAC", Data.valueOf(id.toString()));
     req.add("Loop", Data.valueOf(false));
     req.add("Set Settling", Data.valueOf(settlingRates), Data.valueOf(settlingTimes));
     req.add("Time Offset", Data.valueOf(t0));
-    final int idx = req.addRecord("Correct FT", data.toData());
+    final int idx = req.addRecord("Correct Analog FT", data.toData(), Data.valueOf(averageEnds));
     return Futures.chain(cxn.send(req), new Function<List<Data>, int[]>() {
       @Override
       public int[] apply(List<Data> result) {
@@ -103,11 +103,11 @@ public class DeconvolutionProxy {
    * @param settlingTimes
    * @return
    */
-  public Future<IqResult> deconvolveIq(DacBoard board, ComplexArray data, double freq) {
+  public Future<IqResult> deconvolveIq(DacBoard board, ComplexArray data, double freq, boolean averageEnds) {
     Request req = startRequest();
     req.add("Board", Data.valueOf(board.getName()));
     req.add("Frequency", Data.valueOf(freq));
-    final int idx = req.addRecord("Correct", data.toData());
+    final int idx = req.addRecord("Correct IQ", data.toData(), Data.valueOf(averageEnds));
     return Futures.chain(cxn.send(req), new Function<List<Data>, IqResult>() {
       @Override
       public IqResult apply(List<Data> result) {
@@ -127,13 +127,13 @@ public class DeconvolutionProxy {
    * @param settlingTimes
    * @return
    */
-  public Future<IqResult> deconvolveIqFourier(DacBoard board, ComplexArray data, double freq, double t0) {
+  public Future<IqResult> deconvolveIqFourier(DacBoard board, ComplexArray data, double freq, double t0, boolean averageEnds) {
     Request req = startRequest();
     req.add("Board", Data.valueOf(board.getName()));
     req.add("Frequency", Data.valueOf(freq));
     req.add("Loop", Data.valueOf(false));
     req.add("Time Offset", Data.valueOf(t0));
-    final int idx = req.addRecord("Correct FT", data.toData());
+    final int idx = req.addRecord("Correct IQ FT", data.toData(), Data.valueOf(averageEnds));
     return Futures.chain(cxn.send(req), new Function<List<Data>, IqResult>() {
       @Override
       public IqResult apply(List<Data> result) {

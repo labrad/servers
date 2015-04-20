@@ -14,10 +14,12 @@ import com.google.common.base.Preconditions;
 public class IqDataTime extends IqDataBase {
 
   private ComplexArray data;
+  private boolean zeroEnds;
   private int[] I, Q;
 
-  public IqDataTime(ComplexArray data, boolean isDeconvolved) {
+  public IqDataTime(ComplexArray data, boolean isDeconvolved, boolean zeroEnds) {
     this.data = data;
+    this.zeroEnds = zeroEnds;
     if (isDeconvolved) {
       I = new int[data.re.length];
       Q = new int[data.im.length];
@@ -32,6 +34,7 @@ public class IqDataTime extends IqDataBase {
     public IqDataTime(int[] I, int[] Q) {
       this.I = I;
       this.Q = Q;
+      this.zeroEnds = false;
       setDeconvolved(true);
     }
 
@@ -48,7 +51,7 @@ public class IqDataTime extends IqDataBase {
   public Future<Void> deconvolve(DeconvolutionProxy deconvolver) {
     IqChannel ch = getChannel();
     double freq = ch.getMicrowaveConfig().getFrequency();
-    Future<DeconvolutionProxy.IqResult> req = deconvolver.deconvolveIq(ch.getDacBoard(), data, freq);
+    Future<DeconvolutionProxy.IqResult> req = deconvolver.deconvolveIq(ch.getDacBoard(), data, freq, zeroEnds);
     return Futures.chain(req, new Function<DeconvolutionProxy.IqResult, Void>() {
       @Override
       public Void apply(IqResult result) {

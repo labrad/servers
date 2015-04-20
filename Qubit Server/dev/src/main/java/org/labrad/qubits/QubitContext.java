@@ -562,22 +562,34 @@ public class QubitContext extends AbstractServerContext {
           + "should be deconvolved (default: true)."
           + "If deconvolve=false, the data can be specified as DAC-ready"
           + "I and Q integers.")
-  public void sram_iq_data(@Accepts({"s", "ss"}) Data id,
-      @Accepts("*c") Data vals) {
+  public void sram_iq_data(
+      @Accepts({"s", "ss"}) Data id,
+      @Accepts("*c") Data vals
+  ) {
     sram_iq_data(id, vals, true);
-    sramDirty = true;
   }
   @SettingOverload
-  public void sram_iq_data(@Accepts({"s", "ss"}) Data id,
+  public void sram_iq_data(
+      @Accepts({"s", "ss"}) Data id,
       @Accepts({"*c", "(*i{I}, *i{Q})"}) Data vals,
-      boolean deconvolve) {
+      boolean deconvolve
+  ) {
+    sram_iq_data(id, vals, deconvolve, true);
+  }
+  @SettingOverload
+  public void sram_iq_data(
+      @Accepts({"s", "ss"}) Data id,
+      @Accepts({"*c", "(*i{I}, *i{Q})"}) Data vals,
+      boolean deconvolve,
+      boolean zeroEnds
+  ) {
     IqChannel ch = getChannel(id, IqChannel.class);
     if (vals.isCluster()) {
       Preconditions.checkArgument(!deconvolve, "Must not deconvolve if providing DAC'ified IQ data.");
       ch.addData(new IqDataTime(vals.get(0).getIntArray(), vals.get(1).getIntArray()));
     } else {
       ComplexArray c = ComplexArray.fromData(vals);
-      ch.addData(new IqDataTime(c, !deconvolve));
+      ch.addData(new IqDataTime(c, !deconvolve, zeroEnds));
     }
     sramDirty = true;
   }
@@ -594,12 +606,23 @@ public class QubitContext extends AbstractServerContext {
           + "with the real and imaginary parts giving the I and Q "
           + "microwave quadratures.  The length of the data should "
           + "match the length of the current SRAM block.")
-  public void sram_iq_data_fourier(@Accepts({"s", "ss"}) Data id,
+  public void sram_iq_data_fourier(
+      @Accepts({"s", "ss"}) Data id,
       @Accepts("*c") Data vals,
-      @Accepts("v[ns]") double t0) {
+      @Accepts("v[ns]") double t0
+  ) {
+    sram_iq_data_fourier(id, vals, t0, true);
+  }
+  @SettingOverload
+  public void sram_iq_data_fourier(
+      @Accepts({"s", "ss"}) Data id,
+      @Accepts("*c") Data vals,
+      @Accepts("v[ns]") double t0,
+      boolean zeroEnds
+  ) {
     IqChannel ch = getChannel(id, IqChannel.class);
     ComplexArray c = ComplexArray.fromData(vals);
-    ch.addData(new IqDataFourier(c, t0));
+    ch.addData(new IqDataFourier(c, t0, zeroEnds));
     sramDirty = true;
   }
 
@@ -614,21 +637,33 @@ public class QubitContext extends AbstractServerContext {
           + "The length of the data should match the length of the "
           + "current SRAM block.  An optional boolean specifies "
           + "whether the data should be deconvolved (default: true)."
-          + "If deconvolve=false, the data can be supplied as DAC-ready"
-          + "integers")
-  public void sram_analog_data(@Accepts({"s", "ss"}) Data id,
-      @Accepts("*v") Data vals) {
+          + "If deconvolve=false, the data can be supplied as DAC-ready "
+          + "integers.")
+  public void sram_analog_data(
+      @Accepts({"s", "ss"}) Data id,
+      @Accepts("*v") Data vals
+  ) {
     sram_analog_data(id, vals, true);
-    sramDirty = true;
   }
   @SettingOverload
-  public void sram_analog_data(@Accepts({"s", "ss"}) Data id,
+  public void sram_analog_data(
+      @Accepts({"s", "ss"}) Data id,
       @Accepts({"*v", "*i"}) Data vals,
-      boolean deconvolve) {
+      boolean deconvolve
+  ) {
+    sram_analog_data(id, vals, deconvolve, true);
+  }
+  @SettingOverload
+  public void sram_analog_data(
+      @Accepts({"s", "ss"}) Data id,
+      @Accepts({"*v", "*i"}) Data vals,
+      boolean deconvolve,
+      boolean averageEnds
+  ) {
     AnalogChannel ch = getChannel(id, AnalogChannel.class);
     if (vals.matchesType("*v")) {
       double[] arr = vals.getValueArray();
-      ch.addData(new AnalogDataTime(arr, !deconvolve));
+      ch.addData(new AnalogDataTime(arr, !deconvolve, averageEnds));
     } else {
       Preconditions.checkArgument(!deconvolve, "Must not deconvolve if providing DAC'ified data.");
       int[] arr = vals.getIntArray();
@@ -648,12 +683,23 @@ public class QubitContext extends AbstractServerContext {
           + "Because this represents real data, we only need half as many samples.  "
           + "In particular, for a sequence of length n, the fourier data given "
           + "here must have length n/2+1 (n even) or (n+1)/2 (n odd).")
-  public void sram_analog_fourier_data(@Accepts({"s", "ss"}) Data id,
+  public void sram_analog_fourier_data(
+      @Accepts({"s", "ss"}) Data id,
       @Accepts("*c") Data vals,
-      @Accepts("v[ns]") double t0) {
+      @Accepts("v[ns]") double t0
+  ) {
+    sram_analog_fourier_data(id, vals, t0, true);
+  }
+  @SettingOverload
+  public void sram_analog_fourier_data(
+      @Accepts({"s", "ss"}) Data id,
+      @Accepts("*c") Data vals,
+      @Accepts("v[ns]") double t0,
+      boolean averageEnds
+  ) {
     AnalogChannel ch = getChannel(id, AnalogChannel.class);
     ComplexArray c = ComplexArray.fromData(vals);
-    ch.addData(new AnalogDataFourier(c, t0));
+    ch.addData(new AnalogDataFourier(c, t0, averageEnds));
     sramDirty = true;
   }
 

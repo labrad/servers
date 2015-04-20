@@ -12,10 +12,12 @@ import com.google.common.base.Preconditions;
 public class AnalogDataTime extends AnalogDataBase {
 
   private double[] rawData = null;
+  private boolean averageEnds;
   private int[] deconvolvedData = null;
 
-  public AnalogDataTime(double[] data, boolean isDeconvolved) {
+  public AnalogDataTime(double[] data, boolean isDeconvolved, boolean averageEnds) {
     this.rawData = data;
+    this.averageEnds = averageEnds;
     if (isDeconvolved) {
       int[] values = new int[data.length];
       for (int i = 0; i < data.length; i++) {
@@ -26,10 +28,11 @@ public class AnalogDataTime extends AnalogDataBase {
     setDeconvolved(isDeconvolved);
   }
 
-    public AnalogDataTime(int[] data) {
-      this.deconvolvedData = data;
-      setDeconvolved(true);
-    }
+  public AnalogDataTime(int[] data) {
+    this.deconvolvedData = data;
+    this.averageEnds = false;
+    setDeconvolved(true);
+  }
 
   public void checkLength(int expected) {
     if (rawData == null) {
@@ -42,7 +45,14 @@ public class AnalogDataTime extends AnalogDataBase {
   @Override
   public Future<Void> deconvolve(DeconvolutionProxy deconvolver) {
     AnalogChannel ch = getChannel();
-    Future<int[]> req = deconvolver.deconvolveAnalog(ch.getDacBoard(), ch.getDacId(), rawData, ch.getSettlingRates(), ch.getSettlingTimes());
+    Future<int[]> req = deconvolver.deconvolveAnalog(
+        ch.getDacBoard(),
+        ch.getDacId(),
+        rawData,
+        ch.getSettlingRates(),
+        ch.getSettlingTimes(),
+        averageEnds
+    );
     return Futures.chain(req, new Function<int[], Void>() {
       @Override
       public Void apply(int[] result) {

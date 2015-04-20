@@ -14,11 +14,13 @@ public class AnalogDataFourier extends AnalogDataBase {
 
   private ComplexArray data;
   private double t0;
+  private boolean averageEnds;
   private int[] deconvolvedData;
 
-  public AnalogDataFourier(ComplexArray data, double t0) {
+  public AnalogDataFourier(ComplexArray data, double t0, boolean averageEnds) {
     this.data = data;
     this.t0 = t0;
+    this.averageEnds = averageEnds;
   }
 
   public void checkLength(int expected) {
@@ -29,7 +31,15 @@ public class AnalogDataFourier extends AnalogDataBase {
   @Override
   public Future<Void> deconvolve(DeconvolutionProxy deconvolver) {
     AnalogChannel ch = getChannel();
-    Future<int[]> req = deconvolver.deconvolveAnalogFourier(ch.getDacBoard(), ch.getDacId(), data, t0, ch.getSettlingRates(), ch.getSettlingTimes());
+    Future<int[]> req = deconvolver.deconvolveAnalogFourier(
+        ch.getDacBoard(),
+        ch.getDacId(),
+        data,
+        t0,
+        ch.getSettlingRates(),
+        ch.getSettlingTimes(),
+        averageEnds
+    );
     return Futures.chain(req, new Function<int[], Void>() {
       @Override
       public Void apply(int[] result) {

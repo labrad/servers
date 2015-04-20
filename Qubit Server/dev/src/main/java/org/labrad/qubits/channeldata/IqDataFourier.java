@@ -15,11 +15,13 @@ public class IqDataFourier extends IqDataBase {
 
   private ComplexArray data;
   private double t0;
+  private boolean zeroEnds;
   private int[] I, Q;
 
-  public IqDataFourier(ComplexArray data, double t0) {
+  public IqDataFourier(ComplexArray data, double t0, boolean zeroEnds) {
     this.data = data;
     this.t0 = t0;
+    this.zeroEnds = zeroEnds;
   }
 
   public void checkLength(int expected) {
@@ -30,7 +32,7 @@ public class IqDataFourier extends IqDataBase {
   public Future<Void> deconvolve(DeconvolutionProxy deconvolver) {
     IqChannel ch = getChannel();
     double freq = ch.getMicrowaveConfig().getFrequency();
-    Future<DeconvolutionProxy.IqResult> req = deconvolver.deconvolveIqFourier(ch.getDacBoard(), data, freq, t0);
+    Future<DeconvolutionProxy.IqResult> req = deconvolver.deconvolveIqFourier(ch.getDacBoard(), data, freq, t0, zeroEnds);
     return Futures.chain(req, new Function<DeconvolutionProxy.IqResult, Void>() {
       @Override
       public Void apply(IqResult result) {
