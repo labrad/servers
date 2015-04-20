@@ -251,12 +251,11 @@ class CalibrationServer(LabradServer):
         c['DAC'] = dac
         return dac
 
-
-    @setting(30, 'Correct', data=['*v: Single channel data', '*(v, v): I/Q data', '*c: I/Q data'],
-        average_ends='b', zero_ends='b', dither='b',
-        returns=['*i: Single channel DAC values', '(*i, *i): Dual channel DAC values'])
-    def correct(self, c, data, average_ends=False, zero_ends=False, dither=False):
-        """Corrects data specified in the time domain."""
+    @setting(30, 'Correct IQ', data=['*(v, v): I/Q data', '*c: I/Q data'],
+        zero_ends='b',
+        returns=['(*i, *i): Dual channel DAC values'])
+    def correct_iq(self, c, data, zero_ends=False):
+        """Correct IQ data specified in the time domain."""
         # All settings there?
         if 'DAC' not in c:
             raise NoDACSelectedError()
@@ -264,40 +263,51 @@ class CalibrationServer(LabradServer):
         if len(data) == 0:
             returnValue([]) # special case for empty data
 
-        if c['DAC'] is None:
-            # IQ mixer calibration
-            if len(data.shape) == 2:
-                data = data[:,0] + 1j * data[:,1]
-            calset = yield self.getIQcalset(c)
-            deconv = c['deconvIQ']
-            corrected = yield self.call_sync(calset.DACify, c['Frequency'],
-                                                      data,
-                                                      loop=c['Loop'],
-                                                      zipSRAM=False,
-                                                      deconv=deconv,
-                                                      zeroEnds=zero_ends)
-            if deconv is False:
-                print 'No deconv on board ' + c['Board'] 
-        else:
-            # Single Channel Calibration
-            calset = yield self.getDACcalset(c)
-            deconv = c['deconvZ']
-            calset.setSettling(*c['Settling'])
-            corrected = yield self.call_sync(calset.DACify, data,
-                                                      loop=c['Loop'],
-                                                      fitRange=False,
-                                                      deconv=deconv,
-                                                      dither=dither,
-                                                      averageEnds=average_ends)
-            if deconv is False:
-                print 'No deconv on board ' + c['Board']
+        if len(data.shape) == 2:
+            data = data[:,0] + 1j * data[:,1]
+        calset = yield self.getIQcalset(c)
+        deconv = c['deconvIQ']
+        corrected = yield self.call_sync(calset.DACify, c['Frequency'],
+                                                  data,
+                                                  loop=c['Loop'],
+                                                  zipSRAM=False,
+                                                  deconv=deconv,
+                                                  zeroEnds=zero_ends)
+        if deconv is False:
+            print 'No deconv on board ' + c['Board'] 
         returnValue(corrected)
 
-    @setting(31, 'Correct FT', data=['*v: Single channel data', '*(v, v): I/Q data', '*c: I/Q data'],
-        average_ends='b', zero_ends='b', dither='b',
-        returns=['*i: Single channel DAC values', '(*i, *i): Dual channel DAC values'])
-    def correct_ft(self, c, data, average_ends=False, zero_ends=False, dither=False):
-        """Corrects data specified in the frequency domain.
+    @setting(31, 'Correct Z', data=['*v: Single channel data'],
+        average_ends='b', dither='b',
+        returns=['*i: Single channel DAC values',])
+    def correct_z(self, c, data, average_ends=False, dither=False):
+        """Correct single channel data specified in the time domain."""
+        # All settings there?
+        if 'DAC' not in c:
+            raise NoDACSelectedError()
+
+        if len(data) == 0:
+            returnValue([]) # special case for empty data
+
+        # Single Channel Calibration
+        calset = yield self.getDACcalset(c)
+        deconv = c['deconvZ']
+        calset.setSettling(*c['Settling'])
+        corrected = yield self.call_sync(calset.DACify, data,
+                                                  loop=c['Loop'],
+                                                  fitRange=False,
+                                                  deconv=deconv,
+                                                  dither=dither,
+                                                  averageEnds=average_ends)
+        if deconv is False:
+            print 'No deconv on board ' + c['Board']
+        returnValue(corrected)
+
+    @setting(32, 'Correct IQ FT', data=['*(v, v): I/Q data', '*c: I/Q data'],
+        zero_ends='b',
+        returns=['(*i, *i): Dual channel DAC values'])
+    def correct_iq_ft(self, c, data, zero_ends=False):
+        """Correct IQ data specified in the frequency domain.
 
         This allows for sub-nanosecond timing resolution.
         """
@@ -308,39 +318,54 @@ class CalibrationServer(LabradServer):
         if len(data) == 0:
             returnValue([]) # special case for empty data
 
-        if c['DAC'] is None:
-            # IQ mixer calibration
-            if len(data.shape) == 2:
-                data = data[:,0] + 1.0j * data[:,1]
-            calset = yield self.getIQcalset(c)
-            deconv = c['deconvIQ']
-            corrected = yield self.call_sync(calset.DACifyFT, c['Frequency'],
-                                                              data,
-                                                              n=len(data),
-                                                              t0=c['t0'],
-                                                              loop=c['Loop'],
-                                                              zipSRAM=False,
-                                                              deconv=deconv,
-                                                              zeroEnds=zero_ends)
-            if deconv is False:
-                print 'No deconv on board ' + c['Board']
-        else:
-            # Single Channel Calibration
-            calset = yield self.getDACcalset(c)
-            calset.setSettling(*c['Settling'])
-            calset.setFilter(bandwidth=c['Filter'])
-            deconv = c['deconvZ']
-            corrected = yield self.call_sync(calset.DACifyFT, data,
-                                                              n=(len(data)-1)*2,
-                                                              t0=c['t0'],
-                                                              loop=c['Loop'],
-                                                              fitRange=False,
-                                                              deconv=deconv,
-                                                              maxvalueZ=self.serverSettings['maxvalueZ'],
-                                                              dither=dither,
-                                                              averageEnds=average_ends)
-            if deconv is False:
-                print 'No deconv on board ' + c['Board']
+        # IQ mixer calibration
+        if len(data.shape) == 2:
+            data = data[:,0] + 1.0j * data[:,1]
+        calset = yield self.getIQcalset(c)
+        deconv = c['deconvIQ']
+        corrected = yield self.call_sync(calset.DACifyFT, c['Frequency'],
+                                                          data,
+                                                          n=len(data),
+                                                          t0=c['t0'],
+                                                          loop=c['Loop'],
+                                                          zipSRAM=False,
+                                                          deconv=deconv,
+                                                          zeroEnds=zero_ends)
+        if deconv is False:
+            print 'No deconv on board ' + c['Board']
+        returnValue(corrected)
+
+    @setting(33, 'Correct Z FT', data=['*v: Single channel data'],
+        average_ends='b', dither='b',
+        returns=['*i: Single channel DAC values'])
+    def correct_z_ft(self, c, data, average_ends=False, dither=False):
+        """Correct single channel data specified in the frequency domain.
+
+        This allows for sub-nanosecond timing resolution.
+        """
+        # All settings there?
+        if 'DAC' not in c:
+            raise NoDACSelectedError()
+
+        if len(data) == 0:
+            returnValue([]) # special case for empty data
+
+        # Single Channel Calibration
+        calset = yield self.getDACcalset(c)
+        calset.setSettling(*c['Settling'])
+        calset.setFilter(bandwidth=c['Filter'])
+        deconv = c['deconvZ']
+        corrected = yield self.call_sync(calset.DACifyFT, data,
+                                                          n=(len(data)-1)*2,
+                                                          t0=c['t0'],
+                                                          loop=c['Loop'],
+                                                          fitRange=False,
+                                                          deconv=deconv,
+                                                          maxvalueZ=self.serverSettings['maxvalueZ'],
+                                                          dither=dither,
+                                                          averageEnds=average_ends)
+        if deconv is False:
+            print 'No deconv on board ' + c['Board']
         returnValue(corrected)
 
     @setting(40, 'Set Settling', rates=['*v[GHz]: settling rates'], amplitudes=['*v: settling amplitudes'])
