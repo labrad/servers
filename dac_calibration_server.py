@@ -251,7 +251,9 @@ class CalibrationServer(LabradServer):
         c['DAC'] = dac
         return dac
 
-    @setting(30, 'Correct IQ', data=['*(v, v): I/Q data', '*c: I/Q data'],
+    @setting(30,
+        'Correct IQ',
+        data=['*(v, v): I/Q data', '*c: I/Q data'],
         zero_ends='b',
         returns=['(*i, *i): Dual channel DAC values'])
     def correct_iq(self, c, data, zero_ends=False):
@@ -277,9 +279,12 @@ class CalibrationServer(LabradServer):
             print 'No deconv on board ' + c['Board'] 
         returnValue(corrected)
 
-    @setting(31, 'Correct Z', data=['*v: Single channel data'],
-        average_ends='b', dither='b',
-        returns=['*i: Single channel DAC values',])
+    @setting(31,
+        'Correct Z',
+        data=['*v: Single channel data'],
+        average_ends='b',
+        dither='b',
+        returns=['*i: Single channel DAC values'])
     def correct_z(self, c, data, average_ends=False, dither=False):
         """Correct single channel data specified in the time domain."""
         # All settings there?
@@ -303,7 +308,9 @@ class CalibrationServer(LabradServer):
             print 'No deconv on board ' + c['Board']
         returnValue(corrected)
 
-    @setting(32, 'Correct IQ FT', data=['*(v, v): I/Q data', '*c: I/Q data'],
+    @setting(32,
+        'Correct IQ FT',
+        data=['*(v, v): I/Q data', '*c: I/Q data'],
         zero_ends='b',
         returns=['(*i, *i): Dual channel DAC values'])
     def correct_iq_ft(self, c, data, zero_ends=False):
@@ -335,8 +342,11 @@ class CalibrationServer(LabradServer):
             print 'No deconv on board ' + c['Board']
         returnValue(corrected)
 
-    @setting(33, 'Correct Z FT', data=['*v: Single channel data'],
-        average_ends='b', dither='b',
+    @setting(33,
+        'Correct Z FT',
+        data=['*v: Single channel data'],
+        average_ends='b',
+        dither='b',
         returns=['*i: Single channel DAC values'])
     def correct_z_ft(self, c, data, average_ends=False, dither=False):
         """Correct single channel data specified in the frequency domain.
