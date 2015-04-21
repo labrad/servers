@@ -240,7 +240,17 @@ class CalibrationServer(LabradServer):
         zero_ends='b',
         returns=['(*i, *i): Dual channel DAC values'])
     def correct_iq(self, c, data, zero_ends=False):
-        """Correct IQ data specified in the time domain."""
+        """Correct IQ data specified in the time domain.
+
+        Args:
+            data (list of tuple or list of complex): The time-domain IQ sequence
+                to be deconvolved.
+            zero_ends (boolean): If true, the first and last 4 nanoseconds will
+                be set to the deconvolved zero value to ensure microwaves are off.
+
+        Returns:
+            A tuple of deconvolved I DAC values and Q DAC values.
+        """
 
         if len(data) == 0:
             returnValue([]) # special case for empty data
@@ -269,6 +279,15 @@ class CalibrationServer(LabradServer):
         """Correct IQ data specified in the frequency domain.
 
         This allows for sub-nanosecond timing resolution.
+
+        Args:
+            data (list of tuple or list of complex): The frequency-domain IQ
+                sequence to be deconvolved.
+            zero_ends (boolean): If true, the first and last 4 nanoseconds will
+                be set to the deconvolved zero value to ensure microwaves are off.
+
+        Returns:
+            A tuple of deconvolved I DAC values and Q DAC values.
         """
         if len(data) == 0:
             returnValue([]) # special case for empty data
@@ -297,8 +316,19 @@ class CalibrationServer(LabradServer):
         dither='b',
         returns=['*i: Single channel DAC values'])
     def correct_analog(self, c, data, average_ends=False, dither=False):
-        """Correct single channel data specified in the time domain."""
+        """Correct single channel data specified in the time domain.
 
+        Args:
+            data (list of float): The time-domain sequence to be deconvolved.
+            average_ends (boolean): If true, the first and last 4 nanoseconds
+                will be averaged and set to the constant average value to
+                ensure the DAC output is constant after the sequence ends.
+            dither (boolean): If true, the sequence will be dithered by adding
+                random noise to reduce quantization noise.
+
+        Returns:
+            A list of deconvolved DAC values.
+        """
         if len(data) == 0:
             returnValue([]) # special case for empty data
 
@@ -325,6 +355,17 @@ class CalibrationServer(LabradServer):
         """Correct single channel data specified in the frequency domain.
 
         This allows for sub-nanosecond timing resolution.
+
+        Args:
+            data (list of float): The frequency-domain sequence to be deconvolved.
+            average_ends (boolean): If true, the first and last 4 nanoseconds
+                will be averaged and set to the constant average value to
+                ensure the DAC output is constant after the sequence ends.
+            dither (boolean): If true, the sequence will be dithered by adding
+                random noise to reduce quantization noise.
+
+        Returns:
+            A list of deconvolved DAC values.
         """
         if len(data) == 0:
             returnValue([]) # special case for empty data
