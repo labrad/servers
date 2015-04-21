@@ -1206,66 +1206,6 @@ class DataVault(LabradServer):
         dataset = self.getDataset(c)
         dataset.addParameters(params)
 
-    @inlineCallbacks
-    def read_pars_int(self, c, ctx, dataset, curdirs, subdirs=None):
-        p = self.client.registry.packet(context=ctx)
-        todo = []
-        for curdir, curcontent in curdirs:
-            if len(curdir) > 0:
-                p.cd(curdir)
-            for key in curcontent[1]:
-                p.get(key, key=(False, tuple(curdir+[key])))
-            if subdirs is not None:
-                if isinstance(subdirs, list):
-                    for folder in curcontent[0]:
-                        if folder in subdirs:
-                            p.cd(folder)
-                            p.dir(key=(True, tuple(curdir+[folder])))
-                            p.cd(1)
-                elif subdirs != 0:
-                    for folder in curcontent[0]:
-                        p.cd(folder)
-                        p.dir(key=(True, tuple(curdir+[folder])))
-                        p.cd(1)                
-            if len(curdir) > 0:
-                p.cd(len(curdir))
-        ans = yield p.send()
-        if isinstance(subdirs, list):
-            subdirs = -1
-        else:
-            if (subdirs is not None) and (subdirs > 0):
-                subdirs -= 1
-        for key in sorted(ans.settings.keys()):
-            item = ans[key]
-            if isinstance(key, tuple):
-                if key[0]:
-                    curdirs = [(list(key[1]), item)]
-                    yield self.read_pars_int(c, ctx, dataset, curdirs, subdirs)
-                else:
-                    dataset.addParameter(' -> '.join(key[1]), item, saveNow=False)
-        
-        
-
-    @setting(125, 'import parameters',
-                  subdirs=[': Import current directory',
-                           'w: Include this many levels of subdirectories (0=all)',
-                           '*s: Include these subdirectories'],
-                  returns='')
-    def import_parameters(self, c, subdirs=None):
-        """Reads all entries from the current registry directory, optionally
-        including subdirectories, as parameters into the current dataset."""
-        dataset = self.getDataset(c)
-        ctx = self.client.context()
-        p = self.client.registry.packet(context=ctx)
-        p.duplicate_context(c.ID)
-        p.dir()
-        ans = yield p.send()
-        curdirs = [([], ans.dir)]
-        if subdirs == 0:
-            subdirs = -1
-        yield self.read_pars_int(c, ctx, dataset, curdirs, subdirs)
-        dataset.save() # make sure the new parameters get saved
- 
     @setting(126, 'get name', returns='s')
     def get_name(self, c):
         """Get the name of the current dataset."""
