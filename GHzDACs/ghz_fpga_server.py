@@ -1361,34 +1361,39 @@ class FPGAServer(DeviceServer):
                      setupState=[]):
         """Executes a sequence on one or more boards.
 
-        reps:
-            specifies the number of repetitions ('stats') to perform
-            (rounded up to the nearest multiple of 30).
+        Args:
+            reps:
+                specifies the number of repetitions ('stats') to perform
+                (rounded up to the nearest multiple of 30).
+            getTimingData:
+                specifies whether timing data should be returned.
+                the timing data will be returned for those boards
+                specified by the "Timing Order" setting, and in
+                the order specified there as well.
+            setupPkts:
+                specifies packets to be sent to other servers before this
+                sequence is run, e.g. to set the microwave frequency.
+            setupState:
+                a list of strings describing the setup state for this point.
+                if this matches the last setup state used (up to reordering),
+                the setup packets will not be sent for this point.  For example,
+                the setupState might describe the amplitude and frequency of
+                the various microwave sources for this sequence.
 
-        getTimingData:
-            specifies whether timing data should be returned.
-            the timing data will be returned for those boards
-            specified by the "Timing Order" setting, and in
-            the order specified there as well.
+        Returns:
+            If ADC boards all in average mode, data returned as a *3i. The three
+            indices are:
+                (board index in timing order, I/Q, time sample index).
 
-        setupPkts:
-            specifies packets to be sent to other servers before this
-            sequence is run, e.g. to set the microwave frequency.
-            
-        setupState:
-            a list of strings describing the setup state for this point.
-            if this matches the last setup state used (up to reordering),
-            the setup packets will not be sent for this point.  For example,
-            the setupState might describe the amplitude and frequency of
-            the various microwave sources for this sequence.
-            
-        If only DAC boards are run and all boards return the same number of
-        results (because all boards have the same number of timer calls),
-        then a 2D list of results of type *2w will be returned.  Otherwise,
-        a cluster of results will be returned, in the order specified by
-        timing order.  Individual DAC boards always return *w; ADC boards in
-        average mode return (*i,{I} *i{Q}); and ADC boards in demodulate
-        mode also return (*i,{I} *i{Q}) for each channel.
+            If ADC boards all in demodulate mode, data returned as a *4i.
+            The four indices label:
+                (demod channel, stat, retrigger, I/Q).
+            retrigger indexes multiple triggers in a sequence.
+
+            If only DACs present, we return no data.
+
+            ADC boards must be either all in average mode or all in demodulate
+            mode.
         """
         # determine timing order
         if getTimingData:
