@@ -173,12 +173,6 @@ class CalibrationServer(LabradServer):
         c['Board'] = board
         return board
 
-    @setting(2, 'borderValues', borderValues= ['*v'], returns=['*v'])
-    def set_border_values(self, c, borderValues):
-        """Sets the end value to be enforced on the deconvolved output. By default it is zero, for single block. For dual block this must be set"""
-        print "Border values is deprecated, it is always set to average."
-        return borderValues
-
     @setting(10, 'Frequency', frequency=['v[GHz]'], returns=['v[GHz]'])
     def frequency(self, c, frequency):
         """Sets the microwave driving frequency for which to correct the data.
