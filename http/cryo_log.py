@@ -156,31 +156,35 @@ class CryoStatusPage(Element):
     @render_safe
     @inlineCallbacks
     def timeouts(self, request, tag):
-        p = self._cxn.cryo_notifier.packet()
-        p.query_timers()
-        result = yield p.send()
         rv = []
-        for (name, t) in result['query_timers']:
-            if self.cryo_name.lower() not in name.lower():
-                continue
+        try:
+            p = self._cxn.cryo_notifier.packet()
+            p.query_timers()
+            result = yield p.send()
+            
+            for (name, t) in result['query_timers']:
+                if self.cryo_name.lower() not in name.lower():
+                    continue
 
-            t = int(t['s'])
-            warning = t < 3600
-            sign = '' if t > 0 else '-'
-            t = abs(t)
-            hours = t//3600
-            minutes = (t - hours*3600)//60
-            seconds = (t - hours*3600 - minutes*60)
-            time_str = "%s%02d:%02d:%02d" % (sign, hours, minutes, seconds)
-            if warning:
-                time_str = tags.font(time_str, color="#FF0000")
-            rv.append(tag.clone().fillSlots(name=name, time=time_str))
+                t = int(t['s'])
+                warning = t < 3600
+                sign = '' if t > 0 else '-'
+                t = abs(t)
+                hours = t//3600
+                minutes = (t - hours*3600)//60
+                seconds = (t - hours*3600 - minutes*60)
+                time_str = "%s%02d:%02d:%02d" % (sign, hours, minutes, seconds)
+                if warning:
+                    time_str = tags.font(time_str, color="#FF0000")
+                rv.append(tag.clone().fillSlots(name=name, time=time_str))
+        except Exception as ex:
+            print "Exception during timeouts: ", str(ex)
         returnValue(rv)
 
     @render_safe
     @inlineCallbacks
     def MKS(self, request, tag):
-        p = self._cxn.mks_gauge_server_testhack.packet()
+        p = self._cxn.mks_gauge_server.packet()
         p.get_gauge_list()
         p.get_readings()
         result = yield p.send()

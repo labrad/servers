@@ -1285,7 +1285,6 @@ class DACcorrection:
         dithering[-4:]=0.0
     
         signal = np.round(1.0*signal * fullscale + zero + dithering).astype(np.int32)        
-        
    
         if not rescale:
             if (np.max(signal) > 0x1FFF) or (np.min(signal) < -0x2000):

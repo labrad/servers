@@ -43,5 +43,5 @@ PULSELENGTH = 'pulse length'
 DACDCPULSE = 'dac dc pulse'
 DACACPULSE = 'dac ac pulse'
 HARMONIC = 'Carrier frequency harmonic'
-SERVERSETTINGS = 'Vince'
+SERVERSETTINGS = 'Ivan'
 SERVERSETTINGVALUES = ['deconvIQ','deconvZ','bandwidthIQ','bandwidthZ','maxfreqZ','maxvalueZ','zeroIQ','zeroZ']
