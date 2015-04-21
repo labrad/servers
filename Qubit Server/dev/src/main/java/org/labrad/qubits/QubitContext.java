@@ -559,9 +559,12 @@ public class QubitContext extends AbstractServerContext {
           + "microwave quadratures.  The length of the data should "
           + "match the length of the current SRAM block.  "
           + "An optional boolean specifies whether the data "
-          + "should be deconvolved (default: true)."
-          + "If deconvolve=false, the data can be specified as DAC-ready"
-          + "I and Q integers.")
+          + "should be deconvolved (default: true).  "
+          + "If deconvolve=false, the data can be specified as DAC-ready "
+          + "I and Q integers. "
+          + "If zeroEnds is true (the default), then the first and last "
+          + "4 nanoseconds of the deconvolved sequence will be set to the "
+          + "deconvolved zero value, to ensure microwaves are turned off.")
   public void sram_iq_data(
       @Accepts({"s", "ss"}) Data id,
       @Accepts("*c") Data vals
@@ -605,7 +608,10 @@ public class QubitContext extends AbstractServerContext {
           + "The data is specified as a list of complex numbers, "
           + "with the real and imaginary parts giving the I and Q "
           + "microwave quadratures.  The length of the data should "
-          + "match the length of the current SRAM block.")
+          + "match the length of the current SRAM block.  "
+          + "If zeroEnds is true (the default), then the first and last "
+          + "4 nanoseconds of the deconvolved sequence will be set to the "
+          + "deconvolved zero value, to ensure microwaves are turned off.")
   public void sram_iq_data_fourier(
       @Accepts({"s", "ss"}) Data id,
       @Accepts("*c") Data vals,
@@ -636,9 +642,13 @@ public class QubitContext extends AbstractServerContext {
           + "\n\n"
           + "The length of the data should match the length of the "
           + "current SRAM block.  An optional boolean specifies "
-          + "whether the data should be deconvolved (default: true)."
+          + "whether the data should be deconvolved (default: true).  "
           + "If deconvolve=false, the data can be supplied as DAC-ready "
-          + "integers.")
+          + "integers.  "
+          + "If averageEnds is true (the default), then the first and last "
+          + "4 nanoseconds of the deconvolved sequence will be averaged and "
+          + "set to the same value, to ensure the DAC outputs a constant "
+          + "after the sequence is run.")
   public void sram_analog_data(
       @Accepts({"s", "ss"}) Data id,
       @Accepts("*v") Data vals
@@ -682,7 +692,11 @@ public class QubitContext extends AbstractServerContext {
           + "\n\n"
           + "Because this represents real data, we only need half as many samples.  "
           + "In particular, for a sequence of length n, the fourier data given "
-          + "here must have length n/2+1 (n even) or (n+1)/2 (n odd).")
+          + "here must have length n/2+1 (n even) or (n+1)/2 (n odd)."
+          + "If averageEnds is true (the default), then the first and last "
+          + "4 nanoseconds of the deconvolved sequence will be averaged and "
+          + "set to the same value, to ensure the DAC outputs a constant "
+          + "after the sequence is run.")
   public void sram_analog_fourier_data(
       @Accepts({"s", "ss"}) Data id,
       @Accepts("*c") Data vals,
