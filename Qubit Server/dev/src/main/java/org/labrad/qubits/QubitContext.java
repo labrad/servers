@@ -562,7 +562,7 @@ public class QubitContext extends AbstractServerContext {
           + "should be deconvolved (default: true).  "
           + "If deconvolve=false, the data can be specified as DAC-ready "
           + "I and Q integers. "
-          + "If zeroEnds is true (the default), then the first and last "
+          + "If zeroEnds=true (default: true), then the first and last "
           + "4 nanoseconds of the deconvolved sequence will be set to the "
           + "deconvolved zero value, to ensure microwaves are turned off.")
   public void sram_iq_data(
@@ -609,7 +609,7 @@ public class QubitContext extends AbstractServerContext {
           + "with the real and imaginary parts giving the I and Q "
           + "microwave quadratures.  The length of the data should "
           + "match the length of the current SRAM block.  "
-          + "If zeroEnds is true (the default), then the first and last "
+          + "If zeroEnds=true (default: true), then the first and last "
           + "4 nanoseconds of the deconvolved sequence will be set to the "
           + "deconvolved zero value, to ensure microwaves are turned off.")
   public void sram_iq_data_fourier(
@@ -645,10 +645,13 @@ public class QubitContext extends AbstractServerContext {
           + "whether the data should be deconvolved (default: true).  "
           + "If deconvolve=false, the data can be supplied as DAC-ready "
           + "integers.  "
-          + "If averageEnds is true (the default), then the first and last "
+          + "If averageEnds=true (default: true), then the first and last "
           + "4 nanoseconds of the deconvolved sequence will be averaged and "
           + "set to the same value, to ensure the DAC outputs a constant "
-          + "after the sequence is run.")
+          + "after the sequence is run.  "
+          + "If dither=true (default: false), then the deconvolved data "
+          + "will be dithered by adding random noise to reduce quantization "
+          + "noise (see http://en.wikipedia.org/wiki/Dither).")
   public void sram_analog_data(
       @Accepts({"s", "ss"}) Data id,
       @Accepts("*v") Data vals
@@ -670,10 +673,20 @@ public class QubitContext extends AbstractServerContext {
       boolean deconvolve,
       boolean averageEnds
   ) {
+    sram_analog_data(id, vals, deconvolve, averageEnds, false);
+  }
+  @SettingOverload
+  public void sram_analog_data(
+      @Accepts({"s", "ss"}) Data id,
+      @Accepts({"*v", "*i"}) Data vals,
+      boolean deconvolve,
+      boolean averageEnds,
+      boolean dither
+  ) {
     AnalogChannel ch = getChannel(id, AnalogChannel.class);
     if (vals.matchesType("*v")) {
       double[] arr = vals.getValueArray();
-      ch.addData(new AnalogDataTime(arr, !deconvolve, averageEnds));
+      ch.addData(new AnalogDataTime(arr, !deconvolve, averageEnds, dither));
     } else {
       Preconditions.checkArgument(!deconvolve, "Must not deconvolve if providing DAC'ified data.");
       int[] arr = vals.getIntArray();
@@ -693,10 +706,13 @@ public class QubitContext extends AbstractServerContext {
           + "Because this represents real data, we only need half as many samples.  "
           + "In particular, for a sequence of length n, the fourier data given "
           + "here must have length n/2+1 (n even) or (n+1)/2 (n odd)."
-          + "If averageEnds is true (the default), then the first and last "
+          + "If averageEnds=true (default: true), then the first and last "
           + "4 nanoseconds of the deconvolved sequence will be averaged and "
           + "set to the same value, to ensure the DAC outputs a constant "
-          + "after the sequence is run.")
+          + "after the sequence is run.  "
+          + "If dither=true (default: false), then the deconvolved data "
+          + "will be dithered by adding random noise to reduce quantization "
+          + "noise (see http://en.wikipedia.org/wiki/Dither).")
   public void sram_analog_fourier_data(
       @Accepts({"s", "ss"}) Data id,
       @Accepts("*c") Data vals,
@@ -711,9 +727,19 @@ public class QubitContext extends AbstractServerContext {
       @Accepts("v[ns]") double t0,
       boolean averageEnds
   ) {
+    sram_analog_fourier_data(id, vals, t0, averageEnds, false);
+  }
+  @SettingOverload
+  public void sram_analog_fourier_data(
+      @Accepts({"s", "ss"}) Data id,
+      @Accepts("*c") Data vals,
+      @Accepts("v[ns]") double t0,
+      boolean averageEnds,
+      boolean dither
+  ) {
     AnalogChannel ch = getChannel(id, AnalogChannel.class);
     ComplexArray c = ComplexArray.fromData(vals);
-    ch.addData(new AnalogDataFourier(c, t0, averageEnds));
+    ch.addData(new AnalogDataFourier(c, t0, averageEnds, dither));
     sramDirty = true;
   }
 

@@ -55,7 +55,7 @@ public class AnalogChannel extends SramChannelBase<AnalogData> {
       int len = fpga.getBlockLength(name);
       len = len % 2 == 0 ? len/2 + 1 : (len+1) / 2;
       double[] zeros = new double[len];
-      data = new AnalogDataFourier(new ComplexArray(zeros, zeros), 0, true);
+      data = new AnalogDataFourier(new ComplexArray(zeros, zeros), 0, true, false);
       data.setChannel(this);
       blocks.put(name, data);
     }

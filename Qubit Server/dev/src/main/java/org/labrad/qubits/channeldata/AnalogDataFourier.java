@@ -15,12 +15,14 @@ public class AnalogDataFourier extends AnalogDataBase {
   private ComplexArray data;
   private double t0;
   private boolean averageEnds;
+  private boolean dither;
   private int[] deconvolvedData;
 
-  public AnalogDataFourier(ComplexArray data, double t0, boolean averageEnds) {
+  public AnalogDataFourier(ComplexArray data, double t0, boolean averageEnds, boolean dither) {
     this.data = data;
     this.t0 = t0;
     this.averageEnds = averageEnds;
+    this.dither = dither;
   }
 
   public void checkLength(int expected) {
@@ -38,7 +40,8 @@ public class AnalogDataFourier extends AnalogDataBase {
         t0,
         ch.getSettlingRates(),
         ch.getSettlingTimes(),
-        averageEnds
+        averageEnds,
+        dither
     );
     return Futures.chain(req, new Function<int[], Void>() {
       @Override

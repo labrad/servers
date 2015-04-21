@@ -13,11 +13,13 @@ public class AnalogDataTime extends AnalogDataBase {
 
   private double[] rawData = null;
   private boolean averageEnds;
+  private boolean dither;
   private int[] deconvolvedData = null;
 
-  public AnalogDataTime(double[] data, boolean isDeconvolved, boolean averageEnds) {
+  public AnalogDataTime(double[] data, boolean isDeconvolved, boolean averageEnds, boolean dither) {
     this.rawData = data;
     this.averageEnds = averageEnds;
+    this.dither = dither;
     if (isDeconvolved) {
       int[] values = new int[data.length];
       for (int i = 0; i < data.length; i++) {
@@ -51,7 +53,8 @@ public class AnalogDataTime extends AnalogDataBase {
         rawData,
         ch.getSettlingRates(),
         ch.getSettlingTimes(),
-        averageEnds
+        averageEnds,
+        dither
     );
     return Futures.chain(req, new Function<int[], Void>() {
       @Override
