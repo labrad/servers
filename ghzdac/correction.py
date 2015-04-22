@@ -884,6 +884,8 @@ class DACcorrection:
 
         self.decayRates = np.array([])
         self.decayAmplitudes = np.array([])
+        self.reflectionRates = np.array([])
+        self.reflectionAmplitudes = np.array([])        
         self.precalc = np.array([])
 
 
@@ -986,12 +988,30 @@ class DACcorrection:
         rates = np.reshape(np.asarray(rates),s)
         amplitudes = np.reshape(np.asarray(amplitudes),s)
         if (not np.array_equal(self.decayRates,rates)) or (not np.array_equal(self.decayAmplitudes,amplitudes)):
-            print 'emptying precalc'
+            print 'emptying precalc (settling)'
             self.decayRates = rates
             self.decayAmplitudes = amplitudes
             self.precalc = np.array([])
         
-
+    def setReflection(self, rates, amplitudes):
+        """ Correct for reflections in the line.
+        Impulse response of a line reflection is H = (1-amplitude) / (1-amplitude * exp( -2i*pi*f/rate) )
+        All previously used time constants for the reflections will be replaced.
+        """
+        rates = np.asarray(rates)
+        amplitudes = np.asarray(amplitudes)
+        if np.shape(rates) != np.shape(amplitudes):
+            raise Error('arguments to setReflection must have same shape.')
+        s = np.size(rates)
+        rates = np.reshape(np.asarray(rates),s)
+        amplitudes = np.reshape(np.asarray(amplitudes),s)
+        if (not np.array_equal(self.reflectionRates,rates)) or (not np.array_equal(self.reflectionAmplitudes,amplitudes)):
+            print 'emptying precalc (reflection)'
+            self.reflectionRates = rates
+            self.reflectionAmplitudes = amplitudes
+            self.precalc = np.array([])
+        
+        
     def setFilter(self, lowpass=None, bandwidth=0.15):
         """
         Set the lowpass filter used for deconvolution.
@@ -1115,6 +1135,9 @@ class DACcorrection:
         decayRates = np.array([x['GHz'] for x in self.decayRates])
         decayAmplitudes = self.decayAmplitudes
 
+        reflectionRates = np.array([x['GHz'] for x in self.reflectionRates])
+        reflectionAmplitudes = self.reflectionAmplitudes        
+
         #read DAC zeros
         if zerocor:
             zero = self.zero
@@ -1170,10 +1193,17 @@ class DACcorrection:
                 #decay times:
                 # add to qubit registry the following keys:
                 # settlingAmplitudes=[-0.05]  #relative amplitude
-                # settlingRates = [0.012]    #rate is in GHz, (1/ns)
+                # settlingRates = [0.01]    #rate is in GHz, (1/ns)
                 if np.alen(decayRates):
-                    freqs = 2j*np.pi*freqs
-                    precalc /= (1.0 + np.sum(decayAmplitudes[:, None] * freqs[None, :] / (freqs[None, :] + decayRates[:, None]), axis=0))
+                    precalc /= (1.0 + np.sum(decayAmplitudes[:, None] * 2j*np.pi*freqs[None, :] / (2j*np.pi*freqs[None, :] + decayRates[:, None]), axis=0))
+
+                #reflections:
+                # add to qubit registry the following keys:
+                # reflectionAmplitudes=[0.05]  #relative amplitude
+                # reflectionRates = [0.01]    #rate is in GHz, (1/ns)
+                if np.alen(reflectionRates):
+                    for rate,amplitude in zip(reflectionRates,reflectionAmplitudes):
+                        precalc /= (1.0 - amplitude) / (1.0-amplitude*np.exp(-2j*np.pi*freqs/rate))
 
                 
                 #the correction window can have very large amplitudes, therefore the time domain signal can have large oscillations which will be truncated digitally, 
