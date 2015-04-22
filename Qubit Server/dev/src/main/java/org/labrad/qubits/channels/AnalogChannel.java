@@ -71,11 +71,13 @@ public class AnalogChannel extends SramChannelBase<AnalogData> {
   // Configuration
   //
 
-  double[] settlingRates, settlingAmplitudes;
+  double[] settlingRates, settlingAmplitudes, reflectionRates, reflectionAmplitudes;
 
   public void clearConfig() {
     settlingRates = new double[0];
     settlingAmplitudes = new double[0];
+    reflectionRates = new double[0];
+    reflectionAmplitudes = new double[0];
   }
 
   public void setSettling(double[] rates, double[] amplitudes) {
@@ -95,5 +97,24 @@ public class AnalogChannel extends SramChannelBase<AnalogData> {
 
   public double[] getSettlingTimes() {
     return Arrays.copyOf(settlingAmplitudes, settlingAmplitudes.length);
+  }
+
+  public void setReflection(double[] rates, double[] amplitudes) {
+    Preconditions.checkArgument(rates.length == amplitudes.length,
+            "%s: lists of reflection rates and amplitudes must be the same length", getName());
+    reflectionRates = rates;
+    reflectionAmplitudes = amplitudes;
+    // mark all blocks as needing to be deconvolved again
+    for (AnalogData block : blocks.values()) {
+      block.invalidate();
+    }
+  }
+
+  public double[] getReflectionRates() {
+    return reflectionRates;
+  }
+
+  public double[] getReflectionAmplitudes() {
+    return reflectionAmplitudes;
   }
 }

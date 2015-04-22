@@ -40,6 +40,8 @@ public class AnalogDataFourier extends AnalogDataBase {
         t0,
         ch.getSettlingRates(),
         ch.getSettlingTimes(),
+        ch.getReflectionRates(),
+        ch.getReflectionAmplitudes(),
         averageEnds,
         dither
     );

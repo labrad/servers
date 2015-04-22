@@ -53,6 +53,8 @@ public class AnalogDataTime extends AnalogDataBase {
         rawData,
         ch.getSettlingRates(),
         ch.getSettlingTimes(),
+        ch.getReflectionRates(),
+        ch.getReflectionAmplitudes(),
         averageEnds,
         dither
     );

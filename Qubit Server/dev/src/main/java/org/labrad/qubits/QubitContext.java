@@ -262,6 +262,17 @@ public class QubitContext extends AbstractServerContext {
     configDirty = true;
   }
 
+  @Setting(id = 231,
+          name = "Config Reflection",
+          doc = "Configure the deconvolution reflection rates and amplitudes for the given channel.")
+  public void config_reflection(@Accepts({"s", "ss"}) Data id,
+                                @Accepts("*v[GHz]") double[] rates,
+                                @Accepts("*v[]") double[] amplitudes) {
+    AnalogChannel ch = getChannel(id, AnalogChannel.class);
+    ch.setReflection(rates, amplitudes);
+    configDirty = true;
+  }
+
   @Setting(id = 240,
       name = "Config Timing Order",
       doc = "Configure the order in which timing results should be returned."

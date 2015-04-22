@@ -113,6 +113,7 @@ class CalibrationServer(LabradServer):
         c['Loop'] = False
         c['t0'] = 0
         c['Settling'] = ([], [])
+        c['Reflection'] = ([], [])        
         c['Filter'] = 0.2
         c['deconvIQ'] = self.serverSettings['deconvIQ']
         c['deconvZ'] = self.serverSettings['deconvZ']
@@ -334,6 +335,7 @@ class CalibrationServer(LabradServer):
 
         calset = yield self.getDACcalset(c)
         calset.setSettling(*c['Settling'])
+        calset.setReflection(*c['Reflection'])
         deconv = c['deconvZ']
         corrected = yield self.call_sync(calset.DACify, data,
                                                   loop=c['Loop'],
@@ -372,6 +374,7 @@ class CalibrationServer(LabradServer):
 
         calset = yield self.getDACcalset(c)
         calset.setSettling(*c['Settling'])
+        calset.setReflection(*c['Reflection'])
         calset.setFilter(bandwidth=c['Filter'])
         deconv = c['deconvZ']
         corrected = yield self.call_sync(calset.DACifyFT, data,
@@ -399,6 +402,14 @@ class CalibrationServer(LabradServer):
         All previously used time constants will be replaced.
         """
         c['Settling'] = (rates, amplitudes)
+
+    @setting(41, 'Set Reflection', rates=['*v[GHz]: reflection rates'], amplitudes=['*v: reflection amplitudes'])
+    def setreflection(self, c, rates, amplitudes):
+        """ Correct for reflections in the line.
+        Impulse response of a line reflection is H = (1-amplitude) / (1-amplitude * exp( -2i*pi*f/rate) )
+        All previously used time constants for the reflections will be replaced.
+        """
+        c['Reflection'] = (rates, amplitudes)
 
     @setting(45, 'Set Filter', bandwidth=['v[GHz]: bandwidth'])
     def setfilter(self, c, bandwidth):
