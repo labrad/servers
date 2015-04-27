@@ -740,55 +740,46 @@ class BoardGroup(object):
             results = yield readAll # wait for read to complete
             
             if getTimingData:
-                # print("fpga server: run: %s"%(timingOrder,))
                 answers = []
                 # Cache of already-parsed data from a particular board.
                 # Prevents un-flattening a packet more than once.
                 extractedData = {}
                 for dataChannelName in timingOrder:
-                    # If dataChannelName has a :: in it, it's an ADC with specified demod
-                    # channel
                     if "::" in dataChannelName:
+                        # If dataChannelName has :: in it, it's an ADC
+                        # with specified demod channel
                         boardName, channel = dataChannelName.split('::')
                         channel = int(channel)
                     elif 'DAC' in dataChannelName:
                         raise RuntimeError("DAC data readback not supported")
                     elif 'ADC' in dataChannelName:
+                        # ADC average mode
                         boardName = dataChannelName
                         channel = None
                     else:
                         raise RuntimeError('channel format not understood')
                     
-                    # If we have already parsed the packet for this board, fetch the
-                    # cached result.
                     if boardName in extractedData:
+                        # If we have already parsed the packet for this
+                        # board, fetch the cached result.
                         extracted = extractedData[boardName]
-                    # Otherwise, extract the data, cache it, and add the relevant part
-                    # to the list of returned data.
                     else:
+                        # Otherwise, extract data, cache it, and add
+                        # relevant part to the list of returned data
                         idx = boardOrder.index(boardName)
                         runner = runners[idx]
                         result = [data for src, dest, eth, data in results[idx]['read']]
-                        # print("fpga server: run: result is %s"%(result,))
                         # Array of all timing results (DAC)
                         extracted = runner.extract(result)
                         extractedData[boardName] = extracted
-                        
-                        # XXX I'm about to re-define extracted. This is ok
-                        # because it's a tuple and won't mutate the thing in the
-                        # cache, but it's bad and I should rename the variables.
-                        
-                        # XXX Ranges code needs to be updated. Next line obsolete.
-                        # runner.ranges = extracted[1]
-                        # Add extracted data to the list of data to be returned.
-                        # If this is an ADC demod channel, grab that channel's
-                        # data only
-                        # print("fpga_server: extracted: %s"%(extracted,))
-                        # print("fpga_server: extacted no pkt counters: %s"%(type(extracted),))
-                        # print("fpga_server: channel: %d"%(channel,))
+                    # Add extracted data to list of data to be returned
                     if channel != None:
-                        extracted = extracted[0][channel]
-                    answers.append(extracted)
+                        # If this is an ADC demod channel, grab that
+                        # channel's data only
+                        extractedChannel = extracted[0][channel]
+                    else:
+                        extractedChannel = extracted
+                    answers.append(extractedChannel)
                 returnValue(tuple(answers))
         finally:
             self.pipeSemaphore.release()
