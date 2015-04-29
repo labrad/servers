@@ -219,7 +219,6 @@ class DcRackWrapper(DeviceWrapper):
         except:
             raise Exception('Ident error')
 
-    @inlineCallbacks
     def returnCardList(self):
         returnList = []
         for key in self.rackCards.keys():
@@ -227,7 +226,7 @@ class DcRackWrapper(DeviceWrapper):
                 returnList.append([key, 'fastbias'])
             else:
                 returnList.append([key, 'preamp'])
-        returnValue(returnList)
+        return returnList
 
     @inlineCallbacks
     def preampState(self, cardNumber, channel):
@@ -352,7 +351,7 @@ class DcRackServer(DeviceServer):
     deviceName = 'DC Rack Server'
     name = 'DC Rack Server'
     deviceWrapper = DcRackWrapper
-	
+
     @inlineCallbacks
     def initServer(self):
         print 'loading config info...',

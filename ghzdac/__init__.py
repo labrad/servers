@@ -34,6 +34,7 @@ from correction import (DACcorrection, IQcorrection,
                         cosinefilter, gaussfilter, flatfilter)
 import keys
 import calibrate
+import logging
 
 
 def aequal(a, b):
@@ -70,7 +71,7 @@ def IQcorrector(fpganame, connection,
 
     if connection:
         cxn = connection
-        print "using received cxn: ", cxn
+        logging.debug("using received cxn: {}".format(cxn))
     else:
         cxn = labrad.connect()
 
@@ -80,10 +81,10 @@ def IQcorrector(fpganame, connection,
     # Load Zero Calibration
     if zerocor:
         datasets = getDataSets(cxn, fpganame, keys.ZERONAME, errorClass)
-        print datasets
+        logging.debug('datasets: {}'.format(datasets))
         for dataset in datasets:
             filename = ds.open(long(dataset))
-            print 'Loading zero calibration from %s:' % filename[1]
+            logging.debug('Loading zero calibration from: {}'.format(filename[1]))
             datapoints = ds.get()
             datapoints = np.array(datapoints)
             corrector.loadZeroCal(datapoints, dataset)
@@ -93,9 +94,9 @@ def IQcorrector(fpganame, connection,
         if dataset != []:
             dataset = dataset[0]
             filename = ds.open(long(dataset))
-            print 'Loading pulse calibration from %s:' % filename[1]
+            logging.debug('Loading pulse calibration from: {}'.format(filename[1]))
             setupType = ds.get_parameter(keys.IQWIRING)
-            print '  %s' % setupType
+            logging.info('setupType: {}'.format(setupType))
             IisB = (setupType == keys.SETUPTYPES[2])
             datapoints = ds.get()
             datapoints = np.array(datapoints)
@@ -106,7 +107,7 @@ def IQcorrector(fpganame, connection,
         datasets = getDataSets(cxn, fpganame, keys.IQNAME, errorClass)
         for dataset in datasets:
             filename = ds.open(long(dataset))
-            print 'Loading sideband calibration from %s:' % filename[1]
+            logging.debug('Loading sideband calibration from: {}'.format(filename[1]))
             sidebandStep = \
                 (ds.get_parameter('Sideband frequency step'))['GHz']
             sidebandCount = \
@@ -142,8 +143,9 @@ def DACcorrector(fpganame, channel, connection=None,
 
     dataset = getDataSets(cxn, fpganame, channel, errorClass)
     if dataset != []:
+        logging.debug("Dataset - fpganame: {} channel: {}".format(fpganame, channel))
         dataset = dataset[0]
-        print 'Loading pulse calibration from %s.' % dataset
+        logging.debug("Loading pulse calibration from: {}".format(dataset))
         ds.open(dataset)
         datapoints = ds.get()
         datapoints = np.array(datapoints)
@@ -166,8 +168,8 @@ def recalibrate(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
     if corrector is None:
         corrector = IQcorrector(boardname, cxn)
     if corrector.board != boardname:
-        print 'Provided corrector is not for %s.' % boardname
-        print 'Loading new corrector. Provided corrector will not be updated.'
+        logging.info('Provided corrector is not for: {}'.format(boardname))
+        logging.info('Loading new corrector. Provided corrector will not be updated.')
         corrector = IQcorrector(boardname, cxn)
 
     if zeroCarrierStep is not None:
@@ -175,8 +177,8 @@ def recalibrate(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
         # or if we have to load a new one.
         if not aequal(corrector.zeroCalFiles,
                       (getDataSets(cxn, boardname, keys.ZERONAME, 'quiet'))):
-            print 'Provided correcetor is outdated.'
-            print 'Loading new corrector. Provided corrector will not be updated.'
+            logging.info('Provided corrector is outdated.')
+            logging.info('Loading new corrector. Provided corrector will not be updated.')
             corrector = IQcorrector(boardname, cxn)
 
         # do the zero calibration
@@ -201,8 +203,8 @@ def recalibrate(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
                        (getDataSets(cxn, boardname, keys.IQNAME, 'quiet'))) and \
                         aequal(array([corrector.pulseCalFile]),
                                (getDataSets(cxn, boardname, keys.PULSENAME, 'quiet')))):
-            print 'Provided correcetor is outdated.'
-            print 'Loading new corrector. Provided corrector will not be updated.'
+            logging.info('Provided correcetor is outdated.')
+            logging.info('Loading new corrector. Provided corrector will not be updated.')
             corrector = IQcorrector(boardname, cxn)
 
         # do the pulse calibration

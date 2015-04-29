@@ -40,6 +40,8 @@ SCOPECHANNEL = 2
 SCOPECHANNEL_infiniium = 1
 TRIGGERCHANNEL_infiniium = 2
 
+SEQUENCE_LENGTH = 64
+
 
 def assertSpecAnalLock(server, device):
     p = server.packet()
@@ -96,9 +98,10 @@ def makeSample(a,b):
      
 def measurePower(spec,fpga,a,b):
     """returns signal power from the spectrum analyzer"""
-    dac = [makeSample(a,b)]*64
+    dac = [makeSample(a,b)] * SEQUENCE_LENGTH
     dac[0] |= trigger
-    fpga.dac_run_sram(dac,True)
+    # fpga.dac_run_sram(dac,True)
+    fpga.dac_write_sram(dac)
     return ((signalPower(spec)))
 
 
@@ -145,6 +148,7 @@ def zero(anr, spec, fpga, freq):
     precision = 0x800
     print '    calibrating at %g GHz...' % freq
     while precision > 0:
+        fpga.dac_run_sram([0] * SEQUENCE_LENGTH,  True)
         al = measurePower(spec, fpga, a-precision, b)
         ar = measurePower(spec, fpga, a+precision, b)
         ac = measurePower(spec, fpga, a, b)
@@ -327,7 +331,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB, use_switch=True):
     uwaveSourcePower = reg.get(keys.ANRITSUPOWER)
     carrierFreq = reg.get(keys.PULSECARRIERFREQ)
     sens = reg.get(keys.SCOPESENSITIVITY)
-    offs = reg.get(keys.SCOPEOFFSET, Value(0,'mV'))
+    offs = reg.get(keys.SCOPEOFFSET, True, Value(0, 'mV'))
     if use_switch:
         switch.switch(boardname) #Hack to select the correct microwave switch
         switch.switch(0)
@@ -436,6 +440,7 @@ def calibrateDCPulse(cxn,boardname,channel):
     #Set up the scope
     scope = cxn.sampling_scope
     scopeID = reg.get(keys.SCOPEID)
+    print "scopeID:", scopeID
     p = scope.packet().\
     select_device(scopeID).\
     reset().\
@@ -562,10 +567,11 @@ def measureOppositeSideband(spec, fpga, corrector,
 
     arg = -2.0j*np.pi*sidebandfreq*np.arange(PERIOD)
     signal = corrector.DACify(carrierfreq,
-                            0.5 * np.exp(arg) + 0.5 * compensation * np.exp(-arg), \
+                            0.5 * np.exp(arg) + 0.5 * compensation * np.exp(-arg),
                             loop=True, iqcor=False, rescale=True)
-    signal[0] = signal[0] | trigger
-    fpga.dac_run_sram(signal,True)
+    for i in range(4):
+        signal[i] |= trigger
+    fpga.dac_run_sram(signal, True)
     return ((signalPower(spec)) / corrector.last_rescale_factor)
 
  
@@ -586,6 +592,7 @@ def sideband(anr, spect, fpga, corrector, carrierfreq, sidebandfreq):
     precision = 1.0
     spectFreq(spect,carrierfreq-sidebandfreq)
     while precision > 2.0**-14:
+        fpga.dac_run_sram(np.array([0] * PERIOD, dtype='<u4'), True)
         lR = measureOppositeSideband(spect, fpga, corrector, carrierfreq,
                                            sidebandfreq, comp - precision)
         rR = measureOppositeSideband(spect, fpga, corrector, carrierfreq,

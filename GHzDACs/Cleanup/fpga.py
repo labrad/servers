@@ -10,13 +10,14 @@ from servers.GHzDACs.util import LoggingPacket
 # A registry of FPGA board classes. The class for each build must be added to
 # this registry so that the fpga server knows what type of object to construct
 # for each detected hardware board.
-REGISTRY = {} #(Board type, build number) -> Class
+REGISTRY = {}  # (Board type, build number) -> Class
 
 
 # Safety factor for timeout estimates
 TIMEOUT_FACTOR = 10
 
 USE_LOGGING_PACKETS = False
+
 
 class FPGA(DeviceWrapper):
     """Manages communication with a single GHz FPGA board.
@@ -28,12 +29,12 @@ class FPGA(DeviceWrapper):
     @classmethod
     def macFor(cls, board):
         """Get MAC address for a board as a string"""
-        raise NotImplementedError
+        raise NotImplementedError()
     
     @classmethod
     def isMac(cls, mac):
         """Returns True if mac is this type of FPGA board"""
-        raise NotImplementedError
+        raise NotImplementedError()
     
     # Methods to get bytes to be written to register
     # None of these are implemented here and must be implemented in
@@ -43,12 +44,12 @@ class FPGA(DeviceWrapper):
     @classmethod
     def regPing(cls):
         """Returns a numpy array of register bytes to ping FPGA register"""
-        raise NotImplementedError
+        raise NotImplementedError()
     
     @classmethod
     def regPllQuery(cls):
         """Returns a numpy array of register bytes to query PLL status"""
-        raise NotImplementedError
+        raise NotImplementedError()
     
     @classmethod
     def regSerial(cls, bits):
@@ -56,12 +57,12 @@ class FPGA(DeviceWrapper):
         Returns a numpy array of register bytes to write to bits to the PLL
         using the serial interace
         """
-        raise NotImplementedError
+        raise NotImplementedError()
     
     @classmethod
     def regRun(cls):
         """Returns a numpy array of register bytes to run the board"""
-        raise NotImplementedError
+        raise NotImplementedError()
     
     # Methods to get bytes to write data to the board
     # Must be implemented in subclass
@@ -69,20 +70,20 @@ class FPGA(DeviceWrapper):
     @classmethod
     def pktWriteSram(cls, derp, data):
         """Get a numpy array of bytes to write one derp of SRAM data"""
-        raise NotImplementedError
+        raise NotImplementedError()
     
     # Life cycle methods
     # Must be implemented in subclass
     
     @inlineCallbacks
-    def connect():
+    def connect(*args, **kwargs):
         """Set up connection to this board"""
-        raise NotImplementedError
+        raise NotImplementedError()
     
     @inlineCallbacks
-    def shutdown():
+    def shutdown(*args, **kwargs):
         """Close connection with this board"""
-        raise NotImplementedError
+        raise NotImplementedError()
     
     # Direct ethernet packet creation methods.
     # These probably do not need to be overridden in subclasses.
@@ -100,8 +101,7 @@ class FPGA(DeviceWrapper):
         makePacket = makeLoggingPacket
     else:
         makePacket = _makePacket
-        
-    
+
     def collect(self, nPackets, timeout, triggerCtx=None):
         """
         Create a direct ethernet server request to collect data on the FPGA.
@@ -184,7 +184,7 @@ class FPGA(DeviceWrapper):
     
     def _runSerial(self):
         """Send data to serial interface"""
-        raise NotImplementedError
+        raise NotImplementedError()
     
     # Externally available board interaction functions.
     # These run in test mode.
@@ -218,14 +218,14 @@ class FPGA(DeviceWrapper):
     
     def initPLL(self):
         """Initialize PLL chip"""
-        raise NotImplementedError
+        raise NotImplementedError()
     
     # Utility methods
     
     @classmethod
     def processReadback(cls, resp):
         """Interpret byte string returned by register readback"""
-        raise NotImplementedError
+        raise NotImplementedError()
     
     def testMode(self, func, *a, **kw):
         """
@@ -235,4 +235,3 @@ class FPGA(DeviceWrapper):
         eg. data taking, are halted until the test operation completes.
         """
         return self.boardGroup.testMode(func, *a, **kw)
-
