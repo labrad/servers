@@ -927,6 +927,18 @@ class DAC_Build8(DAC_Build7):
 
 fpga.REGISTRY[('DAC', 8)] = DAC_Build8
 
+
+class DacRunner_Build12(DacRunner_Build8):
+    pass
+
+
+class DAC_Build12(DAC_Build8):
+    pass
+
+
+fpga.REGISTRY[('DAC', 12)] = DAC_Build12
+
+
 ### classes below this line are NOT properly implemented!!!
 
 class DacRunner_Build11(DacRunner_Build7):
