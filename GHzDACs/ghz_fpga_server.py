@@ -177,7 +177,7 @@ cmdTime_cycles does not properly estimate sram length
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 4.0.2
+version = 4.0.3
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -1454,6 +1454,8 @@ class FPGAServer(DeviceServer):
                       runner.runMode == 'demodulate' and \
                       runner.dev.devName in timingOrder:
                         c[runner.dev]['ranges'] = runner.ranges
+                if ans is not None:
+                    ans = np.asarray(ans)
                 returnValue(ans)
             except TimeoutError, err:
                 # log attempt to stdout and file
