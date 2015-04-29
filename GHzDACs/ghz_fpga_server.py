@@ -195,6 +195,9 @@ import os
 import itertools
 import struct
 import time
+import logging
+logging.basicConfig(level=logging.WARNING)
+
 def timeString():
     t = time.localtime()
     ts = '%s %s %s %s %s %s' %(t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour,
@@ -203,12 +206,6 @@ def timeString():
 
 import random
 
-from msvcrt import getch, kbhit
-def waitForkey():
-    while kbhit():
-        getch()
-    getch()
-
 import numpy as np
 
 from twisted.internet import defer
@@ -216,12 +213,17 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 
 from labrad import types as T
 import labrad.units as U
+from labrad.units import Unit, Value
 from labrad.devices import DeviceServer
 from labrad.server import setting
 
+# from .Cleanup import dac, adc, fpga
+# from . import jumpTable
+import servers.GHzDACs.Cleanup.fpga as fpga
 import servers.GHzDACs.Cleanup.dac as dac
 import servers.GHzDACs.Cleanup.adc as adc
-import servers.GHzDACs.Cleanup.fpga as fpga
+
+import jumpTable
 
 from util import TimedLock, LoggingPacket
 LOGGING_PACKET=False
@@ -405,8 +407,9 @@ class BoardGroup(object):
                     if src in macs:
                         devInfo = callback(src, data)
                         found.append(devInfo)
-                except T.Error:
-                    break # read timeout
+                except T.Error as e:
+                    logging.error("timeout exception: {}".format(str(e)))
+                    break  # read timeout
             returnValue(found)
         finally:
             # expire the detection context
@@ -520,7 +523,9 @@ class BoardGroup(object):
             if board in runnerInfo:
                 runner = runnerInfo[board]
                 slave = len(boards) > 0
+                # print "DAC {}, mode={}, page={}, delay={}, sync={}".format(board, slave, page, delay, sync)
                 regs = runner.runPacket(page, slave, delay, sync)
+                # print regs
                 boards.append((runner.dev, regs))
             elif len(boards):
                 # This board is after the master, but will not itself run, so
@@ -535,7 +540,6 @@ class BoardGroup(object):
                     pass
         boards = boards[1:] + boards[:1] # move master to the end
         runPkts = self.makeRunPackets(boards)
-        
         # collect and read (or discard) timing results
         seqTime = max(runner.seqTime for runner in runners)
         collectPkts = [runner.collectPacket(seqTime, self.ctx) \
@@ -599,6 +603,7 @@ class BoardGroup(object):
             pageLocks = self.pageLocks
         
         # prepare packets
+        logging.info('making packets')
         pkts = self.makePackets(runners, page, reps, timingOrder, sync)
         loadPkts, boardSetupPkts, runPkts, collectPkts, readPkts = pkts
         
@@ -607,13 +612,15 @@ class BoardGroup(object):
         # setupState is a set
         setupPkts.extend(pkt for pkt, state in boardSetupPkts)
         setupState.update(state for pkt, state in boardSetupPkts)
-        
+
         try:
             yield self.pipeSemaphore.acquire()
+            logging.info('pipe semaphore acquired')
             try:
                 # stage 1: load
                 for pageLock in pageLocks: # lock pages to be written
                     yield pageLock.acquire()
+                logging.info('page locks acquired')
                 # Send load packets. Do not wait for response.
                 # We already acquired the page lock, so sending data to
                 # SRAM and memory is kosher at this time
@@ -626,17 +633,18 @@ class BoardGroup(object):
                 try:
                     yield loadDone # wait until load is finished.
                     yield runNow # Wait for acquisition of the run lock.
-                    
+                    logging.info('run lock acquired')
                     # Set the number of triggers needed before we can actually
                     # run. We expect to get one trigger for each board that
                     # had to run and return data. This is the number of
                     # runners in the previous sequence.
+                    logging.info("num prev triggers: {}".format(self.prevTriggers))
                     waitPkt, runPkt, bothPkt = runPkts
                     waitPkt['nTriggers'] = self.prevTriggers
                     bothPkt['nTriggers'] = self.prevTriggers
                     # store the number of triggers for the next run
                     self.prevTriggers = len(runners)
-                    
+                    logging.info("num runners: {}".format(len(runners)))
                     # If the passed in setup state setupState, or the current
                     # actual setup state, self.setupState are empty, we need
                     # to set things up. Also if the desired setup state isn't
@@ -646,34 +654,43 @@ class BoardGroup(object):
                     needSetup = (not setupState) or (not self.setupState) or \
                                     (not (setupState <= self.setupState))
                     if needSetup:
+                        logging.info('needSetup = True')
                         # we require changes to the setup state so first, wait
                         # for triggers indicating that the previous run has
                         # collected.
                         # If this fails, something BAD happened!
                         r = yield waitPkt.send()
+                        logging.info("waitPkt sent")
                         try:
                             # Then set up
                             # print "fpga server: type(setupPkts): ",type(setupPkts)
                             # for idx, sp in enumerate(setupPkts):
-                                # print "type setupPkt[%d]: %s.  setupPkt: " % (idx, type(sp))
-                                # print str(sp)
-                                # for idx, rec in enumerate(sp._packet):
-                                    # print "record %d types: %s, %s, %s, %s" % (idx, type(rec[0]), type(rec[1]), type(rec[2]), type(rec[3]))
-                                    # print "record %d data %s,%s,%s,%s" % (idx, rec[0], rec[1], rec[2], rec[3])
+                            #     print "type setupPkt[%d]: %s.  setupPkt: " % (idx, type(sp))
+                            #     print str(sp)
+                            #     for idx, rec in enumerate(sp._packet):
+                            #         print "record %d types: %s, %s, %s, %s" % (idx, type(rec[0]), type(rec[1]), type(rec[2]), type(rec[3]))
+                            #         print "record %d data %s,%s,%s,%s" % (idx, rec[0], rec[1], rec[2], rec[3])
                             # print("fpga server: run: sending setup packets")
+                            logging.info("sending setupPkts...")
                             yield self.sendAll(setupPkts, 'Setup')
+                            logging.info("...setupPkts sent")
                             # print setupPkts
                             self.setupState = setupState
-                        except Exception:
+                        except Exception as e:
                             # if there was an error, clear setup state
+                            logging.info('catching setupPkts exception')
                             self.setupState = set()
-                            raise
+                            logging.error("Exception in setupPkts: %s" % str(e))
+                            raise e
                         # and finally run the sequence
+                        logging.info("sending runPkt...")
                         yield runPkt.send()
+                        logging.info("...runPkt sent")
                     else:
                         # if this fails, something BAD happened!
+                        logging.info('need setup = false')
                         r = yield bothPkt.send()
-                    
+
                     # Keep track of how long the packet waited before being
                     # able to run.
                     # XXX How does this work? Why is r['nTriggers'] the wait
@@ -682,14 +699,14 @@ class BoardGroup(object):
                     self.runWaitTimes.append(r['nTriggers']['s'])
                     if len(self.runWaitTimes) > 100:
                         self.runWaitTimes.pop(0)
-                    
+
                     yield self.readLock.acquire() # wait for our turn to read
-                    
+                    logging.info("read lock acquired")
                     # stage 3: collect
                     # Collect appropriate number of packets and then trigger
                     # the master context.
-                    collectAll = defer.DeferredList( \
-                        [p.send() for p in collectPkts], consumeErrors=True)
+                    collectAll = defer.DeferredList([p.send() for p in collectPkts], consumeErrors=True)
+                    logging.info("waiting for collect packets")
                 finally:
                     # by releasing the runLock, we allow the next sequence to
                     # send its run packet. if our collect fails due to a
@@ -714,12 +731,15 @@ class BoardGroup(object):
                     # to go as soon as our triggers are received, but only if
                     # that run command has been sent!
                     self.runLock.release()
+                    logging.info("run lock released")
                 # Wait for data to be collected.
                 results = yield collectAll
+                logging.info("results collected")
             finally:
                 for pageLock in pageLocks:
                     pageLock.release()
-            
+                logging.info("page lock released")
+
             # check for a timeout and recover if necessary
             if not all(success for success, result in results):
                 for success, result in results:
@@ -841,11 +861,10 @@ class BoardGroup(object):
                     count = runner.dev.\
                             processReadback(ans[0][3])['executionCounter']
                 elif isinstance(runner, adc.AdcRunner):
-                    count = runner.dev.processReadback(ans[0][3])\
-                                ['executionCounter']
+                    count = runner.dev.processReadback(ans[0][3])['executionCounter']
                 runner.executionCount = count
             except Exception as e:
-                print e
+                logging.error("Exception in recoverFromTimeout: {}".format(str(e)))
                 raise Exception('Recover from error failed')
             # Finally, clear the packet buffer and send trigger if this was a
             # failed board
@@ -1395,6 +1414,8 @@ class FPGAServer(DeviceServer):
             ADC boards must be either all in average mode or all in demodulate
             mode.
         """
+        logging.info("Run sequence")
+        logging.debug("Setup packets: " + str(setupPkts))
         # determine timing order
         if getTimingData:
             if c['timing_order'] is None:
@@ -1426,6 +1447,8 @@ class FPGAServer(DeviceServer):
             # run the selected device only (must be a DAC)
             devs = [self.selectedDAC(c)]
 
+        logging.info("You have {} devs".format(len(devs)))
+
         # check to make sure that all boards are in the same board group
         if len(set(dev.boardGroup for dev in devs)) > 1:
             raise Exception("Can only run multiboard sequence if all boards are in the same board group!")
@@ -1438,6 +1461,7 @@ class FPGAServer(DeviceServer):
         
         # build setup requests
         setupReqs = processSetupPackets(self.client, setupPkts)
+        logging.debug("Setup Reqs: " + str(setupReqs))
 
         # run the sequence, with possible retries if it fails
         retries = self.retries
@@ -1455,7 +1479,7 @@ class FPGAServer(DeviceServer):
                       runner.dev.devName in timingOrder:
                         c[runner.dev]['ranges'] = runner.ranges
                 returnValue(ans)
-            except TimeoutError, err:
+            except TimeoutError as err:
                 # log attempt to stdout and file
                 import os
                 userpath = os.path.expanduser('~')
@@ -1631,16 +1655,100 @@ class FPGAServer(DeviceServer):
         """
         if not len(data):
             return
-        
-        if loop:
-            # make sure data is at least 20 words long by repeating it
-            data *= (20-1)/len(data) + 1
-        else:
-            # Set data at least 20 words long by repeating first value
+
+        if len(data) < 20:
+            # pad out to 20 with zeros
+            d2 = np.zeros(20)
+            d2[0:len(data)] = data
+            data = d2
             data = list(data) + [data[0]] * (20-len(data))
-        
+
         dev = self.selectedDAC(c)
         yield dev.runSram(data, loop, blockDelay)
+
+    @setting(2081, 'DAC Write SRAM', data='*w')
+    def dac_write_sram(self, c, data):
+        """ Write the given data to SRAM.
+
+        Note that if your board is currently running, it will immediately start
+        playing the new SRAM, wherever it is, so use with caution.
+        """
+        dev = self.selectedDAC(c)
+        yield dev._sendSRAM(np.array(data, dtype='<u4').tostring())
+
+    @setting(1082, "Add Jump Table Entry", name='s', arg=['ww{IDLE}', 'www{JUMP}', 'w{NOP,END}', 'wwww{CYCLE}'])
+    def add_jt_entry(self, c, name, arg=None):
+        """ Add a new jump table entry.
+
+        Entry types are: IDLE, JUMP, NOP, END, CYCLE, CHECK, RAMP
+        (as of now, CHECK and RAMP are unimplemented)
+
+        The arguments vary depending on the command, see the JT docs for
+        details. Note that from addresses and to addresses are to be specified
+        in nanoseconds (though still in words). They will be divided by 4 to
+        convert to SRAM addresses.
+        """
+        dev = self.selectedDAC(c)
+        assert(isinstance(dev, dac.DAC_Build13))
+        d = c.setdefault(dev, {})
+        entries = d.setdefault('jt_entries', [])
+        if name == 'CHECK':
+            raise NotImplementedError("Check not implemented yet")
+        elif name == 'RAMP':
+            raise NotImplementedError("Ramp not implemented yet")
+        elif name == 'IDLE':
+            from_address_ns, idle_duration_ns = arg
+            from_address = from_address_ns // 4
+            if idle_duration_ns % 4 != 0:
+                raise ValueError("Idle duration must be divisible by four")
+            op = jumpTable.IDLE(idle_duration_ns//4)
+            entry = jumpTable.JumpEntry(from_address, 0, op)
+            entries.append(entry)
+        elif name == 'JUMP':
+            from_address_ns, to_address_ns, jt_idx = arg
+            from_address, to_address = from_address_ns//4, to_address_ns//4
+            op = jumpTable.JUMP(jt_idx)
+            entry = jumpTable.JumpEntry(from_address, to_address, op)
+            entries.append(entry)
+        elif name == 'CYCLE':
+            from_address_ns, to_address_ns, jt_idx, counter_idx = arg
+            from_address, to_address = from_address_ns//4, to_address_ns//4
+            if counter_idx >= dev.NUM_COUNTERS:
+                raise ValueError("Cannot specify counter > {0} (you said {1})".format(dev.NUM_COUNTERS, counter_idx))
+            entries.append(jumpTable.JumpEntry(from_address, to_address, jumpTable.CYCLE(counter_idx, jt_idx)))
+        elif name == 'NOP':
+            from_address = int(arg)//4
+            entries.append(jumpTable.JumpEntry(from_address, 0, jumpTable.NOP()))
+        elif name == 'END':
+            from_address = int(arg)//4
+            entries.append(jumpTable.JumpEntry(from_address, 0, jumpTable.END()))
+        else:
+            raise ValueError("'{}' is not a valid jump table command".format(name))
+
+    @setting(1083, "Clear Jump Table")
+    def clear_jt(self, c):
+        dev = self.selectedDAC(c)
+        d = c.setdefault(dev, {})
+        d['jt_entries'] = []
+        d['jt_counters'] = []
+
+    @setting(1084, "Set Jump Table Counters", counters='*w')
+    def set_jt_counters(self, c, counters):
+        dev = self.selectedDAC(c)
+        d = c.setdefault(dev, {})
+        # TODO: don't use isinstance. probably want something like dev.controller_type == 'JUMP TABLE'
+        assert(isinstance(dev, dac.DAC_Build13))
+        if len(counters) > dev.NUM_COUNTERS:
+            raise ValueError("More than {0} counters specified: '{1}'".format(dev.NUM_COUNTERS, counters))
+        d['jt_counters'] = counters
+
+    @setting(1085, "Loop Delay", delay='v[us]')
+    def loop_delay(self, c, delay):
+        """ Set the loop delay (delay between stats). Gets truncated to nearest integer microsecond.
+        """
+        dev = self.selectedDAC(c)
+        d = c.setdefault(dev, {})
+        d['loop_delay'] = int(delay['us'])
     
     @setting(1100, 'DAC I2C', data='*w', returns='*w')
     def dac_i2c(self, c, data):
@@ -1797,7 +1905,7 @@ class FPGAServer(DeviceServer):
         returnValue(signed)
 
     @setting(1221, 'DAC LVDS', chan='s', optimizeSD='b', data='w',
-                               returns='bwww(*w*b*b)w')
+                               returns='biii(*w*b*b)w')
     def dac_lvds(self, c, chan, optimizeSD=False, data=None):
         """
         Set or determine DAC LVDS phase shift and return y, z check data.
@@ -1855,8 +1963,46 @@ class FPGAServer(DeviceServer):
         cmd, shift = dac.DAC.getCommand({'A': (2, 0), 'B': (3, 14)}, chan)
         dev = self.selectedDAC(c)
         ans = yield dev.runBIST(cmd, shift, data)
-        returnValue(ans)
-    
+        # This is coming back with 64-bit ints, the coercing of which needs to be fixed in pylabrad
+        # for now we manually cast to 32-bit (long)
+        # See pylabrad github issue #43
+        returnValue((ans[0],
+                    [long(x) for x in ans[1]], [long(x) for x in ans[2]], [long(x) for x in ans[3]],
+                     ))
+
+    @setting(1301, 'DAC Bringup New', lvdsOptimize='b', lvdsSD='w', signed='b', targetFifo='w',
+             returns='*(bs)')
+    def dac_bringup(self, c, lvdsOptimize=False, lvdsSD=None, signed=True, targetFifo=None):
+        """
+
+        :param c:
+        :param lvdsOptimize:
+        :param lvdsSD:
+        :param signed:
+        :param targetFifo:
+        :return: list of (bool, string) tuples indicating success of each test
+        """
+        dev = self.selectedDAC(c)
+        yield dev.initPLL()
+        time.sleep(0.100)
+        yield dev.resetPLL()
+        results = []
+        for dac, cmd, shift in zip(['A', 'B'], (2, 3), (0, 14)):
+            ansDAC = [('dac', dac)]
+            #Initialize DAC
+            #See HardRegProgram.txt for byte sequence definition
+            pkt = [0x0024, 0x0004, 0x1603, 0x0500] if signed else \
+                  [0x0026, 0x0006, 0x1603, 0x0500]
+            yield dev.runSerial(cmd, pkt)
+            lvdsAns = yield dev.setLVDS(cmd, lvdsSD, lvdsOptimize)
+            results.append((lvdsAns[0], "setLVDS"))
+            fifoAns = yield dev.setFIFO(dac, cmd, targetFifo)
+            results.append((fifoAns[0], "setFIFO"))  # TODO: do we want to keep num. tries as a result?
+            bistData = np.random.random_integers(0, 0x3FFF, 1000)
+            bistAns = yield dev.runBIST(cmd, shift, bistData)
+            results.append((bistAns[0], "runBIST"))
+        returnValue(results)
+
     @setting(1300, 'DAC Bringup', lvdsOptimize='b', lvdsSD='w', signed='b',
              targetFifo='w',
              returns='*((ss)(sb)(sw)(sw)(sw)(s(*w*b*b))(sw)(sb)(sb)(si)(sw)(sw)(sb)(s(ww))(s(ww))(s(ww)))')
@@ -1900,6 +2046,24 @@ class FPGAServer(DeviceServer):
                 ansDAC.append((key,val))
             ans.append(tuple(ansDAC))
         returnValue(ans)
+
+    @setting(1313, 'DAC Serial', cmd='w', pkts='*w', returns='?')
+    def dac_serial(self, c, cmd, pkts):
+        dev = self.selectedDAC(c)
+        ans = yield dev.runSerial(cmd, pkts)
+        returnValue(ans)
+
+    @setting(1314, 'Print Context')
+    def print_context(self, c):
+        """ Prints the context to the server's stdout.
+        """
+        print c
+
+    @setting(1315, 'Clear Ethernet')
+    def clear_ethernet(self, c):
+        for dev in self.devices.values():
+            dev.clear().send()
+
     
     @setting(2500, 'ADC Recalibrate', returns='')
     def adc_recalibrate(self, c):
@@ -1919,6 +2083,7 @@ class FPGAServer(DeviceServer):
         """Specify monitor outputs. (ADC only)"""
         dev = self.selectedADC(c)
         info = c.setdefault(dev, {})
+        print "monitor outputs: ", mon0, mon1
         info['mon0'] = mon0
         info['mon1'] = mon1
         
@@ -2027,4 +2192,5 @@ __server__ = FPGAServer()
 
 if __name__ == '__main__':
     from labrad import util
+    logging.info("running server")
     util.runServer(__server__)
