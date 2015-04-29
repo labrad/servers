@@ -1,12 +1,11 @@
 package org.labrad.qubits.channels;
 
-import java.util.Map;
-
+import com.google.common.collect.Maps;
 import org.labrad.qubits.Experiment;
 import org.labrad.qubits.FpgaModelDac;
 import org.labrad.qubits.resources.DacBoard;
 
-import com.google.common.collect.Maps;
+import java.util.Map;
 
 public abstract class SramChannelBase<T> implements SramChannel {
 

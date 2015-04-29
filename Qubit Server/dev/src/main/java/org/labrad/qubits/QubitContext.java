@@ -1,38 +1,25 @@
 package org.labrad.qubits;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-
 import org.labrad.AbstractServerContext;
 import org.labrad.annotations.Accepts;
 import org.labrad.annotations.Returns;
 import org.labrad.annotations.Setting;
 import org.labrad.annotations.SettingOverload;
-import org.labrad.data.Context;
-import org.labrad.data.Data;
-import org.labrad.data.Record;
-import org.labrad.data.Request;
-import org.labrad.data.Setters;
+import org.labrad.data.*;
 import org.labrad.qubits.Experiment.TimingOrderItem;
-import org.labrad.qubits.channeldata.AnalogDataFourier;
-import org.labrad.qubits.channeldata.AnalogDataTime;
-import org.labrad.qubits.channeldata.IqDataFourier;
-import org.labrad.qubits.channeldata.IqDataTime;
-import org.labrad.qubits.channeldata.TriggerDataTime;
-import org.labrad.qubits.channels.AdcChannel;
-import org.labrad.qubits.channels.AnalogChannel;
-import org.labrad.qubits.channels.Channel;
-import org.labrad.qubits.channels.FastBiasChannel;
-import org.labrad.qubits.channels.IqChannel;
-import org.labrad.qubits.channels.PreampChannel;
-import org.labrad.qubits.channels.SramChannelBase;
-import org.labrad.qubits.channels.StartDelayChannel;
-import org.labrad.qubits.channels.TimingChannel;
-import org.labrad.qubits.channels.TriggerChannel;
+import org.labrad.qubits.channeldata.*;
+import org.labrad.qubits.channels.*;
 import org.labrad.qubits.config.MicrowaveSourceConfig;
 import org.labrad.qubits.config.MicrowaveSourceOffConfig;
 import org.labrad.qubits.config.SetupPacket;
@@ -47,12 +34,6 @@ import org.labrad.qubits.templates.ExperimentBuilder;
 import org.labrad.qubits.util.ComplexArray;
 import org.labrad.qubits.util.Failure;
 import org.labrad.qubits.util.Futures;
-
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ListMultimap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 
 
 public class QubitContext extends AbstractServerContext {
@@ -135,7 +116,6 @@ public class QubitContext extends AbstractServerContext {
 
   /**
    * Build a setup packet from a given set of records, using the predefined setup context
-   * @param data
    */
   private Data buildSetupPacket(String server, Data records) {
     return Data.clusterOf(
@@ -196,6 +176,7 @@ public class QubitContext extends AbstractServerContext {
     Resources rsrc = Resources.getCurrent();
     Experiment expt = ExperimentBuilder.fromData(template, rsrc).build();
     setExperiment(expt);
+    expt.clearControllers();
   }
 
 
@@ -401,7 +382,7 @@ public class QubitContext extends AbstractServerContext {
       name = "New Mem",
       doc = "Clear memory content in this context.")
   public void new_mem() {
-    getExperiment().clearMemory();
+    getExperiment().clearControllers();
     memDirty = true;
   }
 
@@ -439,7 +420,7 @@ public class QubitContext extends AbstractServerContext {
 
     // parse the commands and group them for each fpga
     for (Data cmd : commands) {
-      FastBiasChannel ch = getChannel(cmd.get(0), FastBiasChannel.class);
+      FastBiasFpgaChannel ch = getChannel(cmd.get(0), FastBiasFpgaChannel.class);
       BiasCommandType type = BiasCommandType.fromString(cmd.get(1).getString());
       double voltage = cmd.get(2).getValue();
       fpgas.put(ch.getFpgaModel(), FastBiasCommands.get(type, ch, voltage));
@@ -458,10 +439,10 @@ public class QubitContext extends AbstractServerContext {
   }
 
   @Setting(id = 321,
-    name = "Mem Delay Single",
-    doc = "Add a delay to a single channel.")
+      name = "Mem Delay Single",
+      doc = "Add a delay to a single channel.")
   public void mem_delay_single(@Accepts({"(s v[us])", "((ss) v[us])"}) Data command) {
-    FastBiasChannel ch = getChannel(command.get(0), FastBiasChannel.class);
+    FastBiasFpgaChannel ch = getChannel(command.get(0), FastBiasFpgaChannel.class);
     double delay_us = command.get(1).getValue();
     getExperiment().addSingleMemoryDelay(ch.getFpgaModel(), delay_us);
     memDirty = true;
@@ -518,6 +499,42 @@ public class QubitContext extends AbstractServerContext {
     getExperiment().addMemSyncDelay();
     memDirty = true;
   }
+
+  //
+  // DC Rack FastBias
+  //
+
+  @Setting(id = 365,
+          name = "Config Bias Voltage",
+          doc = "Set the bias for this fastBias card (controlled by the DC rack server, over serial)")
+  public void config_bias_voltage(@Accepts({"s", "ss"}) Data id, String dac, @Accepts("v[V]") double voltage) {
+    // TODO: create a mem_bias call if the channel is a FastBiasFpga channel.
+    FastBiasSerialChannel ch = getChannel(id, FastBiasSerialChannel.class);
+    ch.setDac(dac);
+    ch.setBias(voltage);
+  }
+
+  @Setting(id = 366,
+          name = "Config loop delay",
+          doc = "Set the delay between stats. This used to be called 'biasOperateSettling'.")
+  public void config_loop_delay(@Accepts("v[us]") double loop_delay) {
+    getExperiment().configLoopDelay(loop_delay);
+  }
+
+
+  //
+  // Jump Table
+  //
+
+  @Setting(id = 371,
+           name = "Jump Table Add Entry",
+           doc = "Add a jump table entry to a single board.")
+  public void jump_table_add_entry(String command_name,
+                                   @Accepts({"w{NOP,END}", "ww{IDLE}", "www{JUMP}", "wwww{CYCLE}"}) Data command_data) {
+    getExperiment().addJumpTableEntry(command_name, command_data);
+  }
+
+
   //
   // SRAM
   //
@@ -994,6 +1011,17 @@ public class QubitContext extends AbstractServerContext {
       }
     }
 
+    for (FastBiasSerialChannel ch : expt.getChannels(FastBiasSerialChannel.class)) {
+      System.out.println("channel " + ch.getName() + " hasSetupPacket: " + ch.hasSetupPacket());
+      if (ch.hasSetupPacket()) {
+        SetupPacket p = ch.getSetupPacket();
+        setupPackets.add(buildSetupPacket(Constants.DC_RACK_SERVER, p.getRecords()));
+        setupState.add(p.getState());
+      }
+    }
+
+
+    // System.out.println("starting deconv");
 
     //
     // deconvolve SRAM sequences
@@ -1009,7 +1037,7 @@ public class QubitContext extends AbstractServerContext {
       }
     }
     Futures.waitForAll(deconvolutions).get();
-
+    // System.out.println("deconv finished");
 
     //
     // build run packet
@@ -1022,29 +1050,22 @@ public class QubitContext extends AbstractServerContext {
     for (FpgaModelAdc fpga : expt.getAdcFpgas()) {
       runRequest.add("Select Device", Data.valueOf(fpga.getName()));
       fpga.addPackets(runRequest);
-      //AdcBaseConfig conf = fpga.getChannel().getConfig();
-      //Preconditions.checkState(conf != null, "ADC channel '%s' was not configured!", fpga.getChannel().getName());
-      //fpga.getChannel().getConfig().addPackets(runRequest);
     }
 
     // upload all memory and SRAM data
     for (FpgaModelDac fpga : expt.getDacFpgas()) {
-      runRequest.add("Select Device", Data.valueOf(fpga.getName()));
-      runRequest.add("Start Delay", Data.valueOf((long)fpga.getStartDelay()));	// new 5/4/11 - pomalley
-      runRequest.add("Memory", Data.valueOf(fpga.getMemory()));
-      if (fpga.hasDualBlockSram()) {
-        runRequest.add("SRAM dual block",
-            Data.valueOf(fpga.getSramDualBlock1()),
-            Data.valueOf(fpga.getSramDualBlock2()),
-            Data.valueOf(fpga.getSramDualBlockDelay()));
-      } else {
-        runRequest.add("SRAM", Data.valueOf(fpga.getSram()));
+      fpga.addPackets(runRequest);
+      // TODO: this feels like a hack. loop delay is per board in the fpga server, but global to the expt here.
+      if (getExperiment().isLoopDelayConfigured()) {
+        runRequest.add("Loop Delay", Data.valueOf(getExperiment().getLoopDelay(), "us"));
       }
     }
 
     // set up daisy chain and timing order
     runRequest.add("Daisy Chain", Data.listOf(expt.getFpgaNames(), Setters.stringSetter));
     runRequest.add("Timing Order", Data.listOf(expt.getTimingOrder(), Setters.stringSetter));
+
+    System.out.println(setupPackets);
 
     // run the sequence
     runIndex = runRequest.addRecord("Run Sequence",
@@ -1053,6 +1074,9 @@ public class QubitContext extends AbstractServerContext {
         Data.clusterOf(setupPackets),
         Data.listOf(setupState, Setters.stringSetter));
     nextRequest = runRequest;
+    /* for (Record r : runRequest.getRecords()) {
+      System.out.println(r.toString());
+    }*/
 
     // clear the dirty bits
     configDirty = false;
@@ -1079,6 +1103,7 @@ public class QubitContext extends AbstractServerContext {
     if (configDirty || memDirty || sramDirty) {
       build_sequence();
     }
+    // System.out.println("running sequence");
     nextRequest.getRecord(runIndex).getData().setWord(reps, 0);
     lastData = getConnection().sendAndWait(nextRequest).get(runIndex);
   }

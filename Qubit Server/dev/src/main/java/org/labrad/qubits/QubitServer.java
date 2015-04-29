@@ -43,7 +43,7 @@ import org.labrad.qubits.resources.Resources;
         + "Channels are identified either by a pair of strings "
         + "(<device name>, <channel name>), or a single string <device name> "
         + "if the device has only one channel of the type needed for the command."
-        + "\n\nVersion 0.5.1.")
+        + "\n\nVersion 0.6.0.")
 public class QubitServer extends AbstractServer {
 
   private Context wiringContext;
@@ -238,8 +238,8 @@ public class QubitServer extends AbstractServer {
 
   /**
    * Load the build properties for the ADC and DAC boards.
-   * @throws ExecutionException 
-   * @throws InterruptedException 
+   * @throws ExecutionException
+   * @throws InterruptedException
    */
   public void loadBuildProperties() {
     System.out.println("Load DAC/ADC build properties...");

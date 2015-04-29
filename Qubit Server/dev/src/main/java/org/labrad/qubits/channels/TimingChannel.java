@@ -12,7 +12,7 @@ import org.labrad.qubits.resources.DacBoard;
  * @author pomalley
  *
  */
-public interface TimingChannel extends Channel {
+public interface TimingChannel extends FpgaChannel {
   public DacBoard getDacBoard();
 
   public int getDemodChannel();

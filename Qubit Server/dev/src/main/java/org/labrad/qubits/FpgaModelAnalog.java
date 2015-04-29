@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
 
+import com.google.common.base.Preconditions;
+import org.labrad.data.Request;
 import org.labrad.qubits.channeldata.Deconvolvable;
 import org.labrad.qubits.channels.AnalogChannel;
 import org.labrad.qubits.enums.DacAnalogId;
@@ -84,4 +86,5 @@ public class FpgaModelAnalog extends FpgaModelDac {
   protected boolean hasSramChannel() {
     return !dacs.isEmpty();
   }
+
 }

@@ -76,11 +76,11 @@ public class PreampChannel implements FiberChannel, TimingChannel {
   }
 
   public void startTimer() {
-    fpga.startTimer();
+    fpga.getMemoryController().startTimer();
   }
 
   public void stopTimer() {
-    fpga.stopTimer();
+    fpga.getMemoryController().stopTimer();
   }
 
   // configuration
@@ -140,4 +140,13 @@ public class PreampChannel implements FiberChannel, TimingChannel {
     return -1;
   }
 
+  @Override
+  public DcRackFiberId getDcFiberId() {
+    return this.getPreampChannel();
+  }
+
+  @Override
+  public void setBiasChannel(DcRackFiberId channel) {
+    this.setPreampChannel(channel);
+  }
 }

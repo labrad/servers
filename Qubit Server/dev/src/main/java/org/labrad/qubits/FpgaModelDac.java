@@ -1,27 +1,27 @@
 package org.labrad.qubits;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
-
+import org.labrad.data.Data;
+import org.labrad.data.Request;
 import org.labrad.qubits.channels.TriggerChannel;
+import org.labrad.qubits.controller.FpgaController;
+import org.labrad.qubits.controller.JumpTableController;
+import org.labrad.qubits.controller.MemoryController;
 import org.labrad.qubits.enums.DacTriggerId;
-import org.labrad.qubits.mem.CallSramCommand;
-import org.labrad.qubits.mem.CallSramDualBlockCommand;
-import org.labrad.qubits.mem.DelayCommand;
-import org.labrad.qubits.mem.EndSequenceCommand;
-import org.labrad.qubits.mem.MemoryCommand;
-import org.labrad.qubits.mem.NoopCommand;
-import org.labrad.qubits.mem.StartTimerCommand;
-import org.labrad.qubits.mem.StopTimerCommand;
 import org.labrad.qubits.proxies.DeconvolutionProxy;
 import org.labrad.qubits.resources.DacBoard;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-
+/**
+ * Responsible for managing the relation between a DAC's channels and its experiment, as well as producing
+ * the actual packets to send to the FPGA server.
+ * Control of the DAC (by memory commands or the jump table) is delegated to the controller member variable.
+ */
 public abstract class FpgaModelDac implements FpgaModel {
 
   public final static double FREQUENCY = 25.0;  // MHz
@@ -30,13 +30,19 @@ public abstract class FpgaModelDac implements FpgaModel {
   public final static int START_DELAY_UNIT_NS = 4;
   private DacBoard dacBoard;
   protected Experiment expt;
+  protected FpgaController controller;
 
   private final Map<DacTriggerId, TriggerChannel> triggers = Maps.newEnumMap(DacTriggerId.class);
 
   public FpgaModelDac(DacBoard dacBoard, Experiment expt) {
     this.dacBoard = dacBoard;
     this.expt = expt;
-    clearMemory();
+    // TODO: figure this out intelligently (from the build properties?)
+    if (Integer.valueOf(dacBoard.getBuildNumber()) >= 13) {
+      this.controller = new JumpTableController(this);
+    } else {
+      this.controller = new MemoryController(this);
+    }
   }
 
   public String getName() {
@@ -51,9 +57,50 @@ public abstract class FpgaModelDac implements FpgaModel {
   public Experiment getExperiment() {
     return expt;
   }
-  //
-  // Start Delay - pomalley 5/4/2011
-  //
+
+  public void addPackets(Request runRequest) {
+    runRequest.add("Select Device", Data.valueOf(getName()));
+    runRequest.add("Start Delay", Data.valueOf((long)getStartDelay()));
+    controller.addPackets(runRequest);
+    // TODO: having the dual block stuff here is a bit ugly
+    if (controller.hasDualBlockSram()) {
+      MemoryController memController = getMemoryController();
+      runRequest.add("SRAM dual block",
+              Data.valueOf(getSramDualBlock1()),
+              Data.valueOf(getSramDualBlock2()),
+              Data.valueOf(memController.getSramDualBlockDelay()));
+    } else {
+      runRequest.add("SRAM", Data.valueOf(getSram()));
+    }
+  }
+
+  // Controller stuff
+  public MemoryController getMemoryController() {
+    try {
+      return (MemoryController)controller;
+    } catch (ClassCastException ex) {
+      throw new RuntimeException("Cannot assign memory commands to jump table board " + getName());
+    }
+  }
+
+  public JumpTableController getJumpTableController() {
+    try {
+      return (JumpTableController)controller;
+    } catch (ClassCastException ex) {
+      throw new RuntimeException("Cannot assign jump table commands to memory board " + getName());
+    }
+  }
+
+  public void clearController() {
+    controller.clear();
+  }
+  public double getSequenceLength_us() {
+    return controller.getSequenceLength_us();
+  }
+  public double getSequenceLengthPostSRAM_us() {
+    return controller.getSequenceLengthPostSRAM_us();
+  }
+
   private int startDelay = 0;
   public void setStartDelay(int startDelay) {
     this.startDelay = startDelay;
@@ -68,139 +115,6 @@ public abstract class FpgaModelDac implements FpgaModel {
 
   public void setTriggerChannel(DacTriggerId id, TriggerChannel ch) {
     triggers.put(id, ch);
-  }
-
-
-  //
-  // Memory
-  //
-
-  private final List<MemoryCommand> memory = Lists.newArrayList();
-  private int timerStartCount = 0;
-  private int timerStopCount = 0;
-  private boolean sramCalled = false;
-  private boolean sramCalledDualBlock = false;
-  private CallSramDualBlockCommand sramDualBlockCmd = null;
-  private Double sramDualBlockDelay = null;
-
-  public void clearMemory() {
-    memory.clear();
-    timerStartCount = 0;
-    timerStopCount = 0;
-    sramCalled = false;
-    sramCalledDualBlock = false;
-    sramDualBlockCmd = null;
-  }
-
-  public void addMemoryCommand(MemoryCommand cmd) {
-    memory.add(cmd);
-  }
-
-  public void addMemoryCommands(List<MemoryCommand> cmds) {
-    memory.addAll(cmds);
-  }
-
-  public void addMemoryNoop() {
-    addMemoryCommand(NoopCommand.getInstance());
-  }
-
-  public void addMemoryNoops(int n) {
-    for (int i = 0; i < n; i++) {
-      addMemoryCommand(NoopCommand.getInstance());
-    }
-  }
-
-  public void addMemoryDelay(double microseconds) {
-    int cycles = (int)microsecondsToClocks(microseconds);
-    int mem_size = this.memory.size();
-    if (mem_size > 0) {
-      MemoryCommand last_cmd = this.memory.get(this.memory.size()-1);
-      if (last_cmd instanceof DelayCommand) {
-        DelayCommand delay_cmd = (DelayCommand) last_cmd;
-        delay_cmd.setDelay(cycles + delay_cmd.getDelay());
-      } else {
-        addMemoryCommand(new DelayCommand(cycles));
-      }
-    } else {
-      addMemoryCommand(new DelayCommand(cycles));
-    }
-  }
-
-  @Override
-  public double getSequenceLength_us() {
-    double t_us = this.startDelay * START_DELAY_UNIT_NS / 1000.0;
-    for (MemoryCommand mem_cmd : this.memory) {
-      t_us += mem_cmd.getTime_us(this);
-    }
-    return t_us;
-  }
-
-  @Override
-  public double getSequenceLengthPostSRAM_us() {
-    double t_us=this.startDelay * START_DELAY_UNIT_NS / 1000.0;
-    boolean SRAMStarted = false;
-    for (MemoryCommand mem_cmd : this.memory) {
-      if ( (mem_cmd instanceof CallSramDualBlockCommand) || (mem_cmd instanceof CallSramCommand)) {
-        SRAMStarted = true;
-      }
-      if (SRAMStarted) {
-        t_us += mem_cmd.getTime_us(this);
-      }
-    }
-    return t_us;
-  }
-  // timer logic
-
-  /**
-   * Check whether the timer has been started at least once
-   * @return
-   */
-  public boolean isTimerStarted() {
-    return timerStartCount > 0;
-  }
-
-  /**
-   * Check whether the timer is currently running (has been started but not yet stopped)
-   * @return
-   */
-  public boolean isTimerRunning() {
-    return timerStartCount == timerStopCount + 1;
-  }
-
-  /**
-   * Check whether the timer is currently stopped
-   * @return
-   */
-  public boolean isTimerStopped() {
-    return timerStartCount == timerStopCount;
-  }
-
-  /**
-   * Check that the timer status of this board is ok, namely that the timer
-   * has been started at least once and stopped as many times as it has been
-   * started.  This ensures that all boards will be run properly.
-   */
-  public void checkTimerStatus() {
-    Preconditions.checkState(isTimerStarted(), "%s: timer not started", getName());
-    Preconditions.checkState(isTimerStopped(), "%s: timer not stopped", getName());
-  }
-
-  /**
-   * Issue a start timer command.  Will only succeed if the timer is currently stopped.
-   */
-  public void startTimer() {
-    Preconditions.checkState(isTimerStopped(), "%s: timer already started", getName());
-    addMemoryCommand(StartTimerCommand.getInstance());
-    timerStartCount++;
-  }
-
-  /**
-   * Issue a stop timer command.  Will only succeed if the timer is currently running.
-   */
-  public void stopTimer() {
-    Preconditions.checkState(isTimerRunning(), "%s: timer not started", getName());
-    addMemoryCommand(StopTimerCommand.getInstance());
-    timerStopCount++;
   }
 
   // Timing Data Conversions
@@ -225,93 +139,11 @@ public abstract class FpgaModelDac implements FpgaModel {
     return s / DAC_FREQUENCY_MHz;
   }
 
-  // SRAM calls
-
   //
   // SRAM
   //
+
   public abstract Future<Void> deconvolveSram(DeconvolutionProxy deconvolver);
-
-  public void callSramBlock(String blockName) {
-    Preconditions.checkState(!sramCalledDualBlock, "Cannot call SRAM and dual-block in the same sequence.");
-    addMemoryCommand(new CallSramCommand(blockName));
-    sramCalled = true;
-  }
-
-  public void callSramDualBlock(String block1, String block2) {
-    Preconditions.checkState(!sramCalled, "Cannot call SRAM and dual-block in the same sequence.");
-    Preconditions.checkState(!sramCalledDualBlock, "Only one dual-block SRAM call allowed per sequence.");
-    CallSramDualBlockCommand cmd = new CallSramDualBlockCommand(block1, block2, sramDualBlockDelay);
-    addMemoryCommand(cmd);
-    sramDualBlockCmd = cmd;
-    sramCalledDualBlock = true;
-  }
-
-  public void setSramDualBlockDelay(double delay_ns) {
-    sramDualBlockDelay = delay_ns;
-    if (sramCalledDualBlock) {
-      // need to update the already-created dual-block command
-      sramDualBlockCmd.setDelay(delay_ns);
-    }
-  }
-
-  public boolean hasDualBlockSram() {
-    return sramCalledDualBlock;
-  }
-
-
-
-  //
-  // bit sequences
-  //
-
-  /**
-   * Get the bits of the memory sequence for this board
-   */
-  public long[] getMemory() {
-    List<MemoryCommand> mem = Lists.newArrayList(memory);
-    // add initial noop and final mem commands
-    mem.add(0, NoopCommand.getInstance());
-    mem.add(EndSequenceCommand.getInstance());
-
-    // resolve addresses of all SRAM blocks
-    for (MemoryCommand c : mem) {
-      if (c instanceof CallSramCommand) {
-        CallSramCommand cmd = (CallSramCommand)c;
-        String block = cmd.getBlockName();
-        if (getBlockNames().contains(block)) {
-          cmd.setStartAddress(this.getBlockStartAddress(block));
-          cmd.setEndAddress(this.getBlockEndAddress(block));
-        } else {
-          // if this block wasn't defined for us, then it will be filled with zeros
-          cmd.setStartAddress(0);
-          cmd.setEndAddress(expt.getShortestSram());
-        }
-      }
-    }
-
-    // get bits for all memory commands
-    int len = 0;
-    List<long[]> memBits = Lists.newArrayList();
-    for (MemoryCommand cmd : mem) {
-      long[] bits = cmd.getBits();
-      memBits.add(bits);
-      len += bits.length;
-    }
-    // concatenate commands into one array
-    long[] bits = new long[len];
-    int pos = 0;
-    for (long[] cmdBits : memBits) {
-      System.arraycopy(cmdBits, 0, bits, pos, cmdBits.length);
-      pos += cmdBits.length;
-    }
-
-    // check that the total memory sequence is not too long
-    if (bits.length > this.dacBoard.getBuildProperties().get("SRAM_WRITE_PKT_LEN")) {
-      throw new RuntimeException("Memory sequence exceeds maximum length");
-    }
-    return bits;
-  }
 
   /**
    * Get the bits for the full SRAM sequence for this board.
@@ -366,7 +198,8 @@ public abstract class FpgaModelDac implements FpgaModel {
    * @return
    */
   public long[] getSramDualBlock1() {
-    Preconditions.checkState(sramCalledDualBlock, "Sequence does not have a dual-block SRAM call");
+    MemoryController memoryController = getMemoryController();
+    Preconditions.checkState(memoryController.hasDualBlockSram(), "Sequence does not have a dual-block SRAM call");
     if (!hasSramChannel()) {
       // return zeros in this case
       int len = Math.min(dacBoard.getBuildProperties().get("SRAM_LEN").intValue(), expt.getShortestSram());
@@ -374,7 +207,7 @@ public abstract class FpgaModelDac implements FpgaModel {
       Arrays.fill(sram, 0);
       return sram;
     } else {
-      return getSramBlock(sramDualBlockCmd.getBlockName1());
+      return getSramBlock(memoryController.getDualBlockName1());
     }
   }
 
@@ -383,7 +216,8 @@ public abstract class FpgaModelDac implements FpgaModel {
    * @return
    */
   public long[] getSramDualBlock2() {
-    Preconditions.checkState(sramCalledDualBlock, "Sequence does not have a dual-block SRAM call");
+    MemoryController memoryController = getMemoryController();
+    Preconditions.checkState(memoryController.hasDualBlockSram(), "Sequence does not have a dual-block SRAM call");
     if (!hasSramChannel()) {
       // return zeros in this case
       int len = Math.min(dacBoard.getBuildProperties().get("SRAM_LEN").intValue(), expt.getShortestSram());
@@ -391,17 +225,8 @@ public abstract class FpgaModelDac implements FpgaModel {
       Arrays.fill(sram, 0);
       return sram;
     } else {
-      return getSramBlock(sramDualBlockCmd.getBlockName2(), false); // no autotrigger on second block
+      return getSramBlock(memoryController.getDualBlockName2(), false); // no autotrigger on second block
     }
-  }
-
-  /**
-   * Get the delay between blocks in a dual-block SRAM call
-   * @return
-   */
-  public long getSramDualBlockDelay() {
-    Preconditions.checkState(sramCalledDualBlock, "Sequence does not have a dual-block SRAM call");
-    return (long)sramDualBlockCmd.getDelay();
   }
 
   /**
@@ -466,7 +291,7 @@ public abstract class FpgaModelDac implements FpgaModel {
         s[i] |= trigs[i] ? bit : 0;
       }
     }
-
+    
     // set autotrigger bits even if there is no defined trigger channel
     // TODO define dummy trigger channels, just like we do with Microwave and analog channels
     if (!foundAutoTrigger && autoTriggerId != null) {
@@ -506,6 +331,7 @@ public abstract class FpgaModelDac implements FpgaModel {
     Arrays.fill(newData, data.length, newData.length - 1, last); // repeat last value
     return newData;
   }
+  
 
 
   //
@@ -568,4 +394,5 @@ public abstract class FpgaModelDac implements FpgaModel {
     }
     throw new RuntimeException(String.format("Block '%s' not found", name));
   }
+
 }

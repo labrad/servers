@@ -5,7 +5,7 @@ package org.labrad.qubits.channels;
  * @author pomalley
  *
  */
-public interface StartDelayChannel extends Channel {
+public interface StartDelayChannel extends FpgaChannel {
   public void setStartDelay(int startDelay);
   public int getStartDelay();
 }
