@@ -1,0 +1,284 @@
+<html xmlns:t="http://twistedmatrix.com/ns/twisted.web.template/0.1">
+    <head t:render = "plot">
+        <script type="text/javascript" src="http://d3js.org/d3.v3.min.js"></script>
+        <meta name="viewport" content="width=device-width, initial-scale=1"/>
+        <link rel="stylesheet" href="http://code.jquery.com/mobile/1.4.2/jquery.mobile-1.4.2.min.css"/>
+        <script src="http://code.jquery.com/jquery-1.10.2.min.js"></script>
+        <script src="http://code.jquery.com/mobile/1.4.2/jquery.mobile-1.4.2.min.js"></script>
+        <script type="text/javascript">
+            <!--this sets up the variables for the plot-->
+            <!--to enable dynamic hardware accelerated zooming: http://blog.scottlogic.com/2014/09/19/d3-svg-chart-performance.html-->
+            <!--Combination of: http://jsfiddle.net/KSAbK/ and http://bl.ocks.org/mbostock/raw/4dc8736fb1ce9799c6d6/-->
+        $(document).ready(function() {
+                var data = <t:slot name = "data_ent"/>;
+                var data2 = <t:slot name = "data_ent2"/>;
+                var plot_extents = {<t:slot name = "plot_extents"/>};
+                var label = {x :"<t:slot name = "x_label"/>", y : "<t:slot name="y_label"/>"};
+                var arr_len = {<t:slot name = "plot_len_2D"/>};
+                var plot_type = <t:slot name = "plot_dim"/>;
+            var margin = {top: 20, right: 20, bottom: 50, left: 40},
+            width = 960 - margin.left - margin.right,
+            height = 500 - margin.top - margin.bottom;
+
+            var xScale = d3.scale.linear()
+                .domain([plot_extents.xMin,plot_extents.xMax])
+                .range([0, width]);
+
+            var yScale = d3.scale.linear()
+                .domain([plot_extents.yMin,plot_extents.yMax])
+                .range([height, 0]);
+
+            var xAxis = d3.svg.axis()
+                .scale(xScale)
+                .orient("bottom")
+                .tickSize(-height);
+
+            var yAxis = d3.svg.axis()
+                .scale(yScale)
+                .orient("left")
+                .ticks(5)
+                .tickSize(-width);
+
+            var line = d3.svg.line()
+                .x(function (d) {
+                return xScale(d[0]);
+            })
+                .y(function (d) {
+                return yScale(d[1]);
+            });
+
+
+            var zoom = d3.behavior.zoom()
+                .x(xScale)
+                .y(yScale)
+                //.scaleExtent([1, 10])
+                .on("zoom", zoomed);
+            //defines plot area
+            var svg = d3.select("#area1")
+                .append("svg:svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("svg:g")
+                .attr("transform", "translate(" + margin.left + "," + margin.top + ")")
+                .call(zoom);
+            //background rectangle
+            svg.append("rect")
+                .attr("width", width)
+                .attr("height", height);
+            //x-axis ticks and label
+            svg.append("g")
+                .attr("class", "x axis")
+                .attr("transform", "translate(0," + height + ")")
+                .call(xAxis);
+            svg.append("text")
+                .attr("transform", "translate(" + (width / 2) + " ," + (height + margin.bottom-10) + ")")
+                .style("text-anchor", "middle")
+                .text(label.x);
+            //y-axis ticks and label
+            svg.append("g")
+                .attr("class", "y axis")
+                .call(yAxis);
+            svg.append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("y",0 - margin.left)
+                .attr("x",0 - (height / 2))
+                .attr("dy", "1em")
+                .style("text-anchor", "middle")
+                .text(label.y);
+            // draw the graph object (from http://jsfiddle.net/KSAbK/)
+            // This keeps the data from exceeding the limits of the plot
+            var chartBody = svg.append("g")
+                .attr("clip-path", "url(#clip)");
+            var clip = svg.append("svg:clipPath")
+                .attr("id", "clip")
+                .append("svg:rect")
+                .attr("x", 0)
+                .attr("y", 0)
+                .attr("width", width)
+                .attr("height", height);
+
+            var rectGroup = chartBody.append("g")//group of rectangles defining pixels for 2D plots
+
+            function zoomed() {
+                //zooming and panning axes
+                svg.select(".x.axis").call(xAxis);
+                svg.select(".y.axis").call(yAxis);
+                //zooming and panning line plot
+                svg.selectAll(".line")
+                .attr("class", "line")
+                .attr("d", line);
+
+                svg.selectAll(".line2")
+                .attr("class", "line2")
+                .attr("d", line);
+                //For zooming and panning 2D plot (http://jsfiddle.net/jgab3103/e05qj4hy/)
+                rectGroup.selectAll("rect")
+                 .attr('class', 'rect')
+                .attr("x", function(d) {
+                                return xScale(xPixScale(d[0]));
+                })
+                .attr("y", function(d) {
+                                return yScale(yPixScale(d[1]+1));
+                })
+                 .attr('width', function(d) {
+                  return xScale(xPixScale(d[0] + 1 )) - xScale(xPixScale(d[0]));
+                })
+                .attr("height", function(d) {
+                      return - yScale(yPixScale(d[1] + 2 )) + yScale(yPixScale(d[1] + 1));
+                    })
+
+            }
+
+            function reset() {
+              svg.call(zoom
+                  .x(x.domain([-width / 2, width / 2]))
+                  .y(y.domain([-height / 2, height / 2]))
+                  .event);
+            }
+            if (plot_type == 1){
+                chartBody.append("svg:path")
+                .datum(data)
+                .attr("class", "line")
+                .attr("d", line);
+
+            chartBody.append("svg:path")
+                .datum(data2)
+                .attr("stroke","red")
+                .attr("fill","none")
+                .attr("class", "line2")
+                .attr("d", line);
+            }
+            if (plot_type == 2){
+                pixWidth = width/10
+                pixHeight = height/10
+                //xPixScale and xPixScale are linear mappings between array index coords and plot scale coords
+                var xPixScale = d3.scale.linear()
+                    .domain([0,arr_len.indep_len])
+                    .range([plot_extents.xMin,plot_extents.xMax]);
+
+                var yPixScale = d3.scale.linear()
+                    .domain([0,arr_len.dep_len])
+                    .range([plot_extents.yMin,plot_extents.yMax]);
+
+
+                var rects = rectGroup
+                    .selectAll("rect")
+                    .data(data)
+                    .enter()
+                    .append("rect")
+                    .attr("x", function(d) {
+                                    return xScale(xPixScale(d[0]));
+                    })
+                    .attr("y", function(d) {
+                                    return yScale(yPixScale(d[1]+1));
+                    })
+                    .style("fill",function(d) {
+                                    return d3.rgb(d[2] , d[3] , d[4]);
+                    })
+                    .attr('width', function(d) {
+                           return xScale(xPixScale(d[0] + 1 )) - xScale(xPixScale(d[0]));
+                    })
+                    .attr("height", function(d) {
+                           return -yScale(yPixScale(d[1] + 2 )) + yScale(yPixScale(d[1] + 1 ));
+                    })
+                    .attr("class","rect");
+            }
+        });
+        </script>
+        <!--The following set up the plot area and axes-->
+        <!--<script src="static/plot_setup.js"/>-->
+         <!--&lt;!&ndash;This plots the data, be it 2D or 1D&ndash;&gt;-->
+    </head>
+  <style>
+    <div t:render="plot_style"/>
+    body {
+      position: relative;
+      width: 960px;
+    }
+
+    rect {
+      fill: #ddd;
+    }
+    body {
+        font: 15px sans-serif;
+    }
+    .grid .tick {
+        stroke: lightgrey;
+        opacity: 0.7;
+    }
+    .grid path {
+        stroke-width: 0;
+    }
+    .axis path, .axis line {
+        fill: none;
+        stroke: #000;
+        shape-rendering: crispEdges;
+    }
+    .x.axis path {
+        display: none;
+    }
+    .line {
+        fill: none;
+        stroke: steelblue;
+        stroke-width: 1.5px;
+    }
+
+  </style>
+    <body>
+        <div data-role="page" id="pageone">
+  <div data-role="panel" id="navPanel">
+
+    <h2>Folder Navigation</h2>
+    <ul data-role="listview">
+      <li>...</li>
+      <li>Josh</li>
+      <li>Dan</li>
+      <li>Ted</li>
+    </ul>
+ </div>
+
+  <div data-role="panel" id="paramPanel">
+    <h2>Data Parameters</h2>
+    <table data-role="table">
+      <thead><tr>
+        <th>Item</th>
+        <th>Param</th>
+      </tr></thead>
+      <tbody><tr>
+        <td>Acq. Time</td>
+        <td>40 s</td>
+      </tr></tbody>
+    </table>
+  </div>
+
+  <div data-role="panel" id="memPanel">
+    <h2>Trace Memory</h2>
+      <ul data-role="listview">
+        <li>Amplifier Bandwidth<input type="checkbox" data-role="flipswitch" name="flip-checkbox-2" id="flip-checkbox-2" data-on-text="" data-off-text="" data-mini="true" data-wrapper-class="custom-label-flipswitch"/></li>
+      </ul>
+  </div>
+
+  <div data-role="header">
+    <h1>DataVault (Web)Browser Path = ['','Josh']</h1>
+    <div data-role="navbar">
+      <ul>
+        <li><a href="#navPanel" data-icon="arrow-r">Navigate Folders</a></li>
+        <li><a href="#paramPanel" data-icon ="info">Parameters</a></li>
+        <li><a href="#next" data-icon ="arrow-d">Next Data</a></li>
+        <li><a href="#prev" data-icon ="arrow-u">Prev. Data</a></li>
+        <li><a href="#memPanel" data-icon ="star">Trace Memory</a></li>
+
+      </ul>
+    </div>
+              <div id = "area1">
+        </div>
+  </div>
+
+
+  <div data-role="footer">
+    <h1>Page Footer</h1>
+  </div>
+</div>
+
+    </body>
+</html>
