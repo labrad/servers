@@ -141,6 +141,8 @@ class DAC(fpga.FPGA):
     # Master delay before SRAM to ensure synchronization
     MASTER_SRAM_DELAY = 2  # microseconds
 
+    HAS_JUMP_TABLE = False
+
     @classmethod
     def macFor(cls, board):
         """Get the MAC address of a DAC board as a string."""
@@ -510,6 +512,8 @@ class DAC_Build7(DAC):
     """
 
     RUNNER_CLASS = DacRunner_Build7
+
+    HAS_JUMP_TABLE = False
 
     MEM_LEN = 512
     MEM_PAGE_LEN = 256
@@ -1323,6 +1327,8 @@ fpga.REGISTRY[('DAC', 13)] = DAC_Build13
 
 class DAC_Build14(DAC_Build13):
     RUNNER_CLASS = DacRunner_Build13
+
+    HAS_JUMP_TABLE = True
 
     SRAM_LEN = 18432
     SRAM_WRITE_PKT_LEN = 256

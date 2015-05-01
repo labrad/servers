@@ -196,7 +196,11 @@ import itertools
 import struct
 import time
 import logging
-logging.basicConfig(level=logging.WARNING)
+# The logging level is set at the bottom of the file where the server starts.
+# To get additional info about what the server is doing (i.e. to see if it
+# gets to a certain part of run_sequence), change the logging level to
+# logging.INFO. To print the Direct Etherenet packets, set it to
+# logging.DEBUG.
 
 def timeString():
     t = time.localtime()
@@ -217,8 +221,6 @@ from labrad.units import Unit, Value
 from labrad.devices import DeviceServer
 from labrad.server import setting
 
-# from .Cleanup import dac, adc, fpga
-# from . import jumpTable
 import servers.GHzDACs.Cleanup.fpga as fpga
 import servers.GHzDACs.Cleanup.dac as dac
 import servers.GHzDACs.Cleanup.adc as adc
@@ -663,18 +665,9 @@ class BoardGroup(object):
                         logging.info("waitPkt sent")
                         try:
                             # Then set up
-                            # print "fpga server: type(setupPkts): ",type(setupPkts)
-                            # for idx, sp in enumerate(setupPkts):
-                            #     print "type setupPkt[%d]: %s.  setupPkt: " % (idx, type(sp))
-                            #     print str(sp)
-                            #     for idx, rec in enumerate(sp._packet):
-                            #         print "record %d types: %s, %s, %s, %s" % (idx, type(rec[0]), type(rec[1]), type(rec[2]), type(rec[3]))
-                            #         print "record %d data %s,%s,%s,%s" % (idx, rec[0], rec[1], rec[2], rec[3])
-                            # print("fpga server: run: sending setup packets")
                             logging.info("sending setupPkts...")
                             yield self.sendAll(setupPkts, 'Setup')
                             logging.info("...setupPkts sent")
-                            # print setupPkts
                             self.setupState = setupState
                         except Exception as e:
                             # if there was an error, clear setup state
@@ -1653,15 +1646,8 @@ class FPGAServer(DeviceServer):
         parameters specifies the number of microseconds to delay
         for a multiblock sequence.
         """
-        if not len(data):
-            return
-
         if len(data) < 20:
-            # pad out to 20 with zeros
-            d2 = np.zeros(20)
-            d2[0:len(data)] = data
-            data = d2
-            data = list(data) + [data[0]] * (20-len(data))
+            raise ValueError("Cannot play less than 20 ns of data.")
 
         dev = self.selectedDAC(c)
         yield dev.runSram(data, loop, blockDelay)
@@ -1689,7 +1675,7 @@ class FPGAServer(DeviceServer):
         convert to SRAM addresses.
         """
         dev = self.selectedDAC(c)
-        assert(isinstance(dev, dac.DAC_Build13))
+        assert dev.HAS_JUMP_TABLE, "device is not a jump table board: {}".format(dev)
         d = c.setdefault(dev, {})
         entries = d.setdefault('jt_entries', [])
         if name == 'CHECK':
@@ -1735,9 +1721,8 @@ class FPGAServer(DeviceServer):
     @setting(1084, "Set Jump Table Counters", counters='*w')
     def set_jt_counters(self, c, counters):
         dev = self.selectedDAC(c)
+        assert dev.HAS_JUMP_TABLE, "device is not a jump table board: {}".format(dev)
         d = c.setdefault(dev, {})
-        # TODO: don't use isinstance. probably want something like dev.controller_type == 'JUMP TABLE'
-        assert(isinstance(dev, dac.DAC_Build13))
         if len(counters) > dev.NUM_COUNTERS:
             raise ValueError("More than {0} counters specified: '{1}'".format(dev.NUM_COUNTERS, counters))
         d['jt_counters'] = counters
@@ -1747,6 +1732,7 @@ class FPGAServer(DeviceServer):
         """ Set the loop delay (delay between stats). Gets truncated to nearest integer microsecond.
         """
         dev = self.selectedDAC(c)
+        assert dev.HAS_JUMP_TABLE, "device is not a jump table board: {}".format(dev)
         d = c.setdefault(dev, {})
         d['loop_delay'] = int(delay['us'])
     
@@ -1966,9 +1952,10 @@ class FPGAServer(DeviceServer):
         # This is coming back with 64-bit ints, the coercing of which needs to be fixed in pylabrad
         # for now we manually cast to 32-bit (long)
         # See pylabrad github issue #43
-        returnValue((ans[0],
-                    [long(x) for x in ans[1]], [long(x) for x in ans[2]], [long(x) for x in ans[3]],
-                     ))
+
+        def coerce(xs):
+            return tuple(long(x) for x in xs)
+        returnValue((ans[0], coerce(ans[1]), coerce(ans[2]), coerce(ans[3])))
 
     @setting(1300, 'DAC Bringup', lvdsOptimize='b', lvdsSD='w', signed='b',
              targetFifo='w',
@@ -2020,14 +2007,14 @@ class FPGAServer(DeviceServer):
         ans = yield dev.runSerial(cmd, pkts)
         returnValue(ans)
 
-    @setting(1314, 'Print Context')
-    def print_context(self, c):
+    @setting(1000000, 'Debug Print Context')
+    def debug_print_context(self, c):
         """ Prints the context to the server's stdout.
         """
         print c
 
-    @setting(1315, 'Clear Ethernet')
-    def clear_ethernet(self, c):
+    @setting(1000001, 'Debug Clear Ethernet')
+    def debug_clear_ethernet(self, c):
         for dev in self.devices.values():
             dev.clear().send()
 
@@ -2158,6 +2145,7 @@ def processSetupPackets(cxn, setupPkts):
 __server__ = FPGAServer()
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.WARNING)
     from labrad import util
     logging.info("running server")
     util.runServer(__server__)
