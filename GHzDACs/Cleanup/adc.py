@@ -846,7 +846,7 @@ class ADC_Build7(ADC_Branch2):
     
     def buildRunner(self, reps, info):
         """Get a runner for this board"""
-        logging.info("building runner with setting keys: {}".format(str(info.keys())))
+        logging.info("building runner with setting keys: {}".format(info.keys()))
         runMode = info['runMode']
         startDelay = info['startDelay']
         channels = dict((i, info[i]) for i in range(self.DEMOD_CHANNELS) \
@@ -1014,7 +1014,7 @@ class ADC_Build7(ADC_Branch2):
             nPackets = int(np.ceil(totalReadouts/11.0))
             # print "Trying to read back %d packets with %d readouts" % (nPackets, totalReadouts)
             p.read(nPackets)
-            print "about to send ADC packet in rundemod"
+            logging.debug("about to send ADC packet in runDemod")
             ans = yield p.send() #Send the packet to the direct ethernet
             # server parse the packets out and return data. packets is a list
             # of 48-byte strings
