@@ -225,7 +225,7 @@ import servers.GHzDACs.Cleanup.fpga as fpga
 import servers.GHzDACs.Cleanup.dac as dac
 import servers.GHzDACs.Cleanup.adc as adc
 
-import jumpTable
+import jump_table
 
 from util import TimedLock, LoggingPacket
 LOGGING_PACKET=False
@@ -1702,27 +1702,27 @@ class FPGAServer(DeviceServer):
             from_address = from_address_ns // 4
             if idle_duration_ns % 4 != 0:
                 raise ValueError("Idle duration must be divisible by four")
-            op = jumpTable.IDLE(idle_duration_ns//4)
-            entry = jumpTable.JumpEntry(from_address, 0, op)
+            op = jump_table.IDLE(idle_duration_ns//4)
+            entry = jump_table.JumpEntry(from_address, 0, op)
             entries.append(entry)
         elif name == 'JUMP':
             from_address_ns, to_address_ns, jt_idx = arg
             from_address, to_address = from_address_ns//4, to_address_ns//4
-            op = jumpTable.JUMP(jt_idx)
-            entry = jumpTable.JumpEntry(from_address, to_address, op)
+            op = jump_table.JUMP(jt_idx)
+            entry = jump_table.JumpEntry(from_address, to_address, op)
             entries.append(entry)
         elif name == 'CYCLE':
             from_address_ns, to_address_ns, jt_idx, counter_idx = arg
             from_address, to_address = from_address_ns//4, to_address_ns//4
             if counter_idx >= dev.NUM_COUNTERS:
                 raise ValueError("Cannot specify counter > {0} (you said {1})".format(dev.NUM_COUNTERS, counter_idx))
-            entries.append(jumpTable.JumpEntry(from_address, to_address, jumpTable.CYCLE(counter_idx, jt_idx)))
+            entries.append(jump_table.JumpEntry(from_address, to_address, jump_table.CYCLE(counter_idx, jt_idx)))
         elif name == 'NOP':
             from_address = int(arg)//4
-            entries.append(jumpTable.JumpEntry(from_address, 0, jumpTable.NOP()))
+            entries.append(jump_table.JumpEntry(from_address, 0, jump_table.NOP()))
         elif name == 'END':
             from_address = int(arg)//4
-            entries.append(jumpTable.JumpEntry(from_address, 0, jumpTable.END()))
+            entries.append(jump_table.JumpEntry(from_address, 0, jump_table.END()))
         else:
             raise ValueError("'{}' is not a valid jump table command".format(name))
 

@@ -27,7 +27,7 @@ from labrad import types as T
 
 from servers.GHzDACs.util import littleEndian
 import servers.GHzDACs.Cleanup.fpga as fpga
-import servers.GHzDACs.jumpTable as jumpTable
+import servers.GHzDACs.jump_table as jump_table
 
 MONITOR_0 = 5
 MONITOR_1 = 10
@@ -1052,7 +1052,7 @@ class DacRunner_Build13(DacRunner_Build7):
         :type dev: DAC_Build13
         :param reps: number of times to run the board
         :param start_delay: start delay for this board
-        :param list[jumpTable.JumpEntry] jt_entries: list of jump table entries.
+        :param list[jump_table.JumpEntry] jt_entries: list of jump table entries.
         :param list[int] jt_counters: JT counters
         :param str sram: string data to be loaded to sram
         :return:
@@ -1062,7 +1062,7 @@ class DacRunner_Build13(DacRunner_Build7):
         self.start_delay = start_delay
         self.loop_delay = loop_delay
         # TODO: start address?
-        self.jump_table = jumpTable.JumpTable(start_addr=0, jumps=jt_entries, counters=jt_counters)
+        self.jump_table = jump_table.JumpTable(start_addr=0, jumps=jt_entries, counters=jt_counters)
         self.sram = sram
         self.nPackets = 0  # we don't expect any packets back
         self.seqTime = fpga.TIMEOUT_FACTOR * (100 * self.reps) * 10**-6 + 1  # TODO: what should we do here? issue #49
@@ -1233,7 +1233,7 @@ class DAC_Build13(DAC_Build7):
     def makeJumpTable(cls, jtObj, p):
         """
         TODO: do we even need this function?
-        :param jumpTable.JumpTable jtObj: jump table object
+        :param jump_table.JumpTable jtObj: jump table object
         :param p: packet to be added to
         :return: None
         """
@@ -1252,7 +1252,7 @@ class DAC_Build13(DAC_Build7):
         def func():
             yield self._runSerial(1, [0x1FC093, 0x1FC092, 0x100004, 0x000C11])
             yield self._sendSRAM(np.zeros(256*10, dtype='<u4').tostring())
-            jt = jumpTable.jt_run_sram(0, 256*9//4, False)
+            jt = jump_table.jt_run_sram(0, 256*9//4, False)
             yield self._sendJumpTable(jt)
             yield self._sendRegisters(self.regRunSimple())
 
@@ -1265,7 +1265,7 @@ class DAC_Build13(DAC_Build7):
             data = np.array(dataIn, dtype='<u4').tostring()
             yield self._sendSRAM(data)
             startAddr, endAddr = 0, len(dataIn) // 4
-            jt = jumpTable.jt_run_sram(startAddr, endAddr, loop)
+            jt = jump_table.jt_run_sram(startAddr, endAddr, loop)
             yield self._sendJumpTable(jt)
             yield self._sendRegisters(self.regRunSimple(), readback=True)
 
@@ -1285,7 +1285,7 @@ class DAC_Build13(DAC_Build7):
         def func():
             # do nothing run
             # yield self._sendSRAM(np.zeros(256, dtype='<u4').tostring())
-            # yield self._sendJumpTable(jumpTable.jt_run_sram(0, 100, loop=False))
+            # yield self._sendJumpTable(jump_table.jt_run_sram(0, 100, loop=False))
             # yield self._sendRegisters(self.regRunSimple(readback=False), readback=False)
 
             # serial run?
@@ -1300,7 +1300,7 @@ class DAC_Build13(DAC_Build7):
             # JT run
             startAddr = 0
             endAddr = len(data) // 4 // 4
-            jt = jumpTable.jt_run_sram(startAddr, endAddr, loop=False)
+            jt = jump_table.jt_run_sram(startAddr, endAddr, loop=False)
             yield self._sendJumpTable(jt)
             # print jt.pretty_string()
             yield self._sendRegisters(self.regRunSimple(readback=False), readback=False)
