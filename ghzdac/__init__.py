@@ -35,7 +35,6 @@ from correction import (DACcorrection, IQcorrection,
 import keys
 import calibrate
 import logging
-logging.basicConfig(level=logging.ERROR)
 
 
 def aequal(a, b):

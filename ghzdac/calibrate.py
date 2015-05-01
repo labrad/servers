@@ -41,7 +41,6 @@ SCOPECHANNEL_infiniium = 1
 TRIGGERCHANNEL_infiniium = 2
 
 SEQUENCE_LENGTH = 64
-MAX_LENGTH = 16384
 
 
 def assertSpecAnalLock(server, device):
@@ -572,7 +571,6 @@ def measureOppositeSideband(spec, fpga, corrector,
                             loop=True, iqcor=False, rescale=True)
     for i in range(4):
         signal[i] |= trigger
-    # fpga.dac_write_sram(signal)
     fpga.dac_run_sram(signal, True)
     return ((signalPower(spec)) / corrector.last_rescale_factor)
 
