@@ -1985,39 +1985,6 @@ class FPGAServer(DeviceServer):
                     [long(x) for x in ans[1]], [long(x) for x in ans[2]], [long(x) for x in ans[3]],
                      ))
 
-    @setting(1301, 'DAC Bringup New', lvdsOptimize='b', lvdsSD='w', signed='b', targetFifo='w',
-             returns='*(bs)')
-    def dac_bringup(self, c, lvdsOptimize=False, lvdsSD=None, signed=True, targetFifo=None):
-        """
-
-        :param c:
-        :param lvdsOptimize:
-        :param lvdsSD:
-        :param signed:
-        :param targetFifo:
-        :return: list of (bool, string) tuples indicating success of each test
-        """
-        dev = self.selectedDAC(c)
-        yield dev.initPLL()
-        time.sleep(0.100)
-        yield dev.resetPLL()
-        results = []
-        for dac, cmd, shift in zip(['A', 'B'], (2, 3), (0, 14)):
-            ansDAC = [('dac', dac)]
-            #Initialize DAC
-            #See HardRegProgram.txt for byte sequence definition
-            pkt = [0x0024, 0x0004, 0x1603, 0x0500] if signed else \
-                  [0x0026, 0x0006, 0x1603, 0x0500]
-            yield dev.runSerial(cmd, pkt)
-            lvdsAns = yield dev.setLVDS(cmd, lvdsSD, lvdsOptimize)
-            results.append((lvdsAns[0], "setLVDS"))
-            fifoAns = yield dev.setFIFO(dac, cmd, targetFifo)
-            results.append((fifoAns[0], "setFIFO"))  # TODO: do we want to keep num. tries as a result?
-            bistData = np.random.random_integers(0, 0x3FFF, 1000)
-            bistAns = yield dev.runBIST(cmd, shift, bistData)
-            results.append((bistAns[0], "runBIST"))
-        returnValue(results)
-
     @setting(1300, 'DAC Bringup', lvdsOptimize='b', lvdsSD='w', signed='b',
              targetFifo='w',
              returns='*((ss)(sb)(sw)(sw)(sw)(s(*w*b*b))(sw)(sb)(sb)(si)(sw)(sw)(sb)(s(ww))(s(ww))(s(ww)))')
