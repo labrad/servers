@@ -176,10 +176,10 @@ class FPGA(DeviceWrapper):
         p.write(regs.tostring())
         if readback:
             p.timeout(timeout)
-            p.read()
+            p.read(1)
         ans = yield p.send()
         if readback:
-            src, dst, eth, data = ans.read
+            src, dst, eth, data = ans.read[0]
             returnValue(data)
     
     def _runSerial(self):

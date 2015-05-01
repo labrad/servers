@@ -83,9 +83,9 @@ class FPGADevice(DeviceWrapper):
         # do we need to clear waiting packets first?
         p = self.server.packet()
         p.write(words2str(packet))
-        p.read()
+        p.read(1)
         ans = yield p.send(context=self.ctx)
-        src, dst, eth, data = ans.read
+        src, dst, eth, data = ans.read[0]
         if asWords:
             data = [ord(c) for c in data]
         returnValue(data)
@@ -293,8 +293,8 @@ class FPGAServer(DeviceServer):
             # get ID packets from all boards
             for i in xrange(256):
                 try:
-                    ans = yield de.read(context=ctx)
-                    src, dst, eth, data = ans
+                    ans = yield de.read(1, context=ctx)
+                    src, dst, eth, data = ans[0]
                     board, build = int(src[-2:], 16), ord(data[51])
                     if build != BUILD:
                         continue

@@ -401,7 +401,8 @@ class BoardGroup(object):
             found = []
             while (len(found) < len(macs)) and (time.time() - start < timeout):
                 try:
-                    src, dst, eth, data = yield self.server.read(context=ctx)
+                    ans = yield self.server.read(1, context=ctx)
+                    src, dst, eth, data = ans[0]
                     if src in macs:
                         devInfo = callback(src, data)
                         found.append(devInfo)
