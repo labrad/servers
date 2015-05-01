@@ -22,7 +22,7 @@ import numpy as np
 import pytest
 import mock
 import servers.GHzDACs.ghz_fpga_server as fpga
-import servers.GHzDACs.jumpTable as jumpTable
+import servers.GHzDACs.jump_table as jump_table
 from labrad.units import Value
 
 NUM_DACS = 3
@@ -66,9 +66,9 @@ class TestFPGAServer(object):
 
     def test_basic_run(self):
         sram_data = np.array(np.linspace(0, 0x3FFF, 256), dtype='<u4')
-        matching_jt = jumpTable.JumpTable(
+        matching_jt = jump_table.JumpTable(
             start_addr=0,
-            jumps=[jumpTable.JumpEntry(256//4, 0, jumpTable.END())],
+            jumps=[jump_table.JumpEntry(256//4, 0, jump_table.END())],
             counters=[0, 0, 0, 0]
         )
         matching_packet = np.fromstring(matching_jt.toString(), dtype='u1')
@@ -111,10 +111,10 @@ class TestFPGAServer(object):
         start_delays = [(NUM_DACS-i)*10 for i in range(NUM_DACS)]
         sram_data_1 = np.array(np.linspace(0, 0x3FFF, 512), dtype='<u4')
         sram_data_2 = np.array(np.ones_like(sram_data_1), dtype='<u4')
-        matching_jt = jumpTable.JumpTable(
+        matching_jt = jump_table.JumpTable(
             start_addr=0,
-            jumps=[jumpTable.JumpEntry(256//4, 0, jumpTable.IDLE(1000//4)),
-                   jumpTable.JumpEntry(512//4, 0, jumpTable.END())],
+            jumps=[jump_table.JumpEntry(256//4, 0, jump_table.IDLE(1000//4)),
+                   jump_table.JumpEntry(512//4, 0, jump_table.END())],
             counters=[0, 0, 0, 0]
         )
         matching_jt_packet = np.fromstring(matching_jt.toString(), dtype='u1')

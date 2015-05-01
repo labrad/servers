@@ -6,22 +6,22 @@ This is intended to test servers.GHzDACs.jumpTable.py
 
 import numpy as np
 import pytest
-import servers.GHzDACs.jumpTable as jumpTable
+import servers.GHzDACs.jump_table as jump_table
 
 
 def test_limits():
     with pytest.raises(ValueError):
-        jumpTable.JumpEntry(-1, 0, jumpTable.END())
+        jump_table.JumpEntry(-1, 0, jump_table.END())
     with pytest.raises(ValueError):
-        jumpTable.JumpEntry(9999, 0, jumpTable.END())
+        jump_table.JumpEntry(9999, 0, jump_table.END())
     with pytest.raises(ValueError):
-        jumpTable.JumpEntry(10, -1, jumpTable.END())
+        jump_table.JumpEntry(10, -1, jump_table.END())
     with pytest.raises(ValueError):
-        jumpTable.JumpEntry(10, 9999, jumpTable.END())
+        jump_table.JumpEntry(10, 9999, jump_table.END())
 
 
 def test_end():
-    end = jumpTable.JumpEntry(259, 0, jumpTable.END())
+    end = jump_table.JumpEntry(259, 0, jump_table.END())
     data = end.as_bytes()
     assert data[0] == data[1] == 1
     assert data[2] == data[3] == data[4] == data[5] == 0
@@ -30,7 +30,7 @@ def test_end():
 
 
 def test_nop():
-    nop = jumpTable.JumpEntry(259, 0, jumpTable.NOP())
+    nop = jump_table.JumpEntry(259, 0, jump_table.NOP())
     data = nop.as_bytes()
     assert data[0] == 2
     assert data[1] == 1
@@ -40,22 +40,22 @@ def test_nop():
 
 def test_idle():
     with pytest.raises(ValueError):
-        jumpTable.JumpEntry(64, 0, jumpTable.IDLE(0))
+        jump_table.JumpEntry(64, 0, jump_table.IDLE(0))
     with pytest.raises(ValueError):
-        jumpTable.JumpEntry(64, 0, jumpTable.IDLE(2 ** 15))
-    data = jumpTable.JumpEntry(64, 0, jumpTable.IDLE(64)).as_bytes()
+        jump_table.JumpEntry(64, 0, jump_table.IDLE(2 ** 15))
+    data = jump_table.JumpEntry(64, 0, jump_table.IDLE(64)).as_bytes()
     assert data[6] >> 1 == 63  # -1 for fpga offset
     assert data[7] == 0
 
 
 def test_cycle():
-    data = jumpTable.JumpEntry(64, 259, jumpTable.CYCLE(2, 1)).as_bytes()
+    data = jump_table.JumpEntry(64, 259, jump_table.CYCLE(2, 1)).as_bytes()
     assert data[7] == 1
     assert data[6] == 35
 
 
 def test_jump():
-    data = jumpTable.JumpEntry(64, 259, jumpTable.JUMP(2)).as_bytes()
+    data = jump_table.JumpEntry(64, 259, jump_table.JUMP(2)).as_bytes()
     assert data[3] == 3
     assert data[4] == 1
     assert data[5] == 0
@@ -74,9 +74,9 @@ def test_check():
 
 
 def test_table():
-    cycle = jumpTable.JumpEntry(64, 0, jumpTable.CYCLE(0, 1))
-    end = jumpTable.JumpEntry(80, 0, jumpTable.END())
-    jt = jumpTable.JumpTable(32, [cycle, end], [259, 0, 0, 0])
+    cycle = jump_table.JumpEntry(64, 0, jump_table.CYCLE(0, 1))
+    end = jump_table.JumpEntry(80, 0, jump_table.END())
+    jt = jump_table.JumpTable(32, [cycle, end], [259, 0, 0, 0])
     data = np.fromstring(jt.toString(), dtype='u1')
     # counters
     assert data[0] == 3
@@ -98,9 +98,9 @@ def test_jt_run_sram():
     dataIn = np.zeros(PERIOD)
     # yield self._sendSRAM(data)
     startAddr, endAddr = 0, len(dataIn) // 4
-    jt = jumpTable.jt_run_sram(startAddr, endAddr, loop=True)
+    jt = jump_table.jt_run_sram(startAddr, endAddr, loop=True)
     jt_packet = np.fromstring(jt.toString(), dtype='u1')
-    matching_jt = jumpTable.JumpTable(start_addr=0, jumps=[jumpTable.JumpEntry(PERIOD // 4, 0, jumpTable.JUMP(1))])
+    matching_jt = jump_table.JumpTable(start_addr=0, jumps=[jump_table.JumpEntry(PERIOD // 4, 0, jump_table.JUMP(1))])
     matching_jt_packet = np.fromstring(matching_jt.toString(), dtype='u1')
     assert np.array_equal(matching_jt_packet, jt_packet)
 
