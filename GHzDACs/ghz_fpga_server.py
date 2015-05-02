@@ -225,8 +225,6 @@ import servers.GHzDACs.Cleanup.fpga as fpga
 import servers.GHzDACs.Cleanup.dac as dac
 import servers.GHzDACs.Cleanup.adc as adc
 
-import jump_table
-
 from util import TimedLock, LoggingPacket
 LOGGING_PACKET=False
 
@@ -1677,8 +1675,8 @@ class FPGAServer(DeviceServer):
         dev = self.selectedDAC(c)
         yield dev._sendSRAM(np.array(data, dtype='<u4').tostring())
 
-    @setting(1082, "Add Jump Table Entry", name='s', arg=['ww{IDLE}', 'www{JUMP}', 'w{NOP,END}', 'wwww{CYCLE}'])
-    def add_jt_entry(self, c, name, arg=None):
+    @setting(1082, "Jump Table Add Entry", name='s', arg=['ww{IDLE}', 'www{JUMP}', 'w{NOP,END}', 'wwww{CYCLE}'])
+    def jump_table_add_entry(self, c, name, arg=None):
         """ Add a new jump table entry.
 
         Entry types are: IDLE, JUMP, NOP, END, CYCLE, CHECK, RAMP
@@ -1687,59 +1685,30 @@ class FPGAServer(DeviceServer):
         The arguments vary depending on the command, see the JT docs for
         details. Note that from addresses and to addresses are to be specified
         in nanoseconds (though still in words). They will be divided by 4 to
-        convert to SRAM addresses.
+        convert to SRAM addresses, and have offsets applied to account for
+        FPGA timings.
         """
         dev = self.selectedDAC(c)
         assert dev.HAS_JUMP_TABLE, "device is not a jump table board: {}".format(dev)
         d = c.setdefault(dev, {})
         entries = d.setdefault('jt_entries', [])
-        if name == 'CHECK':
-            raise NotImplementedError("Check not implemented yet")
-        elif name == 'RAMP':
-            raise NotImplementedError("Ramp not implemented yet")
-        elif name == 'IDLE':
-            from_address_ns, idle_duration_ns = arg
-            from_address = from_address_ns // 4
-            if idle_duration_ns % 4 != 0:
-                raise ValueError("Idle duration must be divisible by four")
-            op = jump_table.IDLE(idle_duration_ns//4)
-            entry = jump_table.JumpEntry(from_address, 0, op)
-            entries.append(entry)
-        elif name == 'JUMP':
-            from_address_ns, to_address_ns, jt_idx = arg
-            from_address, to_address = from_address_ns//4, to_address_ns//4
-            op = jump_table.JUMP(jt_idx)
-            entry = jump_table.JumpEntry(from_address, to_address, op)
-            entries.append(entry)
-        elif name == 'CYCLE':
-            from_address_ns, to_address_ns, jt_idx, counter_idx = arg
-            from_address, to_address = from_address_ns//4, to_address_ns//4
-            if counter_idx >= dev.NUM_COUNTERS:
-                raise ValueError("Cannot specify counter > {0} (you said {1})".format(dev.NUM_COUNTERS, counter_idx))
-            entries.append(jump_table.JumpEntry(from_address, to_address, jump_table.CYCLE(counter_idx, jt_idx)))
-        elif name == 'NOP':
-            from_address = int(arg)//4
-            entries.append(jump_table.JumpEntry(from_address, 0, jump_table.NOP()))
-        elif name == 'END':
-            from_address = int(arg)//4
-            entries.append(jump_table.JumpEntry(from_address, 0, jump_table.END()))
-        else:
-            raise ValueError("'{}' is not a valid jump table command".format(name))
+        # we always want a list of int, even if there's only one
+        if name == 'NOP' or name == 'END':
+            arg = [arg]
+        entries.append((name, arg))
 
-    @setting(1083, "Clear Jump Table")
-    def clear_jt(self, c):
+    @setting(1083, "Jump Table Clear")
+    def jump_table_clear(self, c):
         dev = self.selectedDAC(c)
         d = c.setdefault(dev, {})
         d['jt_entries'] = []
         d['jt_counters'] = []
 
-    @setting(1084, "Set Jump Table Counters", counters='*w')
-    def set_jt_counters(self, c, counters):
+    @setting(1084, "Jump Table Set Counters", counters='*w')
+    def jump_table_set_counters(self, c, counters):
         dev = self.selectedDAC(c)
         assert dev.HAS_JUMP_TABLE, "device is not a jump table board: {}".format(dev)
         d = c.setdefault(dev, {})
-        if len(counters) > dev.NUM_COUNTERS:
-            raise ValueError("More than {0} counters specified: '{1}'".format(dev.NUM_COUNTERS, counters))
         d['jt_counters'] = counters
 
     @setting(1085, "Loop Delay", delay='v[us]')
