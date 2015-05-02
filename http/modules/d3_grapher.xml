@@ -1,10 +1,10 @@
 <html xmlns:t="http://twistedmatrix.com/ns/twisted.web.template/0.1">
     <head t:render = "plot">
-        <script type="text/javascript" src="http://d3js.org/d3.v3.min.js"></script>
+        <script type="text/javascript" src="../static/d3.min.js"></script>
         <meta name="viewport" content="width=device-width, initial-scale=1"/>
-        <link rel="stylesheet" href="http://code.jquery.com/mobile/1.4.2/jquery.mobile-1.4.2.min.css"/>
-        <script src="http://code.jquery.com/jquery-1.10.2.min.js"></script>
-        <script src="http://code.jquery.com/mobile/1.4.2/jquery.mobile-1.4.2.min.js"></script>
+        <link rel="stylesheet" href="../static/jquery.mobile-1.4.5.min.css"/>
+        <script src="../static/jquery-1.11.2.min.js"></script>
+        <script src="../static/jquery.mobile-1.4.5.min.js"></script>
         <script type="text/javascript">
             <!--this sets up the variables for the plot-->
             <!--to enable dynamic hardware accelerated zooming: http://blog.scottlogic.com/2014/09/19/d3-svg-chart-performance.html-->
