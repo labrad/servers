@@ -1030,18 +1030,21 @@ class DAC_Build11(DAC_Build7):
 fpga.REGISTRY[('DAC', 11)] = DAC_Build11
 
 
-### Jump table
+# Jump table #
 
-class DacRunner_Build13(DacRunner_Build7):
+class DacRunner_Build15(DacRunner_Build7):
     # noinspection PyMissingConstructor
     def __init__(self, dev, reps, start_delay, jt_entries, jt_counters, sram, loop_delay):
-        """
+        """ Make a DAC runner for a given device.
 
-        :type dev: DAC_Build13
+        See DAC_Build15.make_jump_table for info on the jt_entries and
+        jt_counters arguments.
+
+        :param DAC_Build15 dev: the device
         :param reps: number of times to run the board
         :param start_delay: start delay for this board
-        :param list[jump_table.JumpEntry] jt_entries: list of jump table entries.
-        :param list[int] jt_counters: JT counters
+        :param list[(str, list[int])] jt_entries: JT entries
+        :param list[int] jt_counters: JT counter values, or None for all 0s
         :param str sram: string data to be loaded to sram
         :return:
         """
@@ -1049,8 +1052,8 @@ class DacRunner_Build13(DacRunner_Build7):
         self.reps = reps
         self.start_delay = start_delay
         self.loop_delay = loop_delay
-        # TODO: start address?
-        self.jump_table = jump_table.JumpTable(start_addr=0, jumps=jt_entries, counters=jt_counters)
+        self.jt_entries = jt_entries
+        self.jt_counters = jt_counters
         self.sram = sram
         self.nPackets = 0  # we don't expect any packets back
         self.seqTime = fpga.TIMEOUT_FACTOR * (100 * self.reps) * 10**-6 + 1  # TODO: what should we do here? issue #49
@@ -1068,7 +1071,9 @@ class DacRunner_Build13(DacRunner_Build7):
         if isMaster:
             # TODO: how can we add a delay to the JT?
             self.start_delay += MASTER_SRAM_DELAY
-        return self.dev.load(self.jump_table, self.sram)
+        jt = self.dev.make_jump_table(entries=self.jt_entries,
+                                      counters=self.jt_counters)
+        return self.dev.load(jt, self.sram)
 
     def runPacket(self, page, slave, delay, sync):
         """ Create run packet.
@@ -1085,17 +1090,130 @@ class DacRunner_Build13(DacRunner_Build7):
         return regs
 
 
-class DAC_Build13(DAC_Build7):
-    RUNNER_CLASS = DacRunner_Build13
+class DAC_Build15(DAC_Build8):
+    """ DAC Build 15 is the first (working) jump table build.
+
+    Note that when this DAC object builds jump tables, there are few offsets
+    that it always applies:
+
+    * Every from address has 2 subtracted to account for FPGA timing offsets.
+    * The END entry has an additional 1 subtracted.
+    * IDLE has one clock cycle subtracted from idle length as well.
+
+    A note about from addresses:
+
+    We subtract 2 from the from_addr passed into the JumpEntry. The reason for
+    this is that by convention we set the end address of an algorithm to the
+    length of the sequence. That is, if the SRAM is length 256 ns, then we set
+    the end address to 256//4 == 64. However, if we want to idle over the last
+    4 ns/jump after the last 4 ns/whatever, then we need to notice that those
+    4ns are from 252 - 255, i.e. address 63. So we set the from_address to 62,
+    because the actual fromAddress must be one less than the address you want,
+    due to FPGA offsets, per John's documentation. (In the case of END, it's
+    two less, and that's handled as well.)
+    """
+
+    HAS_JUMP_TABLE = True
+    RUNNER_CLASS = DacRunner_Build15
+
+    SRAM_LEN = 18432
+    SRAM_WRITE_PKT_LEN = 256
+    SRAM_WRITE_DERPS = SRAM_LEN // SRAM_WRITE_PKT_LEN
+
     JUMP_TABLE_LEN = 528
     NUM_COUNTERS = 4
+    COUNTER_BYTES = 4
+    IDLE_BITS = 15
+    JUMP_TABLE_ENTRY_BYTES = 8
+    JUMP_TABLE_COUNT = (JUMP_TABLE_LEN - (NUM_COUNTERS * COUNTER_BYTES)
+                        ) / JUMP_TABLE_ENTRY_BYTES
+    JT_FROM_ADDR_OFFSET = -2
+    JT_END_ADDR_OFFSET = JT_FROM_ADDR_OFFSET - 1
+    JT_IDLE_OFFSET = -1
+    JT_IDLE_MIN = 0 - JT_IDLE_OFFSET
+    JT_IDLE_MAX = 2**IDLE_BITS - 1 - JT_IDLE_OFFSET
+    JT_MIN_FROM_ADDR_SPACING = 2
+    JT_MIN_FROM_ADDR = JT_MIN_FROM_ADDR_SPACING - JT_FROM_ADDR_OFFSET
+    JT_MIN_END_ADDR = JT_MIN_FROM_ADDR_SPACING - JT_END_ADDR_OFFSET
+    JT_MIN_TO_ADDR = 0
+    JT_MAX_FROM_ADDR = SRAM_LEN // 4 + JT_FROM_ADDR_OFFSET
+    JT_MAX_END_ADDR = SRAM_LEN // 4 + JT_END_ADDR_OFFSET
+    JT_MAX_TO_ADDR = SRAM_LEN // 4
+
+    @classmethod
+    def convert_from_address(cls, x_ns):
+        """ Convert a from address from ns to SRAM index.
+
+        This also checks bounds and applies offsets.
+
+        :param int x_ns: from address in ns
+        :return: from address in SRAM units, corrected.
+        :rtype: int
+        """
+        if x_ns % 4 != 0:
+            raise ValueError("From address must be divisible by 4 ({} given)".format(x_ns))
+        if not(cls.JT_MIN_FROM_ADDR <= x_ns // 4 <= cls.JT_MAX_FROM_ADDR):
+            raise ValueError("From address must be {}<x<{}, ({} given)".format(
+                cls.JT_MIN_FROM_ADDR*4, cls.JT_MAX_FROM_ADDR*4, x_ns
+            ))
+        return x_ns // 4 + cls.JT_FROM_ADDR_OFFSET
+
+    @classmethod
+    def convert_to_address(cls, x_ns):
+        """ Convert a to address from ns to SRAM index.
+
+        This also checks bounds and applies offsets (there are currently no
+        offsets for to addresses).
+
+        :param int x_ns: to address in ns
+        :return: to address in SRAM units, corrected.
+        :rtype: int
+        """
+        if x_ns % 4 != 0:
+            raise ValueError("To address must be divisible by 4 ({} given)".format(x_ns))
+        if not(cls.JT_MIN_TO_ADDR <= x_ns // 4 <= cls.JT_MAX_TO_ADDR):
+            raise ValueError("To address must be {}<x<{}, ({} given)".format(
+                cls.JT_MIN_TO_ADDR*4, cls.JT_MAX_TO_ADDR*4, x_ns
+            ))
+        return x_ns // 4
+
+    @classmethod
+    def convert_end_address(cls, x_ns):
+        """ Convert a from address _for the END command_ from ns to SRAM index.
+
+        This also checks bounds and applies offsets.
+
+        :param int x_ns: from address (for the END command) in ns
+        :return: from address in SRAM units, corrected.
+        :rtype: int
+        """
+        if x_ns % 4 != 0:
+            raise ValueError("End address must be divisible by 4 ({} given)".format(x_ns))
+        if not(cls.JT_MIN_END_ADDR <= x_ns // 4 <= cls.JT_MAX_END_ADDR):
+            raise ValueError("End address must be {}<x<{}, ({} given)".format(
+                cls.JT_MIN_END_ADDR*4, cls.JT_MAX_END_ADDR*4, x_ns
+            ))
+        return x_ns // 4 + cls.JT_END_ADDR_OFFSET
+
+    @classmethod
+    def convert_idle_duration(cls, x_ns):
+        """ Convert an idle duration from ns to clock cycles.
+
+        This also checks bounds and applies offsets.
+
+        :param int x_ns: idle duration in ns
+        :return: idle duration in clock cycles, corrected
+        :rtype: int
+        """
+        if x_ns % 4 != 0:
+            raise ValueError("IDLE duration must be divisible by 4 ({} given)".format(x_ns))
+        if not(cls.JT_IDLE_MIN <= x_ns // 4 <= cls.JT_IDLE_MAX):
+            raise ValueError("Idle duration must be {}<x<{}, ({} given)".format(
+                cls.JT_IDLE_MIN*4, cls.JT_IDLE_MAX*4, x_ns
+            ))
+        return x_ns // 4 + cls.JT_IDLE_OFFSET
 
     def buildRunner(self, reps, info):
-        """
-        :param reps:
-        :param info:
-        :return:
-        """
         jt_entries = info['jt_entries']
         jt_counters = info['jt_counters']
         start_delay = info.get('startDelay', 0)
@@ -1210,22 +1328,117 @@ class DAC_Build13(DAC_Build7):
     # makeSram -- OK
 
     def load(self, jt, sram, page=None):
+        """ Get a load packet for this DAC.
+
+        A load packet is a packet to the direct ethernet server that has
+        commands for loading the jump table and the SRAM.
+
+        :param jump_table.JumpTable jt: jump table, from make_jump_table
+        :param sram: sram data
+        :param page: None (anything else is invalid for JT boards)
+        :return: packet to the direct ethernet server
+        """
         if page is not None:
             raise NotImplementedError("page argument not valid for jump table")
         p = self.makePacket()
-        self.makeJumpTable(jt, p)
+        p.write(jt.toString())
         self.makeSRAM(sram, p)
         return p
 
     @classmethod
-    def makeJumpTable(cls, jtObj, p):
+    def make_jump_table(cls, entries, counters=None, start_address_ns=0):
+        """ Make a jump table out of the given entries and counters.
+
+        Note that each entry is a tuple of (string, list[int]). The string
+        is the entry name (END, IDLE, etc), and the integers are the arguments
+        for that entry. Note that from/to addresses are given in ns here, and
+        must be divisible by four. See
+        ghz_fpga_server.FPGAServer.jump_table_add_entry for further details.
+
+        :param list[(str, list[int])] entries: JT entries
+        :param list[int] counters: counter values, or None for all 0s
+        :param int start_address_ns: SRAM start address, in ns
+        :return: jump table object
+        :rtype: jump_table.JumpTable
         """
-        TODO: do we even need this function?
-        :param jump_table.JumpTable jtObj: jump table object
-        :param p: packet to be added to
-        :return: None
+        jt_entries = []
+
+        for name, arg in entries:
+            if name == 'CHECK':
+                raise NotImplementedError("Check not implemented yet")
+            elif name == 'RAMP':
+                raise NotImplementedError("Ramp not implemented yet")
+            elif name == 'IDLE':
+                from_address_ns, idle_duration_ns = arg
+                from_address = cls.convert_from_address(from_address_ns)
+                op = jump_table.IDLE(cls.convert_idle_duration(idle_duration_ns))
+                entry = jump_table.JumpEntry(from_address, 0, op)
+                jt_entries.append(entry)
+            elif name == 'JUMP':
+                from_address_ns, to_address_ns, jt_idx = arg
+                from_address = cls.convert_from_address(from_address_ns)
+                to_address = cls.convert_to_address(to_address_ns)
+                op = jump_table.JUMP(jt_idx)
+                entry = jump_table.JumpEntry(from_address, to_address, op)
+                jt_entries.append(entry)
+            elif name == 'CYCLE':
+                from_address_ns, to_address_ns, jt_idx, counter_idx = arg
+                from_address = cls.convert_from_address(from_address_ns)
+                to_address = cls.convert_to_address(to_address_ns)
+                if counter_idx >= cls.NUM_COUNTERS:
+                    raise ValueError("Cannot specify counter > {0} (you said {1})".format(
+                        cls.NUM_COUNTERS, counter_idx
+                    ))
+                op = jump_table.CYCLE(counter_idx, jt_idx)
+                entry = (jump_table.JumpEntry(from_address, to_address, op))
+                jt_entries.append(entry)
+            elif name == 'NOP':
+                from_address_ns = arg[0]
+                jt_entries.append(
+                    jump_table.JumpEntry(
+                        cls.convert_from_address(from_address_ns),
+                        0, jump_table.NOP()
+                    )
+                )
+            elif name == 'END':
+                from_address_ns = arg[0]
+                jt_entries.append(
+                    jump_table.JumpEntry(
+                        cls.convert_end_address(from_address_ns),
+                        0, jump_table.END()
+                    )
+                )
+            else:
+                raise ValueError("'{}' is not a valid jump table command".format(name))
+        return jump_table.JumpTable(
+            start_addr=cls.convert_to_address(start_address_ns),
+            jumps=jt_entries,
+            counters=counters
+        )
+
+    @classmethod
+    def jt_run_sram(cls, start_addr_ns, end_addr_ns, loop=False):
+        """ Get a simple JT to run the SRAM
+
+        :param int start_addr_ns: SRAM start address, ns
+        :param int end_addr_ns: SRAM end address, ns
+        :param bool loop: whether to loop
+        :return: jump table object
+        :rtype: jump_table.JumpTable
         """
-        p.write(jtObj.toString())
+        jump_entries = []
+        if not loop:
+            jump_entries.append(jump_table.JumpEntry(
+                cls.convert_end_address(end_addr_ns), 0, jump_table.END()
+            ))
+        else:
+            jump_entries.append(jump_table.JumpEntry(
+                cls.convert_from_address(end_addr_ns),
+                cls.convert_to_address(start_addr_ns),
+                jump_table.JUMP(1)
+            ))
+        return jump_table.JumpTable(cls.convert_to_address(start_addr_ns),
+                                    jump_entries)
 
     @classmethod
     def makeMemory(cls, data, p, page=0):
@@ -1240,7 +1453,7 @@ class DAC_Build13(DAC_Build7):
         def func():
             yield self._runSerial(1, [0x1FC093, 0x1FC092, 0x100004, 0x000C11])
             yield self._sendSRAM(np.zeros(256*10, dtype='<u4').tostring())
-            jt = jump_table.jt_run_sram(0, 256*9//4, False)
+            jt = self.jt_run_sram(0, 256*10//4, False)
             yield self._sendJumpTable(jt)
             yield self._sendRegisters(self.regRunSimple())
 
@@ -1252,7 +1465,7 @@ class DAC_Build13(DAC_Build7):
             # yield self._sendRegisters(self.regPing())  # Why is this here? DTS/PJJO
             data = np.array(dataIn, dtype='<u4').tostring()
             yield self._sendSRAM(data)
-            startAddr, endAddr = 0, len(dataIn) // 4
+            startAddr, endAddr = 0, len(dataIn)
             jt = jump_table.jt_run_sram(startAddr, endAddr, loop)
             yield self._sendJumpTable(jt)
             yield self._sendRegisters(self.regRunSimple(), readback=True)
@@ -1321,28 +1534,8 @@ class DAC_Build13(DAC_Build7):
         p.send()
 
 
+fpga.REGISTRY[('DAC', 15)] = DAC_Build15
 
-fpga.REGISTRY[('DAC', 13)] = DAC_Build13
-
-
-class DAC_Build14(DAC_Build13):
-    RUNNER_CLASS = DacRunner_Build13
-
-    HAS_JUMP_TABLE = True
-
-    SRAM_LEN = 18432
-    SRAM_WRITE_PKT_LEN = 256
-    SRAM_WRITE_DERPS = SRAM_LEN // SRAM_WRITE_PKT_LEN
-    SRAM_PAGE_LEN = 9216
-    SRAM_DELAY_LEN = 1024
-    SRAM_BLOCK0_LEN = 16384
-    SRAM_BLOCK1_LEN = 2048
-
-fpga.REGISTRY[('DAC', 14)] = DAC_Build14
-
-fpga.REGISTRY[('DAC', 15)] = DAC_Build14
-fpga.REGISTRY[('DAC', 16)] = DAC_Build14
-fpga.REGISTRY[('DAC', 17)] = DAC_Build14
 
 #Utility functions
 

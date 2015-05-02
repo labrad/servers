@@ -61,22 +61,34 @@ class TestFPGAServer(object):
             dev.server = mock.MagicMock()
 
     def test_setup(self):
-        assert(isinstance(self.dev, fpga.dac.DAC_Build14))
+        assert(isinstance(self.dev, fpga.dac.DAC_Build15))
         assert(self.server.selectedDAC(self.ctx) is self.dev)
+
+    def test_jt_run_sram(self):
+        PERIOD = 2000  # as in IQ mixer calibration
+        dataIn = np.zeros(PERIOD)
+        startAddr, endAddr = 0, len(dataIn)
+        jt = self.dev.jt_run_sram(startAddr, endAddr, loop=True)
+        jt_packet = np.fromstring(jt.toString(), dtype='u1')
+        entry = jump_table.JumpEntry(PERIOD // 4 - 2, 0, jump_table.JUMP(1))
+        matching_jt = jump_table.JumpTable(start_addr=0, jumps=[entry])
+        matching_jt_packet = np.fromstring(matching_jt.toString(), dtype='u1')
+        assert np.array_equal(matching_jt_packet, jt_packet)
 
     def test_basic_run(self):
         sram_data = np.array(np.linspace(0, 0x3FFF, 256), dtype='<u4')
         matching_jt = jump_table.JumpTable(
             start_addr=0,
-            jumps=[jump_table.JumpEntry(256//4, 0, jump_table.END())],
+            # from_addr offset of -3 for END for this version of the JT
+            jumps=[jump_table.JumpEntry(256//4-3, 0, jump_table.END())],
             counters=[0, 0, 0, 0]
         )
         matching_packet = np.fromstring(matching_jt.toString(), dtype='u1')
 
         s, c = self.server, self.ctx
         # do this board
-        s.clear_jt(c)
-        s.add_jt_entry(c, 'END', 256)
+        s.jump_table_clear(c)
+        s.jump_table_add_entry(c, 'END', 256)
         s.dac_sram(c, sram_data)
         s.loop_delay(c, Value(50, 'us'))
         s.start_delay(c, 12)
@@ -113,8 +125,8 @@ class TestFPGAServer(object):
         sram_data_2 = np.array(np.ones_like(sram_data_1), dtype='<u4')
         matching_jt = jump_table.JumpTable(
             start_addr=0,
-            jumps=[jump_table.JumpEntry(256//4, 0, jump_table.IDLE(1000//4)),
-                   jump_table.JumpEntry(512//4, 0, jump_table.END())],
+            jumps=[jump_table.JumpEntry(256//4-2, 0, jump_table.IDLE(1000//4-1)),
+                   jump_table.JumpEntry(512//4-3, 0, jump_table.END())],
             counters=[0, 0, 0, 0]
         )
         matching_jt_packet = np.fromstring(matching_jt.toString(), dtype='u1')
@@ -123,9 +135,9 @@ class TestFPGAServer(object):
         daisy_chain = []
         for i in range(1, NUM_DACS+1):
             s.select_device(c, i)
-            s.clear_jt(c)
-            s.add_jt_entry(c, 'IDLE', [256, 1000])
-            s.add_jt_entry(c, 'END', 512)
+            s.jump_table_clear(c)
+            s.jump_table_add_entry(c, 'IDLE', [256, 1000])
+            s.jump_table_add_entry(c, 'END', 512)
             if i == 1:
                 s.dac_sram(c, sram_data_1)
             else:

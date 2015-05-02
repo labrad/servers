@@ -4,39 +4,14 @@
 import numpy as np
 from util import littleEndian
 
-JUMP_INDEX_MIN = 0
-JUMP_INDEX_MAX = 15
-IDLE_MIN_CYCLES = 1
-IDLE_MAX_CYCLES = (2 ** 15) - 1
-DAISY_VALUE_MIN = 0
-DAISY_VALUE_MAX = 15
-
-NUM_COUNTERS = 4
-
-SRAM_ADDR_MIN = 0
-SRAM_ADDR_MAX = 8192 - 1  # XXX HACK ALERT! This should be imported from other module or registry!!!
-
-# A single entry in the jump table
+IDLE_NUM_BITS = 15
+IDLE_MIN_CYCLES = 0
+IDLE_MAX_CYCLES = (2 ** IDLE_NUM_BITS) - 1
 
 
 class JumpEntry(object):
     """ A single entry in the jump table.
 
-    * Every from address has 2 subtracted to account for FPGA timing offsets.
-    * The END entry has an additional 1 subtracted.
-    * IDLE has one clock cycle subtracted from idle length as well.
-
-    A note about from addresses:
-
-    We subtract 2 from the from_addr passed into the JumpEntry. The reason for
-    this is that by convention we set the end address of an algorithm to the
-    length of the sequence. That is, if the SRAM is length 256 ns, then we set
-    the end address to 256//4 == 64. However, if we want to idle over the last
-    4 ns/jump after the last 4 ns/whatever, then we need to notice that those
-    4ns are from 252 - 255, i.e. address 63. So we set the from_address to 62,
-    because the actual fromAddress must be one less than the address you want,
-    due to FPGA offsets, per John's documentation. (In the case of END, it's
-    two less, and that's handled as well.)
     """
 
     def __init__(self, from_addr, to_addr, operation):
@@ -51,36 +26,10 @@ class JumpEntry(object):
                 "from_addr: {} and to_addr: {} are too close".format(
                     from_addr, to_addr)
             )
-        self._to_addr = 0
-        self._from_addr = 0
-        self.from_addr = from_addr - 2  # account for offsets, see docstring
+
+        self.from_addr = from_addr
         self.to_addr = to_addr
         self.operation = operation
-
-        if self.operation.NAME == 'END':
-            self.from_addr -= 1  # account for additional END offset
-
-    @property
-    def to_addr(self):
-        return self._to_addr
-
-    @to_addr.setter
-    def to_addr(self, addr):
-        if SRAM_ADDR_MIN <= addr <= SRAM_ADDR_MAX:
-            self._to_addr = addr
-        else:
-            raise ValueError("Must have {0} <= toAddress <= {1}, not {2}".format(SRAM_ADDR_MIN, SRAM_ADDR_MAX, addr))
-
-    @property
-    def from_addr(self):
-        return self._from_addr
-
-    @from_addr.setter
-    def from_addr(self, addr):
-        if SRAM_ADDR_MIN <= addr <= SRAM_ADDR_MAX:
-            self._from_addr = addr
-        else:
-            raise ValueError("Must have {0} <= fromAddr <= {1}, not {2}".format(SRAM_ADDR_MIN, SRAM_ADDR_MAX, addr))
 
     def __str__(self):
         f_str = "from_addr: %d" % self.from_addr
@@ -89,10 +38,15 @@ class JumpEntry(object):
         return '\n'.join([f_str, t_str, op_str])
 
     def as_bytes(self):
-        data = np.zeros(8, dtype='<u1')
+        """ Get the byte code for this JT entry.
+
+        :return: ndarray(dtype='u1') of bytes for this entry.
+        :rtype: np.ndarray
+        """
+        data = np.zeros(8, dtype='u1')
         data[0:3] = littleEndian(self.from_addr, 3)
         data[3:6] = littleEndian(self.to_addr, 3)
-        data[6:8] = littleEndian(self.operation.as_bytes(), 2)
+        data[6:8] = littleEndian(self.operation.as_int(), 2)
         return data
 
 
@@ -102,22 +56,15 @@ class Operation(object):
     """A Super class for all possible jump table operations"""
     NAME = 'INVALID'  # subclasses must override
 
-    @property
-    def jump_index(self):
-        return self._jump_index
-
-    @jump_index.setter
-    def jump_index(self, idx):
-        if JUMP_INDEX_MIN <= idx <= JUMP_INDEX_MAX:
-            self._jump_index = idx
-        else:
-            raise ValueError("Must have {0} < jump index < {1}, not {2}".format(JUMP_INDEX_MIN, JUMP_INDEX_MAX, idx))
-
     def __str__(self):
         raise NotImplementedError()
 
-    def as_bytes(self):
-        """Override in subclass"""
+    def as_int(self):
+        """ Return the integer equivalent to the byte code for operation.
+
+        It represents two (little endian) bytes. It can be translated to bytes
+        with ``util.littleEndian(my_operation.as_int(), 2)``.
+        """
         raise NotImplementedError()
 
 
@@ -125,54 +72,31 @@ class IDLE(Operation):
     NAME = "IDLE"
 
     def __init__(self, cycles):
-        self._cycles = 0
-        self.cycles = cycles - 1  # account for FPGA firmware timing offset
-
-    @property
-    def cycles(self):
-        return self._cycles
-
-    @cycles.setter
-    def cycles(self, cycles):
-        if IDLE_MIN_CYCLES < cycles < IDLE_MAX_CYCLES:
-            self._cycles = cycles
-        else:
-            raise ValueError(
-                'Number of idle cycles must satisfy: {0} < cycles < {1}, '
-                'not {2}'.format(IDLE_MIN_CYCLES, IDLE_MAX_CYCLES, cycles)
-            )
+        self.cycles = cycles
 
     def __str__(self):
         return "%s %d cycles" % (self.NAME, self.cycles)
 
-    def as_bytes(self):
-        return self._cycles << 1
+    def as_int(self):
+        if not (IDLE_MIN_CYCLES <= self.cycles <= IDLE_MAX_CYCLES):
+            raise ValueError("IDLE num cycles must fit in {} bits".format(
+                IDLE_NUM_BITS
+            ))
+        return self.cycles << 1
 
 
 class CHECK(Operation):
     NAME = "CHECK"
 
     def __init__(self, which_daisy_bit, bit_state, next_jump_index):
-        self._which_daisy_bit = 0
         self.which_daisy_bit = which_daisy_bit
         self.jump_index = next_jump_index
-        self.bitOnOff = bool(bit_state)
+        self.bit_state = bool(bit_state)
         raise NotImplementedError('CHECK is not yet implemented')
 
-    @property
-    def which_daisy_bit(self):
-        return self._which_daisy_bit
-
-    @which_daisy_bit.setter
-    def which_daisy_bit(self, which_bit):
-        if DAISY_VALUE_MIN < which_bit < DAISY_VALUE_MAX:
-            self._which_daisy_bit = which_bit
-        else:
-            raise ValueError("Must have %s < daisy whichDaisyBit < %s" % (DAISY_VALUE_MIN, DAISY_VALUE_MAX))
-
-    def as_bytes(self):
+    def as_int(self):
         # Op code is 001, so shift 4 bits and add 1
-        return (self.jump_index << 8) + (self.which_daisy_bit << 4) + (int(self.bitOnOff) << 3) + 1
+        return (self.jump_index << 8) + (self.which_daisy_bit << 4) + (int(self.bit_state) << 3) + 1
 
 
 class JUMP(Operation):
@@ -184,7 +108,7 @@ class JUMP(Operation):
     def __str__(self):
         return '\n'.join([self.NAME, "Next jump index: %d" % self.jump_index])
 
-    def as_bytes(self):
+    def as_int(self):
         # Op code is 1101 = 13
         return (self.jump_index << 8) + 13
 
@@ -195,31 +119,29 @@ class NOP(Operation):
     def __str__(self):
         return self.NAME
 
-    def as_bytes(self):
-        return 0x0005
+    def as_int(self):
+        return 5
 
 
 class CYCLE(Operation):
     NAME = "CYCLE"
 
     def __init__(self, counter, next_jump_index):
+        """ Create a cycle opcode.
+
+        :param int counter: which counter to use (0-indexed)
+        :param int next_jump_index: JT entry to jump to
+        """
         self.jump_index = next_jump_index
-        self._whichCounter = 0
-        self.which_counter = counter
+        self.counter = counter
 
-    @property
-    def which_counter(self):
-        return self._whichCounter
+    def as_int(self):
+        return (self.jump_index << 8) + (self.counter << 4) + 3
 
-    @which_counter.setter
-    def which_counter(self, which_counter):
-        if 0 <= which_counter < NUM_COUNTERS:
-            self._whichCounter = which_counter
-        else:
-            raise RuntimeError("Must have %s < which_counter < %s" % (0, NUM_COUNTERS))
-
-    def as_bytes(self):
-        return (self.jump_index << 8) + (self.which_counter << 4) + 3
+    def __str__(self):
+        return "{}: counter={}, JT index={}".format(
+            self.NAME, self.counter, self.jump_index
+        )
 
 
 class END(Operation):
@@ -228,7 +150,7 @@ class END(Operation):
     def __str__(self):
         return self.NAME
 
-    def as_bytes(self):
+    def as_int(self):
         return 7
 
 
@@ -241,7 +163,9 @@ class JumpTable(object):
     TODO: make self.jumps a property with some checking on type and number
     """
     PACKET_LEN = 528
-    COUNT_MAX = 2 ** 32 - 1  # 32 bit register for counters
+    COUNTER_BITS = 32  # 32 bit register for counters
+    COUNT_MAX = 2**COUNTER_BITS - 1
+    NUM_COUNTERS = 4
 
     def __init__(self, start_addr=None, jumps=None, counters=None):
         """
@@ -252,27 +176,22 @@ class JumpTable(object):
         """
         self._startAddr = 0
         if counters is None:
-            self._counters = [0, 0, 0, 0]
+            self.counters = [0, 0, 0, 0]
+        elif len(counters) > self.NUM_COUNTERS:
+            raise ValueError("Cannot have more than 4 counters.")
         else:
-            self._counters = list(counters)[0:4]
+            if any([x > self.COUNT_MAX for x in counters]):
+                raise ValueError("Counter values must fit in {} bits.".format(
+                    self.COUNTER_BITS
+                ))
+            self.counters = list(counters)
+            while len(self.counters) < self.NUM_COUNTERS:
+                self.counters.append(0)
         self.start_addr = start_addr
         self.jumps = jumps
 
-    @property
-    def start_addr(self):
-        return self._startAddr
-
-    @start_addr.setter
-    def start_addr(self, addr):
-        if SRAM_ADDR_MIN <= addr <= SRAM_ADDR_MAX:
-            self._startAddr = addr
-        else:
-            raise ValueError("Must have {0} <= start addr <= {1}, not {2}".format(SRAM_ADDR_MIN, SRAM_ADDR_MAX, addr))
-
-    # TODO: error check counter values
-
     def __str__(self):
-        counter = '\n'.join("Counter %d: %d" % (i, c) for i, c in enumerate(self._counters))
+        counter = '\n'.join("Counter %d: %d" % (i, c) for i, c in enumerate(self.counters))
         start_addr = 'Start address: %d' % self.start_addr
         jump = '\n'.join("-JUMP ENTRY %d-\n%s" % (i, str(jump)) for i, jump in enumerate(self.jumps))
         return '\n'.join([counter, start_addr, jump])
@@ -280,8 +199,8 @@ class JumpTable(object):
     def toString(self):
         """Write a byte string for the FPGA"""
         data = np.zeros(self.PACKET_LEN, dtype='<u1')
-        # Set counter maxima. Each one is 4 bytes
-        for i, c in enumerate(self._counters):
+        # Set counter values. Each one is 4 bytes
+        for i, c in enumerate(self.counters):
             data[i * 4:(i + 1) * 4] = littleEndian(c, 4)
         # Set start address
         data[16:19] = littleEndian(self.start_addr, 3)
@@ -290,7 +209,8 @@ class JumpTable(object):
         data[22] = 5
         data[23] = 0
         for i, jump in enumerate(self.jumps):
-            data[24 + (i * 8):24 + ((i + 1) * 8)] = jump.as_bytes()
+            ofs = 24 + i * 8
+            data[ofs:ofs+8] = jump.as_bytes()
         return data.tostring()
 
     def pretty_string(self):
@@ -317,26 +237,7 @@ class JumpTable(object):
         return s
 
 
-# Simple functions
-def jt_run_sram(start_addr, end_addr, loop=False):
-    """
-    Simple JT to run the SRAM
-    :param int start_addr: SRAM start address
-    :param int end_addr: SRAM end address
-    :param bool loop: loop?
-    :return: jump table object
-    :rtype: JumpTable
-    """
-    jump_entries = []
-    if end_addr < 4:
-        raise ValueError("Cannot have sequence shorter than fromAddr == 4")
-    from_addr = end_addr
-    if not loop:
-        jump_entries.append(JumpEntry(from_addr, 0, END()))
-    else:
-        jump_entries.append(JumpEntry(from_addr, start_addr, JUMP(1)))
-    return JumpTable(start_addr, jump_entries)
-
+# TEST FUNCTIONS
 
 def testNormal(stopAddr):
     """Test END function
@@ -402,7 +303,7 @@ def test_sine(length):
 
     # End execution
     op = END()
-    from_addr = length // 4
+    from_addr = length // 4 - 3
     to_addr = 0
     jump_entries.append(JumpEntry(from_addr, to_addr, op))
 
@@ -472,12 +373,12 @@ def testJump():
 
     # Jump at 6th SRAM cell
     op = JUMP(2)
-    fromAddr = 28//4
+    fromAddr = 28//4 - 2
     toAddr = 44//4
     jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
 
     op = END()
-    fromAddr = 256//4
+    fromAddr = 256//4 - 3
     toAddr = 0
     jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
 
@@ -507,12 +408,12 @@ def testJumpBack():
 
     # Jump at 6th SRAM cell
     op = JUMP(2)
-    fromAddr = 32//4
+    fromAddr = 32//4 - 2
     toAddr = 12//4
     jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
 
     op = END()
-    fromAddr = 256//4
+    fromAddr = 256//4 - 3
     toAddr = 0
     jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
 
@@ -542,12 +443,12 @@ def testJumpBackLoop():
 
     # Jump at 6th SRAM cell
     op = JUMP(1)
-    fromAddr = 32//4
+    fromAddr = 32//4 - 2
     toAddr = 12//4
     jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
 
     op = END()
-    fromAddr = 256//4
+    fromAddr = 256//4 - 3
     toAddr = 0
     jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
 
