@@ -5,13 +5,13 @@ John Martinis
 ## General specifications
 
 FPGA interface for GHzADC.
-Prototype is version/build 1, 2 and 6.
-Revised are others.
-DO NOT MIX as FPGA pinouts changed.  
+There used to be a prototype board, version/build 1, 2 and 6.
+These are supposed to have been removed from use.
+Do not use them; their pin-out is different from the other board.
 
 The two AD converters on the board are each 8 bits at 1 Gs/s.
 To simplify computation, data from adjacent times are summed, giving a net data rate at 500 Ms/s, 9 bits.
-With two (I and Q) channels, this gives a system bandwidth of +- 250 MHz.  
+This adjacent sample summing is not a anti-aliasing filter, so two (I and Q) channels, this gives a system bandwidth of +- 250 MHz.  
 
 The Ethernet write commands are very similar to the GHzDAC board.
 The two basic command types are: 
@@ -24,9 +24,10 @@ Ethernet packets are specified to have data-field lengths from 46 to 1500.
 
 ### MAC address
 
-MAC address of card is 0.1.202.170.1.(00sw), where sw[5..0] is the dipswitch value on the board with on=0.
+MAC address of card is 00.01.CA.AA.01.(sw), where sw[5..0] is the dipswitch value on the board with on=0.
 This address is from a now defunct company of Steve Waltman.
-The 1 value (before 00sw) indicates this is an AD board.
+The 01 value if the fifth byte (before 00sw) indicates this is an AD board.
+DAC boards use 00 in the fifth byte.
 
 ### LEDs
 
@@ -42,54 +43,6 @@ LED[3] light indicates over range of Q input
 mon[0] is defined by register, see page below  
 mon[1] is defined by register
 
-### Revision history
-
-#### Version 7: Oct 2014-5-24
-
-* Revise to include 12 channels; demodulation channels 0 to 11 are currently working.
-* Major change, remove sine tables and phase accumulation, replace with multiplier table.
-* Remove filter function before sine multiplication.  
-* Only filter/demodulate 8 bits address = 1 us
-* Averaging Memory is halved to 8 us.
-* Can define now output data for packet.
-* FIFO is 8192 bytes; this is 186 ethernet packets.
-* Fixed ugly code, now Ethernet input is first latched.
-* Added counter for received packet and bad CRC packet.
-* Build = 7
-
-#### Version 6: Oct 2013-10-29
-
-* Revise version 2 to include 6 channels
-* Build = 6
-
-#### Version 5: Oct 2013-10-28
-
-* Revise version 3 to include 6 channels
-* Build = 5 
-
-#### Version 4: Aug. 2013
-
-* Add multiple triggering, fifo on output data, single bit output mode
-* Fifo output data, Daisy chain output from ADbits, enhanced monitors like DAC
-* Build = 4
-
-#### Version 3:  Do not use on prototype board (as FPGA pinouts have changed)
-
-* Add DCLK and outedge capability, as built into Board 1.0/not prototype
-* outedge=0 always.  DCLK phase in clockmon[1] output. 
-* Change LED[0] and LED[1] programming 
-* Build=3
-
-#### Version 2:
-
-* Add counter for sram trigger  
-* Add its readback register  
-* Build=2
-
-#### Version 1:
-
-* Only 4 (addresses 0 to 3) of the 11 demodulation channels are compiled
-* Build=1
 
 ## SRAM Write
 
@@ -120,7 +73,15 @@ But for each trigger, you can have multiple retriggering to account for multiple
 #### Mixer table
 
 The multiplier sram table is now 8 bit integers that is multiplied to the input waveforms I and Q.
-This includes sine and cosine parts of the demodulation signal, along with any waveform shaping that should go to zero at beginning and end to minimize aliasing.
+
+A standard mixer table would be  
+z(n) = w(n dt) exp(-j 2 pi f n dt)  
+where I(n) = Re z(n), Q(n) = Im z(n).
+This demodulates a signal at frequency f.
+w(n) is a real valued window function going to zero at the endpoints which prevents spectral leakage.
+Note however, that *any* complex function can be used for z(n).
+More sophisticated functions may work better for nulling unwanted sidebands, etc.
+
 The multiplied numbers are then integrated over the waveform with rlength[7..0] clock cycles, as defined in the retrigger table.  
 
 The multiplier values are stored as two bytes of memory for every 2 ns, since the AD is sampling twice every clock cycle).
@@ -198,7 +159,6 @@ The Ethernet packet for channel n is (in signed int (‘<i1’ for python or ‘
 512 * ns = 1.024us max demod length
 
 
-
 ## Register Write
 
 These registers control the AD functions.
@@ -237,6 +197,8 @@ This card is always set in slave mode for daisychain initiation of AD functions 
 Registers are readback according to the above data fields and additional bytes given here.
 Length of readback = 46.
 
+    l(0)    length[15..8]       set to 0
+    l(1)    length[7..0]        set to 46
     d(0)    build[7..0]         Build number of FPGA code.  
     d(1)    clockmon[7..0]      bit0 = NOT(LED1 light) = no PLL in external 1GHz clock 
                                 bit1=dclkA output (phase of data stream)
@@ -255,7 +217,7 @@ Length of readback = 46.
 ## Demodulator output
 
 After demodulation is done on each retrigger, demodulator output is put into a FIFO from channel 0 to `numchan[7..0]-1`.
-Once 11 channels are in FIFO (44 bytes), or end of all retriggering, the ethernet packet is sent by pulling bytes out of FIFO, 44 bytes per output event.
+Once 11 IQ pairs are in FIFO (44 bytes), or end of all retriggering, the ethernet packet is sent by pulling bytes out of FIFO, 44 bytes per output event.
 Use `numchan[7..0]=11` to read back every AD retrigger, since the writing of 44 bytes will immediately trigger a FIFO read.  
 
 The FIFO stores 8192 bytes of data, or 186 packets.
@@ -417,21 +379,71 @@ Outputs of mon0 and mon1 are controlled by registers `mon0[7..0]` and `mon1[7..0
 
 
 ## Initial Bringup
-    
+
+fpgaTest.py generates ethernet packets and programs the GHzDAC boards to output signals for these tests.
+
 1. General functionality:
   1. Power up, and check led(0) is off (FPGA locked), and led(1) is on (GHz PLL unlocked).
   2. Write to board and read back, showing build number and Clock_Mux not locked.
   3. Write to board to set PLL, and check led(1) goes off.  Use same PLL shift data as for GHzDAC.
   4. Input AC signal into I and/or Q AD input, and check large (~0.5 V) signal causes led(2) for I and led(3) for Q to go on. This checks AD and over range function.
 2. Average mode:
-  5. Input as above, but send command for 1 average, auto start.  Look at downloaded data, and check that it oscillates properly.  Check that mon(1) goes high for 16 us after auto ethernet command is sent.  
-  6. As above, but inject triangle wave at 100 kHz, with amplitude just above saturation.  Amplitude should go up and down smoothly, with no jumps from missing bits of the AD converter.  Both channels should track for simultaneous inputs.   
+  5. Input as above, but send command for 1 average, auto start.  Look at downloaded data, and check that it oscillates properly.  Check that aon goes high for 8 us after auto ethernet command is sent (see Output Monitors section for how to send aon to monitor output).
+  6. As above, but inject triangle wave at 100 kHz, with amplitude just above saturation.  Amplitude should go up and down smoothly, with no jumps from missing bits of the AD converter.  Both channels should track for simultaneous inputs.
   7. Input a repetive waveform, and check that averaging (summing) function works, with waveform getting bigger with larger n.
 3. Demodulator mode:
-  8.  Input 1 MHz tone, ¼ scale.  For a 10 us filter time, set filter =0 at ends, and 255 at intermediate points.  For correct phase increment (check both positive and negative), check if can get a average signal coming out of demodulator.
-  9. For above, check that 0 is obtained if use the wrong frequency.  Optional check of amplitude verses frequencey detuning, to check for sinc function behavior.
-  10.  For a filter function more like a gaussian, check if the filter function looks smoother, as expected.
-  11.  Check filter output at wrong sideband, and check if consistent with wrong sideband tone observed when averaged.  
-  12. Check if computed sine/cosine tables give zero output at wrong sideband.
-  13. Check for correct demodulator output for all possible channels.  
-  14. Check for proper operation of stretched mode ; ie signal should be proportional to stretch time.  Also, put a 0 and 255 transition at the stretched address to check if addressing works properly there.  
+  8. Input 10MHz tone, 1/4 scale. Scan mixer table frequency with square envelope. This is using the AD board as a spectrum analyzer with a very leaky envelope. Observe measurement of side lobes with sinc dependence.
+  9.  For a filter function more like a gaussian, check if the measured spectrum looks smoother, as expected.
+  10. Set only one mixer table entry to non-zero. Scan over time slice so that mixer table acts like sampling oscilloscope. Check that signal matches what is observed via average mode.
+  11.  Check demodulation value at wrong sideband, and check if consistent with wrong sideband tone observed when averaged.  
+  12. Repeat for all possible channels.  
+
+
+### Revision history
+
+#### Version 7: Oct 2014-5-24
+
+* Revise to include 12 channels; demodulation channels 0 to 11 are currently working.
+* Major change, remove sine tables and phase accumulation, replace with multiplier table.
+* Remove filter function before sine multiplication.  
+* Only filter/demodulate 8 bits address = 1 us
+* Averaging Memory is halved to 8 us.
+* Can define now output data for packet.
+* FIFO is 8192 bytes; this is 186 ethernet packets.
+* Fixed ugly code, now Ethernet input is first latched.
+* Added counter for received packet and bad CRC packet.
+* Build = 7
+
+#### Version 6: Oct 2013-10-29
+
+* Revise version 2 to include 6 channels
+* Build = 6
+
+#### Version 5: Oct 2013-10-28
+
+* Revise version 3 to include 6 channels
+* Build = 5 
+
+#### Version 4: Aug. 2013
+
+* Add multiple triggering, fifo on output data, single bit output mode
+* Fifo output data, Daisy chain output from ADbits, enhanced monitors like DAC
+* Build = 4
+
+#### Version 3:  Do not use on prototype board (as FPGA pinouts have changed)
+
+* Add DCLK and outedge capability, as built into Board 1.0/not prototype
+* outedge=0 always.  DCLK phase in clockmon[1] output. 
+* Change LED[0] and LED[1] programming 
+* Build=3
+
+#### Version 2:
+
+* Add counter for sram trigger  
+* Add its readback register  
+* Build=2
+
+#### Version 1:
+
+* Only 4 (addresses 0 to 3) of the 11 demodulation channels are compiled
+* Build=1
