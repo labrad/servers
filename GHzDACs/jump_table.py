@@ -10,8 +10,13 @@ IDLE_MAX_CYCLES = (2 ** IDLE_NUM_BITS) - 1
 
 
 class JumpEntry(object):
-    """ A single entry in the jump table.
+    """A single entry in the jump table.
 
+    Attributes:
+        from_addr(int): SRAM cell at which this entry fires.
+        to_addr(int): SRAM cell to which we go after executing this
+            entry.
+        operation (Operation): Operation performed by this entry.
     """
 
     def __init__(self, from_addr, to_addr, operation):
@@ -38,7 +43,7 @@ class JumpEntry(object):
         return '\n'.join([f_str, t_str, op_str])
 
     def as_bytes(self):
-        """ Get the byte code for this JT entry.
+        """Get a byte array representing this entry.
 
         :return: ndarray(dtype='u1') of bytes for this entry.
         :rtype: np.ndarray
@@ -60,15 +65,23 @@ class Operation(object):
         raise NotImplementedError()
 
     def as_int(self):
-        """ Return the integer equivalent to the byte code for operation.
+        """Get the integer equivalent to the byte code for operation.
 
-        It represents two (little endian) bytes. It can be translated to bytes
-        with ``util.littleEndian(my_operation.as_int(), 2)``.
+        Each operation is represented by two bytes in memory (little
+        endian). This function returns an int which will convert to the
+        corresponding little endian bytes when passed into
+        util.littleEndian as
+        ``util.littleEndian(operation.as_int(), 2)``.
         """
         raise NotImplementedError()
 
 
 class IDLE(Operation):
+    """Idle operation
+
+    Attributes:
+        cycles (int): Number of FPGA cycles to idle.
+    """
     NAME = "IDLE"
 
     def __init__(self, cycles):
@@ -78,6 +91,7 @@ class IDLE(Operation):
         return "%s %d cycles" % (self.NAME, self.cycles)
 
     def as_int(self):
+        """See Operation.as_int."""
         if not (IDLE_MIN_CYCLES <= self.cycles <= IDLE_MAX_CYCLES):
             raise ValueError("IDLE num cycles must fit in {} bits".format(
                 IDLE_NUM_BITS
@@ -86,6 +100,17 @@ class IDLE(Operation):
 
 
 class CHECK(Operation):
+    """Check daisychain value.
+
+    Attributes:
+        which_daisy_bit (int): Which daisy bit to check.
+            Need to explain how the numbering works.
+        jump_index (int): Index of jump entry to activte after the check.
+        bit_state (bool): Selects whether to fire on 0 or 1.
+        Need to explain more.
+
+    This operation has not been implemented/tested.
+    """
     NAME = "CHECK"
 
     def __init__(self, which_daisy_bit, bit_state, next_jump_index):
@@ -94,12 +119,22 @@ class CHECK(Operation):
         self.bit_state = bool(bit_state)
         raise NotImplementedError('CHECK is not yet implemented')
 
+    def __str__(self):
+        raise NotImplementedError()
+
     def as_int(self):
+        """See Operation.as_int."""
         # Op code is 001, so shift 4 bits and add 1
         return (self.jump_index << 8) + (self.which_daisy_bit << 4) + (int(self.bit_state) << 3) + 1
 
 
 class JUMP(Operation):
+    """Jump to new SRAM address.
+
+    Attributes:
+        jump_index (int): Index of jump table entry to activate after
+        this one.
+    """
     NAME = "JUMP"
 
     def __init__(self, next_jump_index):
@@ -109,25 +144,35 @@ class JUMP(Operation):
         return '\n'.join([self.NAME, "Next jump index: %d" % self.jump_index])
 
     def as_int(self):
+        """See Operation.as_int."""
         # Op code is 1101 = 13
         return (self.jump_index << 8) + 13
 
 
 class NOP(Operation):
+    """Do nothing."""
     NAME = "NOP"
 
     def __str__(self):
         return self.NAME
 
     def as_int(self):
+        """See Operation.as_int."""
         return 5
 
 
 class CYCLE(Operation):
+    """Cycle back to another SRAM address.
+
+    Attributes:
+    jump_index (int): Index of jump table entry to activate after firing
+        this one.
+    counter (int): Which counter to increment at each cycle.
+    """
     NAME = "CYCLE"
 
     def __init__(self, counter, next_jump_index):
-        """ Create a cycle opcode.
+        """Initialize a cycle opcode.
 
         :param int counter: which counter to use (0-indexed)
         :param int next_jump_index: JT entry to jump to
@@ -135,13 +180,14 @@ class CYCLE(Operation):
         self.jump_index = next_jump_index
         self.counter = counter
 
-    def as_int(self):
-        return (self.jump_index << 8) + (self.counter << 4) + 3
-
     def __str__(self):
         return "{}: counter={}, JT index={}".format(
             self.NAME, self.counter, self.jump_index
         )
+
+    def as_int(self):
+        """See Operation.as_int."""
+        return (self.jump_index << 8) + (self.counter << 4) + 3
 
 
 class END(Operation):
@@ -155,12 +201,21 @@ class END(Operation):
 
 
 class JumpTable(object):
-    """
-    The entire jump table.
-    
-    This is a very low level wrapper around the actual FPGA data structure
-    
-    TODO: make self.jumps a property with some checking on type and number
+    """A jump table.
+
+    This is a very low level wrapper around the actual FPGA data
+    structure. The main purpose of this class is to serialize the jump
+    table data for writing to the board.
+
+
+    Attributes:
+        counters (list of int): counters[i] is the count value for the
+            ith counter.
+        start_addr (int): SRAM address at which to start sequence.
+        jumps (list of JumpEntry): Ordered list of jump table entries.
+
+    TODO: make self.jumps a property with some checking on type and
+        number.
     """
     PACKET_LEN = 528
     COUNTER_BITS = 32  # 32 bit register for counters
@@ -191,13 +246,21 @@ class JumpTable(object):
         self.jumps = jumps
 
     def __str__(self):
-        counter = '\n'.join("Counter %d: %d" % (i, c) for i, c in enumerate(self.counters))
+        counter = '\n'.join(
+            "Counter {}: {}".format(
+                i, c
+            ) for i, c in enumerate(self.counters)
+        )
         start_addr = 'Start address: %d' % self.start_addr
-        jump = '\n'.join("-JUMP ENTRY %d-\n%s" % (i, str(jump)) for i, jump in enumerate(self.jumps))
+        jump = '\n'.join(
+            "-JUMP ENTRY {}-\n{}".format(
+                i, str(jump)
+            ) for i, jump in enumerate(self.jumps)
+        )
         return '\n'.join([counter, start_addr, jump])
 
     def toString(self):
-        """Write a byte string for the FPGA"""
+        """Serialize jump table to a byte string for the FPGA"""
         data = np.zeros(self.PACKET_LEN, dtype='<u1')
         # Set counter values. Each one is 4 bytes
         for i, c in enumerate(self.counters):
