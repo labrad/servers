@@ -230,20 +230,27 @@ class JumpTable(object):
         :param list[int] counters: the counter values
         """
         self._startAddr = 0
-        if counters is None:
-            self.counters = [0, 0, 0, 0]
-        elif len(counters) > self.NUM_COUNTERS:
-            raise ValueError("Cannot have more than 4 counters.")
-        else:
-            if any([x > self.COUNT_MAX for x in counters]):
-                raise ValueError("Counter values must fit in {} bits.".format(
-                    self.COUNTER_BITS
-                ))
-            self.counters = list(counters)
-            while len(self.counters) < self.NUM_COUNTERS:
-                self.counters.append(0)
+        self.counters = self._initialize_counters(counters=counters)
         self.start_addr = start_addr
         self.jumps = jumps
+
+    @classmethod
+    def _initialize_counters(cls, counters=None):
+        if counters is None:
+            c = [0, 0, 0, 0]
+        elif len(counters) > cls.NUM_COUNTERS:
+            raise ValueError("Cannot have more than 4 counters.")
+        else:
+            if any([x > cls.COUNT_MAX for x in counters]):
+                raise ValueError(
+                    "Counter values must fit in {} bits.".format(
+                        cls.COUNTER_BITS
+                    )
+                )
+            c = list(counters)
+            while len(c) < cls.NUM_COUNTERS:
+                c.append(0)
+        return c
 
     def __str__(self):
         counter = '\n'.join(
