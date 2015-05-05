@@ -51,7 +51,7 @@ class JumpEntry(object):
         data = np.zeros(8, dtype='u1')
         data[0:3] = littleEndian(self.from_addr, 3)
         data[3:6] = littleEndian(self.to_addr, 3)
-        data[6:8] = littleEndian(self.operation.as_int(), 2)
+        data[6:8] = self.operation.as_bytes()
         return data
 
 
@@ -64,14 +64,14 @@ class Operation(object):
     def __str__(self):
         raise NotImplementedError()
 
-    def as_int(self):
-        """Get the integer equivalent to the byte code for operation.
+    def as_bytes(self):
+        """Get an array of bytes representing this operation.
 
         Each operation is represented by two bytes in memory (little
-        endian). This function returns an int which will convert to the
-        corresponding little endian bytes when passed into
-        util.littleEndian as
-        ``util.littleEndian(operation.as_int(), 2)``.
+        endian). This function returns an array corresponding to those bytes.
+
+        Returns:
+            2 element ndarray with dtype 'u1' in little endian order.
         """
         raise NotImplementedError()
 
@@ -90,13 +90,20 @@ class IDLE(Operation):
     def __str__(self):
         return "%s %d cycles" % (self.NAME, self.cycles)
 
-    def as_int(self):
-        """See Operation.as_int."""
+    def as_bytes(self):
+        """Get bytes for an IDLE.
+
+        The op code is
+            dddddddd ddddddd0
+        where d[14..0] is the number of FPGA cycles to idle.
+        """
         if not (IDLE_MIN_CYCLES <= self.cycles <= IDLE_MAX_CYCLES):
-            raise ValueError("IDLE num cycles must fit in {} bits".format(
-                IDLE_NUM_BITS
-            ))
-        return self.cycles << 1
+            raise ValueError(
+                "IDLE num cycles must fit in {} bits".format(
+                    IDLE_NUM_BITS
+                )
+            )
+        return littleEndian(self.cycles << 1, 2)
 
 
 class CHECK(Operation):
@@ -122,10 +129,22 @@ class CHECK(Operation):
     def __str__(self):
         raise NotImplementedError()
 
-    def as_int(self):
-        """See Operation.as_int."""
-        # Op code is 001, so shift 4 bits and add 1
-        return (self.jump_index << 8) + (self.which_daisy_bit << 4) + (int(self.bit_state) << 3) + 1
+    def as_bytes(self):
+        """Get bytes for a CHECK
+
+        The op code is
+            xxjjjjjj iiiin001
+        where
+            jjjjjj jump index to set when check is True
+            iiii specifies which daisychain bit to check
+            n selects whether we check for bit ON or OFF
+        """
+        jump_idx = self.jump_index << 8
+        which_daisy_bit = self.which_daisy_bit << 4
+        bit_state = int(self.bit_state) << 3
+        op = 1
+        val = jump_idx + which_daisy_bit + bit_state + op
+        return littleEndian(val, 2)
 
 
 class JUMP(Operation):
@@ -143,10 +162,17 @@ class JUMP(Operation):
     def __str__(self):
         return '\n'.join([self.NAME, "Next jump index: %d" % self.jump_index])
 
-    def as_int(self):
-        """See Operation.as_int."""
-        # Op code is 1101 = 13
-        return (self.jump_index << 8) + 13
+    def as_bytes(self):
+        """Get bytes for a JUMP
+
+        The op code is
+            xxjjjjjj xxxx1101
+        where
+            jjjjjj is the jump index to set after the jump.
+        """
+        # binary 1101 = decimal 13
+        val = (self.jump_index << 8) + 13
+        return littleEndian(val, 2)
 
 
 class NOP(Operation):
@@ -156,9 +182,12 @@ class NOP(Operation):
     def __str__(self):
         return self.NAME
 
-    def as_int(self):
-        """See Operation.as_int."""
-        return 5
+    def as_bytes(self):
+        """Get bytes for a NOP.
+
+        The op code is xxxxxxxx xxxx0101
+        """
+        return littleEndian(5, 2)
 
 
 class CYCLE(Operation):
@@ -185,9 +214,19 @@ class CYCLE(Operation):
             self.NAME, self.counter, self.jump_index
         )
 
-    def as_int(self):
-        """See Operation.as_int."""
-        return (self.jump_index << 8) + (self.counter << 4) + 3
+    def as_bytes(self):
+        """Get bytes for a CYCLE.
+
+        The op code is
+            xxjjjjjj xxccx011
+        where
+            jjjjjj is the jump index to set if the cycle is not done.
+            cc is which counter to increment.
+        """
+        jump_index = self.jump_index << 8
+        counter = self.counter << 4
+        op = 3
+        return littleEndian(jump_index + counter + op, 2)
 
 
 class END(Operation):
@@ -196,8 +235,13 @@ class END(Operation):
     def __str__(self):
         return self.NAME
 
-    def as_int(self):
-        return 7
+    def as_bytes(self):
+        """Get bytes for an END.
+
+        The op code is
+            xxxxxxxx xxxxx111
+        """
+        return littleEndian(7, 2)
 
 
 class JumpTable(object):
