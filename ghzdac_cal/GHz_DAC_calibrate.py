@@ -52,6 +52,8 @@ def calibrate_dc_pulse(fpga_name, channel, dc_scope):
             return calibrate.calibrateDCPulse(cxn, fpga_name, channel)
         elif dc_scope == 'infiniium':
             return calibrate.calibrateDCPulse_infiniium(cxn, fpga_name, channel, 'EXT')
+        else:
+            raise Exception("invalid scope: {}".format(dc_scope))
 
 
 def zero_fixed_carrier(fpga_name):

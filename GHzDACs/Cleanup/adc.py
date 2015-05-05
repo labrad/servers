@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 import numpy as np
 
 import servers.GHzDACs.Cleanup.fpga as fpga
@@ -845,7 +846,7 @@ class ADC_Build7(ADC_Branch2):
     
     def buildRunner(self, reps, info):
         """Get a runner for this board"""
-        # print("building runner with setting keys: ", info.keys())
+        logging.info("building runner with setting keys: {}".format(info.keys()))
         runMode = info['runMode']
         startDelay = info['startDelay']
         channels = dict((i, info[i]) for i in range(self.DEMOD_CHANNELS) \
@@ -897,7 +898,7 @@ class ADC_Build7(ADC_Branch2):
 
         mon0 = info.get('mon0', 'start')
         mon1 = info.get('mon1', 'don')
-        
+
         if isinstance(mon0,str):
             mon0 = mondict.MONDICT[mon0]
         if isinstance(mon1,str):
@@ -1013,6 +1014,7 @@ class ADC_Build7(ADC_Branch2):
             nPackets = int(np.ceil(totalReadouts/11.0))
             # print "Trying to read back %d packets with %d readouts" % (nPackets, totalReadouts)
             p.read(nPackets)
+            logging.debug("about to send ADC packet in runDemod")
             ans = yield p.send() #Send the packet to the direct ethernet
             # server parse the packets out and return data. packets is a list
             # of 48-byte strings
@@ -1053,7 +1055,7 @@ class ADC_Build7(ADC_Branch2):
         return {
             'build': a[0],
             'noPllLatch': a[1]&1 == 1,
-            'trigCount': a[2] + a[3]<<8,
+            'executionCounter': int(a[2]) + int(a[3] << 8),
             'nPackets': a[4],
             'badPackets': a[5]
             } 
