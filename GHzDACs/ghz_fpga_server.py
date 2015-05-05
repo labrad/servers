@@ -1991,13 +1991,13 @@ class FPGAServer(DeviceServer):
         ans = yield dev.runSerial(cmd, pkts)
         returnValue(ans)
 
-    @setting(1000000, 'Debug Print Context')
+    @setting(1100000, 'Debug Print Context')
     def debug_print_context(self, c):
         """ Prints the context to the server's stdout.
         """
         print c
 
-    @setting(1000001, 'Debug Clear Ethernet')
+    @setting(1100001, 'Debug Clear Ethernet')
     def debug_clear_ethernet(self, c):
         for dev in self.devices.values():
             dev.clear().send()

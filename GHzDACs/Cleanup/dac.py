@@ -1028,8 +1028,6 @@ class DAC_Build12(DAC_Build8):
 fpga.REGISTRY[('DAC', 12)] = DAC_Build12
 
 
-### classes below this line are NOT properly implemented!!!
-
 
 class DacRunner_Build11(DacRunner_Build7):
     pass
@@ -1040,6 +1038,17 @@ class DAC_Build11(DAC_Build7):
 
 
 fpga.REGISTRY[('DAC', 11)] = DAC_Build11
+
+
+class DacRunner_Build12(DacRunner_Build8):
+    pass
+
+
+class DAC_Build12(DAC_Build8):
+    pass
+
+
+fpga.REGISTRY[('DAC', 12)] = DAC_Build12
 
 
 # Jump table #
