@@ -42,7 +42,10 @@ public class AnalogDataTime extends AnalogDataBase {
   @Override
   public Future<Void> deconvolve(DeconvolutionProxy deconvolver) {
     AnalogChannel ch = getChannel();
-    Future<int[]> req = deconvolver.deconvolveAnalog(ch.getDacBoard(), ch.getDacId(), rawData, ch.getSettlingRates(), ch.getSettlingTimes());
+    Future<int[]> req = deconvolver.deconvolveAnalog(ch.getDacBoard(), ch.getDacId(), rawData,
+            ch.getSettlingRates(), ch.getSettlingTimes(),
+            ch.getReflectionRates(), ch.getReflectionAmplitudes()
+    );
     return Futures.chain(req, new Function<int[], Void>() {
       @Override
       public Void apply(int[] result) {

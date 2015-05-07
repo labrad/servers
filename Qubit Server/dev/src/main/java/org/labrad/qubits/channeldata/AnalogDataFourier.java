@@ -29,7 +29,10 @@ public class AnalogDataFourier extends AnalogDataBase {
   @Override
   public Future<Void> deconvolve(DeconvolutionProxy deconvolver) {
     AnalogChannel ch = getChannel();
-    Future<int[]> req = deconvolver.deconvolveAnalogFourier(ch.getDacBoard(), ch.getDacId(), data, t0, ch.getSettlingRates(), ch.getSettlingTimes());
+    Future<int[]> req = deconvolver.deconvolveAnalogFourier(ch.getDacBoard(), ch.getDacId(), data, t0,
+            ch.getSettlingRates(), ch.getSettlingTimes(),
+            ch.getReflectionRates(), ch.getReflectionAmplitudes()
+    );
     return Futures.chain(req, new Function<int[], Void>() {
       @Override
       public Void apply(int[] result) {
