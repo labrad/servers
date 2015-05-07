@@ -1474,8 +1474,10 @@ class DAC_Build15(DAC_Build8):
         def func():
             yield self._runSerial(1, [0x1FC093, 0x1FC092, 0x100004, 0x000C11])
             yield self._sendSRAM(np.zeros(256*10, dtype='<u4').tostring())
-            jt = self.jt_run_sram(0, 256*10//4, False)
-            yield self._sendJumpTable(jt)
+            jt = self.jt_run_sram(0, 256*10, False)
+            p = self.makePacket()
+            p.write(jt.toString())
+            yield p.send()
             yield self._sendRegisters(self.regRunSimple())
 
         return self.testMode(func)
@@ -1487,8 +1489,10 @@ class DAC_Build15(DAC_Build8):
             data = np.array(dataIn, dtype='<u4').tostring()
             yield self._sendSRAM(data)
             startAddr, endAddr = 0, len(dataIn)
-            jt = jump_table.jt_run_sram(startAddr, endAddr, loop)
-            yield self._sendJumpTable(jt)
+            jt = self.jt_run_sram(startAddr, endAddr, loop)
+            p = self.makePacket()
+            p.write(jt.toString())
+            yield p.send()
             yield self._sendRegisters(self.regRunSimple(), readback=True)
 
         return self.testMode(func)
@@ -1521,9 +1525,11 @@ class DAC_Build15(DAC_Build8):
 
             # JT run
             startAddr = 0
-            endAddr = len(data) // 4 // 4
-            jt = jump_table.jt_run_sram(startAddr, endAddr, loop=False)
-            yield self._sendJumpTable(jt)
+            endAddr = len(data) // 4 + 4
+            jt = self.jt_run_sram(startAddr, endAddr, loop=False)
+            p = self.makePacket()
+            p.write(jt.toString())
+            yield p.send()
             # print jt.pretty_string()
             yield self._sendRegisters(self.regRunSimple(readback=False), readback=False)
 
