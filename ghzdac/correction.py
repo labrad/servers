@@ -1180,31 +1180,44 @@ class DACcorrection:
 
                 freqs = np.linspace(0, nrfft * 1.0 / nfft,
                                            nrfft, endpoint=False)
+                i_two_pi_freqs = 2j*np.pi*freqs
+
                 # pulse correction
                 for correction in self.correction:
                     l = np.alen(correction)
                     precalc *= interpol_cubic(correction, freqs*2.0*(l-1)) #cubic, as fast as linear interpol
                     
-                #decay times:
+                # Decay times:
                 # add to qubit registry the following keys:
                 # settlingAmplitudes=[-0.05]  #relative amplitude
-                # settlingRates = [0.01]    #rate is in GHz, (1/ns)
+                # settlingRates = [0.01 GHz]    #rate is in GHz, (1/ns)
                 if np.alen(decayRates):
-                    precalc /= (1.0 + np.sum(decayAmplitudes[:, None] * 2j*np.pi*freqs[None, :] / (2j*np.pi*freqs[None, :] + decayRates[:, None]), axis=0))
+                    precalc /= (1.0 + np.sum(decayAmplitudes[:, None] * i_two_pi_freqs[None, :] / (i_two_pi_freqs[None, :] + decayRates[:, None]), axis=0))
 
-                #reflections:
+                # Reflections:
                 # add to qubit registry the following keys:
                 # reflectionAmplitudes=[0.05]  #relative amplitude
-                # reflectionRates = [0.01]    #rate is in GHz, (1/ns)
+                # reflectionRates = [0.01 GHz]    #rate is in GHz, (1/ns)
+                #
+                # Reflections are dealt with by modelling a wire with round-trip time 1/rate, and reflection coefficient amplitude. 
+                # It's the simplest model which can describe the effect of reflections in wiring 
+                # in for example the wiring between the DAC output and fridge ports.
+                # Think about echo, reflections give rise to an endless sum of copies of the original signal with decreasing amplitude:
+                # f(t) -> (1-amplitude) Sum_k=0^\infty (amplitude^k f(t-k 1/rate) ).
+                #
+                # Suppose X is an ideal pulse, H the impulse response of a piece of cable (with reflection, settling etc). 
+                # To get X at the end of the cable you need to send Y = X/H.
+                # So if you have different impulse responses H1, H2, H3: Y = X / (H1 * H2 * H3)                
                 if np.alen(reflectionRates):
                     for rate,amplitude in zip(reflectionRates,reflectionAmplitudes):
-                        precalc /= (1.0 - amplitude) / (1.0-amplitude*np.exp(-2j*np.pi*freqs/rate))
+                        if abs(rate) > 0.0:
+                            precalc /= (1.0 - amplitude) / (1.0-amplitude*np.exp(-i_two_pi_freqs/rate))
 
                 
-                #the correction window can have very large amplitudes, therefore the time domain signal can have large oscillations which will be truncated digitally, 
-                #leading to deterioration of the waveform. The large amplitudes in the correction window have low S/N ratios.
-                #Here, we apply a maximum value, i.e. truncate the value, but keep the phase. This way we still have a partial correction, within the limits of the boards. 
-                #Doing it this way also helps a lot with the waveforms being scalable.
+                # The correction window can have very large amplitudes, therefore the time domain signal can have large oscillations which will be truncated digitally, 
+                # leading to deterioration of the waveform. The large amplitudes in the correction window have low S/N ratios.
+                # Here, we apply a maximum value, i.e. truncate the value, but keep the phase. This way we still have a partial correction, within the limits of the boards. 
+                # Doing it this way also helps a lot with the waveforms being scalable.
                 if maxvalueZ:
                     precalc = precalc * (1.0 * (abs(precalc)<=maxvalueZ)) + np.exp(1j*np.angle(precalc))*maxvalueZ * 1.0 * (abs(precalc) > maxvalueZ)
                 
