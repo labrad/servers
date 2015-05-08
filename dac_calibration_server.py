@@ -265,7 +265,6 @@ class CalibrationServer(LabradServer):
                                                   data,
                                                   loop=c['Loop'],
                                                   zipSRAM=False,
-            calset.setReflection(*c['Reflection'])            
                                                   deconv=deconv,
                                                   zeroEnds=zero_ends)
         if deconv is False:
@@ -336,6 +335,7 @@ class CalibrationServer(LabradServer):
 
         calset = yield self.getDACcalset(c)
         calset.setSettling(*c['Settling'])
+        calset.setReflection(*c['Reflection'])
         deconv = c['deconvZ']
         corrected = yield self.call_sync(calset.DACify, data,
                                                   loop=c['Loop'],
@@ -374,7 +374,7 @@ class CalibrationServer(LabradServer):
 
         calset = yield self.getDACcalset(c)
         calset.setSettling(*c['Settling'])
-            calset.setReflection(*c['Reflection'])            
+        calset.setReflection(*c['Reflection'])
         calset.setFilter(bandwidth=c['Filter'])
         deconv = c['deconvZ']
         corrected = yield self.call_sync(calset.DACifyFT, data,
