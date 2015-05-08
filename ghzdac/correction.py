@@ -151,7 +151,8 @@ def moving_average(x,m):
 
 
 def derivative(x,y):
-    """Taking derivative, uses both adjacent points for estimate of derivative. Returns array with the same number of points (different than np.diff). RB."""
+    """Taking derivative, uses both adjacent points for estimate of derivative. 
+    Returns array with the same number of points (different than np.diff). RB."""
     n=np.alen(x)
     deriv=np.array(np.linspace(0.0,0.0,n),dtype=complex)
     for k in np.arange(n):
@@ -165,7 +166,8 @@ def derivative(x,y):
 
 
 def interpol_cubic(h,x2,fill_value=None):
-    """Fast cubic interpolator (slightly faster than linear version of scipy interp1d; much, much faster than cubic version of scipy interp1d).
+    """Fast cubic interpolator (slightly faster than linear version of scipy interp1d; 
+    much faster than cubic version of scipy interp1d).
     Returns the values in in the same way interpol. Can deal with complex input.
     Uses linear interpolation at the edges, and returns the values at the edges outside of the range. RB."""
     xlen=np.alen(h)
@@ -924,7 +926,8 @@ class DACcorrection:
         
         #standard way of generating the impulse response function:
         #apply moving average filter
-        #stepResponse = moving_average(stepResponse,np.round(samplingfreq/2.5)) #The moving average filter by Max is a bit too much, it leads to visible ringing for short (~20 ns) Z pulse
+        #stepResponse = moving_average(stepResponse,np.round(samplingfreq/2.5)) 
+        #The moving average filter by Max is a bit too much, it leads to visible ringing for short (~20 ns) Z pulse
         #get impulse response from step response
         #Normally: h(t) = d/dt u(t), and:
         #impulseResponse = derivative(samplingtime,stepResponse)
@@ -952,14 +955,16 @@ class DACcorrection:
         freqs=samplingfreq/2.0*np.arange(np.alen(impulseResponse_FD))/np.alen(impulseResponse_FD)
         
         #Normally the deconv corrects for the measured impulse response not appearing at t=0.
-        #This is bad, because A) the phase will depend strongly on frequency, which is harder to interpolate and B) the time domain signal will run out of its memory block.
+        #This is bad, because A) the phase will depend strongly on frequency, which is harder to interpolate and 
+        #B) the time domain signal will run out of its memory block.
         #Here we apply a timeshift tshift, so the deconv won't shift the pulse in time.        
         impulseResponse_FD *= np.exp(2.0j*np.pi*freqs*tshift)
         
         #the correction window ~1/H(f)
         correction = lowpass(finalLength,bandwidth) * abs(impulseResponse_FD[0]) / impulseResponse_FD[0:finalLength/2+1] #0:finalLength/2+1 = 0 to 500 MHz. The progam expects this frequency range in other functions, so DON'T change it.
 
-        #apply a cut off frequency, necessary to kick out 500 MHz signal which messes up dualblock scans with nonzero Z. Also, the 1 GHz suppression applied above amplifies noise at 500 MHz.
+        #apply a cut off frequency, necessary to kick out 500 MHz signal which messes up dualblock scans with nonzero Z. 
+        #Also, the 1 GHz suppression applied above amplifies noise at 500 MHz.
         if maxfreqZ:
             freqs=0.5*np.arange(np.alen(correction))/np.alen(correction)        
             correction = correction * 1.0 * (abs(freqs)<=maxfreqZ)
@@ -1204,10 +1209,11 @@ class DACcorrection:
                 # reflectionAmplitudes=[0.05]  #relative amplitude
                 # reflectionRates = [0.01 GHz]    #rate is in GHz, (1/ns)
                 #
-                # Reflections are dealt with by modelling a wire with round-trip time 1/rate, and reflection coefficient amplitude. 
+                # Reflections are dealt with by modelling a wire with round-trip time 1/rate, 
+                # and reflection coefficient amplitude.
                 # It's the simplest model which can describe the effect of reflections in wiring 
-                # in for example the wiring between the DAC output and fridge ports.
-                # Think about echo, reflections give rise to an endless sum of copies of the original signal with decreasing amplitude:
+                # in for example the wiring between the DAC output and fridge ports. Think about echo, 
+                # reflections give rise to an endless sum of copies of the original signal with decreasing amplitude:
                 # f(t) -> (1-amplitude) Sum_k=0^\infty (amplitude^k f(t-k 1/rate) ).
                 #
                 # Suppose X is an ideal pulse, H the impulse response of a piece of cable (with reflection, settling etc). 
@@ -1219,9 +1225,11 @@ class DACcorrection:
                             precalc /= (1.0 - amplitude) / (1.0-amplitude*np.exp(-i_two_pi_freqs/rate))
 
                 
-                # The correction window can have very large amplitudes, therefore the time domain signal can have large oscillations which will be truncated digitally, 
+                # The correction window can have very large amplitudes,
+                # therefore the time domain signal can have large oscillations which will be truncated digitally, 
                 # leading to deterioration of the waveform. The large amplitudes in the correction window have low S/N ratios.
-                # Here, we apply a maximum value, i.e. truncate the value, but keep the phase. This way we still have a partial correction, within the limits of the boards. 
+                # Here, we apply a maximum value, i.e. truncate the value, but keep the phase. 
+                # This way we still have a partial correction, within the limits of the boards. 
                 # Doing it this way also helps a lot with the waveforms being scalable.
                 if maxvalueZ:
                     precalc = precalc * (1.0 * (abs(precalc)<=maxvalueZ)) + np.exp(1j*np.angle(precalc))*maxvalueZ * 1.0 * (abs(precalc) > maxvalueZ)
