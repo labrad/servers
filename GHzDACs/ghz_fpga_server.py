@@ -839,11 +839,15 @@ class BoardGroup(object):
                 # processReadback as a module level function in dac.py,
                 # whereas in adc.py it's a staticmethod of the ADC class.
                 if isinstance(runner, dac.DacRunner):
-                    count = runner.dev.\
-                            processReadback(ans[0][3])['executionCounter']
+                    count = runner.dev.processReadback(ans[0][3]).get(
+                        'executionCounter',
+                        None
+                    )
                 elif isinstance(runner, adc.AdcRunner):
-                    count = runner.dev.processReadback(ans[0][3])\
-                                ['executionCounter']
+                    count = runner.dev.processReadback(ans[0][3]).get(
+                        'executionCounter',
+                        None
+                    )
                 runner.executionCount = count
             except Exception as e:
                 print e
@@ -859,9 +863,15 @@ class BoardGroup(object):
         """Create a nice error message explaining which boards timed out."""
         lines = ['Some boards failed:']
         for runner, (success, result) in zip(runners, results):
+            if runner.executionCount is None:
+                executionCount = 'not available'
+            else:
+                executionCount = runner.executionCount
             line = runner.dev.devName + ': ' + ('OK' if success else 'timeout!') 
-            line += ' Expected executions: %d  Actual: %d' \
-                        %(runner.reps, runner.executionCount)
+            line += ' Expected executions: {}  Actual: {}'.format(
+                runner.reps,
+                executionCount
+            )
             lines.append(line)
         return '\n'.join(lines)
 
