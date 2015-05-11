@@ -106,7 +106,7 @@ class TestFPGAServer(object):
         assert run_pkt[14] == self.global_reps >> 8           # reps high byte
         assert run_pkt[15] == 50                              # loop delay
         assert run_pkt[16] == 0
-        delay = 12 + self.global_board_delay + fpga.dac.MASTER_SRAM_DELAY
+        delay = 12 + self.global_board_delay + fpga.dac.MASTER_SRAM_DELAY_US
         assert run_pkt[43] == delay & 0xFF                    # delay
         assert run_pkt[44] == delay >> 8
 
@@ -162,7 +162,7 @@ class TestFPGAServer(object):
             packet_delay = p[43] + (p[44] >> 8)
             expected_delay = start_delays[i] + self.global_board_delay
             if i == 0:
-                expected_delay += fpga.dac.MASTER_SRAM_DELAY
+                expected_delay += fpga.dac.MASTER_SRAM_DELAY_US
             assert packet_delay == expected_delay
 
             load_writes = self.load_writes[i]

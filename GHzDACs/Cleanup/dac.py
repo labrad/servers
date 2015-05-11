@@ -128,7 +128,7 @@ Outputs of Mon[0] and Mon[1] are controlled by registers MonA[7..0] and MonB[7..
 # to raw byte strings prior to being sent to the direct ethernet server.
 
 # Time for master to delay before SRAM to ensure synchronization
-MASTER_SRAM_DELAY = 2  # us
+MASTER_SRAM_DELAY_US = 2
 
 
 class DAC(fpga.FPGA):
@@ -137,9 +137,6 @@ class DAC(fpga.FPGA):
     READBACK_LEN = 70
 
     TIMING_PACKET_LEN = 30
-
-    # Master delay before SRAM to ensure synchronization
-    MASTER_SRAM_DELAY = 2  # microseconds
 
     HAS_JUMP_TABLE = False
 
@@ -1081,13 +1078,13 @@ class DacRunner_Build15(DacRunner_Build7):
         Note that this add 2 us to the delay for the master board.
 
         :param int page: unused for JT boards
-        :param bool isMaster: if this board is master, add MASTER_SRAM_DELAY
+        :param bool isMaster: if this board is master, add MASTER_SRAM_DELAY_US
             to the start delay.
         :return: packet for the direct ethernet server
         """
         if isMaster:
             # TODO: how can we add a delay to the JT?
-            self.start_delay += MASTER_SRAM_DELAY
+            self.start_delay += MASTER_SRAM_DELAY_US
         return self.dev.load(self.jump_table, self.sram)
 
     def runPacket(self, page, slave, delay, sync):
@@ -1643,7 +1640,7 @@ class MemorySequence(list):
         return self
 
     @staticmethod
-    def addMasterDelay(cmds, delay_us=MASTER_SRAM_DELAY):
+    def addMasterDelay(cmds, delay_us=MASTER_SRAM_DELAY_US):
         """Add delays to master board before SRAM calls.
         
         Creates a memory sequence with delays added before all SRAM
