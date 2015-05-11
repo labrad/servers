@@ -29,45 +29,6 @@ from servers.GHzDACs.util import littleEndian
 import servers.GHzDACs.Cleanup.fpga as fpga
 import servers.GHzDACs.jump_table as jump_table
 
-MONITOR_0 = 5
-MONITOR_1 = 10
-
-'''
-Output Monitors
-
-When dipswitch DSW[7]=1:
-Mon[0] = regdone = received Ethernet input for a register write
-Mon[1] = ethersend  =  sent Ethernet output initiated by a register readback
-
-When DSW[7]=0:
-Outputs of Mon[0] and Mon[1] are controlled by registers MonA[7..0] and MonB[7..0]  according to the following table
-
-0	regdone		Ethernet in, write to registers
-1	SRAMwrite		Ethernet in, write to SRAM memory
-2	Jumpwrite		Ethernet in, write to JumpTable
-3	ethersend		Ethernet out
-4	master start		Master mode start
-5	SRAM running	Start by master or slave, for each cycle
-6	END			END opcode executed at FromAdr, produce 1 cycle pulse
-7	CYCLE
-8	CHECK
-9	IDLE
-
-10	DaisyIn[0]		DaisyIn[0] signal after fast input FF
-11	DaisyIn[1]
-12	DaisyIn[2]
-13	DaisyIn[3]
-14	DaisyOut[0]		DaisyOut[0] signal before fast output FF
-15	DaisyOut[1]
-16	DaisyOut[2]
-17	DaisyOut[3]
-
-18	d[0]			This is latched serial input (AD bits) from DaisyUp chain
-19	d[1]
-...
-33	d[15]
-'''
-
 # CHANGELOG
 #
 # 2012 September 27 - Daniel Sank
@@ -213,8 +174,6 @@ class DAC(fpga.FPGA):
         regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
         regs[0] = 0  # No sequence start
         regs[1] = 1  # Readback after 2us
-        regs[51] = MONITOR_0
-        regs[52] = MONITOR_1
         return regs
 
     @classmethod
@@ -223,8 +182,6 @@ class DAC(fpga.FPGA):
         regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
         regs[0] = 0  # No sequence start
         regs[1] = 1  # Readback after 2us
-        regs[51] = MONITOR_0
-        regs[52] = MONITOR_1
         return regs
 
     @classmethod
@@ -234,8 +191,6 @@ class DAC(fpga.FPGA):
         regs[1] = 1  # Readback = readback after 2us to allow for serial
         regs[47] = op  # Set serial operation mode to op
         regs[48:51] = littleEndian(data, 3)  # Serial data
-        regs[51] = MONITOR_0
-        regs[52] = MONITOR_1
         return regs
 
     @classmethod
@@ -245,8 +200,6 @@ class DAC(fpga.FPGA):
         regs[0] = 0
         regs[1] = 1
         regs[46] = 0x80  #Set d[7..0] to 10000000 = reset 1GHz PLL pulse
-        regs[51] = MONITOR_0
-        regs[52] = MONITOR_1
         return regs
 
     def resetPLL(self):
@@ -1123,6 +1076,45 @@ class DAC_Build15(DAC_Build8):
     because the actual fromAddress must be one less than the address you want,
     due to FPGA offsets, per John's documentation. (In the case of END, it's
     two less, and that's handled as well.)
+
+    Note also that the JT boards have output monitors (two SMAs on the "back"
+    of the boards) that are very helpful for debugging things. This is John's
+    doc for the various monitor options:
+
+    Output Monitors
+
+    When dipswitch DSW[7]=1:
+    Mon[0] = regdone = received Ethernet input for a register write
+    Mon[1] = ethersend  =  sent Ethernet output initiated by a register readback
+
+    When DSW[7]=0:
+    Outputs of Mon[0] and Mon[1] are controlled by registers MonA[7..0] and
+    MonB[7..0] according to the following table
+
+    0   regdone         Ethernet in, write to registers
+    1   SRAMwrite       Ethernet in, write to SRAM memory
+    2   Jumpwrite       Ethernet in, write to JumpTable
+    3   ethersend       Ethernet out
+    4   master start    Master mode start
+    5   SRAM running    Start by master or slave, for each cycle
+    6   END             END opcode executed at FromAdr, produce 1 cycle pulse
+    7   CYCLE
+    8   CHECK
+    9   IDLE
+
+    10  DaisyIn[0]      DaisyIn[0] signal after fast input FF
+    11  DaisyIn[1]
+    12  DaisyIn[2]
+    13  DaisyIn[3]
+    14  DaisyOut[0]     DaisyOut[0] signal before fast output FF
+    15  DaisyOut[1]
+    16  DaisyOut[2]
+    17  DaisyOut[3]
+
+    18  d[0]            This is latched serial input (AD bits) from DaisyUp chain
+    19  d[1]
+    ...
+    33  d[15]
     """
 
     HAS_JUMP_TABLE = True
@@ -1151,6 +1143,9 @@ class DAC_Build15(DAC_Build8):
     JT_MAX_FROM_ADDR = SRAM_LEN // 4 + JT_FROM_ADDR_OFFSET
     JT_MAX_END_ADDR = SRAM_LEN // 4 + JT_END_ADDR_OFFSET
     JT_MAX_TO_ADDR = SRAM_LEN // 4
+
+    MONITOR_0 = 5
+    MONITOR_1 = 10
 
     @classmethod
     def convert_from_address(cls, x_ns):
@@ -1240,8 +1235,8 @@ class DAC_Build15(DAC_Build8):
         regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
         regs[0] = 1  # Master mode to prevent daisy passthrough.
         regs[1] = 1  # Readback after 2us
-        regs[51] = MONITOR_0
-        regs[52] = MONITOR_1
+        regs[51] = cls.MONITOR_0
+        regs[52] = cls.MONITOR_1
         return regs
 
     @classmethod
@@ -1256,8 +1251,8 @@ class DAC_Build15(DAC_Build8):
         regs[1] = 1  # Readback = readback after 2us to allow for serial
         regs[47] = op  # Set serial operation mode to op
         regs[48:51] = littleEndian(data, 3)  # Serial data
-        regs[51] = MONITOR_0
-        regs[52] = MONITOR_1
+        regs[51] = cls.MONITOR_0
+        regs[52] = cls.MONITOR_1
         return regs
 
     @classmethod
@@ -1267,6 +1262,8 @@ class DAC_Build15(DAC_Build8):
         regs[0] = 1  # master mode to prevent daisy passthrough
         regs[1] = 1
         regs[46] = 0x80  # Set d[7..0] to 10000000 = reset 1GHz PLL pulse
+        regs[51] = cls.MONITOR_0
+        regs[52] = cls.MONITOR_1
         return regs
 
     @classmethod
@@ -1295,8 +1292,8 @@ class DAC_Build15(DAC_Build8):
         regs[43:45] = littleEndian(int(delay), 2)
         regs[45] = sync
         regs[17] = 0  # Which jump table to count activations of
-        regs[51] = monitor_0 if monitor_0 is not None else MONITOR_0
-        regs[52] = monitor_1 if monitor_1 is not None else MONITOR_1
+        regs[51] = monitor_0 if monitor_0 is not None else cls.MONITOR_0
+        regs[52] = monitor_1 if monitor_1 is not None else cls.MONITOR_1
 
         return regs
 
@@ -1323,8 +1320,8 @@ class DAC_Build15(DAC_Build8):
         regs[0] = 0  # do not start, daisy pass-through
         regs[1] = 0  # no readback
         regs[43:45] = littleEndian(int(delay), 2)
-        regs[51] = 16
-        regs[52] = 10
+        regs[51] = cls.MONITOR_0
+        regs[52] = cls.MONITOR_1
         return regs
 
     @classmethod
