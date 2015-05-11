@@ -1050,7 +1050,7 @@ fpga.REGISTRY[('DAC', 12)] = DAC_Build12
 
 class DacRunner_Build15(DacRunner_Build7):
     def __init__(self, dev, reps, start_delay, jt_entries, jt_counters, sram, loop_delay):
-        """Make a DAC runner for a given device.
+        """Initialize a DAC runner for a given device.
 
         See DAC_Build15.make_jump_table for info on the jt_entries and
         jt_counters arguments.
@@ -1061,13 +1061,13 @@ class DacRunner_Build15(DacRunner_Build7):
         :param list[(str, list[int])] jt_entries: JT entries
         :param list[int] jt_counters: JT counter values, or None for all 0s
         :param str sram: string data to be loaded to sram
+        :param int loop_delay: number of us to delay between reps.
         """
         self.dev = dev
         self.reps = reps
         self.start_delay = start_delay
         self.loop_delay = loop_delay
-        self.jt_entries = jt_entries
-        self.jt_counters = jt_counters
+        self.jump_table = self.dev.make_jump_table(jt_entries, jt_counters)
         self.sram = sram
         self.nPackets = 0  # we don't expect any packets back
         self.seqTime = fpga.TIMEOUT_FACTOR * (100 * self.reps) * 10**-6 + 1  # TODO: what should we do here? issue #49
@@ -1076,18 +1076,19 @@ class DacRunner_Build15(DacRunner_Build7):
         return False  # no paging for JT
 
     def loadPacket(self, page, isMaster):
-        """ Create pipelined load packet.  For DAC, upload JT and SRAM.
+        """ Create pipelined load packet, which includes JT and SRAM.
 
         Note that this add 2 us to the delay for the master board.
 
+        :param int page: unused for JT boards
+        :param bool isMaster: if this board is master, add MASTER_SRAM_DELAY
+            to the start delay.
         :return: packet for the direct ethernet server
         """
         if isMaster:
             # TODO: how can we add a delay to the JT?
             self.start_delay += MASTER_SRAM_DELAY
-        jt = self.dev.make_jump_table(entries=self.jt_entries,
-                                      counters=self.jt_counters)
-        return self.dev.load(jt, self.sram)
+        return self.dev.load(self.jump_table, self.sram)
 
     def runPacket(self, page, slave, delay, sync):
         """ Create run packet.
