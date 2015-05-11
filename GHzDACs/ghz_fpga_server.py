@@ -1926,7 +1926,7 @@ class FPGAServer(DeviceServer):
 
     @setting(1225, 'DAC BIST', chan='s', data='*w', returns='b(ww)(ww)(ww)')
     def dac_bist(self, c, chan, data):
-        """Run a BIST on the given SRAM sequence. (DAC only)
+        """Run a Built-In Self Test on the given SRAM sequence. (DAC only)
         
         Returns success, theory, LVDS, FIFO
         """

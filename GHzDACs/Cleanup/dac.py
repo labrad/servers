@@ -1,4 +1,4 @@
-""" dac.py
+"""dac.py
 
 This module contains the DAC class and its subclasses. DAC inherits from
 fpga.FPGA and ultimately from LabRAD's DeviceWrapper. Thus, in the main fpga
@@ -146,7 +146,7 @@ class DAC(fpga.FPGA):
     @classmethod
     def macFor(cls, board):
         """Get the MAC address of a DAC board as a string."""
-        return cls.MAC_PREFIX + ('0' + hex(int(board))[2:])[-2:].upper()
+        return cls.MAC_PREFIX + '{:02X}'.format(int(board))
 
     @classmethod
     def isMac(cls, mac):
@@ -158,8 +158,8 @@ class DAC(fpga.FPGA):
     @inlineCallbacks
     def connect(self, name, group, de, port, board, build):
         """Establish a connection to the board."""
-        print('connecting to DAC board: %s (build #%d)' %
-              (self.macFor(board), build))
+        print 'connecting to DAC board: {} (build #{})'.format(
+            self.macFor(board), build)
 
         self.boardGroup = group
         self.server = de
@@ -277,8 +277,6 @@ class DAC(fpga.FPGA):
                If less than a full derp is written, the rest of the derp is
                populated with zeros.
         """
-        # TODO: I think this function is unneccessary. I think data.tostring()
-        # should work if data.dtype == '<u4' (and is of length 256).
         assert 0 <= derp < cls.SRAM_WRITE_DERPS, \
             "SRAM derp out of range: %d" % derp
         assert 0 < len(data) <= cls.SRAM_WRITE_PKT_LEN, \
@@ -968,9 +966,6 @@ class DAC_Build7(DAC):
                        for i in [0, 5, 10, 15]]
             lvds, fifo = tuple(reading[0:2]), tuple(reading[2:4])
 
-            # print "bist = ", bist
-            # print "reading = ", reading
-
             # lvds and fifo may be reversed.  This is okay
             lvds = lvds[::-1] if lvds[::-1] == theory else lvds
             fifo = fifo[::-1] if fifo[::-1] == theory else fifo
@@ -1054,9 +1049,8 @@ fpga.REGISTRY[('DAC', 12)] = DAC_Build12
 # Jump table #
 
 class DacRunner_Build15(DacRunner_Build7):
-    # noinspection PyMissingConstructor
     def __init__(self, dev, reps, start_delay, jt_entries, jt_counters, sram, loop_delay):
-        """ Make a DAC runner for a given device.
+        """Make a DAC runner for a given device.
 
         See DAC_Build15.make_jump_table for info on the jt_entries and
         jt_counters arguments.
@@ -1067,7 +1061,6 @@ class DacRunner_Build15(DacRunner_Build7):
         :param list[(str, list[int])] jt_entries: JT entries
         :param list[int] jt_counters: JT counter values, or None for all 0s
         :param str sram: string data to be loaded to sram
-        :return:
         """
         self.dev = dev
         self.reps = reps
@@ -1243,9 +1236,6 @@ class DAC_Build15(DAC_Build8):
         runner = self.RUNNER_CLASS(self, reps, start_delay, jt_entries, jt_counters, sram, loop_delay=loop_delay)
         return runner
 
-    # let's check the various registry functions.
-    # OK means old implementation should work
-
     @classmethod
     def regPing(cls):
         """Returns a numpy array of register bytes to ping DAC register"""
@@ -1342,11 +1332,6 @@ class DAC_Build15(DAC_Build8):
     @classmethod
     def regDebug(cls, word1, word2, word3, word4):
         raise NotImplementedError("Not sure what debug means for the JT")
-
-    # regClockPolarity -- OK
-    # regDebug -- OK
-    # regI2C -- OK
-    # makeSram -- OK
 
     def load(self, jt, sram, page=None):
         """ Get a load packet for this DAC.
@@ -1499,8 +1484,10 @@ class DAC_Build15(DAC_Build8):
 
     def runBIST(self, cmd, shift, dataIn):
         """ Run a BIST on given SRAM sequence. Jump Table DAC version.
+
         This is rewritten from the non-JT version because we can no longer
         run the SRAM directly with a register write.
+
         :param cmd: serial operation to run.
         :param shift: bit shift SRAM data by this amount (e.g. 14 for DAC B)
         :param dataIn: input SRAM data
@@ -1509,12 +1496,7 @@ class DAC_Build15(DAC_Build8):
 
         @inlineCallbacks
         def func():
-            # do nothing run
-            # yield self._sendSRAM(np.zeros(256, dtype='<u4').tostring())
-            # yield self._sendJumpTable(jump_table.jt_run_sram(0, 100, loop=False))
-            # yield self._sendRegisters(self.regRunSimple(readback=False), readback=False)
-
-            # serial run?
+            # serial commands for the BIST.
             dat = [d & 0x3FFF for d in dataIn]
             data = [0, 0, 0, 0] + [d << shift for d in dat]
             # make sure data is at least 20 words long by appending 0's
