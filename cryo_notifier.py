@@ -122,12 +122,12 @@ class CryoNotifier(LabradServer):
         folder in the registry. '''
         # pull out node names
         nodes = [x for x in self.client.servers if x.lower().startswith('node')]
-        nodes = [x.partition(' ')[2].lower() for x in nodes]
+        nodes = [x.partition(' ')[2] for x in nodes]
         p = self.reg.packet()
         p.cd(self.path)
         p.dir()
         ans = yield p.send()
-        dirs = [x.lower() for x in ans['dir'][0]]
+        dirs = ans['dir'][0]
         matches = [x for x in nodes if x in dirs]
         if not matches:
             print "No node <--> registry directory matches found. Using %s" % self.path

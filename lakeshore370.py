@@ -151,14 +151,10 @@ class RuOxWrapper(GPIBDeviceWrapper):
         yield self.reloadSettleTime(path)
     
     def getRegistryPath(self):
-        """Get a registry path suitable for registry.cd
-        
-        Warning - the registry is controlled by the same program as the manager
-        which runs in Windoze. This means that paths are case insensitive.
-        """
+        """Get a registry path suitable for registry.cd"""
         path = ['', 'Servers', 'Lakeshore 370']
-        gpibServerName, addr = self.name.split(' - ')
-        nodeName = gpibServerName.split(' ')[0].lower()
+        gpibServerName, addr = self.name.split(' - ', 1)
+        nodeName = gpibServerName.split(' ')[0]
         path.extend([nodeName, addr])
         return path
     
