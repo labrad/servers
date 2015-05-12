@@ -254,7 +254,8 @@ I2C_END = 0x400
 
 class TimeoutError(Exception):
     """Error raised when boards timeout."""
-    
+
+
 class BoardGroup(object):
     """Manages a group of GHz DAC boards that can be run simultaneously.
     
@@ -1474,18 +1475,19 @@ class FPGAServer(DeviceServer):
                 userpath = os.path.expanduser('~')
                 logpath = os.path.join(userpath, 'dac_timeout_log.txt')
                 with open(logpath, 'a') as logfile:
-                    print 'attempt %d - error: %s' % (attempt, err)
-                    print >>logfile, 'attempt %d - error: %s' % (attempt, err)
+                    t = timeString()
+                    msg = '{}: attempt {} - error: {}'.format(t, attempt, err)
+                    print(msg)
+                    logfile.write(msg+'\n')
                     if attempt == retries:
-                        print 'FAIL!'
-                        print >>logfile, 'FAIL!'
+                        logfile.write('FAIL\n')
                         #TODO: notify users via SMS
                         raise
                     else:
-                        print 'retrying...'
-                        print >>logfile, 'retrying...'
+                        print('retrying...')
+                        logfile.write('retrying...')
                         attempt += 1
-    
+
     @setting(52, 'Daisy Chain', boards='*s', returns='*s')
     def sequence_boards(self, c, boards=None):
         """
