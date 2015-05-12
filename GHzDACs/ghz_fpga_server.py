@@ -850,8 +850,8 @@ class BoardGroup(object):
                     )
                 runner.executionCount = count
             except Exception as e:
+                print("Attempt to read execution counts failed: ")
                 print e
-                raise Exception('Recover from error failed')
             # Finally, clear the packet buffer and send trigger if this was a
             # failed board
             finally:
