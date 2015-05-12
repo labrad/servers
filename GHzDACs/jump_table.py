@@ -3,6 +3,7 @@
 
 import numpy as np
 from util import littleEndian
+from servers.GHzDACs.Cleanup import fpga
 
 IDLE_NUM_BITS = 15
 IDLE_MIN_CYCLES = 0
@@ -400,7 +401,7 @@ def testNormal(stopAddr):
     return waveform, table
 
 
-def test_sine(length):
+def test_sine(length, build_number=15):
     """ Return SRAM and a JT for a sine wave of length ns.
 
     Note that the sequence will be four ns longer than specified,
@@ -408,8 +409,10 @@ def test_sine(length):
     down to the nearest 4 ns. Length < 12 probably won't work.
 
     :param int length: length of sine wave, in ns.
-    :return:
+    :param int build_number: build number for which to use offsets
     """
+    build_cls = fpga.REGISTRY[('DAC', build_number)]
+
     length = (length // 4) * 4
     waveform = 0.4*np.sin(2*np.pi/256*8*np.arange(length + 4))
     waveform[-4:] *= 0
@@ -417,7 +420,7 @@ def test_sine(length):
 
     # End execution
     op = END()
-    from_addr = length // 4 - 3
+    from_addr = length // 4 + build_cls.JT_END_ADDR_OFFSET
     to_addr = 0
     jump_entries.append(JumpEntry(from_addr, to_addr, op))
 
@@ -427,7 +430,7 @@ def test_sine(length):
     return waveform, table
 
 
-def testIdle(cycles):
+def testIdle(cycles, build_number=15):
     """Single high sample, followed by idle, followed by single high sample
     
     RETURNS - (sramBlock, table)
@@ -444,21 +447,27 @@ def testIdle(cycles):
     The fromAddr for the IDLE command is set to cell number 6. Therefore, you
     should see a pulse of length (1+cycles)*4ns, followed by 16ns of zeros,
     followed by a 4ns pulse. The system should then idle with zeros.
+
+    :param int cycles: idle for this many clock cycles.
+    :param int build_number: build number for which to use offsets
     """
+    build_cls = fpga.REGISTRY[('DAC', build_number)]
+
     waveform = np.zeros(256)
     waveform[24:28] = 0.7
     waveform[44:48] = 0.4
 
     jumpEntries = []
 
-    op = IDLE(cycles)
-    fromAddr = 28//4  # idle on sram pulse
+    # idle on sram pulse
+    op = IDLE(cycles + build_cls.JT_IDLE_OFFSET)
+    fromAddr = 28//4 + build_cls.JT_FROM_ADDR_OFFSET
     toAddr = 0
     jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
 
     # End execution
     op = END()
-    fromAddr = 52//4
+    fromAddr = 52//4 + build_cls.JT_END_ADDR_OFFSET
     toAddr = 0
     jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
 
@@ -468,7 +477,7 @@ def testIdle(cycles):
     return waveform, table
 
 
-def testJump():
+def testJump(build_number):
     """Test jump function
     
     The SRAM block we use to store data
@@ -478,7 +487,11 @@ def testJump():
     data || ________________________----________________--------____________
     table||                             ^               ^                     ^
                                         Jump            Arrive                End
+
+    :param int build_number: build number for which to use offsets
     """
+    build_cls = fpga.REGISTRY[('DAC', build_number)]
+
     waveform = np.zeros(256)
     waveform[24:28] = 0.8
     waveform[44:52] = 0.8
@@ -487,12 +500,12 @@ def testJump():
 
     # Jump at 6th SRAM cell
     op = JUMP(2)
-    fromAddr = 28//4 - 2
+    fromAddr = 28//4 + build_cls.JT_FROM_ADDR_OFFSET
     toAddr = 44//4
     jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
 
     op = END()
-    fromAddr = 256//4 - 3
+    fromAddr = 256//4 + build_cls.JT_END_ADDR_OFFSET
     toAddr = 0
     jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
 
@@ -502,7 +515,7 @@ def testJump():
     return waveform, table
 
 
-def testJumpBack():
+def testJumpBack(build_number=15):
     """Test jump function
 
     The SRAM block we use to store data
@@ -512,7 +525,11 @@ def testJumpBack():
     data ||                        ----____^^^^
     table||            ^                   ^              ^
                        Arrive              Jump           End
+
+    :param int build_number: build number for which to use offsets
     """
+    build_cls = fpga.REGISTRY[('DAC', build_number)]
+
     waveform = np.zeros(256)
     waveform[24:28] = 0.4
     waveform[28:32] = -0.4
@@ -522,12 +539,12 @@ def testJumpBack():
 
     # Jump at 6th SRAM cell
     op = JUMP(2)
-    fromAddr = 32//4 - 2
+    fromAddr = 32//4 + build_cls.JT_FROM_ADDR_OFFSET
     toAddr = 12//4
     jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
 
     op = END()
-    fromAddr = 256//4 - 3
+    fromAddr = 256//4 + build_cls.JT_END_ADDR_OFFSET
     toAddr = 0
     jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
 
@@ -537,7 +554,7 @@ def testJumpBack():
     return waveform, table
 
 
-def testJumpBackLoop():
+def testJumpBackLoop(build_number=15):
     """Test jump function
 
     The SRAM block we use to store data
@@ -547,7 +564,11 @@ def testJumpBackLoop():
     data ||                        ----____^^^^
     table||            ^                   ^
                        Arrive              Jump
+
+    :param int build_number: build number for which to use offsets
     """
+    build_cls = fpga.REGISTRY[('DAC', build_number)]
+
     waveform = np.zeros(256)
     waveform[24:28] = 0.4
     waveform[28:32] = -0.4
@@ -557,12 +578,12 @@ def testJumpBackLoop():
 
     # Jump at 6th SRAM cell
     op = JUMP(1)
-    fromAddr = 32//4 - 2
+    fromAddr = 32//4 + build_cls.JT_FROM_ADDR_OFFSET
     toAddr = 12//4
     jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
 
     op = END()
-    fromAddr = 256//4 - 3
+    fromAddr = 256//4 + build_cls.JT_END_ADDR_OFFSET
     toAddr = 0
     jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
 
@@ -572,19 +593,33 @@ def testJumpBackLoop():
     return waveform, table
 
 
-def testCycle(num_cycles):
+def testCycle(num_cycles, build_number=15):
+    build_cls = fpga.REGISTRY[('DAC', build_number)]
+
     waveform = np.zeros(256)
-    waveform[10:20] = 0.8
+    waveform[10:24] = 0.8
     waveform[40:50] = np.linspace(0, 0.3, 10)
     waveform[50:60] = np.linspace(0.3, 0, 10)
+    waveform[70:80] = 0.5
     waveform[100:110] = np.linspace(1.0, 0.7, 10)
     waveform[110:120] = np.linspace(0.7, 1.0, 10)
 
     jumpEntries = [
-        JumpEntry(56//4, 40//4, CYCLE(0, 1)),  # cycle: go back to 40, JT index 1, until count passed (i.e. repeat 40-60)
-        JumpEntry(72//4, 100//4, JUMP(3)),     # jump, just for fun
-        JumpEntry(120//4, 0, JUMP(4)),         # back to beginning to finish
-        JumpEntry(20//4, 0, END())
+        # cycle: go back to 40, JT index 1, until count passed (i.e. repeat 40-60)
+        JumpEntry(60//4 + build_cls.JT_FROM_ADDR_OFFSET,
+                  40//4,
+                  CYCLE(0, 1)),
+        # jump, just for fun
+        JumpEntry(80//4 + build_cls.JT_FROM_ADDR_OFFSET,
+                  100//4,
+                  JUMP(3)),
+        # back to beginning to finish
+        JumpEntry(120//4 + build_cls.JT_FROM_ADDR_OFFSET,
+                  0,
+                  JUMP(4)),
+        JumpEntry(24//4 + build_cls.JT_END_ADDR_OFFSET,
+                  0,
+                  END())
     ]
     # note that we can't move the first jump any earlier than 72//4 = 18, because 56//4 = 14 and fromAddrs must be
     # separated by at least 4
