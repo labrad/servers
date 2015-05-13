@@ -501,7 +501,14 @@ class Dataset:
             sec = 'Parameter %d' % (i+1)
             label = S.get(sec, 'Label', raw=True)
             # TODO: big security hole! eval can execute arbitrary code
-            data = T.evalLRData(S.get(sec, 'Data', raw=True))
+            try:
+                data = T.evalLRData(datastr)
+            except RuntimeError:
+                if datastr.endswith('None)'):
+                    datastr = datastr[0:-5]+"'')"
+                    data = T.evalLRData(datastr)
+                else:
+                    raise
             return dict(label=label, data=data)
         count = S.getint(gen, 'Parameters')
         self.parameters = [getPar(i) for i in range(count)]
