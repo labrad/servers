@@ -501,6 +501,7 @@ class Dataset:
             sec = 'Parameter %d' % (i+1)
             label = S.get(sec, 'Label', raw=True)
             # TODO: big security hole! eval can execute arbitrary code
+            datastr = S.get(sec, 'Data', raw=True)
             try:
                 data = T.evalLRData(datastr)
             except RuntimeError:
