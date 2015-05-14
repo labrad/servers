@@ -1,7 +1,7 @@
 # Introduction
 This is a beginner's documentation for the jump table version of the DACs.
 
-*Remember: 8 bits to one byte, 4 bytes to a word, 256 words to a derp.*
+*Remember: 8 bits to one byte, 4 bytes to a word, 4 words to a cell, 256 words to a derp.*
 
 The word "derp" is used instead of "page" because "page" used to refer to a completely unrelated construct in how the FPGA server handled pipelining. That said, "derp" isn't very descriptive and should probably be changed to something like "sentence" or "paragraph".
 
@@ -18,6 +18,7 @@ There are now two pointers that can be manipulated:
     * The operation code defines the type of command: e.g. IDLE, CHECK, CYCLE, JUMP, NOP, END
     * The fromAddress is an SRAM address. When the SRAM pointer reaches the fromAddress, this jump table operation is called, and will execute on the _next_ cycle (i.e. the SRAM pointer will be at fromAddress+1 when the jump table operation executes).
     * The toAddress is an SRAM address that is used in the CHECK, CYCLE, and JUMP operations.
+    * Note that the fromAddress and the toAddress are given in _cells_, or groups of 4 ns of data. So a fromAddress of 0 corresponds to the SRAM of 0-3 ns, and 1 is 4-7 ns, etc.
   * Jump table operations can manipulate both the SRAM pointer and the jump table pointer.
 
 # Jump Table Operations
@@ -144,9 +145,8 @@ Byte Index (0-indexed) | Name | Description
 52 | Mon2 | set Mon2 output
 53-55 | spare | not used
 
-# Questions
+# Gotchas
 
-* The JT operation is actually executed at fromAddress + 1. Does this mean that JT index 2 in the final example will cycle between 0x28 and 0x31, actually? And the JUMP operation (3) will jump from 0x41 to 0x48?
-* Can the start operation be something other than a NOP?
-* Is it possible to *just* run the SRAM through th eregister, like previous versions?
- * Or must we always use the JT?
+* The JT operations take place on the clock cycle *after* the from address is reached. That is, if you idle with a from address of 10, then the SRAM in cell 11 (44-47 ns) will be repeated during the idle.
+* The end opcode is offset by two; that is, ending with a from address of 10 will idle on cell 12.
+* From addresses are not allowed to be within two of each other.
