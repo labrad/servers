@@ -379,7 +379,13 @@ class Dataset(object):
                 data = T.unflatten(data_bytes, t)
             else:
                 # old parameters may have been saved using repr
-                data = T.evalLRData(raw)
+                try:
+                    data = T.evalLRData(raw)
+                except RuntimeError:
+                    if raw.endswith('None)'):
+                        data = T.evalLRData(raw[0:-5] + '"")')
+                    else:
+                        raise
             return dict(label=label, data=data)
         count = S.getint(gen, 'Parameters')
         self.parameters = [getPar(i) for i in range(count)]
