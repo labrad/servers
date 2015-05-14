@@ -1411,6 +1411,13 @@ class DAC_Build15(DAC_Build8):
                 )
             else:
                 raise ValueError("'{}' is not a valid jump table command".format(name))
+        for i, a in enumerate(jt_entries):
+            for j, b in enumerate(jt_entries[i+1:]):
+                if abs(a.from_addr - b.from_addr) < cls.JT_MIN_FROM_ADDR_SPACING:
+                    raise ValueError(
+                        "Entries {}({}) and {}({}) have from addrstoo close together.".format(
+                            i, a.operation, i+j+1, b.operation)
+                    )
         return jump_table.JumpTable(
             start_addr=cls.convert_to_address(start_address_ns),
             jumps=jt_entries,
