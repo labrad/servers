@@ -177,7 +177,7 @@ cmdTime_cycles does not properly estimate sram length
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 5.0.3
+version = 5.0.0
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -525,9 +525,7 @@ class BoardGroup(object):
             if board in runnerInfo:
                 runner = runnerInfo[board]
                 slave = len(boards) > 0
-                # print "DAC {}, mode={}, page={}, delay={}, sync={}".format(board, slave, page, delay, sync)
                 regs = runner.runPacket(page, slave, delay, sync)
-                # print regs
                 boards.append((runner.dev, regs))
             elif len(boards):
                 # This board is after the master, but will not itself run, so
