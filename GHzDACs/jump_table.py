@@ -594,6 +594,40 @@ def testJumpBackLoop(build_number=15):
 
 
 def testCycle(num_cycles, build_number=15):
+    """Test cycle function
+
+    The SRAM block we use to store data
+    ns   || 10        20    || 40        50        60 || 70        80
+         || 012345678901234 || 0123456789012345678901 || 01234567890123
+    cell ||  |3  |4  |5  |6 || 10 |11 |12 |13 |14 |15 ||  |18 |19 |20 |
+    data ||  -------------  ||         _--_           || ----------
+         ||                 ||      __/ 0.3\__        ||
+         ||   level=0.8     ||   __/          \__     ||  level=0.5
+         ||                 || _/                \_   ||
+    table||               ^                        ^               ^
+                          END                      CYCLE to 40     JUMP to 100
+
+    ns   || 100       110       120
+         || 012345678901234567890123
+    cell || 25 |26 |27 |28 |29 |30 |
+    data ||         _--_
+         ||      __/ 0.7\__
+         ||   __/          \__
+         || _/                \_
+    table||                     ^
+                                JUMP to 4
+
+    What you should see:
+
+    The first jump entry is a cycle with from_addr at cell 15 so we just play
+    data until then. Thereofre, you'll see ten ns of zeros, then output=0.8 from
+    10 ns to 24 ns, then zeros until 40 ns, then a triangle up to output=0.3
+    starting at 40 ns and ending at 60 ns. Then we hit the cycle and go back to
+    40 ns, so we see the triangle a second time. After the triangle we see zeros
+    for 10 ns. Then we see 10 ns of contant output=0.5. Then we see a triangle
+    from output=0 to output=0.7 and back over 20 ns, and then we finish on
+    output=0.
+    """
     build_cls = fpga.REGISTRY[('DAC', build_number)]
 
     waveform = np.zeros(256)
@@ -605,7 +639,8 @@ def testCycle(num_cycles, build_number=15):
     waveform[110:120] = np.linspace(0.7, 1.0, 10)
 
     jumpEntries = [
-        # cycle: go back to 40, JT index 1, until count passed (i.e. repeat 40-60)
+        # cycle: go back to 40, JT index 1, until count passed
+        # (i.e. repeat 40-60)
         JumpEntry(60//4 + build_cls.JT_FROM_ADDR_OFFSET,
                   40//4,
                   CYCLE(0, 1)),
@@ -621,9 +656,12 @@ def testCycle(num_cycles, build_number=15):
                   0,
                   END())
     ]
-    # note that we can't move the first jump any earlier than 72//4 = 18, because 56//4 = 14 and fromAddrs must be
-    # separated by at least 4
+    # Note that we can't move the first jump any earlier than 72//4 = 18,
+    # because 56//4 = 14 and fromAddrs must be separated by at least 4.
 
-    table = JumpTable(0, counters=[num_cycles, num_cycles, num_cycles, num_cycles])
+    table = JumpTable(
+        0,
+        counters=[num_cycles, num_cycles, num_cycles, num_cycles]
+    )
     table.jumps = jumpEntries
     return waveform, table
