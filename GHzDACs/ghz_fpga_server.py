@@ -1675,18 +1675,37 @@ class FPGAServer(DeviceServer):
         dev = self.selectedDAC(c)
         yield dev._sendSRAM(np.array(data, dtype='<u4').tostring())
 
-    @setting(1082, "Jump Table Add Entry", name='s', arg=['ww{IDLE}', 'www{JUMP}', 'w{NOP,END}', 'wwww{CYCLE}'])
+    @setting(
+        1082,
+        "Jump Table Add Entry",
+        name='s',
+        arg=['ww{IDLE}', 'www{JUMP}', 'w{NOP,END}', 'wwww{CYCLE}']
+    )
     def jump_table_add_entry(self, c, name, arg=None):
-        """ Add a new jump table entry.
+        """Add a new jump table entry.
 
-        Entry types are: IDLE, JUMP, NOP, END, CYCLE, CHECK, RAMP
-        (as of now, CHECK and RAMP are unimplemented)
+        Args:
+            name (str): Op code to add. Can be IDLE, JUMP, CYCLE, NOP, or END.
+            arg (int or tuple of ints): Parameters for op code. Number of
+                entries and their meaning depends on which op code is being
+                added, as described below.
 
-        The arguments vary depending on the command, see the JT docs for
-        details. Note that from addresses and to addresses are to be specified
-        in nanoseconds (though still in words). They will be divided by 4 to
-        convert to SRAM addresses, and have offsets applied to account for
-        FPGA timings.
+        As a LabRAD setting this function has several allowed signatures. In all
+        cases it takes two arguments, a name (str) specifying which op code to
+        add and then either an unsigned int or a tuple of unsigned ints. What
+        the ints mean depends on which op code is added. The supported
+        signatures are
+
+        'IDLE', (from_addr_ns, duration_ns)
+        'JUMP', (from_addr_ns, to_add_ns_, jump_table_index)
+        'CYCLE', (from_addr_ns, to_addr_ns, jt_idx, counter)
+        'NOP', from_addr_ns
+        'END', from_addr_ns
+
+        Note that from addresses and to addresses are to be specified in
+        nanoseconds (though still in words). They will be divided by 4 to
+        convert to SRAM addresses, and have offsets applied to account for FPGA
+        timings.
         """
         dev = self.selectedDAC(c)
         assert dev.HAS_JUMP_TABLE, "device is not a jump table board: {}".format(dev)
