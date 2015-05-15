@@ -228,15 +228,12 @@ class DcRackWrapper(DeviceWrapper):
                 returnList.append([key, 'preamp'])
         return returnList
 
-    @inlineCallbacks
     def preampState(self, cardNumber, channel):
         state = self.rackCards[str(cardNumber)].preampChannelState(channel)
-        returnValue(state)
+        return state
 
-    @inlineCallbacks
     def getMonitorState(self):
-        state = self.rackMonitor.monitorState()
-        returnValue(state)
+        return self.rackMonitor.monitorState()
         
     @inlineCallbacks
     def commitToRegistry(self, reg):
@@ -469,7 +466,7 @@ class DcRackServer(DeviceServer):
         List cards configured in the registry (does not query cards directly)
         """
         dev = self.selectedDevice(c)
-        cards = yield dev.returnCardList()
+        cards = dev.returnCardList()
         returnValue(cards)
 
     @setting(455, 'get_preamp_state')
@@ -534,7 +531,7 @@ class Preamp:
     def preampChannelState(self, channel):
         ch = self.channels[channel]
         state = [ch.highPass, ch.lowPass, ch.polarity, str(ch.offset)]
-        returnValue(state)
+        return state
 
 class Channel:
     def __init__(self,w,x,y,z):
