@@ -177,7 +177,7 @@ cmdTime_cycles does not properly estimate sram length
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 5.0.3
+version = 5.0.0
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -525,9 +525,7 @@ class BoardGroup(object):
             if board in runnerInfo:
                 runner = runnerInfo[board]
                 slave = len(boards) > 0
-                # print "DAC {}, mode={}, page={}, delay={}, sync={}".format(board, slave, page, delay, sync)
                 regs = runner.runPacket(page, slave, delay, sync)
-                # print regs
                 boards.append((runner.dev, regs))
             elif len(boards):
                 # This board is after the master, but will not itself run, so
@@ -1667,10 +1665,14 @@ class FPGAServer(DeviceServer):
 
     @setting(2081, 'DAC Write SRAM', data='*w')
     def dac_write_sram(self, c, data):
-        """ Write the given data to SRAM.
+        """ Write data to SRAM.
 
-        Note that if your board is currently running, it will immediately start
-        playing the new SRAM, wherever it is, so use with caution.
+        Args:
+            data(iterable of int): List-like series of SRAM data. The data must
+                already be packed.
+
+        The data is written immediately, although no start commands are sent.
+        This command just writes data into the board's SRAM buffer, that's it.
         """
         dev = self.selectedDAC(c)
         yield dev._sendSRAM(np.array(data, dtype='<u4').tostring())
