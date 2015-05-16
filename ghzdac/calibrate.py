@@ -22,6 +22,7 @@ import time
 import numpy as np
 from labrad.types import Value
 import keys
+import labrad
 
 #trigger to be set:
 #0x1: trigger S0
@@ -51,10 +52,21 @@ def assertSpecAnalLock(server, device):
         
 
 def microwaveSourceServer(cxn, ID):
-    anritsus = cxn.anritsu_server.list_devices()
-    anritsus = [dev[1] for dev in anritsus]
-    hittites = cxn.hittite_t2100_server.list_devices()
-    hittites = [dev[1] for dev in hittites]
+
+    anritsus = []
+    hittites = []
+    for server, devices in zip(
+        ['anritsu_server', 'hittite_t2100_server'],
+        [anritsus, hittites]
+    ):
+        try:
+            devs = cxn[server].list_devices()
+            print devs
+            devices.extend([dev[1] for dev in devs])
+        except labrad.client.NotFoundError as e:
+            print(e)
+    print('hittites: {}'.format(hittites))
+    print ID
     if ID in anritsus:
         server = 'anritsu_server'
     elif ID in hittites:
@@ -77,6 +89,10 @@ def spectDeInit(spec):
      
 def spectFreq(spec,freq):
     spec.gpib_write(':FREQ:CENT %gGHz' % freq)
+    
+def specAutoAlign(spec, bool):
+    command = 'ON' if bool else 'OFF'
+    spec.gpib_write(':CAL:AUTO ' + command)
 
      
 def signalPower(spec):
@@ -557,8 +573,8 @@ def calibrateDCPulse_infiniium(cxn, boardname, channel, conf_10_MHz):
  
 def measureOppositeSideband(spec, fpga, corrector,
                             carrierfreq, sidebandfreq, compensation):
-    """Put out a signal at carrierfreq+sidebandfreq and return the power at
-    carrierfreq-sidebandfreq"""
+    """Put out a signal at carrierfreq+sidebandfreq and return the absolute 
+    powers of the wanted and unwanted sidebands in mW"""
 
     arg = -2.0j*np.pi*sidebandfreq*np.arange(PERIOD)
     signal = corrector.DACify(carrierfreq,
@@ -566,8 +582,13 @@ def measureOppositeSideband(spec, fpga, corrector,
                             loop=True, iqcor=False, rescale=True)
     signal[0] = signal[0] | trigger
     fpga.dac_run_sram(signal,True)
-    return ((signalPower(spec)) / corrector.last_rescale_factor)
-
+    
+    # return sideband suppression
+    spectFreq(spec,carrierfreq+sidebandfreq)
+    wanted = ((signalPower(spec)) / corrector.last_rescale_factor)
+    spectFreq(spec,carrierfreq-sidebandfreq)
+    unwanted = ((signalPower(spec)) / corrector.last_rescale_factor)
+    return unwanted, wanted
  
 def sideband(anr, spect, fpga, corrector, carrierfreq, sidebandfreq):
     """When the IQ mixer is used for sideband mixing, imperfections in the
@@ -584,34 +605,34 @@ def sideband(anr, spect, fpga, corrector, carrierfreq, sidebandfreq):
     anr.frequency(Value(carrierfreq,'GHz'))
     comp = 0.0j
     precision = 1.0
-    spectFreq(spect,carrierfreq-sidebandfreq)
     while precision > 2.0**-14:
-        lR = measureOppositeSideband(spect, fpga, corrector, carrierfreq,
+        lR, lWR = measureOppositeSideband(spect, fpga, corrector, carrierfreq,
                                            sidebandfreq, comp - precision)
-        rR = measureOppositeSideband(spect, fpga, corrector, carrierfreq,
+        rR, rWR = measureOppositeSideband(spect, fpga, corrector, carrierfreq,
                                            sidebandfreq, comp + precision)
-        cR = measureOppositeSideband(spect, fpga, corrector, carrierfreq,
+        cR, cWR = measureOppositeSideband(spect, fpga, corrector, carrierfreq,
                                            sidebandfreq, comp)
         
         corrR = precision * minPos(lR,cR,rR)
         comp += corrR
-        lI = measureOppositeSideband(spect, fpga, corrector, carrierfreq,
+        lI, lWI = measureOppositeSideband(spect, fpga, corrector, carrierfreq,
                                            sidebandfreq, comp - 1.0j * precision)
-        rI = measureOppositeSideband(spect, fpga, corrector, carrierfreq,
+        rI, rWI = measureOppositeSideband(spect, fpga, corrector, carrierfreq,
                                            sidebandfreq, comp + 1.0j * precision)
-        cI = measureOppositeSideband(spect, fpga, corrector, carrierfreq,
+        cI, cWI = measureOppositeSideband(spect, fpga, corrector, carrierfreq,
                                            sidebandfreq, comp)
         
         corrI = precision * minPos(lI,cI,rI)
         comp += 1.0j * corrI
         precision = np.min([2.0 * np.max([abs(corrR),abs(corrI)]), precision / 2.0])
-        print '      compensation: %.4f%+.4fj +- %.4f, opposite sb: %6.1f dBm' % \
-            (np.real(comp), np.imag(comp), precision, 10.0 * np.log(cI) / np.log(10.0))
+        suppression = 10.0*np.log10(min(cI/cWI,lI/lWI,rI/rWI))
+        print '      compensation: %.4f%+.4fj +- %.4f, sb reject: %6.1f dB' % \
+            (np.real(comp), np.imag(comp), precision, suppression)
     corrector.dynamicReserve = reserveBuffer
-    return (comp)
+    return comp, suppression
 
 
-def sidebandScanCarrier(cxn, scanparams, boardname, corrector, use_switch=True):
+def sidebandScanCarrier(cxn, scanparams, boardname, corrector, use_switch=True, storeSuppression=False, cxn2=False):
     """Determines relative I and Q amplitudes by canceling the undesired
        sideband at different sideband frequencies."""
 
@@ -626,6 +647,10 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector, use_switch=True):
 
     spec = cxn.spectrum_analyzer_server
     ds = cxn.data_vault
+    
+    if storeSuppression:
+        ds2 = cxn2.data_vault
+    
     spectID = reg.get(keys.SPECTID)
     spec.select_device(spectID)
     spectInit(spec)
@@ -637,6 +662,8 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector, use_switch=True):
     uwaveSource.select_device(uwaveSourceID)
     uwaveSource.amplitude(uwaveSourcePower)
     uwaveSource.output(True)
+    
+    specAutoAlign(spec,False)
 
     print 'Sideband calibration from %g GHz to %g GHz in steps of %g GHz...' \
        %  (scanparams['carrierMin'],scanparams['carrierMax'],
@@ -646,28 +673,46 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector, use_switch=True):
                          - (scanparams['sidebandFreqCount']-1) * 0.5) \
                      * validSBstep(scanparams['sidebandFreqStep'])
     dependents = []
+    dependents2= []
     for sidebandfreq in sidebandfreqs:
         dependents += [('relative compensation', 'Q at f_SB = %g MHz' % \
                             (sidebandfreq*1e3),''),
                        ('relative compensation', 'I at f_SB = %g MHz' % \
-                            (sidebandfreq*1e3),'')]    
+                            (sidebandfreq*1e3),'')]
+        dependents2 += [('Sideband suppression', 'dBc at f_SB = %g MHz' % \
+        (sidebandfreq*1e3),'dBc')]
+        
     ds.cd(['', keys.SESSIONNAME, boardname], True)
-    dataset = ds.new(keys.IQNAME, [('Antritsu Frequency','GHz')], dependents)
+    dataset = ds.new('Marki - Hairdryer', [('Antritsu Frequency','GHz')], dependents)
     ds.add_parameter(keys.ANRITSUPOWER, (reg.get(keys.ANRITSUPOWER)))
     ds.add_parameter('Sideband frequency step',
                      Value(scanparams['sidebandFreqStep']*1e3, 'MHz'))
     ds.add_parameter('Number of sideband frequencies',
                      scanparams['sidebandFreqCount'])
+    
+    if storeSuppression: 
+        ds2.cd(['', keys.SESSIONNAME, boardname], True)
+        dataset2 = ds2.new('Marki - Hairdryer', [('Antritsu Frequency','GHz')], dependents2)
+        ds2.add_parameter(keys.ANRITSUPOWER, (reg.get(keys.ANRITSUPOWER)))
+        ds2.add_parameter('Sideband frequency step',
+                         Value(scanparams['sidebandFreqStep']*1e3, 'MHz'))
+        ds2.add_parameter('Number of sideband frequencies',
+                         scanparams['sidebandFreqCount'])
+                     
     freq = scanparams['carrierMin']
     while freq < scanparams['carrierMax'] + \
               0.001 * scanparams['sidebandCarrierStep']:
         print '  carrier frequency: %g GHz' % freq
         datapoint = [freq]
+        datapoint2= [freq]
         for sidebandfreq in sidebandfreqs:
             print '    sideband frequency: %g GHz' % sidebandfreq
-            comp = sideband(uwaveSource, spec, fpga, corrector, freq, sidebandfreq)
+            comp, suppression = sideband(uwaveSource, spec, fpga, corrector, freq, sidebandfreq)
             datapoint += [np.real(comp), np.imag(comp)]
+            datapoint2 += [suppression]
         ds.add(datapoint)
+        if storeSuppression:
+            ds2.add(datapoint2)
         freq += scanparams['sidebandCarrierStep']
     uwaveSource.output(False)
     spectDeInit(spec)
