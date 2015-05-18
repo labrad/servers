@@ -1,3 +1,23 @@
+"""This module runs the board calibrations.
+
+Quick start::
+
+.. code:: python
+
+    import servers.ghzdac_cal.GHz_DAC_calibrate as gc
+    gc.calibrate_iq(cxn, ['Vince DAC 11'])
+    # or if you want to do all the boards in one go:
+    gc.calibrate_iq(cxn, gc.find_microwave_dacs(cxn))
+
+Generally, this module calls calibration code in the ``ghzdac`` package.
+Therefore, this module requires that the ``servers`` repository is in the Python
+path; that is, ``import servers`` must work.
+
+The most user-facing functions in this module are at the bottom; recommended
+reading order is bottom-to-top (i.e. start with ``calibrate_iq``, then
+``find_microwave_dacs``, and so on.
+
+"""
 # Copyright (C) 2007  Max Hofheinz
 #
 # This program is free software: you can redistribute it and/or modify
@@ -193,25 +213,30 @@ def find_microwave_dacs(cxn):
 # TODO: make a pause before starting a uwave switch=0 board
 
 
-def calibrate_iq(cxn, dacs_to_calibrate, zero=True, sideband=True,
-                 carrier_start= 4*labrad.units.GHz, carrier_stop=7*labrad.units.GHz,
+def calibrate_iq(cxn,
+                 dacs_to_calibrate,
+                 zero=True,
+                 sideband=True,
+                 carrier_start= 4*labrad.units.GHz,
+                 carrier_stop=7*labrad.units.GHz,
                  carrier_step=0.025*labrad.units.GHz,
-                 sideband_carrier_step=0.05*labrad.units.GHz, sideband_step=0.05*labrad.units.GHz,
-                 sideband_count=14, use_switch=True):
-    """
-    Runs IQ mixer calibration for one or more DACs
+                 sideband_carrier_step=0.05*labrad.units.GHz,
+                 sideband_step=0.05*labrad.units.GHz,
+                 sideband_count=14,
+                 use_switch=True):
+    """Runs IQ mixer calibration for one or more DACs
 
     :param cxn: labrad connection object
-    :param list[string] or list[int] or string dacs_to_calibrate:
-    :param boolean zero:
-    :param boolean sideband:
+    :param list[string] or list[int] or string dacs_to_calibrate: DAC or list of
+        DACs to calibrate
+    :param bool zero: whether to run the zero calibration
+    :param bool sideband: whether to run the sideband calibration
     :param labrad.Value carrier_start: e.g. 4 GHz
     :param labrad.Value carrier_stop: e.g. 7 GHz
     :param labrad.Value carrier_step: e.g. 0.05 GHz
     :param labrad.Value sideband_carrier_step: e.g. 0.05 GHz
     :param labrad.Value sideband_step: e.g. 0.05 GHz
     :param labrad.Value sideband_count: e.g. 14
-    :return:
     """
 
     if dacs_to_calibrate == 'all':
@@ -219,10 +244,10 @@ def calibrate_iq(cxn, dacs_to_calibrate, zero=True, sideband=True,
     elif not isinstance(dacs_to_calibrate, list):
         dacs_to_calibrate = [dacs_to_calibrate]
     num_strings = len([x for x in dacs_to_calibrate if isinstance(x, str)])
-    if 0 < num_strings < len(dacs_to_calibrate):  # does dacs_to_calibrate contain strings?
+    if 0 < num_strings < len(dacs_to_calibrate):
         raise ValueError("Please pass in either all strings or no strings to dacs_to_calibrate.")
-    if len([x for x in dacs_to_calibrate if isinstance(x, int)]) > 0:          # does dacs_to_calibrate contain ints?
-        node_name = cxn[FPGA_SERVER_NAME].list_dacs()[0].partition(' DAC')[0]  # pull out node name by looking at dacs
+    if len([x for x in dacs_to_calibrate if isinstance(x, int)]) > 0:
+        node_name = cxn[FPGA_SERVER_NAME].list_dacs()[0].partition(' DAC')[0]
         for idx in range(len(dacs_to_calibrate)):
             dac_number = dacs_to_calibrate[idx]
             dacs_to_calibrate[idx] = node_name + ' DAC ' + str(dac_number)
