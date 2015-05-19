@@ -1005,8 +1005,8 @@ class DACcorrection:
         """
         rates = np.asarray(rates)
         amplitudes = np.asarray(amplitudes)
-        if np.shape(rates) != 4*np.shape(amplitudes):
-            raise Error('Need 4 amplitude parameters per rate.')
+        #if np.shape(rates) != 4*np.shape(amplitudes):
+        #    raise Error('Need 4 amplitude parameters per rate.')
         s = np.size(rates)
         rates = np.reshape(np.asarray(rates),s)
         amplitudes = np.reshape(np.asarray(amplitudes),s)
@@ -1229,9 +1229,10 @@ class DACcorrection:
                 # c3 = 1.5  (~pi/2 per 1 GHz)
                 # Note the log notation for c0, c1 to keep parameters close to unity for easier NM optimization
                 if np.alen(reflectionRates):
-                    for idx,rate in enumerate(reflectionRates):
+                    for idx,rate in enumerate([reflectionRates[0]]): #limit it to one
                         if abs(rate) > 0.0:
                             c = reflectionAmplitudes[idx*4:idx*4+4]
+                            print c
                             amplitude = 10**(-c[0]) + 10**(-c[1]) * freqs**c[2]
                             # cap magnitude
                             maxvalue = 0.3 #-10 dB
