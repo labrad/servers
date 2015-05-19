@@ -1005,8 +1005,8 @@ class DACcorrection:
         """
         rates = np.asarray(rates)
         amplitudes = np.asarray(amplitudes)
-        if np.shape(rates) != np.shape(amplitudes):
-            raise Error('arguments to setReflection must have same shape.')
+        if np.shape(rates) != 4*np.shape(amplitudes):
+            raise Error('Need 4 amplitude parameters per rate.')
         s = np.size(rates)
         rates = np.reshape(np.asarray(rates),s)
         amplitudes = np.reshape(np.asarray(amplitudes),s)
@@ -1218,10 +1218,26 @@ class DACcorrection:
                 #
                 # Suppose X is an ideal pulse, H the impulse response of a piece of cable (with reflection, settling etc). 
                 # To get X at the end of the cable you need to send Y = X/H.
-                # So if you have different impulse responses H1, H2, H3: Y = X / (H1 * H2 * H3)                
+                # So if you have different impulse responses H1, H2, H3: Y = X / (H1 * H2 * H3)
+                #
+                # We model a frequency dependent amplitude to capture the frequency dependent reflection
+                # amplitude = exp(i*c3*freqs) * (c0+c1*freqs**c2)
+                # Typical values:
+                # c0 = 2 -> -40 dB base reflection.
+                # c1 = 1
+                # c2 = 1 ->  20 dB increase per decade
+                # c3 = 1.5  (~pi/2 per 1 GHz)
+                # Note the log notation for c0, c1 to keep parameters close to unity for easier NM optimization
                 if np.alen(reflectionRates):
-                    for rate,amplitude in zip(reflectionRates,reflectionAmplitudes):
+                    for idx,rate in enumerate(reflectionRates):
                         if abs(rate) > 0.0:
+                            c = reflectionAmplitudes[idx*4:idx*4+4]
+                            amplitude = 10**(-c[0]) + 10**(-c[1]) * freqs**c[2]
+                            # cap magnitude
+                            maxvalue = 0.3 #-10 dB
+                            amplitude = (1.0 * (abs(amplitude)<=maxvalue)) + maxvalue * 1.0 * (abs(amplitude) > maxvalue)
+                            # add phase
+                            amplitude *= exp(i_two_pi_freqs*c[3])
                             precalc /= (1.0 - amplitude) / (1.0-amplitude*np.exp(-i_two_pi_freqs/rate))
 
                 
