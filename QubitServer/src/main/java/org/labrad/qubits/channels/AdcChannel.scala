@@ -1,16 +1,12 @@
-package org.labrad.qubits.channels;
+package org.labrad.qubits.channels
 
-import java.util.Map;
-
-import org.labrad.data.Data;
-import org.labrad.data.Request;
-import org.labrad.qubits.Experiment;
-import org.labrad.qubits.FpgaModel;
-import org.labrad.qubits.FpgaModelAdc;
-import org.labrad.qubits.enums.AdcMode;
-import org.labrad.qubits.resources.AdcBoard;
-
-import com.google.common.base.Preconditions;
+import org.labrad.data.Data
+import org.labrad.data.Request
+import org.labrad.qubits.Experiment
+import org.labrad.qubits.FpgaModel
+import org.labrad.qubits.FpgaModelAdc
+import org.labrad.qubits.enums.AdcMode
+import org.labrad.qubits.resources.AdcBoard
 
 /**
  * This channel represents a connection to an ADC in demodulation mode.
@@ -18,123 +14,129 @@ import com.google.common.base.Preconditions;
  * @author pomalley
  *
  */
-public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
+class AdcChannel(name: String, protected val board: AdcBoard) extends Channel with TimingChannel with StartDelayChannel {
 
-  public final int MAX_CHANNELS, DEMOD_CHANNELS_PER_PACKET, TRIG_AMP, LOOKUP_ACCUMULATOR_BITS, DEMOD_TIME_STEP;
+  private val bp = this.board.getBuildProperties()
+  val MAX_CHANNELS = bp.get("DEMOD_CHANNELS").intValue()
+  val DEMOD_CHANNELS_PER_PACKET = bp.get("DEMOD_CHANNELS_PER_PACKET").intValue()
+  val TRIG_AMP = bp.get("TRIG_AMP").intValue()
+  // see fpga server documentation on the "ADC Demod Phase" setting for an explanation of the two below.
+  val LOOKUP_ACCUMULATOR_BITS = bp.get("LOOKUP_ACCUMULATOR_BITS").intValue()
+  val DEMOD_TIME_STEP = bp.get("DEMOD_TIME_STEP").intValue() // in ns
 
-  String name = null;
-  Experiment expt = null;
-  AdcBoard board = null;
-  FpgaModelAdc fpga = null;
+  private var expt: Experiment = null
+  private var fpga: FpgaModelAdc = null
 
   // configuration variables
-  AdcMode mode = AdcMode.UNSET; // DEMODULATE, AVERAGE, UNSET
-  String filterFunction; int stretchLen, stretchAt; // passed to filter function setting
-  double criticalPhase; // used to interpret phases (into T/F switches)
-  int demodChannel; // which demod channel are we (demod mode only)
-  int dPhi, phi0; // passed to "ADC Demod Phase" setting of FPGA server (demod mode only)
-  int ampSin, ampCos; // passed to "ADC Trig Magnitude" setting (demod mode only)
-  Data triggerTable; // passed to "ADC Trigger Table"
-  Data mixerTable; // passed to "ADC Mixer Table"
+  private var mode: AdcMode = AdcMode.UNSET // DEMODULATE, AVERAGE, UNSET
+  // passed to filter function setting
+  private var filterFunction: String = null
+  private var stretchLen: Int = _
+  private var stretchAt: Int = _
 
-  private boolean reverseCriticalPhase;
+  private var criticalPhase: Double = _ // used to interpret phases (into T/F switches)
+  private var demodChannel: Int = _ // which demod channel are we (demod mode only)
 
-  private int offsetI;
+  // passed to "ADC Demod Phase" setting of FPGA server (demod mode only)
+  private var dPhi: Int = _
+  private var phi0: Int = _
 
-  private int offsetQ;
+  // passed to "ADC Trig Magnitude" setting (demod mode only)
+  private var ampSin: Int = _
+  private var ampCos: Int = _
 
-  public AdcChannel(String name, AdcBoard board) {
-    this.name = name;
-    this.board = board;
-    this.clearConfig();
+  private var triggerTable: Data = null // passed to "ADC Trigger Table"
+  private var mixerTable: Data = null // passed to "ADC Mixer Table"
 
-    Map<String, Long> bp = this.board.getBuildProperties();
-    MAX_CHANNELS = bp.get("DEMOD_CHANNELS").intValue();
-    DEMOD_CHANNELS_PER_PACKET = bp.get("DEMOD_CHANNELS_PER_PACKET").intValue();
-    TRIG_AMP = bp.get("TRIG_AMP").intValue();
-    // see fpga server documentation on the "ADC Demod Phase" setting for an explanation of the two below.
-    LOOKUP_ACCUMULATOR_BITS = bp.get("LOOKUP_ACCUMULATOR_BITS").intValue();
-    DEMOD_TIME_STEP = bp.get("DEMOD_TIME_STEP").intValue(); // in ns
+  private var reverseCriticalPhase: Boolean = false
+
+  private var offsetI: Int = _
+  private var offsetQ: Int = _
+
+  clearConfig()
+
+  override def getDacBoard(): AdcBoard = {
+    board
   }
 
-  @Override
-  public AdcBoard getDacBoard() {
-    return board;
+  override def getExperiment(): Experiment = {
+    expt
   }
 
-  @Override
-  public Experiment getExperiment() {
-    return expt;
+  override def getFpgaModel(): FpgaModelAdc = {
+    fpga
   }
 
-  @Override
-  public FpgaModelAdc getFpgaModel() {
-    return fpga;
+  override def getName(): String = {
+    name
   }
 
-  @Override
-  public String getName() {
-    return name;
+  override def setExperiment(expt: Experiment): Unit = {
+    this.expt = expt
   }
 
-  @Override
-  public void setExperiment(Experiment expt) {
-    this.expt = expt;
-  }
+  override def setFpgaModel(fpga: FpgaModel): Unit = {
+    fpga match {
+      case adc: FpgaModelAdc =>
+        this.fpga = adc
+        adc.setChannel(this)
 
-  @Override
-  public void setFpgaModel(FpgaModel fpga) {
-    Preconditions.checkArgument(fpga instanceof FpgaModelAdc,
-        "AdcChannel '%s' requires ADC board.", getName());
-    this.fpga = (FpgaModelAdc) fpga;
-    this.fpga.setChannel(this);
+      case _ =>
+        sys.error(s"AdcChannel '$getName' require ADC board.")
+    }
   }
 
   // reconcile this ADC configuration with another one for the same ADC.
-  public boolean reconcile(AdcChannel other) {
+  def reconcile(other: AdcChannel): Boolean = {
     if (this.board != other.board)
-      return false;
+      return false
     if (this == other)
-      return true;
-    Preconditions.checkArgument(this.mode == other.mode,
-        "Conflicting modes for ADC board %s", this.board.getName());
-    Preconditions.checkArgument(this.getStartDelay() == other.getStartDelay(),
-        "Conflicting start delays for ADC board %s", this.board.getName());
-    Preconditions.checkArgument(this.triggerTable.pretty().equals(other.triggerTable.pretty()),
-        "Conflicting trigger tables for ADC board %s, (this: %s, other, %s)", this.board.getName(), this.triggerTable.pretty(), other.triggerTable.pretty());
-    if (this.mode == AdcMode.DEMODULATE) {
-      Preconditions.checkArgument(this.filterFunction.equals(other.filterFunction),
-          "Conflicting filter functions for ADC board %s", this.board.getName());
-      Preconditions.checkArgument(this.stretchAt == other.stretchAt,
-          "Conflicting stretchAt parameters for ADC board %s", this.board.getName());
-      Preconditions.checkArgument(this.stretchLen == other.stretchLen,
-          "Conflicting stretchLen parameters for ADC board %s", this.board.getName());
-      Preconditions.checkArgument(this.demodChannel != other.demodChannel,
-          "Two ADC Demod channels with same channel number for ADC board %s", this.board.getName());
-    } else if (this.mode == AdcMode.AVERAGE) {
-      // nothing?
-    } else {
-      Preconditions.checkArgument(false, "ADC board %s has no mode (avg/demod) set!", this.board.getName());
+      return true
+    require(this.mode == other.mode,
+        s"Conflicting modes for ADC board ${this.board.getName}")
+    require(this.getStartDelay() == other.getStartDelay(),
+        s"Conflicting start delays for ADC board ${this.board.getName}")
+    require(this.triggerTable.pretty() == other.triggerTable.pretty(),
+        s"Conflicting trigger tables for ADC board ${this.board.getName}: (this: ${this.triggerTable.pretty()}, other: ${other.triggerTable.pretty()})")
+    mode match {
+      case AdcMode.DEMODULATE =>
+        require(this.filterFunction == other.filterFunction,
+            s"Conflicting filter functions for ADC board ${this.board.getName}")
+        require(this.stretchAt == other.stretchAt,
+            s"Conflicting stretchAt parameters for ADC board ${this.board.getName}")
+        require(this.stretchLen == other.stretchLen,
+            s"Conflicting stretchLen parameters for ADC board ${this.board.getName}")
+        require(this.demodChannel != other.demodChannel,
+            s"Two ADC Demod channels with same channel number for ADC board ${this.board.getName}")
+
+      case AdcMode.AVERAGE =>
+        // nothing?
+
+      case AdcMode.UNSET =>
+        sys.error(s"ADC board ${this.board.getName} has no mode (avg/demod) set!")
     }
-    return true;
+    true
   }
 
   // add global packets for this ADC board. should only be called on one channel per board!
-  public void addGlobalPackets(Request runRequest) {
-    if (this.mode == AdcMode.AVERAGE) {
-      Preconditions.checkState(getStartDelay() > -1, "ADC Start Delay not set for channel '%s'", this.name);
-      runRequest.add("ADC Run Mode", Data.valueOf("average"));
-      runRequest.add("Start Delay", Data.valueOf((long)this.getStartDelay()));
-      //runRequest.add("ADC Filter Func", Data.valueOf("balhQLIYFGDSVF"), Data.valueOf(42L), Data.valueOf(42L));
-    } else if (this.mode == AdcMode.DEMODULATE) {
-      Preconditions.checkState(getStartDelay() > -1, "ADC Start Delay not set for channel '%s'", this.name);
-      //Preconditions.checkState(stretchLen > -1 && stretchAt > -1, "ADC Filter Func not set for channel '%s'", this.name);
-      runRequest.add("ADC Run Mode", Data.valueOf("demodulate"));
-      runRequest.add("Start Delay", Data.valueOf((long)this.getStartDelay()));
-      //runRequest.add("ADC Filter Func", Data.valueOf(this.filterFunction),
-      //Data.valueOf((long)this.stretchLen), Data.valueOf((long)this.stretchAt));
-    } else {
-      Preconditions.checkArgument(false, "ADC channel %s has no mode (avg/demod) set!", this.name);
+  def addGlobalPackets(runRequest: Request): Unit = {
+    mode match {
+      case AdcMode.AVERAGE =>
+        require(getStartDelay() > -1, s"ADC Start Delay not set for channel '${this.name}'")
+        runRequest.add("ADC Run Mode", Data.valueOf("average"))
+        runRequest.add("Start Delay", Data.valueOf(this.getStartDelay().toLong))
+        //runRequest.add("ADC Filter Func", Data.valueOf("balhQLIYFGDSVF"), Data.valueOf(42L), Data.valueOf(42L))
+
+      case AdcMode.DEMODULATE =>
+        require(getStartDelay() > -1, s"ADC Start Delay not set for channel '${this.name}'")
+        //require(stretchLen > -1 && stretchAt > -1, s"ADC Filter Func not set for channel '${this.name}'")
+        runRequest.add("ADC Run Mode", Data.valueOf("demodulate"))
+        runRequest.add("Start Delay", Data.valueOf(this.getStartDelay().toLong))
+        //runRequest.add("ADC Filter Func", Data.valueOf(this.filterFunction),
+        //Data.valueOf(this.stretchLen.toLong), Data.valueOf(this.stretchAt.toLong))
+
+      case AdcMode.UNSET =>
+        sys.error(s"ADC channel ${this.name} has no mode (avg/demod) set!")
     }
     if (this.triggerTable != null) {
       runRequest.add("ADC Trigger Table", this.triggerTable);
@@ -142,7 +144,7 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
   }
 
   // add local packets. only really applicable for demod mode
-  public void addLocalPackets(Request runRequest) {
+  def addLocalPackets(runRequest: Request): Unit = {
     /*
     if (this.mode == AdcMode.DEMODULATE) {
       Preconditions.checkState(ampSin > -1 && ampCos > -1, "ADC Trig Magnitude not set on demod channel %s on channel '%s'", this.demodChannel, this.name);
@@ -151,7 +153,7 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
     }
     */
     if (this.mixerTable != null) {
-      runRequest.add("ADC Mixer Table", Data.valueOf((long)this.demodChannel), this.mixerTable);
+      runRequest.add("ADC Mixer Table", Data.valueOf(this.demodChannel.toLong), this.mixerTable)
     }
   }
 
@@ -159,121 +161,115 @@ public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
   // Critical phase functions
   //
 
-  public void setCriticalPhase(double criticalPhase) {
-    Preconditions.checkState(criticalPhase >= -Math.PI && criticalPhase <= Math.PI,
-        "Critical phase must be between -PI and PI");
-    this.criticalPhase = criticalPhase;
+  def setCriticalPhase(criticalPhase: Double): Unit = {
+    require(criticalPhase >= -Math.PI && criticalPhase <= Math.PI,
+        s"Critical phase must be between -PI and PI")
+    this.criticalPhase = criticalPhase
   }
-  public double[] getPhases(int[] Is, int []Qs) {
-    double[] results = new double[Is.length];
-    for (int run = 0; run<Is.length; run++) {
-      results[run] = Math.atan2(Qs[run]+this.offsetQ, Is[run]+this.offsetI);
+  def getPhases(Is: Array[Int], Qs: Array[Int]): Array[Double] = {
+    (Is zip Qs).map { case (i, q) =>
+      Math.atan2(q + this.offsetQ, i + this.offsetI)
     }
-    return results;
   }
-  public boolean[] interpretPhases(int[] Is, int[] Qs) {
-    Preconditions.checkArgument(Is.length == Qs.length, "Is and Qs must be of the same shape!");
+  def interpretPhases(Is: Array[Int], Qs: Array[Int]): Array[Boolean] = {
+    require(Is.length == Qs.length, "Is and Qs must be of the same shape!")
     //System.out.println("interpretPhases: channel " + channel + " crit phase: " + criticalPhase[channel]);
-    boolean[] switches = new boolean[Is.length];
-    double[] phases = getPhases(Is, Qs);
-    for (int run = 0; run < Is.length; run++) {
-      if (this.reverseCriticalPhase)
-        switches[run] = phases[run] < criticalPhase;
-      else
-        switches[run] = phases[run] > criticalPhase;
+    val phases = getPhases(Is, Qs)
+    if (reverseCriticalPhase) {
+      phases.map(_ < criticalPhase)
+    } else {
+      phases.map(_ > criticalPhase)
     }
-    return switches;
   }
 
-  public void setToDemodulate(int channel) {
-    Preconditions.checkArgument(channel <= MAX_CHANNELS, "ADC demod channel must be <= %s", MAX_CHANNELS);
-    this.mode = AdcMode.DEMODULATE;
-    this.demodChannel = channel;
+  def setToDemodulate(channel: Int): Unit = {
+    require(channel <= MAX_CHANNELS, s"ADC demod channel must be <= $MAX_CHANNELS")
+    this.mode = AdcMode.DEMODULATE
+    this.demodChannel = channel
   }
-  public void setToAverage() {
-    this.mode = AdcMode.AVERAGE;
-  }
-
-  @Override
-  public int getStartDelay() {
-    return this.getFpgaModel().getStartDelay();
+  def setToAverage(): Unit = {
+    this.mode = AdcMode.AVERAGE
   }
 
-  @Override
-  public void setStartDelay(int startDelay) {
-    this.getFpgaModel().setStartDelay(startDelay);
+  override def getStartDelay(): Int = {
+    this.getFpgaModel().getStartDelay()
+  }
+
+  override def setStartDelay(startDelay: Int): Unit = {
+    this.getFpgaModel().setStartDelay(startDelay)
   }
 
   // these are passthroughs to the config object. in most cases we do have to check that
   // we are in the proper mode (average vs demod)
-  public void setFilterFunction(String filterFunction, int stretchLen, int stretchAt) {
-    Preconditions.checkState(mode == AdcMode.DEMODULATE, "Channel must be in demodulate mode for setFilterFunction to be valid.");
-    this.filterFunction = filterFunction;
-    this.stretchLen = stretchLen;
-    this.stretchAt = stretchAt;
+  def setFilterFunction(filterFunction: String, stretchLen: Int, stretchAt: Int): Unit = {
+    require(mode == AdcMode.DEMODULATE, "Channel must be in demodulate mode for setFilterFunction to be valid.")
+    this.filterFunction = filterFunction
+    this.stretchLen = stretchLen
+    this.stretchAt = stretchAt
   }
-  public void setTrigMagnitude(int ampSin, int ampCos) {
-    Preconditions.checkState(mode == AdcMode.DEMODULATE, "Channel must be in demodulate mode for setTrigMagnitude to be valid.");
-    Preconditions.checkArgument(ampSin > -1 && ampSin <= TRIG_AMP && ampCos > -1 && ampCos <= TRIG_AMP, 
-        "Trig Amplitudes must be 0-255 for channel '%s'", this.name);
-    this.ampSin = ampSin;
-    this.ampCos = ampCos;
+  def setTrigMagnitude(ampSin: Int, ampCos: Int): Unit = {
+    require(mode == AdcMode.DEMODULATE, "Channel must be in demodulate mode for setTrigMagnitude to be valid.")
+    require(ampSin > -1 && ampSin <= TRIG_AMP && ampCos > -1 && ampCos <= TRIG_AMP,
+        s"Trig Amplitudes must be 0-255 for channel '${this.name}'")
+    this.ampSin = ampSin
+    this.ampCos = ampCos
   }
-  public void setPhase(int dPhi, int phi0) {
-    Preconditions.checkState(mode == AdcMode.DEMODULATE, "Channel must be in demodulate mode for setPhase to be valid.");
+  def setPhase(dPhi: Int, phi0: Int): Unit = {
+    require(mode == AdcMode.DEMODULATE, "Channel must be in demodulate mode for setPhase to be valid.")
     //Preconditions.checkArgument(phi0 >= 0 && phi0 < (int)Math.pow(2, LOOKUP_ACCUMULATOR_BITS),
     //"phi0 must be between 0 and 2^%s", LOOKUP_ACCUMULATOR_BITS);
-    this.dPhi = dPhi;
-    this.phi0 = phi0;
+    this.dPhi = dPhi
+    this.phi0 = phi0
   }
-  public void setPhase(double frequency, double phase) {
-    Preconditions.checkState(mode == AdcMode.DEMODULATE, "Channel must be in demodulate mode for setPhase to be valid.");
-    Preconditions.checkArgument(phase >= -Math.PI && phase <= Math.PI, "Phase must be between -pi and pi");
-    int dPhi = (int)Math.floor(frequency * Math.pow(2, LOOKUP_ACCUMULATOR_BITS) * DEMOD_TIME_STEP * Math.pow(10, -9.0));
-    int phi0 = (int)(phase * Math.pow(2, LOOKUP_ACCUMULATOR_BITS) / (2 * Math.PI));
-    setPhase(dPhi, phi0); 
+  def setPhase(frequency: Double, phase: Double): Unit = {
+    require(mode == AdcMode.DEMODULATE, "Channel must be in demodulate mode for setPhase to be valid.")
+    require(phase >= -Math.PI && phase <= Math.PI, "Phase must be between -pi and pi")
+    val dPhi = Math.floor(frequency * Math.pow(2, LOOKUP_ACCUMULATOR_BITS) * DEMOD_TIME_STEP * Math.pow(10, -9.0)).toInt
+    val phi0 = (phase * Math.pow(2, LOOKUP_ACCUMULATOR_BITS) / (2 * Math.PI)).toInt
+    setPhase(dPhi, phi0)
   }
 
   //
   // For ADC build 7
   //
-  public void setTriggerTable(Data data) {
-    this.triggerTable = data;
+  def setTriggerTable(data: Data): Unit = {
+    this.triggerTable = data
   }
-  public void setMixerTable(Data data) {
-    this.mixerTable = data;
-  }
-
-  @Override
-  public void clearConfig() {
-    this.criticalPhase = this.dPhi = this.phi0 = 0;
-    this.filterFunction = "";
-    this.stretchAt = this.stretchLen = this.ampSin = this.ampCos = -1;
-    this.reverseCriticalPhase = false;
-    this.offsetI = 0;
-    this.offsetQ = 0;
-    this.triggerTable = null;
-    this.mixerTable = null;
+  def setMixerTable(data: Data): Unit = {
+    this.mixerTable = data
   }
 
-  @Override
-  public int getDemodChannel() {
-    return this.demodChannel;
+  override def clearConfig(): Unit = {
+    this.criticalPhase = 0
+    this.dPhi = 0
+    this.phi0 = 0
+    this.filterFunction = ""
+    this.stretchAt = -1
+    this.stretchLen = -1
+    this.ampSin = -1
+    this.ampCos = -1
+    this.reverseCriticalPhase = false
+    this.offsetI = 0
+    this.offsetQ = 0
+    this.triggerTable = null
+    this.mixerTable = null
   }
 
-  public void reverseCriticalPhase(boolean reverse) {
-    this.reverseCriticalPhase = reverse;
+  override def getDemodChannel(): Int = {
+    this.demodChannel
   }
 
-  public void setIqOffset(int offsetI, int offsetQ) {
-    this.offsetI = offsetI;
-    this.offsetQ = offsetQ;
+  def reverseCriticalPhase(reverse: Boolean): Unit = {
+    this.reverseCriticalPhase = reverse
   }
 
-  public int[] getOffsets() {
-    int[] arr = new int[2];
-    arr[0] = this.offsetI; arr[1] = this.offsetQ;
-    return arr;
+  def setIqOffset(offsetI: Int, offsetQ: Int): Unit = {
+    this.offsetI = offsetI
+    this.offsetQ = offsetQ
+  }
+
+  def getOffsets(): (Int, Int) = {
+    (offsetI, offsetQ)
   }
 
 }

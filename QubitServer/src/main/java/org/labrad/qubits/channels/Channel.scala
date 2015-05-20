@@ -1,6 +1,6 @@
-package org.labrad.qubits.channels;
+package org.labrad.qubits.channels
 
-import org.labrad.qubits.Experiment;
+import org.labrad.qubits.Experiment
 
 
 /**
@@ -11,11 +11,11 @@ import org.labrad.qubits.Experiment;
  *
  * @author maffoo
  */
-public interface Channel {
-  public String getName();
+trait Channel {
+  def getName(): String
 
-  public void setExperiment(Experiment expt);
-  public Experiment getExperiment();
+  def setExperiment(expt: Experiment): Unit
+  def getExperiment(): Experiment
 
-  public void clearConfig();
+  def clearConfig(): Unit
 }

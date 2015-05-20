@@ -1,55 +1,49 @@
-package org.labrad.qubits.channels;
+package org.labrad.qubits.channels
 
-import org.labrad.qubits.Experiment;
-import org.labrad.qubits.enums.DacFiberId;
-import org.labrad.qubits.enums.DcRackFiberId;
-import org.labrad.qubits.resources.FastBias;
+import org.labrad.qubits.Experiment
+import org.labrad.qubits.enums.DacFiberId
+import org.labrad.qubits.enums.DcRackFiberId
+import org.labrad.qubits.resources.FastBias
 
-public abstract class FastBiasChannel implements FiberChannel {
+class FastBiasChannel(name: String) extends FiberChannel {
 
-  String name;
-  Experiment expt = null;
-  FastBias fb = null;
-  DcRackFiberId fbChannel;
+  protected var expt: Experiment = null
+  protected var fb: FastBias = null
+  protected var fbChannel: DcRackFiberId = null
 
-  public FastBiasChannel(String name) {
-    this.name = name;
+  def setFastBias(fb: FastBias): Unit = {
+    this.fb = fb
   }
 
-  public void setFastBias(FastBias fb) {
-    this.fb = fb;
+  def getFastBias(): FastBias = {
+    fb
   }
 
-  public FastBias getFastBias() {
-    return fb;
+  def setBiasChannel(channel: DcRackFiberId): Unit = {
+    this.fbChannel = channel
   }
 
-  public void setBiasChannel(DcRackFiberId channel) {
-    this.fbChannel = channel;
+  def setExperiment(expt: Experiment): Unit = {
+    this.expt = expt
   }
 
-  public void setExperiment(Experiment expt) {
-    this.expt = expt;
+  def getExperiment(): Experiment = {
+    expt
   }
 
-  public Experiment getExperiment() {
-    return expt;
+  def getDcFiberId(): DcRackFiberId = {
+    fbChannel
   }
 
-  public DcRackFiberId getDcFiberId() {
-    return fbChannel;
+  def getFiberId(): DacFiberId = {
+    fb.getFiber(fbChannel)
   }
 
-  public DacFiberId getFiberId() {
-    return fb.getFiber(fbChannel);
+  override def getName(): String = {
+    name
   }
 
-  @Override
-  public String getName() {
-    return name;
-  }
-
-  public void clearConfig() {
+  def clearConfig(): Unit = {
     // nothing to do here
   }
 

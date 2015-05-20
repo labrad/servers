@@ -1,69 +1,55 @@
-package org.labrad.qubits.channels;
+package org.labrad.qubits.channels
 
-import com.google.common.base.Preconditions;
-import org.labrad.data.Data;
-import org.labrad.qubits.config.SetupPacket;
+import org.labrad.data.Data
+import org.labrad.qubits.config.SetupPacket
 
 /**
  * Created by pomalley on 3/10/2015.
  * FastBias control via serial
  */
-public class FastBiasSerialChannel extends FastBiasChannel {
+class FastBiasSerialChannel(name: String) extends FastBiasChannel(name) {
 
-  private int dcRackCard;
-  private double voltage;
-  private boolean configured;
-  private String dac;
+  private var dcRackCard: Int = _
+  private var voltage: Double = _
+  private var configured = false
+  private var dac: String = _
 
-  public FastBiasSerialChannel(String name) {
-    super(name);
-    configured = false;
+  def setDCRackCard(dcRackCard: Int): Unit = {
+    this.dcRackCard = dcRackCard
   }
 
-  public void setDCRackCard(int dcRackCard) {
-    this.dcRackCard = dcRackCard;
+  def setBias(voltage: Double): Unit = {
+    this.voltage = voltage
+    configured = true
   }
 
-  public void setBias(double voltage) {
-    this.voltage = voltage;
-    configured = true;
+  def hasSetupPacket(): Boolean = {
+    configured
   }
 
-  public boolean hasSetupPacket() {
-    return configured;
-  }
-
-  public SetupPacket getSetupPacket() {
-    Preconditions.checkState(hasSetupPacket(), "Cannot get setup packet for " +
-                    "channel '%s': it has not been configured.", getName());
-    int dacNum, rcTimeConstant;
-    if (dac.toLowerCase().equals("dac0")) {
-      dacNum = 0;
-      rcTimeConstant = 1;
-    } else if (dac.toLowerCase().equals("dac1slow")) {
-      dacNum = 1;
-      rcTimeConstant = 1;
-    } else if (dac.toLowerCase().equals("dac1")) {
-      dacNum = 1;
-      rcTimeConstant = 0;
-    } else {
-      throw new IllegalArgumentException("DAC setting must be one of 'dac0', 'dac1', or 'dac1slow'");
+  def getSetupPacket(): SetupPacket = {
+    require(hasSetupPacket(), s"Cannot get setup packet for channel '$getName': it has not been configured.")
+    val (dacNum, rcTimeConstant) = dac.toLowerCase match {
+      case "dac0" => (0, 1)
+      case "dac1slow" => (1, 1)
+      case "dac1" => (1, 0)
+      case _ => sys.error(s"DAC setting must be one of 'dac0', 'dac1', or 'dac1slow'. got: $dac")
     }
-    Data data = Data.ofType("(s)(s(wswwv[V]))");
-    data.get(0).setString("Select Device", 0);
+    val data = Data.ofType("(s)(s(wswwv[V]))")
+    data.get(0).setString("Select Device", 0)
     data.get(1).setString("channel_set_voltage", 0)
             .setWord(dcRackCard, 1, 0)
             .setString(getDcFiberId().toString().toUpperCase(), 1, 1)
             .setWord(dacNum, 1, 2)
             .setWord(rcTimeConstant, 1, 3)
-            .setValue(voltage, 1, 4);
+            .setValue(voltage, 1, 4)
 
-    String state = String.format("%d%s: voltage=%f dac=%s",
-            dcRackCard, getDcFiberId().toString(), voltage, dac);
-    return new SetupPacket(state, data);
+    val state = "%d%s: voltage=%f dac=%s".format(
+            dcRackCard, getDcFiberId(), voltage, dac)
+    new SetupPacket(state, data)
   }
 
-  public void setDac(String dac) {
-    this.dac = dac;
+  def setDac(dac: String): Unit = {
+    this.dac = dac
   }
 }

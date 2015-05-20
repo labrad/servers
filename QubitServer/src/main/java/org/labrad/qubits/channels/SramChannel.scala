@@ -1,4 +1,3 @@
-package org.labrad.qubits.channels;
+package org.labrad.qubits.channels
 
-
-public interface SramChannel extends FpgaChannel, StartDelayChannel {}
+trait SramChannel extends FpgaChannel with StartDelayChannel

@@ -1,10 +1,8 @@
-package org.labrad.qubits.channels;
+package org.labrad.qubits.channels
 
+import org.labrad.qubits.enums.DcRackFiberId
 
-import org.labrad.qubits.enums.DcRackFiberId;
-
-public interface FiberChannel extends Channel {
-
-  public DcRackFiberId getDcFiberId();
-  public void setBiasChannel(DcRackFiberId channel);
+trait FiberChannel extends Channel {
+  def getDcFiberId(): DcRackFiberId
+  def setBiasChannel(channel: DcRackFiberId): Unit
 }

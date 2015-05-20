@@ -1,11 +1,11 @@
-package org.labrad.qubits.channels;
+package org.labrad.qubits.channels
 
 /**
  * Represents channels that can implement the start delay function.
  * @author pomalley
  *
  */
-public interface StartDelayChannel extends FpgaChannel {
-  public void setStartDelay(int startDelay);
-  public int getStartDelay();
+trait StartDelayChannel extends FpgaChannel {
+  def setStartDelay(startDelay: Int): Unit
+  def getStartDelay(): Int
 }

@@ -1,6 +1,6 @@
-package org.labrad.qubits.channels;
+package org.labrad.qubits.channels
 
-import org.labrad.qubits.resources.DacBoard;
+import org.labrad.qubits.resources.DacBoard
 
 /**
  * A TimingChannel is one that has a DAC board or ADC board that can be added to the timing order.
@@ -12,8 +12,8 @@ import org.labrad.qubits.resources.DacBoard;
  * @author pomalley
  *
  */
-public interface TimingChannel extends FpgaChannel {
-  public DacBoard getDacBoard();
+trait TimingChannel extends FpgaChannel {
+  def getDacBoard(): DacBoard
 
-  public int getDemodChannel();
+  def getDemodChannel(): Int
 }

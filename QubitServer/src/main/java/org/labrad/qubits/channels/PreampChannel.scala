@@ -1,104 +1,96 @@
-package org.labrad.qubits.channels;
+package org.labrad.qubits.channels
 
-import java.util.Arrays;
+import org.labrad.qubits.Experiment
+import org.labrad.qubits.FpgaModel
+import org.labrad.qubits.FpgaModelDac
+import org.labrad.qubits.config.PreampConfig
+import org.labrad.qubits.enums.DcRackFiberId
+import org.labrad.qubits.resources.DacBoard
+import org.labrad.qubits.resources.PreampBoard
 
-import org.labrad.qubits.Experiment;
-import org.labrad.qubits.FpgaModel;
-import org.labrad.qubits.FpgaModelDac;
-import org.labrad.qubits.config.PreampConfig;
-import org.labrad.qubits.enums.DcRackFiberId;
-import org.labrad.qubits.resources.DacBoard;
-import org.labrad.qubits.resources.PreampBoard;
+class PreampChannel(name: String) extends FiberChannel with TimingChannel {
 
-import com.google.common.base.Preconditions;
+  private var expt: Experiment = null
+  private var board: DacBoard = null
+  private var fpga: FpgaModelDac = null
+  private var preampBoard: PreampBoard = null
+  private var preampChannel: DcRackFiberId = null
+  private var config: PreampConfig = null
+  private var switchIntervals: Array[(Long, Long)] = null
 
-public class PreampChannel implements FiberChannel, TimingChannel {
+  clearConfig()
 
-  String name;
-  Experiment expt = null;
-  DacBoard board = null;
-  FpgaModelDac fpga = null;
-  PreampBoard preampBoard;
-  DcRackFiberId preampChannel;
-  PreampConfig config = null;
-  long[][] switchIntervals = null;
-
-  public PreampChannel(String name) {
-    this.name = name;
-    clearConfig();
+  override def getName(): String = {
+    name
   }
 
-  @Override
-  public String getName() {
-    return name;
+  def setPreampBoard(preampBoard: PreampBoard): Unit = {
+    this.preampBoard = preampBoard
   }
 
-  public void setPreampBoard(PreampBoard preampBoard) {
-    this.preampBoard = preampBoard;
+  def getPreampBoard(): PreampBoard = {
+    preampBoard
   }
 
-  public PreampBoard getPreampBoard() {
-    return preampBoard;
+  def setPreampChannel(preampChannel: DcRackFiberId): Unit = {
+    this.preampChannel = preampChannel
   }
 
-  public void setPreampChannel(DcRackFiberId preampChannel) {
-    this.preampChannel = preampChannel;
+  def getPreampChannel(): DcRackFiberId = {
+    preampChannel
   }
 
-  public DcRackFiberId getPreampChannel() {
-    return preampChannel;
+  def setExperiment(expt: Experiment): Unit = {
+    this.expt = expt
   }
 
-  public void setExperiment(Experiment expt) {
-    this.expt = expt;
+  def getExperiment(): Experiment = {
+    expt
   }
 
-  public Experiment getExperiment() {
-    return expt;
+  def setDacBoard(board: DacBoard): Unit = {
+    this.board = board
   }
 
-  public void setDacBoard(DacBoard board) {
-    this.board = board;
+  def getDacBoard(): DacBoard = {
+    board
   }
 
-  public DacBoard getDacBoard() {
-    return board;
+  def setFpgaModel(fpga: FpgaModel): Unit = {
+    fpga match {
+      case dac: FpgaModelDac => this.fpga = dac
+      case _ => sys.error("Preamp channel's FpgaModel must be FpgaModelDac.")
+    }
   }
 
-  public void setFpgaModel(FpgaModel fpga) {
-    Preconditions.checkArgument(fpga instanceof FpgaModelDac, "Preamp channel's FpgaModel must be FpgaModelDac.");
-    this.fpga = (FpgaModelDac)fpga;
+  override def getFpgaModel(): FpgaModelDac = {
+    fpga
   }
 
-  @Override
-  public FpgaModelDac getFpgaModel() {
-    return fpga;
+  def startTimer(): Unit = {
+    fpga.getMemoryController.startTimer()
   }
 
-  public void startTimer() {
-    fpga.getMemoryController().startTimer();
-  }
-
-  public void stopTimer() {
-    fpga.getMemoryController().stopTimer();
+  def stopTimer(): Unit = {
+    fpga.getMemoryController.stopTimer()
   }
 
   // configuration
 
-  public void clearConfig() {
-    config = null;
+  def clearConfig(): Unit = {
+    config = null
   }
 
-  public void setPreampConfig(long offset, boolean polarity, String highPass, String lowPass) {
-    config = new PreampConfig(offset, polarity, highPass, lowPass);
+  def setPreampConfig(offset: Long, polarity: Boolean, highPass: String, lowPass: String): Unit = {
+    config = new PreampConfig(offset, polarity, highPass, lowPass)
   }
 
-  public boolean hasPreampConfig() {
-    return config != null;
+  def hasPreampConfig(): Boolean = {
+    config != null
   }
 
-  public PreampConfig getPreampConfig() {
-    return config;
+  def getPreampConfig(): PreampConfig = {
+    config
   }
 
   /**
@@ -108,13 +100,11 @@ public class PreampChannel implements FiberChannel, TimingChannel {
    * any one of these intervals.
    * @param intervals
    */
-  public void setSwitchIntervals(double[][] intervals) {
-    switchIntervals = new long[intervals.length][];
-    for (int i = 0; i < intervals.length; i++) {
-      Preconditions.checkArgument(intervals[i].length == 2, "Switch intervals must have length 2");
-      long a = FpgaModelDac.microsecondsToClocks(intervals[i][0]);
-      long b = FpgaModelDac.microsecondsToClocks(intervals[i][1]);
-      switchIntervals[i] = new long[] {Math.min(a, b), Math.max(a, b)};
+  def setSwitchIntervals(intervals: Array[Array[Double]]): Unit = {
+    switchIntervals = intervals.map { case Array(a_us, b_us) =>
+      val a = FpgaModelDac.microsecondsToClocks(a_us)
+      val b = FpgaModelDac.microsecondsToClocks(b_us)
+      (a min b, a max b)
     }
   }
 
@@ -123,30 +113,24 @@ public class PreampChannel implements FiberChannel, TimingChannel {
    * @param cycles
    * @return
    */
-  public boolean[] interpretSwitches(long[] cycles) {
-    boolean[] ans = new boolean[cycles.length];
-    Arrays.fill(ans, false);
-    for (int i = 0; i < switchIntervals.length; i++) {
-      for (int j = 0; j < ans.length; j++) {
-        ans[j] |= (cycles[j] > switchIntervals[i][0]) && (cycles[j] < switchIntervals[i][1]);
+  def interpretSwitches(cycles: Array[Long]): Array[Boolean] = {
+    cycles map { cycle =>
+      switchIntervals.exists { case (start, end) =>
+        start < cycle && cycle < end
       }
     }
-    return ans;
   }
 
-  @Override
-  public int getDemodChannel() {
+  override def getDemodChannel(): Int = {
     // this is a bit of a kludge, only applies to ADCs.
-    return -1;
+    -1
   }
 
-  @Override
-  public DcRackFiberId getDcFiberId() {
-    return this.getPreampChannel();
+  override def getDcFiberId(): DcRackFiberId = {
+    this.getPreampChannel()
   }
 
-  @Override
-  public void setBiasChannel(DcRackFiberId channel) {
-    this.setPreampChannel(channel);
+  override def setBiasChannel(channel: DcRackFiberId): Unit = {
+    this.setPreampChannel(channel)
   }
 }

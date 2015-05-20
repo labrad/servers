@@ -1,70 +1,61 @@
-package org.labrad.qubits.channels;
+package org.labrad.qubits.channels
 
-import com.google.common.collect.Maps;
-import org.labrad.qubits.Experiment;
-import org.labrad.qubits.FpgaModelDac;
-import org.labrad.qubits.resources.DacBoard;
+import com.google.common.collect.Maps
+import java.util.Map
+import org.labrad.qubits.Experiment
+import org.labrad.qubits.FpgaModelDac
+import org.labrad.qubits.resources.DacBoard
 
-import java.util.Map;
+abstract class SramChannelBase[T](name: String) extends SramChannel {
 
-public abstract class SramChannelBase<T> implements SramChannel {
+  private var expt: Experiment = null
+  private var board: DacBoard = null
+  protected var fpga: FpgaModelDac = null
 
-  String name = null;
-  Experiment expt = null;
-  DacBoard board = null;
-  FpgaModelDac fpga = null;
-
-  @Override
-  public String getName() {
-    return name;
+  override def getName(): String = {
+    name
   }
 
-  @Override
-  public Experiment getExperiment() {
-    return expt;
+  override def getExperiment(): Experiment = {
+    expt
   }
 
-  @Override
-  public void setExperiment(Experiment expt) {
-    this.expt = expt;
+  override def setExperiment(expt: Experiment): Unit = {
+    this.expt = expt
   }
 
-  @Override
-  public DacBoard getDacBoard() {
-    return board;
+  override def getDacBoard(): DacBoard = {
+    board
   }
 
-  public void setDacBoard(DacBoard board) {
-    this.board = board;
+  def setDacBoard(board: DacBoard): Unit = {
+    this.board = board
   }
 
-  @Override
-  public FpgaModelDac getFpgaModel() {
-    return fpga;
+  override def getFpgaModel(): FpgaModelDac = {
+    fpga
   }
 
 
   //
   // Blocks
   //
-  protected String currentBlock;
-  public String getCurrentBlock() {
-    return currentBlock;
+  protected var currentBlock: String = null
+  def getCurrentBlock(): String = {
+    currentBlock
   }
-  public void setCurrentBlock(String block) {
-    currentBlock = block;
+  def setCurrentBlock(block: String): Unit = {
+    currentBlock = block
   }
 
-  Map<String, T> blocks = Maps.newHashMap();
+  protected val blocks: Map[String, T] = Maps.newHashMap()
 
   // Start delay
-  @Override
-  public int getStartDelay() {
-    return this.getFpgaModel().getStartDelay();
+  override def getStartDelay(): Int = {
+    this.getFpgaModel().getStartDelay()
   }
 
-  @Override
-  public void setStartDelay(int startDelay) {
-    this.getFpgaModel().setStartDelay(startDelay);
+  override def setStartDelay(startDelay: Int): Unit = {
+    this.getFpgaModel().setStartDelay(startDelay)
   }
 }

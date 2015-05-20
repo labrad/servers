@@ -1,69 +1,67 @@
-package org.labrad.qubits.channels;
+package org.labrad.qubits.channels
 
-import java.util.Arrays;
+import org.labrad.qubits.FpgaModel
+import org.labrad.qubits.FpgaModelAnalog
+import org.labrad.qubits.channeldata.AnalogData
+import org.labrad.qubits.channeldata.AnalogDataFourier
+import org.labrad.qubits.enums.DacAnalogId
+import org.labrad.qubits.util.ComplexArray
+import scala.collection.JavaConverters._
 
-import org.labrad.qubits.FpgaModel;
-import org.labrad.qubits.FpgaModelAnalog;
-import org.labrad.qubits.channeldata.AnalogData;
-import org.labrad.qubits.channeldata.AnalogDataFourier;
-import org.labrad.qubits.enums.DacAnalogId;
-import org.labrad.qubits.util.ComplexArray;
+class AnalogChannel(name: String) extends SramChannelBase[AnalogData](name) {
 
-import com.google.common.base.Preconditions;
+  private var dacId: DacAnalogId = null
 
-public class AnalogChannel extends SramChannelBase<AnalogData> {
+  clearConfig()
 
-  DacAnalogId dacId = null;
-
-  public AnalogChannel(String name) {
-    this.name = name;
-    clearConfig();
+  def setDacId(id: DacAnalogId): Unit = {
+    dacId = id
   }
 
-  public void setDacId(DacAnalogId id) {
-    dacId = id;
+  def getDacId(): DacAnalogId = {
+    dacId
   }
 
-  public DacAnalogId getDacId() {
-    return dacId;
-  }
+  override def setFpgaModel(fpga: FpgaModel): Unit = {
+    fpga match {
+      case analogDac: FpgaModelAnalog =>
+        this.fpga = analogDac
+        analogDac.setAnalogChannel(dacId, this)
 
-  @Override
-  public void setFpgaModel(FpgaModel fpga) {
-    Preconditions.checkArgument(fpga instanceof FpgaModelAnalog,
-        "AnalogChannel '%s' requires analog board.", getName());
-    FpgaModelAnalog fpgaAnalog = (FpgaModelAnalog)fpga;
-    this.fpga = fpgaAnalog;
-    fpgaAnalog.setAnalogChannel(dacId, this);
+      case _ =>
+        sys.error(s"AnalogChannel '$getName' requires analog board.")
+    }
   }
 
   /**
    * Add data to the current block.
    * @param data
    */
-  public void addData(AnalogData data) {
-    int expected = fpga.getBlockLength(currentBlock);
-    data.setChannel(this);
-    data.checkLength(expected);
-    blocks.put(currentBlock, data);
+  def addData(data: AnalogData): Unit = {
+    val expected = fpga.getBlockLength(currentBlock)
+    data.setChannel(this)
+    data.checkLength(expected)
+    blocks.put(currentBlock, data)
   }
 
-  public AnalogData getBlockData(String name) {
-    AnalogData data = blocks.get(name);
-    if (data == null) {
-      // create a dummy data set with zeros
-      int len = fpga.getBlockLength(name);
-      len = len % 2 == 0 ? len/2 + 1 : (len+1) / 2;
-      double[] zeros = new double[len];
-      data = new AnalogDataFourier(new ComplexArray(zeros, zeros), 0, true, false);
-      data.setChannel(this);
-      blocks.put(name, data);
+  def getBlockData(name: String): AnalogData = {
+    blocks.get(name) match {
+      case null =>
+        // create a dummy data set with zeros
+        val len = fpga.getBlockLength(name)
+        val fourierLen = if (len % 2 == 0) len/2 + 1 else (len+1) / 2
+        val zeros = Array.ofDim[Double](fourierLen)
+        val data = new AnalogDataFourier(new ComplexArray(zeros, zeros), 0, true, false)
+        data.setChannel(this)
+        blocks.put(name, data)
+        data
+
+      case data => data
     }
-    return data;
   }
 
-  public int[] getSramData(String name) {
-    return blocks.get(name).getDeconvolved();
+  def getSramData(name: String): Array[Int] = {
+    blocks.get(name).getDeconvolved()
   }
 
 
@@ -71,50 +69,53 @@ public class AnalogChannel extends SramChannelBase<AnalogData> {
   // Configuration
   //
 
-  double[] settlingRates, settlingAmplitudes, reflectionRates, reflectionAmplitudes;
+  private var settlingRates: Array[Double] = null
+  private var settlingAmplitudes: Array[Double] = null
+  private var reflectionRates: Array[Double] = null
+  private var reflectionAmplitudes: Array[Double] = null
 
-  public void clearConfig() {
-    settlingRates = new double[0];
-    settlingAmplitudes = new double[0];
-    reflectionRates = new double[0];
-    reflectionAmplitudes = new double[0];
+  def clearConfig(): Unit = {
+    settlingRates = Array.empty[Double]
+    settlingAmplitudes = Array.empty[Double]
+    reflectionRates = Array.empty[Double]
+    reflectionAmplitudes = Array.empty[Double]
   }
 
-  public void setSettling(double[] rates, double[] amplitudes) {
-    Preconditions.checkArgument(rates.length == amplitudes.length,
-        "%s: lists of settling rates and amplitudes must be the same length", getName());
-    settlingRates = rates;
-    settlingAmplitudes = amplitudes;
+  def setSettling(rates: Array[Double], amplitudes: Array[Double]): Unit = {
+    require(rates.length == amplitudes.length,
+        s"$getName: lists of settling rates and amplitudes must be the same length")
+    settlingRates = rates
+    settlingAmplitudes = amplitudes
     // mark all blocks as needing to be deconvolved again
-    for (AnalogData block : blocks.values()) {
-      block.invalidate();
+    for (block <- blocks.values().asScala) {
+      block.invalidate()
     }
   }
 
-  public double[] getSettlingRates() {
-    return Arrays.copyOf(settlingRates, settlingRates.length);
+  def getSettlingRates(): Array[Double] = {
+    settlingRates.clone()
   }
 
-  public double[] getSettlingTimes() {
-    return Arrays.copyOf(settlingAmplitudes, settlingAmplitudes.length);
+  def getSettlingTimes(): Array[Double] = {
+    settlingAmplitudes.clone()
   }
 
-  public void setReflection(double[] rates, double[] amplitudes) {
-    Preconditions.checkArgument(rates.length == amplitudes.length,
-            "%s: lists of reflection rates and amplitudes must be the same length", getName());
+  def setReflection(rates: Array[Double], amplitudes: Array[Double]): Unit = {
+    require(rates.length == amplitudes.length,
+        s"$getName: lists of reflection rates and amplitudes must be the same length")
     reflectionRates = rates;
     reflectionAmplitudes = amplitudes;
     // mark all blocks as needing to be deconvolved again
-    for (AnalogData block : blocks.values()) {
-      block.invalidate();
+    for (block <- blocks.values().asScala) {
+      block.invalidate()
     }
   }
 
-  public double[] getReflectionRates() {
-    return reflectionRates;
+  def getReflectionRates(): Array[Double] = {
+    reflectionRates.clone()
   }
 
-  public double[] getReflectionAmplitudes() {
-    return reflectionAmplitudes;
+  def getReflectionAmplitudes(): Array[Double] = {
+    reflectionAmplitudes.clone()
   }
 }
