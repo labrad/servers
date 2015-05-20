@@ -1,34 +1,31 @@
-package org.labrad.qubits.mem;
+package org.labrad.qubits.mem
 
-import org.labrad.qubits.FpgaModelDac;
+import org.labrad.qubits.FpgaModelDac
 
-public class CallSramCommand implements MemoryCommand {
-  private String blockName;
-  private int startAddr, endAddr;
+class CallSramCommand(blockName: String) extends MemoryCommand {
+  private var startAddr: Int = 0
+  private var endAddr: Int = 0
 
-  public CallSramCommand(String name) {
-    this.blockName = name;
+  def getBlockName(): String = {
+    blockName
   }
 
-  public String getBlockName() {
-    return blockName;
+  def setStartAddress(startAddr: Int): Unit = {
+    this.startAddr = startAddr
   }
 
-  public void setStartAddress(int startAddr) {
-    this.startAddr = startAddr;
+  def setEndAddress(endAddr: Int): Unit = {
+    this.endAddr = endAddr
   }
 
-  public void setEndAddress(int endAddr) {
-    this.endAddr = endAddr;
+  def getBits(): Array[Long] = {
+    Array[Long](0x800000 + (startAddr & 0x0FFFFF),
+                0xA00000 + (endAddr & 0x0FFFFF),
+                0xC00000)
   }
 
-  public long[] getBits() {
-    return new long[] {0x800000 + (startAddr & 0x0FFFFF),
-                       0xA00000 + (endAddr & 0x0FFFFF),
-                       0xC00000};
-  }
-  public double getTime_us(FpgaModelDac dac) {
+  def getTime_us(dac: FpgaModelDac): Double = {
     // Call Sram memory command includes 3 memory commands plus the SRAM sequence
-    return dac.samplesToMicroseconds(endAddr-startAddr) + FpgaModelDac.clocksToMicroseconds(3);
+    dac.samplesToMicroseconds(endAddr - startAddr) + FpgaModelDac.clocksToMicroseconds(3)
   }
 }

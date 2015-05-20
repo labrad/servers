@@ -1,7 +1,8 @@
-package org.labrad.qubits.mem;
-import org.labrad.qubits.FpgaModelDac;
+package org.labrad.qubits.mem
 
-public interface MemoryCommand {
-  public long[] getBits();
-  public double getTime_us(FpgaModelDac dac);
+import org.labrad.qubits.FpgaModelDac
+
+trait MemoryCommand {
+  def getBits(): Array[Long]
+  def getTime_us(dac: FpgaModelDac): Double
 }

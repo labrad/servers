@@ -1,7 +1,7 @@
-package org.labrad.qubits.templates;
+package org.labrad.qubits.templates
 
-import org.labrad.qubits.channels.Channel;
+import org.labrad.qubits.channels.Channel
 
-public interface ChannelBuilder {
-  public Channel build();
+trait ChannelBuilder {
+  def build(): Channel
 }

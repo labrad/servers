@@ -1,18 +1,14 @@
-package org.labrad.qubits.resources;
+package org.labrad.qubits.resources
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.List
 
-import org.labrad.data.Data;
-import org.labrad.qubits.enums.DacFiberId;
-import org.labrad.qubits.enums.DcRackFiberId;
-import org.labrad.qubits.enums.DeviceType;
+import org.labrad.data.Data
+import org.labrad.qubits.enums.DacFiberId
+import org.labrad.qubits.enums.DcRackFiberId
+import org.labrad.qubits.enums.DeviceType
+import scala.collection.JavaConverters._
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+import com.google.common.collect.Lists
 
 
 /**
@@ -20,14 +16,7 @@ import com.google.common.collect.Maps;
  *
  * @author maffoo
  */
-public class Resources {
-  // instance is an immutable map from string names to resources
-  private final Map<String, Resource> resources;
-
-  // private constructor for building a set of resources
-  private Resources(Map<String, Resource> resources) {
-    this.resources = ImmutableMap.copyOf(resources);
-  }
+class Resources protected(resources: Map[String, Resource]) {
 
   /**
    * Get a resource by name, ensuring that it is of a particular type
@@ -36,14 +25,11 @@ public class Resources {
    * @param cls
    * @return
    */
-  @SuppressWarnings("unchecked")
-  public <T extends Resource> T get(String name, Class<? extends T> cls) {
-    Preconditions.checkArgument(resources.containsKey(name),
-        "Resource '%s' not found", name);
-    Resource r = resources.get(name);
-    Preconditions.checkArgument(cls.isInstance(r),
-        "Resource '%s' not of type %s", name, cls.getName());	
-    return (T) r;
+  def get[T <: Resource](name: String, cls: Class[T]): T = {
+    require(resources.contains(name), s"Resource '$name' not found")
+    val r = resources(name)
+    require(cls.isInstance(r), s"Resource '$name' has type ${r.getClass}; expected $cls")
+    r.asInstanceOf[T]
   }
 
   /**
@@ -52,18 +38,18 @@ public class Resources {
    * @param cls
    * @return
    */
-  @SuppressWarnings("unchecked")
-  public <T extends Resource> List<T> getAll(Class<? extends T> cls) {
-    List<T> list = Lists.newArrayList();
-    for (String key : resources.keySet()) {
-      Resource r = resources.get(key);
+  def getAll[T <: Resource](cls: Class[T]): List[T] = {
+    val list: List[T] = Lists.newArrayList()
+    for (r <- resources.values) {
       if (cls.isInstance(r)) {
-        list.add((T)r);
+        list.add(r.asInstanceOf[T])
       }
     }
-    return list;
+    list
   }
+}
 
+object Resources {
 
   /**
    * Create a resource of the given type.
@@ -71,15 +57,16 @@ public class Resources {
    * @param name
    * @return
    */
-  public static Resource create(DeviceType type, String name, List<Data> properties) {
-    switch (type) {
-      case UWAVEBOARD: return MicrowaveBoard.create(name);
-      case ANALOGBOARD: return AnalogBoard.create(name);
-      case FASTBIAS: return FastBias.create(name, properties);
-      case PREAMP: return PreampBoard.create(name);
-      case UWAVESRC: return MicrowaveSource.create(name);
-      case ADCBOARD: return AdcBoard.create(name);
-      default: throw new RuntimeException("Invalid resource type: " + type);
+  def create(devType: DeviceType, name: String, properties: Seq[Data]): Resource = {
+    import DeviceType._
+    devType match {
+      case UWAVEBOARD => MicrowaveBoard.create(name)
+      case ANALOGBOARD => AnalogBoard.create(name)
+      case FASTBIAS => FastBias.create(name, properties)
+      case PREAMP => PreampBoard.create(name)
+      case UWAVESRC => MicrowaveSource.create(name)
+      case ADCBOARD => AdcBoard.create(name)
+      case _ => sys.error(s"Invalid resource type: $devType")
     }
   }
   /**
@@ -88,65 +75,67 @@ public class Resources {
    * @param fibers
    * @param microwaves
    */
-  public static void updateWiring(List<Data> resources, List<Data> fibers, List<Data> microwaves) {
+  def updateWiring(resources: List[Data], fibers: List[Data], microwaves: List[Data]): Unit = {
     /*
      * resources - [(String type, String id),...]
      * fibers - [((dacName, fiber),(cardName, channel)),...]
      */
     // build resources for all objects
-    Map<String, Resource> map = Maps.newHashMap();
-    for (Data elem : resources) {
-      String type = elem.get(0).getString();
-      String name = elem.get(1).getString();
-      List<Data> properties = (elem.getClusterSize() == 3) ? elem.get(2).getClusterAsList()
-                                                           : new ArrayList<Data>();
-      DeviceType dt = DeviceType.fromString(type);
-      map.put(name, create(dt, name, properties));
-    }
-    Resources r = new Resources(map);
+    val map = resources.asScala.map { elem =>
+      val devType = elem.get(0).getString()
+      val name = elem.get(1).getString()
+      val properties = if (elem.getClusterSize() == 3) {
+        elem.get(2).getClusterAsList().asScala
+      } else {
+        Nil
+      }
+      val dt = DeviceType.fromString(devType)
+      name -> create(dt, name, properties)
+    }.toMap
+    val r = new Resources(map)
 
     // wire together DAC boards and bias boards
-    for (Data elem : fibers) {
-      String dacName = elem.get(0, 0).getString();
-      String fiber = elem.get(0, 1).getString();
-      String cardName = elem.get(1, 0).getString();
-      String channel = elem.get(1, 1).getString();
+    for (elem <- fibers.asScala) {
+      val dacName = elem.get(0, 0).getString()
+      val fiber = elem.get(0, 1).getString()
+      val cardName = elem.get(1, 0).getString()
+      val channel = elem.get(1, 1).getString()
 
-      DacBoard dac = r.get(dacName, DacBoard.class);
-      BiasBoard bias = r.get(cardName, BiasBoard.class);
-      DacFiberId df = DacFiberId.fromString(fiber);
-      DcRackFiberId bf = DcRackFiberId.fromString(channel);
-      dac.setFiber(df, bias, bf);
-      bias.setDacBoard(bf, dac, df);
+      val dac = r.get(dacName, classOf[DacBoard])
+      val bias = r.get(cardName, classOf[BiasBoard])
+      val df = DacFiberId.fromString(fiber)
+      val bf = DcRackFiberId.fromString(channel)
+      dac.setFiber(df, bias, bf)
+      bias.setDacBoard(bf, dac, df)
     }
 
     // wire together microwave DAC boards and microwave sources
-    for (Data elem : microwaves) {
-      String dacName = elem.get(0).getString();
-      String devName = elem.get(1).getString();
+    for (elem <- microwaves.asScala) {
+      val dacName = elem.get(0).getString()
+      val devName = elem.get(1).getString()
 
-      MicrowaveBoard dac = r.get(dacName, MicrowaveBoard.class);
-      MicrowaveSource uwaveSrc = r.get(devName, MicrowaveSource.class);
-      dac.setMicrowaveSource(uwaveSrc);
-      uwaveSrc.addMicrowaveBoard(dac);
+      val dac = r.get(dacName, classOf[MicrowaveBoard])
+      val uwaveSrc = r.get(devName, classOf[MicrowaveSource])
+      dac.setMicrowaveSource(uwaveSrc)
+      uwaveSrc.addMicrowaveBoard(dac)
     }
 
     // Set this new resource map as the current one
-    setCurrent(r);
+    setCurrent(r)
   }
 
   // we keep a single instance containing the current resource map.
   // updates to this instance are protected by a thread lock
-  private static Resources current = null;
-  private static final Object updateLock = new Object();
+  private var current: Resources = null
+  private val updateLock = new Object()
 
   /**
    * Set a new resource collection as the current collection
    * @param resources
    */
-  private static void setCurrent(Resources resources) {
-    synchronized (updateLock) {
-      current = resources;
+  private def setCurrent(resources: Resources): Unit = {
+    updateLock.synchronized {
+      current = resources
     }
   }
 
@@ -154,9 +143,9 @@ public class Resources {
    * Get the current resource collection
    * @return
    */
-  public static Resources getCurrent() {
-    synchronized (updateLock) {
-      return current;
+  def getCurrent(): Resources = {
+    updateLock.synchronized {
+      current
     }
   }
 }

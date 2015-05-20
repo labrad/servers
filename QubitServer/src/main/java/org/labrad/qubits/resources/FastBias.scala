@@ -1,66 +1,64 @@
-package org.labrad.qubits.resources;
+package org.labrad.qubits.resources
 
-import java.util.List;
-import java.util.Map;
+import java.util.Map
 
-import org.labrad.data.Data;
-import org.labrad.qubits.enums.DacFiberId;
-import org.labrad.qubits.enums.DcRackFiberId;
+import org.labrad.data.Data
+import org.labrad.qubits.enums.DacFiberId
+import org.labrad.qubits.enums.DcRackFiberId
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Maps;
+import com.google.common.collect.Maps
 
-public class FastBias implements BiasBoard {
-  private String name;
-  private Map<DcRackFiberId, DacBoard> dacBoards = Maps.newHashMap();
-  private Map<DcRackFiberId, DacFiberId> dacFibers = Maps.newHashMap();
-  private Map<DcRackFiberId, Double> gains = Maps.newHashMap();
+object FastBias {
+  def create(name: String, properties: Seq[Data]): FastBias = {
+    val board = new FastBias(name)
+    board.setProperties(properties)
+    board
+  }
+}
 
-  public static FastBias create(String name, List<Data> properties) {
-    FastBias board = new FastBias(name);
-    board.setProperties(properties);
-    return board;
+class FastBias(name: String) extends BiasBoard {
+  private val dacBoards: Map[DcRackFiberId, DacBoard] = Maps.newHashMap()
+  private val dacFibers: Map[DcRackFiberId, DacFiberId] = Maps.newHashMap()
+  private val gains: Map[DcRackFiberId, Double] = Maps.newHashMap()
+
+  def getName: String = {
+    name
   }
 
-  public FastBias(String name) {
-    this.name = name;
+  def setDacBoard(channel: DcRackFiberId, board: DacBoard, fiber: DacFiberId) {
+    dacBoards.put(channel, board)
+    dacFibers.put(channel, fiber)
   }
 
-  public String getName() {
-    return name;
+  def getDacBoard(channel: DcRackFiberId): DacBoard = {
+    require(dacBoards.containsKey(channel),
+        s"No DAC board wired to channel '$channel' on board '$name'")
+    dacBoards.get(channel)
   }
 
-  public void setDacBoard(DcRackFiberId channel, DacBoard board, DacFiberId fiber) {
-    dacBoards.put(channel, board);
-    dacFibers.put(channel, fiber);
+  def getFiber(channel: DcRackFiberId): DacFiberId = {
+    require(dacBoards.containsKey(channel),
+        s"No DAC board wired to channel '$channel' on board '$name'")
+    dacFibers.get(channel)
   }
 
-  public DacBoard getDacBoard(DcRackFiberId channel) {
-    Preconditions.checkArgument(dacBoards.containsKey(channel),
-        "No DAC board wired to channel '%s' on board '%s'", channel.toString(), name);
-    return dacBoards.get(channel);
-  }
-
-  public DacFiberId getFiber(DcRackFiberId channel) {
-    Preconditions.checkArgument(dacBoards.containsKey(channel),
-        "No DAC board wired to channel '%s' on board '%s'", channel.toString(), name);
-    return dacFibers.get(channel);
-  }
-
-  public double getGain(DcRackFiberId channel) {
+  def getGain(channel: DcRackFiberId): Double = {
     if (gains.containsKey(channel)) {
-      return gains.get(channel);
+      gains.get(channel)
+    } else {
+      1.0
     }
-    return 1.0;
   }
 
-  private void setProperties(List<Data> properties) {
-    for (Data elem : properties) {
-      String name = elem.get(0).getString();
-      if (name.equals("gain")) {
-        DcRackFiberId[] channels = DcRackFiberId.values();
-        double[] values = elem.get(1).getValueArray();
-        for (int i = 0; i < channels.length; i++) { gains.put(channels[i], values[i]); }
+  private def setProperties(properties: Seq[Data]): Unit = {
+    for (elem <- properties) {
+      val name = elem.get(0).getString()
+      if (name == "gain") {
+        val channels = DcRackFiberId.values()
+        val values = elem.get(1).getValueArray()
+        for ((ch, gain) <- channels zip values) {
+          gains.put(ch, gain)
+        }
       }
     }
   }

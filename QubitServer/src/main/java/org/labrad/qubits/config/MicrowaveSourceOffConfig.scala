@@ -20,10 +20,10 @@ case object MicrowaveSourceOffConfig extends MicrowaveSourceConfig {
 
   override def getSetupPacket(src: MicrowaveSource): SetupPacket = {
     val data = Data.ofType("(ss)(sb)")
-    data.get(0).setString("Select Device", 0).setString(src.getDevice, 1)
+    data.get(0).setString("Select Device", 0).setString(src.name, 1)
     data.get(1).setString("Output", 0).setBool(false, 1)
 
-    val state = s"${src.getName}: off"
+    val state = s"${src.name}: off"
     new SetupPacket(state, data)
   }
 }

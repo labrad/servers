@@ -3,7 +3,6 @@ package org.labrad.qubits.controller;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import org.labrad.data.Data;
-import org.labrad.data.Record;
 import org.labrad.data.Request;
 import org.labrad.qubits.FpgaModelDac;
 import org.labrad.qubits.mem.*;
@@ -50,12 +49,12 @@ public class MemoryController extends FpgaController {
   }
 
   public void addMemoryNoop() {
-    addMemoryCommand(NoopCommand.getInstance());
+    addMemoryCommand(NoopCommand$.MODULE$);
   }
 
   public void addMemoryNoops(int n) {
     for (int i = 0; i < n; i++) {
-      addMemoryCommand(NoopCommand.getInstance());
+      addMemoryCommand(NoopCommand$.MODULE$);
     }
   }
 
@@ -140,7 +139,7 @@ public class MemoryController extends FpgaController {
    */
   public void startTimer() {
     Preconditions.checkState(isTimerStopped(), "%s: timer already started", fpga.getName());
-    addMemoryCommand(StartTimerCommand.getInstance());
+    addMemoryCommand(StartTimerCommand$.MODULE$);
     timerStartCount++;
   }
 
@@ -149,7 +148,7 @@ public class MemoryController extends FpgaController {
    */
   public void stopTimer() {
     Preconditions.checkState(isTimerRunning(), "%s: timer not started", fpga.getName());
-    addMemoryCommand(StopTimerCommand.getInstance());
+    addMemoryCommand(StopTimerCommand$.MODULE$);
     timerStopCount++;
   }
 
@@ -208,8 +207,8 @@ public class MemoryController extends FpgaController {
   public long[] getMemory() {
     List<MemoryCommand> mem = Lists.newArrayList(memory);
     // add initial noop and final mem commands
-    mem.add(0, NoopCommand.getInstance());
-    mem.add(EndSequenceCommand.getInstance());
+    mem.add(0, NoopCommand$.MODULE$);
+    mem.add(EndSequenceCommand$.MODULE$);
 
     // resolve addresses of all SRAM blocks
     for (MemoryCommand c : mem) {

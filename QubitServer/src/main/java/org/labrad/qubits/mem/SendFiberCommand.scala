@@ -1,28 +1,20 @@
-package org.labrad.qubits.mem;
+package org.labrad.qubits.mem
 
-import org.labrad.qubits.FpgaModelDac;
-import org.labrad.qubits.enums.DacFiberId;
+import org.labrad.qubits.FpgaModelDac
+import org.labrad.qubits.enums.DacFiberId
 
-public class SendFiberCommand implements MemoryCommand {
-  private DacFiberId channel;
-  private int bits;
+case class SendFiberCommand(channel: DacFiberId, bits: Int) extends MemoryCommand {
 
-  public SendFiberCommand(DacFiberId channel, int bits) {
-    this.channel = channel;
-    this.bits = bits;
-  }
-
-  public long[] getBits() {
-    int send;
-    switch (channel) {
-      case FOUT_0: send = 0x100000; break;
-      case FOUT_1: send = 0x200000; break;
-      default:
-        throw new RuntimeException("Invalid DAC fiber id: " + channel);
+  def getBits(): Array[Long] = {
+    val send = channel match {
+      case DacFiberId.FOUT_0 => 0x100000
+      case DacFiberId.FOUT_1 => 0x200000
+      case _ => sys.error(s"Invalid DAC fiber id: $channel")
     }
-    return new long[] {send + (bits & 0x0FFFFF)};
+    Array[Long](send + (bits & 0x0FFFFF))
   }
-  public double getTime_us(FpgaModelDac dac) {
-    return FpgaModelDac.clocksToMicroseconds(1);
+
+  def getTime_us(dac: FpgaModelDac): Double = {
+    FpgaModelDac.clocksToMicroseconds(1)
   }
 }

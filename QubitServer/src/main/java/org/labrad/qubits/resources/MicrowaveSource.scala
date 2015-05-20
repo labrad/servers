@@ -1,43 +1,25 @@
-package org.labrad.qubits.resources;
+package org.labrad.qubits.resources
 
-import java.util.Set;
+import java.util.Set
 
-import com.google.common.collect.Sets;
+import com.google.common.collect.Sets
 
-public class MicrowaveSource implements Resource {
-  String name;
-  String server;
-  String device;
+object MicrowaveSource {
+  def create(name: String): MicrowaveSource = {
+    new MicrowaveSource(name)
+  }
+}
 
-  Set<MicrowaveBoard> boards = Sets.newHashSet();
+class MicrowaveSource(val name: String) extends Resource {
+  private val boards: Set[MicrowaveBoard] = Sets.newHashSet()
 
-  public static MicrowaveSource create(String name) {
-    MicrowaveSource board = new MicrowaveSource(name);
-    return board;
+  def addMicrowaveBoard(board: MicrowaveBoard): Unit = {
+    boards.add(board)
   }
 
-  public MicrowaveSource(String name) {
-    this.name = name;
-    this.device = name;
+  def getMicrowaveBoards(): Set[MicrowaveBoard] = {
+    boards
   }
 
-  public void addMicrowaveBoard(MicrowaveBoard board) {
-    boards.add(board);
-  }
-
-  public Set<MicrowaveBoard> getMicrowaveBoards() {
-    return boards;
-  }
-
-  public String getName() {
-    return name;
-  }
-
-  public String getServer() {
-    return server;
-  }
-
-  public String getDevice() {
-    return device;
-  }
+  def getName(): String = name
 }

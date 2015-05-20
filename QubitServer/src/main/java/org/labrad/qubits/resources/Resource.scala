@@ -1,5 +1,5 @@
-package org.labrad.qubits.resources;
+package org.labrad.qubits.resources
 
-public interface Resource {
-  public String getName();
+trait Resource {
+  def getName(): String
 }

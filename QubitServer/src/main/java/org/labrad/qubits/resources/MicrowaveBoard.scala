@@ -1,23 +1,19 @@
-package org.labrad.qubits.resources;
+package org.labrad.qubits.resources
 
+object MicrowaveBoard {
+  def create(name: String): MicrowaveBoard = {
+    new MicrowaveBoard(name)
+  }
+}
 
-public class MicrowaveBoard extends DacBoard {
-  private MicrowaveSource uwaveSrc = null;
+class MicrowaveBoard(name: String) extends DacBoard(name) {
+  private var uwaveSrc: MicrowaveSource = null
 
-  public static MicrowaveBoard create(String name) {
-    MicrowaveBoard board = new MicrowaveBoard(name);
-    return board;
+  def setMicrowaveSource(uwaves: MicrowaveSource): Unit = {
+    this.uwaveSrc = uwaves
   }
 
-  public MicrowaveBoard(String name) {
-    super(name);
-  }
-
-  public void setMicrowaveSource(MicrowaveSource uwaves) {
-    this.uwaveSrc = uwaves;
-  }
-
-  public MicrowaveSource getMicrowaveSource() {
-    return uwaveSrc;
+  def getMicrowaveSource(): MicrowaveSource = {
+    uwaveSrc
   }
 }

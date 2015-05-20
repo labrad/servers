@@ -1,51 +1,36 @@
-package org.labrad.qubits.mem;
+package org.labrad.qubits.mem
 
-import org.labrad.qubits.FpgaModelDac;
+import org.labrad.qubits.FpgaModelDac
 
-import com.google.common.base.Preconditions;
+class CallSramDualBlockCommand(block1: String, block2: String, var delay: Double = -1) extends MemoryCommand {
 
-public class CallSramDualBlockCommand implements MemoryCommand {
-  private String block1, block2;
-  private Double delay;
-
-  public CallSramDualBlockCommand(String block1, String block2) {
-    this(block1, block2, null);
+  def getBlockName1(): String = {
+    block1
   }
 
-  public CallSramDualBlockCommand(String block1, String block2, Double delay) {
-    this.block1 = block1;
-    this.block2 = block2;
-    this.delay = delay;
+  def getBlockName2(): String = {
+    block2
   }
 
-  public String getBlockName1() {
-    return block1;
+  def getDelay(): Double = {
+    require(delay > 0, "Dual-block SRAM delay not set!")
+    delay
   }
 
-  public String getBlockName2() {
-    return block2;
+  def setDelay(delay: Double): Unit = {
+    this.delay = delay
   }
 
-  public double getDelay() {
-    Preconditions.checkNotNull(delay, "Dual-block SRAM delay not set!");
-    return delay;
-  }
-
-  public void setDelay(double delay) {
-    this.delay = delay;
-  }
-
-  public long[] getBits() {
+  def getBits(): Array[Long] = {
     // the GHz DACs server handles layout of SRAM for dual block
-    return new long[] {0x800000,
-                       0xA00000,
-                       0xC00000};
+    Array[Long](0x800000, 0xA00000, 0xC00000)
   }
-  public double getTime_us(FpgaModelDac dac) {
+
+  def getTime_us(dac: FpgaModelDac): Double = {
     // Call Sram memory command includes 3 memory commands plus the SRAM sequence
-    Preconditions.checkNotNull(delay, "Dual-block SRAM delay not set!");
-    int b1len = dac.getBlockLength(block1);
-    int b2len = dac.getBlockLength(block2);
-    return dac.samplesToMicroseconds(b1len + b2len) + FpgaModelDac.clocksToMicroseconds(3) + this.delay/1000.0;
+    require(delay > 0, "Dual-block SRAM delay not set!")
+    val b1len = dac.getBlockLength(block1)
+    val b2len = dac.getBlockLength(block2)
+    dac.samplesToMicroseconds(b1len + b2len) + FpgaModelDac.clocksToMicroseconds(3) + this.delay / 1000.0
   }
 }

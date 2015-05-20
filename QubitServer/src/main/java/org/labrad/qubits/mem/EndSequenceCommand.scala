@@ -1,20 +1,13 @@
-package org.labrad.qubits.mem;
+package org.labrad.qubits.mem
 
-import org.labrad.qubits.FpgaModelDac;
+import org.labrad.qubits.FpgaModelDac
 
-public class EndSequenceCommand implements MemoryCommand {
-  private EndSequenceCommand() {}
-
-  private static final EndSequenceCommand INSTANCE = new EndSequenceCommand();
-
-  public static EndSequenceCommand getInstance() {
-    return INSTANCE;
+object EndSequenceCommand extends MemoryCommand {
+  def getBits(): Array[Long] = {
+    Array(0xF00000)
   }
 
-  public long[] getBits() {
-    return new long[] {0xF00000};
-  }
-  public double getTime_us(FpgaModelDac dac) {
-    return FpgaModelDac.clocksToMicroseconds(1);
+  def getTime_us(dac: FpgaModelDac): Double = {
+    FpgaModelDac.clocksToMicroseconds(1)
   }
 }

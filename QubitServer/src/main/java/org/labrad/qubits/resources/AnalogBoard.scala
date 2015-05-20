@@ -1,14 +1,9 @@
-package org.labrad.qubits.resources;
+package org.labrad.qubits.resources
 
-
-public class AnalogBoard extends DacBoard {
-
-  public static AnalogBoard create(String name) {
-    AnalogBoard board = new AnalogBoard(name);
-    return board;
-  }
-
-  public AnalogBoard(String name) {
-    super(name);
+object AnalogBoard {
+  def create(name: String): AnalogBoard = {
+    new AnalogBoard(name)
   }
 }
+
+class AnalogBoard(name: String) extends DacBoard(name)

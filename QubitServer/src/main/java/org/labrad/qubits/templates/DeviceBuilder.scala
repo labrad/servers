@@ -1,47 +1,33 @@
-package org.labrad.qubits.templates;
+package org.labrad.qubits.templates
 
-import java.util.List;
+import org.labrad.data.Data
+import org.labrad.qubits.Device
+import org.labrad.qubits.resources.Resources
+import scala.collection.JavaConverters._
 
-import org.labrad.data.Data;
-import org.labrad.qubits.Device;
-import org.labrad.qubits.resources.Resources;
-
-import com.google.common.collect.Lists;
-
-public class DeviceBuilder {
-  private final String name;
-  private final List<ChannelBuilder> channels;
-
-  private DeviceBuilder(String name, List<ChannelBuilder> channelBuilders) {
-    this.name = name;
-    channels = channelBuilders;
-  }
-
-  public String getName() {
-    return name;
-  }
-
-  public Device create() {
-    Device dev = new Device(name);
-    for (ChannelBuilder ct : channels) {
-      dev.addChannel(ct.build());
-    }
-    return dev;
-  }
-
+object DeviceBuilder {
   /**
    * Build a device template from a LabRAD data object.
    * @param template
    * @return
    */
-  public static DeviceBuilder fromData(Data template, Resources resources) {
-    String name = template.get(0).getString();
-    Data channels = template.get(1);
+  def fromData(template: Data, resources: Resources): DeviceBuilder = {
+    val name = template.get(0).getString()
+    val channels = template.get(1)
 
-    List<ChannelBuilder> channelBuilders = Lists.newArrayList();
-    for (Data channel : channels.getDataList()) {
-      channelBuilders.add(ChannelBuilders.fromData(channel, resources));
+    val channelBuilders = channels.getDataList().asScala.toSeq.map { channel =>
+      ChannelBuilders.fromData(channel, resources)
     }
-    return new DeviceBuilder(name, channelBuilders);
+    new DeviceBuilder(name, channelBuilders)
+  }
+}
+
+class DeviceBuilder(name: String, channelBuilders: Seq[ChannelBuilder]) {
+  def build(): Device = {
+    val dev = new Device(name)
+    for (ct <- channelBuilders) {
+      dev.addChannel(ct.build())
+    }
+    dev
   }
 }

@@ -1,64 +1,57 @@
-package org.labrad.qubits.resources;
+package org.labrad.qubits.resources
 
-import java.util.List;
-import java.util.Map;
+import java.util.Map
 
-import org.labrad.data.Data;
-import org.labrad.qubits.enums.DacFiberId;
-import org.labrad.qubits.enums.DcRackFiberId;
+import org.labrad.data.Data
+import org.labrad.qubits.enums.DacFiberId
+import org.labrad.qubits.enums.DcRackFiberId
+import scala.collection.JavaConverters._
 
-import com.google.common.collect.Maps;
+import com.google.common.collect.Maps
 
-public abstract class DacBoard implements Resource {
-  private String name;
+abstract class DacBoard(name: String) extends Resource {
+  private val fibers: Map[DacFiberId, BiasBoard] = Maps.newHashMap()
+  private val fiberChannels: Map[DacFiberId, DcRackFiberId] = Maps.newHashMap()
 
-  private Map<DacFiberId, BiasBoard> fibers = Maps.newHashMap();
-  private Map<DacFiberId, DcRackFiberId> fiberChannels = Maps.newHashMap();
+  protected var buildType: String = "dacBuild" // either 'adcBuild' or 'dacBuild'
+  protected var buildNumber: String = null
+  protected val buildProperties: Map[String, java.lang.Long] = Maps.newHashMap()
+  protected var propertiesLoaded = false
 
-  protected String buildType;		// either 'adcBuild' or 'dacBuild'
-  protected String buildNumber;
-  protected Map<String, Long> buildProperties = Maps.newHashMap();
-  protected boolean propertiesLoaded;
-
-  public DacBoard(String name) {
-    this.name = name;
-    this.buildType = "dacBuild";
-    this.propertiesLoaded = false;
+  def getName(): String = {
+    name
   }
 
-  public String getName() {
-    return name;
+  def getBuildType(): String = {
+    buildType
   }
 
-  public String getBuildType() {
-    return buildType;
+  def getBuildNumber(): String = {
+    buildNumber
   }
-  public String getBuildNumber() {
-    return buildNumber;
-  }
-  public void setBuildNumber(String buildNumber) {
-    this.buildNumber = buildNumber;
+  def setBuildNumber(buildNumber: String): Unit = {
+    this.buildNumber = buildNumber
   }
 
-  public void loadProperties(Data properties) {
-    for (Data prop : properties.getDataList()) {
-      List<Data> pair = prop.getClusterAsList();
-      String propName = pair.get(0).getString();
-      Long propValue = pair.get(1).getWord();
-      buildProperties.put(propName, propValue);
-      //System.out.println("put: " + propName + " -- " + propValue);
+  def loadProperties(properties: Data): Unit = {
+    for (prop <- properties.getDataList().asScala) {
+      val pair = prop.getClusterAsList()
+      val propName = pair.get(0).getString()
+      val propValue = pair.get(1).getWord()
+      buildProperties.put(propName, propValue)
     }
-    this.propertiesLoaded = true;
-  }
-  public Map<String, Long> getBuildProperties() {
-    return this.buildProperties;
-  }
-  public boolean havePropertiesLoaded() {
-    return this.propertiesLoaded;
+    this.propertiesLoaded = true
   }
 
-  public void setFiber(DacFiberId fiber, BiasBoard board, DcRackFiberId channel) {
-    fibers.put(fiber, board);
-    fiberChannels.put(fiber, channel);
+  def getBuildProperties(): Map[String, java.lang.Long] = {
+    this.buildProperties
+  }
+  def havePropertiesLoaded(): Boolean = {
+    this.propertiesLoaded
+  }
+
+  def setFiber(fiber: DacFiberId, board: BiasBoard, channel: DcRackFiberId): Unit = {
+    fibers.put(fiber, board)
+    fiberChannels.put(fiber, channel)
   }
 }
