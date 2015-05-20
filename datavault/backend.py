@@ -534,7 +534,6 @@ class HDF5MetaData(object):
             else:
                 shape_tag = ''
                 comment = ''
-            print shape_tag+base_type+unit_tag+comment
             column_types.append(shape_tag+base_type+unit_tag+comment)
         type_tag = '*(' + (','.join(column_types)) + ')'
         return type_tag
@@ -562,7 +561,8 @@ class HDF5MetaData(object):
 
     def addParam(self, name, data):
         keyname = 'Param.%s' % (name,)
-        self.dataset.attrs[keyname] = labrad_urlencode(data)
+        value = labrad_urlencode(data)
+        self.dataset.attrs[keyname] = value
 
     def getParameter(self, name, case_sensitive=True):
         """
@@ -808,7 +808,6 @@ def open_hdf5_file(filename):
         return SimpleHDF5Data(fh)
     else:
         return ExtendedHDF5Data(fh)
-
 
 def create_backend(filename, title, indep, dep, extended):
     hdf5_file = filename + '.hdf5'
