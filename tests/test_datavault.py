@@ -42,8 +42,70 @@ def test_create_dataset(dv):
         dv.add(row)
 
     stored = dv.get()
+    assert dv.get_version() == "2.0.0"
     assert np.equal(data, stored).all()
 
+def test_string_type(dv):
+    _path, _name = dv.new_ex('test', [('label', [1], 's', '')],
+                             [('data', 'data', [1], 's', '')])
+    dv.add_ex([('label', 'data')])
+    stored = dv.get_ex()
+    assert stored[0][0] == 'label'
+    assert stored[0][1] == 'data'
+    stored = dv.get_ex_t()
+    
+def test_create_extended_dataset(dv):
+    """Create an extended dataset, add some data and read it back"""
+    _path, _name = dv.new_ex('test', [('t', [1], 'v', 'ns'),
+                                      ('x', [2,2], 'c', 'V')],
+                             [('clicks', 'I', [1], 'i', ''),
+                              ('clicks', 'Q', [1], 'i', '')])
+
+    t_data = 3.3
+    x = np.array([[3.2+4j, 1.0],[15.8+11j, 2j]])
+    I = 3
+    Q = 7
+    row  = (t_data, x, I, Q)
+    dv.add_ex([row, row])
+    dv.add_ex_t(([3.3, 3.3], np.array([x, x]), [3,3], [7,7]))
+    
+    dv.add_parameter('foo', 32.1)
+    dv.add_parameter('bar', 'x')
+    dv.add_parameter('baz', [1, 2, 3, 4])
+
+    dv.open(_name)
+    (indep_ex, dep_ex) = dv.variables_ex()
+    assert len(indep_ex) == 2
+    assert indep_ex[0] == ('t', [1], 'v', 'ns')
+    assert indep_ex[1][0] == 'x'
+    assert np.all(indep_ex[1][1] == [2,2])
+    assert indep_ex[1][2:4] == ('c', 'V')
+    assert len(dep_ex) == 2
+    assert dep_ex[0] == ('clicks', 'I', [1], 'i', '')
+    assert dep_ex[1] == ('clicks', 'Q', [1], 'i', '')
+    
+    (indep, dep) = dv.variables()
+    assert indep[0] == ('t', 'ns')
+    assert indep[1] == ('x', 'V')
+    assert dep[0] == ('clicks', 'I', '')
+    assert dep[1] == ('clicks', 'Q', '')
+
+    row_type = dv.row_type()
+    tt = T.parseTypeTag(row_type)
+    assert tt == T.parseTypeTag('*(v[ns]*2c,ii)')
+
+    assert dv.get_version() == "3.0.0"
+
+    stored = dv.get_ex()
+    for j in range(4):
+        for k in range(4):
+            assert np.all(stored[k][j] == row[j])
+
+    stored = dv.get_ex_t(100, True)
+    for j in range(4):
+        for j in range(4):
+            assert np.all(stored[j][k] == row[j])
+    
 def test_read_dataset():
     """Create a simple dataset and read it back while still open and after closed"""
     data = []
