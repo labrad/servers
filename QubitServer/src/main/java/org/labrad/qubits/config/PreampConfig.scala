@@ -1,80 +1,61 @@
-package org.labrad.qubits.config;
+package org.labrad.qubits.config
 
-import java.util.Arrays;
-import java.util.Map;
+import org.labrad.data.Data
+import org.labrad.qubits.channels.PreampChannel
 
-import org.labrad.data.Data;
-import org.labrad.qubits.channels.PreampChannel;
+object PreampConfig {
+  val highPassFilters = Map(
+    "DC" -> 0,
+    "3300" -> 1,
+    "1000" -> 2,
+    "330" -> 3,
+    "100" -> 4,
+    "33" -> 5,
+    "10" -> 6,
+    "3.3" -> 7
+  )
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Maps;
+  val lowPassFilters = Map(
+    "0" -> 0,
+    "0.22" -> 1,
+    "0.5" -> 2,
+    "1" -> 3,
+    "2.2" -> 4,
+    "5" -> 5,
+    "10" -> 6,
+    "22" -> 7
+  )
+}
 
-public class PreampConfig {
-  private static final String[] highPassFilterNames = new String[] {
-    "DC", "3300", "1000", "330", "100", "33", "10", "3.3"
-  };
-  private static final long[] highPassFilterVals = new long[] {
-    0, 1, 2, 3, 4, 5, 6, 7
-  };
-  private static final Map<String, Long> highPassFilterMap = Maps.newHashMap();
-  private static final String highPassAllowedNames;
+case class PreampConfig(offset: Long, polarity: Boolean, highPassName: String, lowPassName: String) {
 
-  private static final String[] lowPassFilterNames = new String[] {
-    "0", "0.22", "0.5", "1", "2.2", "5", "10", "22"
-  };
-  private static final long[] lowPassFilterVals = new long[] {
-    0, 1, 2, 3, 4, 5, 6, 7
-  };
-  private static final Map<String, Long> lowPassFilterMap = Maps.newHashMap();
-  private static final String lowPassAllowedNames;
+  import PreampConfig._
 
-  static {
-    for (int i = 0; i < highPassFilterNames.length; i++) {
-      highPassFilterMap.put(highPassFilterNames[i], highPassFilterVals[i]);
-    }
-    highPassAllowedNames = Arrays.toString(highPassFilterNames);
-    for (int i = 0; i < lowPassFilterNames.length; i++) {
-      lowPassFilterMap.put(lowPassFilterNames[i], lowPassFilterVals[i]);
-    }
-    lowPassAllowedNames = Arrays.toString(lowPassFilterNames);
+  val highPass = highPassFilters.get(highPassName).getOrElse {
+    sys.error(s"Invalid high-pass filter value '$highPassName'. Must be one of ${highPassFilters.keys.mkString(",")}")
+  }
+  val lowPass = lowPassFilters.get(lowPassName).getOrElse {
+    sys.error(s"Invalid low-pass filter value '$lowPassName'.  Must be one of ${lowPassFilters.keys.mkString(",")}")
   }
 
+  def getSetupPacket(ch: PreampChannel): SetupPacket = {
+    val chName = ch.getPreampBoard().getName()
+    val linkNameEnd = chName.indexOf("Preamp") - 1
+    val linkName = chName.substring(0, linkNameEnd)
+    val cardId = (chName.substring(linkNameEnd + "Preamp".length() + 2)).toLong
 
-  long highPass, lowPass;
-  boolean polarity;
-  long offset;
-
-  public PreampConfig(long offset, boolean polarity, String highPass, String lowPass) {
-    Preconditions.checkArgument(highPassFilterMap.containsKey(highPass),
-        "Invalid high-pass filter value '%s'.  Must be one of %s", highPass, highPassAllowedNames);
-    Preconditions.checkArgument(lowPassFilterMap.containsKey(lowPass),
-        "Invalid low-pass filter value '%s'.  Must be one of %s", lowPass, lowPassAllowedNames);
-    this.offset = offset;
-    this.polarity = polarity;
-    this.highPass = highPassFilterMap.get(highPass);
-    this.lowPass = lowPassFilterMap.get(lowPass);
-
-  }
-
-  public SetupPacket getSetupPacket(PreampChannel ch) {
-    String chName = ch.getPreampBoard().getName();
-    int linkNameEnd = chName.indexOf("Preamp") - 1;
-    String linkName = chName.substring(0, linkNameEnd);
-    long cardId = Long.valueOf(chName.substring(linkNameEnd + "Preamp".length() + 2));
-
-    Data data = Data.ofType("(ss)(sw)(s(s(wwww)))(s)");
-    data.get(0).setString("Connect", 0).setString(linkName, 1);
-    data.get(1).setString("Select Card", 0).setWord(cardId, 1);
+    val data = Data.ofType("(ss)(sw)(s(s(wwww)))(s)")
+    data.get(0).setString("Connect", 0).setString(linkName, 1)
+    data.get(1).setString("Select Card", 0).setWord(cardId, 1)
     data.get(2).setString("Register", 0).setString(ch.getPreampChannel().toString().toUpperCase(), 1, 0)
     .setWord(highPass, 1, 1, 0)
     .setWord(lowPass, 1, 1, 1)
-    .setWord(polarity ? 1L : 0L, 1, 1, 2)
-    .setWord(offset, 1, 1, 3);
-    data.get(3).setString("Disconnect", 0);
+    .setWord(if (polarity) 1L else 0L, 1, 1, 2)
+    .setWord(offset, 1, 1, 3)
+    data.get(3).setString("Disconnect", 0)
 
-    String state = String.format("%s%s: offset=%d polarity=%b highPass=%d lowPass=%d",
-        ch.getPreampBoard().getName(), ch.getPreampChannel(), offset, polarity, highPass, lowPass);
+    val state = s"${ch.getPreampBoard.getName}${ch.getPreampChannel}: offset=$offset polarity=$polarity highPass=$highPass lowPass=$lowPass"
 
-    return new SetupPacket(state, data);
+    new SetupPacket(state, data)
   }
 }

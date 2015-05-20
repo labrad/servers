@@ -21,7 +21,7 @@ import org.labrad.qubits.Experiment.TimingOrderItem;
 import org.labrad.qubits.channeldata.*;
 import org.labrad.qubits.channels.*;
 import org.labrad.qubits.config.MicrowaveSourceConfig;
-import org.labrad.qubits.config.MicrowaveSourceOffConfig;
+import org.labrad.qubits.config.MicrowaveSourceOffConfig$;
 import org.labrad.qubits.config.SetupPacket;
 import org.labrad.qubits.enums.BiasCommandType;
 import org.labrad.qubits.enums.DacTriggerId;
@@ -956,7 +956,7 @@ public class QubitContext extends AbstractServerContext {
     for (FpgaModelMicrowave fpga : getExperiment().getMicrowaveFpgas()) {
       MicrowaveSource src = fpga.getMicrowaveSource();
       if (!uwaveConfigs.containsKey(src)) {
-        uwaveConfigs.put(src, new MicrowaveSourceOffConfig());
+        uwaveConfigs.put(src, MicrowaveSourceOffConfig$.MODULE$);
       }
     }
 
@@ -991,14 +991,14 @@ public class QubitContext extends AbstractServerContext {
       SetupPacket p = entry.getValue().getSetupPacket(entry.getKey());
       String devName = entry.getKey().getName();
       if (anritsuNames.contains(devName)) {
-        setupPackets.add(buildSetupPacket(Constants.ANRITSU_SERVER, p.getRecords()));
+        setupPackets.add(buildSetupPacket(Constants.ANRITSU_SERVER, p.records()));
       } else if (hittiteNames.contains(devName)) {
-        setupPackets.add(buildSetupPacket(Constants.HITTITE_SERVER, p.getRecords()));
+        setupPackets.add(buildSetupPacket(Constants.HITTITE_SERVER, p.records()));
       } else {
         Preconditions.checkState(false, "Microwave device not found: '%s'", devName);
       }
 
-      setupState.add(p.getState());
+      setupState.add(p.state());
     }
 
     // build setup packets for preamp boards
@@ -1006,8 +1006,8 @@ public class QubitContext extends AbstractServerContext {
     for (PreampChannel ch : expt.getChannels(PreampChannel.class)) {
       if (ch.hasPreampConfig()) {
         SetupPacket p = ch.getPreampConfig().getSetupPacket(ch);
-        setupPackets.add(buildSetupPacket(Constants.DC_RACK_SERVER, p.getRecords()));
-        setupState.add(p.getState());
+        setupPackets.add(buildSetupPacket(Constants.DC_RACK_SERVER, p.records()));
+        setupState.add(p.state());
       }
     }
 
@@ -1015,8 +1015,8 @@ public class QubitContext extends AbstractServerContext {
       System.out.println("channel " + ch.getName() + " hasSetupPacket: " + ch.hasSetupPacket());
       if (ch.hasSetupPacket()) {
         SetupPacket p = ch.getSetupPacket();
-        setupPackets.add(buildSetupPacket(Constants.DC_RACK_SERVER, p.getRecords()));
-        setupState.add(p.getState());
+        setupPackets.add(buildSetupPacket(Constants.DC_RACK_SERVER, p.records()));
+        setupState.add(p.state());
       }
     }
 

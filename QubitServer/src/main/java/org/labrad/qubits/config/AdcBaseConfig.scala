@@ -1,30 +1,18 @@
-package org.labrad.qubits.config;
+package org.labrad.qubits.config
 
-import java.util.Map;
+import java.util.Map
 
-import org.labrad.data.Request;
+import org.labrad.data.Request
 
-public abstract class AdcBaseConfig {
-
-  protected final Map<String, Long> buildProperties;
+abstract class AdcBaseConfig(channelName: String, builProperties: Map[String, Long]) {
 
   /**
    * number of clock cycles to delay
    */
-  protected int startDelay;
+  protected var startDelay: Int = -1
 
-  /**
-   * name of the channel we belong to
-   */
-  protected final String channelName;
-
-  public AdcBaseConfig(String channelName, Map<String, Long> buildProperties) {
-    this.channelName = channelName;
-    this.buildProperties = buildProperties;
-  }
-
-  public void setStartDelay(int startDelay) {
-    this.startDelay = startDelay;
+  def setStartDelay(startDelay: Int): Unit = {
+    this.startDelay = startDelay
   }
 
   /**
@@ -34,7 +22,7 @@ public abstract class AdcBaseConfig {
    * @param runRequest The request to which we add the packets.
    * @author pomalley
    */
-  public abstract void addPackets(Request runRequest);
+  def addPackets(runRequest: Request): Unit
 
   /**
    * Converts Is and Qs to T/F based on the previously given critical phase.
@@ -44,10 +32,10 @@ public abstract class AdcBaseConfig {
    * @param channel Demodulation channel (-1 for average mode)
    * @return
    */
-  public abstract boolean[] interpretPhases(int[] is, int[] is2, int channel);
+  def interpretPhases(Is: Array[Int], Qs: Array[Int], channel: Int): Array[Boolean]
 
-  public int getStartDelay() {
-    return startDelay;
+  def getStartDelay(): Int = {
+    startDelay
   }
 
 }

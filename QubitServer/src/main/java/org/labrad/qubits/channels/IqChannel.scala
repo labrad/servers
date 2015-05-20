@@ -86,7 +86,7 @@ class IqChannel(name: String) extends SramChannelBase[IqData](name) {
   }
 
   def configMicrowavesOff(): Unit = {
-    uwaveConfig = new MicrowaveSourceOffConfig
+    uwaveConfig = MicrowaveSourceOffConfig
   }
 
   def getMicrowaveConfig(): MicrowaveSourceConfig = {

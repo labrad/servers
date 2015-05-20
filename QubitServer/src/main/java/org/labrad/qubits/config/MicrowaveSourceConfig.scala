@@ -1,11 +1,11 @@
-package org.labrad.qubits.config;
+package org.labrad.qubits.config
 
-import org.labrad.qubits.resources.MicrowaveSource;
+import org.labrad.qubits.resources.MicrowaveSource
 
-public interface MicrowaveSourceConfig {
-  public boolean isOn();
-  public double getFrequency();
-  public double getPower();
+trait MicrowaveSourceConfig {
+  def isOn: Boolean
+  def frequency: Double
+  def power: Double
 
-  public SetupPacket getSetupPacket(MicrowaveSource src);
+  def getSetupPacket(src: MicrowaveSource): SetupPacket
 }
