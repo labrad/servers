@@ -1,11 +1,11 @@
-package org.labrad.qubits;
+package org.labrad.qubits
 
-import org.labrad.qubits.resources.DacBoard;
+import org.labrad.qubits.resources.DacBoard
 
-public interface FpgaModel {
+trait FpgaModel {
 
-  public String getName();
-  public DacBoard getDacBoard();
-  public double getSequenceLength_us();
-  public double getSequenceLengthPostSRAM_us();
+  def getName(): String
+  def getDacBoard(): DacBoard
+  def getSequenceLength_us(): Double
+  def getSequenceLengthPostSRAM_us(): Double
 }

@@ -1,64 +1,44 @@
-package org.labrad.qubits;
+package org.labrad.qubits
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.Future;
+import com.google.common.collect.Lists
+import com.google.common.collect.Maps
+import java.util.List
+import java.util.Map
+import java.util.concurrent.Future
+import org.labrad.qubits.channels.AnalogChannel
+import org.labrad.qubits.enums.DacAnalogId
+import org.labrad.qubits.proxies.DeconvolutionProxy
+import org.labrad.qubits.resources.AnalogBoard
+import org.labrad.qubits.util.Futures
+import scala.collection.JavaConverters._
 
-import com.google.common.base.Preconditions;
-import org.labrad.data.Request;
-import org.labrad.qubits.channeldata.Deconvolvable;
-import org.labrad.qubits.channels.AnalogChannel;
-import org.labrad.qubits.enums.DacAnalogId;
-import org.labrad.qubits.proxies.DeconvolutionProxy;
-import org.labrad.qubits.resources.AnalogBoard;
-import org.labrad.qubits.util.Futures;
+class FpgaModelAnalog(analogBoard: AnalogBoard, expt: Experiment) extends FpgaModelDac(analogBoard, expt) {
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+  private val dacs: Map[DacAnalogId, AnalogChannel] = Maps.newEnumMap(classOf[DacAnalogId])
 
-public class FpgaModelAnalog extends FpgaModelDac {
-
-  private AnalogBoard analogBoard;
-  private Map<DacAnalogId, AnalogChannel> dacs = Maps.newEnumMap(DacAnalogId.class);
-
-  public FpgaModelAnalog(AnalogBoard dacBoard, Experiment expt) {
-    super(dacBoard, expt);
-    analogBoard = dacBoard;
-    // create dummy channels for this board
-    /* pomalley 4/22/14 we no longer use dummy channels.
-    for (DacAnalogId id : DacAnalogId.values()) {
-      AnalogChannel dummy = new AnalogChannel("dummy_" + id.toString());
-      dummy.setExperiment(expt);
-      dummy.setDacBoard(dacBoard);
-      dummy.setDacId(id);
-      dummy.setFpgaModel(this);
-    }*/
+  def getAnalogBoard(): AnalogBoard = {
+    analogBoard
   }
 
-  public AnalogBoard getAnalogBoard() {
-    return analogBoard;
+  def setAnalogChannel(id: DacAnalogId, ch: AnalogChannel): Unit = {
+    dacs.put(id, ch)
   }
 
-  public void setAnalogChannel(DacAnalogId id, AnalogChannel ch) {
-    dacs.put(id, ch);
+  def getDacChannel(id: DacAnalogId): AnalogChannel = {
+    dacs.get(id)
   }
 
-  public AnalogChannel getDacChannel(DacAnalogId id) {
-    return dacs.get(id);
-  }
-
-  public Future<Void> deconvolveSram(DeconvolutionProxy deconvolver) {
-    List<Future<Void>> deconvolutions = Lists.newArrayList();
-    for (AnalogChannel ch : dacs.values()) {
-      for (String blockName : getBlockNames()) {
-        Deconvolvable block = ch.getBlockData(blockName);
+  def deconvolveSram(deconvolver: DeconvolutionProxy): Future[Void] = {
+    val deconvolutions: List[Future[Void]] = Lists.newArrayList()
+    for (ch <- dacs.values().asScala) {
+      for (blockName <- getBlockNames().asScala) {
+        val block = ch.getBlockData(blockName)
         if (!block.isDeconvolved()) {
-          deconvolutions.add(block.deconvolve(deconvolver));
+          deconvolutions.add(block.deconvolve(deconvolver))
         }
       }
     }
-    return Futures.waitForAll(deconvolutions);
+    Futures.waitForAll(deconvolutions)
   }
 
   /**
@@ -66,25 +46,22 @@ public class FpgaModelAnalog extends FpgaModelDac {
    * @param block
    * @return
    */
-  @Override
-  protected long[] getSramDacBits(String block) {
-    final long[] sram = new long[getBlockLength(block)];
-    Arrays.fill(sram, 0);
-    for (DacAnalogId id : dacs.keySet()) {
-      int[] vals = dacs.get(id).getSramData(block);
-      for (int i = 0; i < vals.length; i++) {
-        sram[i] |= (long)((vals[i] & 0x3FFF) << id.getShift());
+  override protected def getSramDacBits(block: String): Array[Long] = {
+    val sram = Array.fill[Long](getBlockLength(block)) { 0 }
+    for (id <- dacs.keySet().asScala) {
+      val vals = dacs.get(id).getSramData(block)
+      for (i <- vals.indices) {
+        sram(i) |= ((vals(i) & 0x3FFF).toLong << id.getShift())
       }
     }
-    return sram;
+    sram
   }
 
   /**
    * See comments on parent's abstract method.
    */
-  @Override
-  protected boolean hasSramChannel() {
-    return !dacs.isEmpty();
+  override def hasSramChannel(): Boolean = {
+    !dacs.isEmpty()
   }
 
 }

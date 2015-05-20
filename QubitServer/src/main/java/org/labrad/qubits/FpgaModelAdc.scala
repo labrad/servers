@@ -1,88 +1,79 @@
-package org.labrad.qubits;
+package org.labrad.qubits
 
-import java.util.List;
+import com.google.common.collect.Lists
+import java.util.List
+import org.labrad.data.Request
+import org.labrad.qubits.channels.AdcChannel
+import org.labrad.qubits.resources.AdcBoard
+import org.labrad.qubits.resources.DacBoard
+import scala.collection.JavaConverters._
 
-import org.labrad.data.Request;
-import org.labrad.qubits.channels.AdcChannel;
-import org.labrad.qubits.resources.AdcBoard;
-import org.labrad.qubits.resources.DacBoard;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
+object FpgaModelAdc {
+  val ACQUISITION_TIME_US = 16.384
+  val START_DELAY_UNIT_NS = 4
+}
 
-public class FpgaModelAdc implements FpgaModel {
+class FpgaModelAdc(board: AdcBoard, expt: Experiment) extends FpgaModel {
 
-  public static final double ACQUISITION_TIME_US = 16.384;
-  public static final int START_DELAY_UNIT_NS = 4;
+  import FpgaModelAdc._
 
-  List<AdcChannel> channels = Lists.newArrayList();
-  AdcBoard board;
-  Experiment expt;
+  private val channels: List[AdcChannel] = Lists.newArrayList()
 
-  public FpgaModelAdc(AdcBoard board, Experiment expt) {
-    this.board = board;
-    this.expt = expt;
-  }
-
-  public void setChannel(AdcChannel c) {
+  def setChannel(c: AdcChannel) {
     if (!channels.contains(c))
-      channels.add(c);
+      channels.add(c)
   }
 
-  public AdcChannel getChannel() {
-    Preconditions.checkArgument(false, "getChannel() called for FpgaModelAdc! Bad!");
-    return null;
+  def getChannel(): AdcChannel = {
+    sys.error("getChannel() called for FpgaModelAdc! Bad!")
   }
 
-  @Override
-  public DacBoard getDacBoard() {
-    return board;
+  override def getDacBoard(): DacBoard = {
+    board
   }
 
-  @Override
-  public String getName() {
-    return board.getName();
+  override def getName(): String = {
+    board.getName()
   }
 
   //
   // Start Delay - pomalley 5/4/2011
   //
-  private int startDelay = -1;
+  private var startDelay = -1
 
-  public void setStartDelay(int startDelay) {
-    this.startDelay = startDelay;
+  def setStartDelay(startDelay: Int): Unit = {
+    this.startDelay = startDelay
   }
 
-  public int getStartDelay() {
-    return this.startDelay;
+  def getStartDelay(): Int = {
+    this.startDelay
   }
 
-  @Override
-  public double getSequenceLength_us() {
-    double t_us=this.startDelay * START_DELAY_UNIT_NS / 1000.0;
-    t_us += ACQUISITION_TIME_US;
-    return t_us;
+  override def getSequenceLength_us(): Double = {
+    var t_us = this.startDelay * START_DELAY_UNIT_NS / 1000.0
+    t_us += ACQUISITION_TIME_US
+    t_us
   }
 
-  @Override
-  public double getSequenceLengthPostSRAM_us() {
-    return getSequenceLength_us();
+  override def getSequenceLengthPostSRAM_us(): Double = {
+    getSequenceLength_us()
   }
 
-  public void addPackets(Request runRequest) {
+  def addPackets(runRequest: Request): Unit = {
     // first we configure the "global" ADC properties, while checking to see if they were set more than once
     // across the different channels
     // then we set the "local" properties of each demod channel
     if (channels.size() == 0)
-      return;
+      return
 
     // this is double counting but it doesn't matter
-    for (AdcChannel ch1 : channels)
-      for (AdcChannel ch2 : channels)
-        ch1.reconcile(ch2);
-    channels.get(0).addGlobalPackets(runRequest);
-    for (AdcChannel ch : channels) {
-      ch.addLocalPackets(runRequest);
+    for (ch1 <- channels.asScala)
+      for (ch2 <- channels.asScala)
+        ch1.reconcile(ch2)
+    channels.get(0).addGlobalPackets(runRequest)
+    for (ch <- channels.asScala) {
+      ch.addLocalPackets(runRequest)
     }
   }
 }

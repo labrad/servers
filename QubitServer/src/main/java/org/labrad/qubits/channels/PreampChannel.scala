@@ -100,8 +100,8 @@ class PreampChannel(name: String) extends FiberChannel with TimingChannel {
    * any one of these intervals.
    * @param intervals
    */
-  def setSwitchIntervals(intervals: Array[Array[Double]]): Unit = {
-    switchIntervals = intervals.map { case Array(a_us, b_us) =>
+  def setSwitchIntervals(intervals: Array[(Double, Double)]): Unit = {
+    switchIntervals = intervals.map { case (a_us, b_us) =>
       val a = FpgaModelDac.microsecondsToClocks(a_us)
       val b = FpgaModelDac.microsecondsToClocks(b_us)
       (a min b, a max b)

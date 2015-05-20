@@ -1,13 +1,11 @@
-package org.labrad.qubits;
+package org.labrad.qubits
 
-import java.util.List;
-import java.util.Map;
-
-import org.labrad.qubits.channels.Channel;
-
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+import com.google.common.collect.Lists
+import com.google.common.collect.Maps
+import java.util.List
+import java.util.Map
+import org.labrad.qubits.channels.Channel
+import scala.collection.JavaConverters._
 
 /**
  * Model of a device, essentially a collection of named channels of various types.
@@ -16,34 +14,30 @@ import com.google.common.collect.Maps;
  * 
  * @author maffoo
  */
-public class Device {
-  private String name;
-  private List<Channel> channels = Lists.newArrayList();
-  private Map<String, Channel> channelsByName = Maps.newHashMap();
+class Device(name: String) {
 
-  public Device(String name) {
-    this.name = name;
-  }
+  private val channels: List[Channel] = Lists.newArrayList()
+  private val channelsByName: Map[String, Channel] = Maps.newHashMap()
 
-  public String getName() {
-    return name;
+  def getName(): String = {
+    name
   }
 
   /**
    * Add a channel to this device.
    * @param ch
    */
-  public void addChannel(Channel ch) {
-    channels.add(ch);
-    channelsByName.put(ch.getName(), ch);
+  def addChannel(ch: Channel): Unit = {
+    channels.add(ch)
+    channelsByName.put(ch.getName(), ch)
   }
 
   /**
    * Get all defined channels.
    * @return
    */
-  public List<Channel> getChannels() {
-    return Lists.newArrayList(channels);
+  def getChannels(): List[Channel] = {
+    Lists.newArrayList(channels)
   }
 
   /**
@@ -52,15 +46,14 @@ public class Device {
    * @param cls
    * @return
    */
-  @SuppressWarnings("unchecked")
-  public <T extends Channel> List<T> getChannels(Class<T> cls) {
-    List<T> matches = Lists.newArrayList();
-    for (Channel chan : channels) {
+  def getChannels[T <: Channel](cls: Class[T]): List[T] = {
+    val matches: List[T] = Lists.newArrayList()
+    for (chan <- channels.asScala) {
       if (cls.isInstance(chan)) {
-        matches.add((T)chan);
+        matches.add(chan.asInstanceOf[T])
       }
     }
-    return matches;
+    matches
   }
 
   /**
@@ -68,10 +61,10 @@ public class Device {
    * @param name
    * @return
    */
-  public Channel getChannel(String name) {
-    Preconditions.checkArgument(channelsByName.containsKey(name),
-        "Device '%s' has no channel named '%s'", getName(), name);
-    return channelsByName.get(name);
+  def getChannel(name: String): Channel = {
+    require(channelsByName.containsKey(name),
+        s"Device '$getName' has no channel named '$name'")
+    channelsByName.get(name)
   }
 
   /**
@@ -81,12 +74,11 @@ public class Device {
    * @param cls
    * @return
    */
-  @SuppressWarnings("unchecked")
-  public <T extends Channel> T getChannel(String name, Class<T> cls) {
-    Channel ch = getChannel(name);
-    Preconditions.checkState(cls.isInstance(ch),
-        "Channel '%s' is not of type '%s'", name, cls.getName());
-    return (T)ch;
+  def getChannel[T <: Channel](name: String, cls: Class[T]): T = {
+    val ch = getChannel(name)
+    require(cls.isInstance(ch),
+        s"Channel '$name' is not of type '${cls.getName}'")
+    ch.asInstanceOf[T]
   }
 
   /**
@@ -95,10 +87,10 @@ public class Device {
    * @param cls
    * @return
    */
-  public <T extends Channel> T getChannel(Class<T> cls) {
-    List<T> channels = getChannels(cls);
-    Preconditions.checkState(channels.size() == 1,
-        "Device '%s' has more than one channel of type '%s'", getName(), cls.getName());
-    return channels.get(0);
+  def getChannel[T <: Channel](cls: Class[T]): T = {
+    val channels = getChannels(cls)
+    require(channels.size() == 1,
+        s"Device '$getName' has more than one channel of type '${cls.getName}'")
+    channels.get(0)
   }
 }

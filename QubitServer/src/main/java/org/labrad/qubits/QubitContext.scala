@@ -1,83 +1,76 @@
-package org.labrad.qubits;
+package org.labrad.qubits
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ListMultimap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import org.labrad.AbstractServerContext;
-import org.labrad.annotations.Accepts;
-import org.labrad.annotations.Returns;
-import org.labrad.annotations.Setting;
-import org.labrad.annotations.SettingOverload;
-import org.labrad.data.*;
-import org.labrad.qubits.Experiment.TimingOrderItem;
-import org.labrad.qubits.channeldata.*;
-import org.labrad.qubits.channels.*;
-import org.labrad.qubits.config.MicrowaveSourceConfig;
-import org.labrad.qubits.config.MicrowaveSourceOffConfig$;
-import org.labrad.qubits.config.SetupPacket;
-import org.labrad.qubits.enums.BiasCommandType;
-import org.labrad.qubits.enums.DacTriggerId;
-import org.labrad.qubits.mem.FastBiasCommands;
-import org.labrad.qubits.mem.MemoryCommand;
-import org.labrad.qubits.proxies.DeconvolutionProxy;
-import org.labrad.qubits.resources.MicrowaveSource;
-import org.labrad.qubits.resources.Resources;
-import org.labrad.qubits.templates.ExperimentBuilder;
-import org.labrad.qubits.util.ComplexArray;
-import org.labrad.qubits.util.Failure;
-import org.labrad.qubits.util.Futures;
+import com.google.common.collect.ArrayListMultimap
+import com.google.common.collect.ListMultimap
+import com.google.common.collect.Lists
+import com.google.common.collect.Maps
+import java.util.Collections
+import java.util.HashSet
+import java.util.List
+import java.util.Map
+import java.util.concurrent.Future
+import org.labrad.AbstractServerContext
+import org.labrad.annotations.Accepts
+import org.labrad.annotations.Returns
+import org.labrad.annotations.Setting
+import org.labrad.annotations.SettingOverload
+import org.labrad.data._
+import org.labrad.qubits.channeldata._
+import org.labrad.qubits.channels._
+import org.labrad.qubits.config.MicrowaveSourceConfig
+import org.labrad.qubits.config.MicrowaveSourceOffConfig
+import org.labrad.qubits.enums.BiasCommandType
+import org.labrad.qubits.enums.DacTriggerId
+import org.labrad.qubits.mem.FastBiasCommands
+import org.labrad.qubits.mem.MemoryCommand
+import org.labrad.qubits.proxies.DeconvolutionProxy
+import org.labrad.qubits.resources.MicrowaveSource
+import org.labrad.qubits.resources.Resources
+import org.labrad.qubits.templates.ExperimentBuilder
+import org.labrad.qubits.util.ComplexArray
+import org.labrad.qubits.util.Futures
+import scala.collection.JavaConverters._
 
+class QubitContext extends AbstractServerContext {
 
-public class QubitContext extends AbstractServerContext {
+  private var expt: Experiment = null
+  private var setupContext: Context = null
 
-  private Experiment expt = null;
-  private Context setupContext = null;
+  private var nextRequest: Request = null
+  private var runIndex: Int = _
+  private var lastData: Data = null
 
-  private Request nextRequest = null;
-  private int runIndex;
-  private Data lastData = null;
-
-  private boolean configDirty = true;
-  private boolean memDirty = true;
-  private boolean sramDirty = true;
+  private var configDirty = true
+  private var memDirty = true
+  private var sramDirty = true
 
   /**
    * Initialize this context when it is first created.
    */
-  @Override
-  public void init() {
+  override def init(): Unit = {
     // this is the context in which we will create setup packets
     // we make it different from our own context to avoid potential
     // lockups due to making recursive calls in a context.
-    setupContext = new Context(getConnection().getId(), 1);
+    setupContext = new Context(getConnection().getId(), 1)
   }
 
-  @Override
-  public void expire() {}
+  override def expire(): Unit = {}
 
 
   /**
    * Get the currently-defined experiment in this context.
    */
-  private Experiment getExperiment() {
-    Preconditions.checkNotNull(expt, "No sequence initialized in this context.");
-    return expt;
+  private def getExperiment(): Experiment = {
+    require(expt != null, "No sequence initialized in this context.")
+    expt
   }
 
   /**
    * Set the current experiment in this context
    * @param expt
    */
-  private void setExperiment(Experiment expt) {
-    this.expt = expt;
+  private def setExperiment(expt: Experiment): Unit = {
+    this.expt = expt
   }
 
 
@@ -85,24 +78,24 @@ public class QubitContext extends AbstractServerContext {
    * Get a channel from the experiment that is of a particular Channel class
    * this unpacks the channel descriptor directly from the incoming LabRAD data
    */
-  private <T extends Channel> T getChannel(Data data, Class<T> cls) {
+  private def getChannel[T <: Channel](data: Data, cls: Class[T]): T = {
     if (data.matchesType("s")) {
-      String device = data.getString();
-      return getChannel(device, cls);
+      val device = data.getString()
+      getChannel(device, cls)
     } else if (data.matchesType("ss")) {
-      String device = data.get(0).getString();
-      String channel = data.get(1).getString();
-      return getChannel(device, channel, cls);
+      val device = data.get(0).getString()
+      val channel = data.get(1).getString()
+      getChannel(device, channel, cls)
     } else {
-      throw new RuntimeException("Unknown channel identifier: " + data.pretty());
+      sys.error(s"Unknown channel identifier: ${data.pretty}")
     }
   }
 
   /**
    * Get a channel from the experiment that is of a particular class
    */
-  private <T extends Channel> T getChannel(String device, String channel, Class<T> cls) {
-    return getExperiment().getDevice(device).getChannel(channel, cls);
+  private def getChannel[T <: Channel](device: String, channel: String, cls: Class[T]): T = {
+    getExperiment().getDevice(device).getChannel(channel, cls)
   }
 
   /**
@@ -110,40 +103,36 @@ public class QubitContext extends AbstractServerContext {
    * In this case, no channel name is specified, so this will succeed
    * only if there is a unique channel of the appropriate type.
    */
-  private <T extends Channel> T getChannel(String device, Class<T> cls) {
-    return getExperiment().getDevice(device).getChannel(cls);
+  private def getChannel[T <: Channel](device: String, cls: Class[T]): T = {
+    getExperiment().getDevice(device).getChannel(cls)
   }
 
   /**
    * Build a setup packet from a given set of records, using the predefined setup context
    */
-  private Data buildSetupPacket(String server, Data records) {
-    return Data.clusterOf(
+  private def buildSetupPacket(server: String, records: Data): Data = {
+    Data.clusterOf(
         Data.clusterOf(Data.valueOf(setupContext.getHigh()),
             Data.valueOf(setupContext.getLow())),
             Data.valueOf(server),
-            records);
+            records)
   }
 
   /**
    * Check the structure of a data object passed in as a setup packet
    */
-  private void checkSetupPacket(Data packet) {
+  private def checkSetupPacket(packet: Data): Unit = {
     if (!packet.matchesType("(ww)s?")) {
-      Failure.fail("Setup packet has invalid format: "
-          + "Expected ((ww) s ?{records}) but got %s.", packet.getTag());
+      sys.error(s"Setup packet has invalid format: Expected ((ww) s ?{records}) but got ${packet.getTag}.")
     }
-    Data records = packet.get(2);
+    val records = packet.get(2)
     if (!records.isCluster()) {
-      Failure.fail("Setup packet has invalid format: "
-          + "Expected a cluster of records but got %s.", records.getTag());
+      sys.error(s"Setup packet has invalid format: Expected a cluster of records but got ${records.getTag}.")
     }
-    for (int i = 0; i < records.getClusterSize(); i++) {
-      Data record = records.get(i);
+    for (i <- 0 until records.getClusterSize()) {
+      val record = records.get(i)
       if (!record.matchesType("s?")) {
-        Failure.fail("Setup packet has invalid format: "
-            + "Expected a cluster of (s{setting} ?{data}) for record %d but got %s",
-            i, record.getTag());
+        sys.error(s"Setup packet has invalid format: Expected a cluster of (s{setting} ?{data}) for record $i but got ${record.getTag}")
       }
     }
   }
@@ -154,9 +143,9 @@ public class QubitContext extends AbstractServerContext {
   @Setting(id = 99,
       name = "Echo",
       doc = "Echo back.")
-  @Returns("?")
-  public Data echo(@Accepts("?") Data packet) {
-    return packet;
+  @Returns(Array("?"))
+  def echo(@Accepts(Array("?")) packet: Data): Data = {
+    packet
   }
 
 
@@ -166,17 +155,17 @@ public class QubitContext extends AbstractServerContext {
 
   @Setting(id = 100,
       name = "Initialize",
-      doc = "Initialize a new sequence with the given device and channel setup."
-          + "\n\n"
-          + "Setup is given by a list of devices, where each device is a cluster "
-          + "of name and channel list, and where each channel is a cluster of name "
-          + "and cluster of type and parameter list.")
-  public void initialize(@Accepts("*(s{dev} *(s{chan} (s{type} *s{params})))") Data template) {
+      doc = """Initialize a new sequence with the given device and channel setup.
+              |
+              |Setup is given by a list of devices, where each device is a cluster
+              |of name and channel list, and where each channel is a cluster of name
+              |and cluster of type and parameter list.""")
+  def initialize(@Accepts(Array("*(s{dev} *(s{chan} (s{type} *s{params})))")) template: Data): Unit = {
     // build experiment directly from a template
-    Resources rsrc = Resources.getCurrent();
-    Experiment expt = ExperimentBuilder.fromData(template, rsrc).build();
-    setExperiment(expt);
-    expt.clearControllers();
+    val rsrc = Resources.getCurrent()
+    val expt = ExperimentBuilder.fromData(template, rsrc).build()
+    setExperiment(expt)
+    expt.clearControllers()
   }
 
 
@@ -186,187 +175,189 @@ public class QubitContext extends AbstractServerContext {
 
   @Setting(id = 200,
       name = "New Config",
-      doc = "Clear all config calls in this context."
-          + "\n\n"
-          + "This clears all configuration from the config calls, "
-          + "but leaves the device and channel setup unchanged.")
-  public void new_config() {
-    getExperiment().clearConfig();
-    configDirty = true;
+      doc = """Clear all config calls in this context.
+              |
+              |This clears all configuration from the config calls,
+              |but leaves the device and channel setup unchanged.""")
+  def new_config(): Unit = {
+    getExperiment().clearConfig()
+    configDirty = true
   }
 
   @Setting(id = 210,
       name = "Config Microwaves",
-      doc = "Configure the Anritsu settings for the given channel."
-          + "\n\n"
-          + "Note that if two microwave channels share the same source, "
-          + "they must both use the same settings here.  If they do not, "
-          + "an error will be thrown when you try to run the sequence.")
-  public void config_microwaves(@Accepts({"s", "ss"}) Data id,
-      @Accepts("v[GHz]") double freq,
-      @Accepts("v[dBm]") double power) {
+      doc = """Configure the Anritsu settings for the given channel.
+              |
+              |Note that if two microwave channels share the same source,
+              |they must both use the same settings here.  If they do not,
+              |an error will be thrown when you try to run the sequence.""")
+  def config_microwaves(@Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("v[GHz]")) freq: Double,
+      @Accepts(Array("v[dBm]")) power: Double): Unit = {
     // turn the microwave source on, set the power level and frequency
-    IqChannel ch = getChannel(id, IqChannel.class);
-    ch.configMicrowavesOn(freq, power);
-    configDirty = true;
+    val ch = getChannel(id, classOf[IqChannel])
+    ch.configMicrowavesOn(freq, power)
+    configDirty = true
   }
   @SettingOverload
-  public void config_microwaves(@Accepts({"s", "ss"}) Data id) {
+  def config_microwaves(@Accepts(Array("s", "ss")) id: Data): Unit = {
     // turn the microwave source off
-    IqChannel ch = getChannel(id, IqChannel.class);
-    ch.configMicrowavesOff();
-    configDirty = true;
+    val ch = getChannel(id, classOf[IqChannel])
+    ch.configMicrowavesOff()
+    configDirty = true
   }
 
   @Setting(id = 220,
       name = "Config Preamp",
-      doc = "Configure the preamp settings for the given channel."
-          + "\n\n"
-          + "This includes the DAC offset and polarity, as well as high- "
-          + "and low-pass filtering.")
-  public void config_preamp(@Accepts({"s", "ss"}) Data id,
-      long offset, boolean polarity, String highPass, String lowPass) {
+      doc = """Configure the preamp settings for the given channel.
+              |
+              |This includes the DAC offset and polarity, as well as high-
+              |and low-pass filtering.""")
+  def config_preamp(@Accepts(Array("s", "ss")) id: Data,
+      offset: Long, polarity: Boolean, highPass: String, lowPass: String): Unit = {
     // set the preamp offset, polarity and filtering options
-    PreampChannel ch = getChannel(id, PreampChannel.class);
-    ch.setPreampConfig(offset, polarity, highPass, lowPass);
-    configDirty = true;
+    val ch = getChannel(id, classOf[PreampChannel])
+    ch.setPreampConfig(offset, polarity, highPass, lowPass)
+    configDirty = true
   }
 
   @Setting(id = 230,
       name = "Config Settling",
       doc = "Configure the deconvolution settling rates for the given channel.")
-  public void config_settling(@Accepts({"s", "ss"}) Data id,
-      @Accepts("*v[GHz]") double[] rates,
-      @Accepts("*v[]") double[] amplitudes) {
-    AnalogChannel ch = getChannel(id, AnalogChannel.class);
-    ch.setSettling(rates, amplitudes);
-    configDirty = true;
+  def config_settling(
+      @Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("*v[GHz]")) rates: Array[Double],
+      @Accepts(Array("*v[]")) amplitudes: Array[Double]
+  ): Unit = {
+    val ch = getChannel(id, classOf[AnalogChannel])
+    ch.setSettling(rates, amplitudes)
+    configDirty = true
   }
 
   @Setting(id = 231,
-          name = "Config Reflection",
-          doc = "Configure the deconvolution reflection rates and amplitudes for the given channel.")
-  public void config_reflection(@Accepts({"s", "ss"}) Data id,
-                                @Accepts("*v[GHz]") double[] rates,
-                                @Accepts("*v[]") double[] amplitudes) {
-    AnalogChannel ch = getChannel(id, AnalogChannel.class);
-    ch.setReflection(rates, amplitudes);
-    configDirty = true;
+      name = "Config Reflection",
+      doc = "Configure the deconvolution reflection rates and amplitudes for the given channel.")
+  def config_reflection(
+      @Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("*v[GHz]")) rates: Array[Double],
+      @Accepts(Array("*v[]")) amplitudes: Array[Double]
+  ): Unit = {
+    val ch = getChannel(id, classOf[AnalogChannel])
+    ch.setReflection(rates, amplitudes)
+    configDirty = true
   }
 
   @Setting(id = 240,
       name = "Config Timing Order",
-      doc = "Configure the order in which timing results should be returned."
-          + "\n\n"
-          + "If this option is not specified, timing results will be returned "
-          + "for all timing channels in the order they were defined when this "
-          + "sequence was initialized.")
-  public void config_timing_order(@Accepts({"*s", "*(ss)"}) List<Data> ids) {
-    List<TimingOrderItem> channels = Lists.newArrayList();
-    for (Data id : ids) {
-      int i = -1;
+      doc = """Configure the order in which timing results should be returned.
+              |
+              |If this option is not specified, timing results will be returned
+              |for all timing channels in the order they were defined when this
+              |sequence was initialized.""")
+  def config_timing_order(@Accepts(Array("*s", "*(ss)")) ids: List[Data]): Unit = {
+    val channels: List[TimingOrderItem] = Lists.newArrayList()
+    for (id <- ids.asScala) {
+      var i = -1
       if (id.isCluster()) {
         if (id.get(1).getString().contains("::")) {
-          i = new Integer(id.get(1).getString().substring(id.get(1).getString().lastIndexOf(':') + 1));
-          id.get(1).setString(id.get(1).getString().substring(0, id.get(1).getString().lastIndexOf(':') - 1));
+          i = id.get(1).getString().substring(id.get(1).getString().lastIndexOf(':') + 1).toInt
+          id.get(1).setString(id.get(1).getString().substring(0, id.get(1).getString().lastIndexOf(':') - 1))
         }
       } else {
         if (id.getString().contains("::")) {
-          i = new Integer(id.getString().substring(id.getString().lastIndexOf(':') + 1));
-          id.setString(id.getString().substring(0, id.getString().lastIndexOf(':') - 1));
+          i = id.getString().substring(id.getString().lastIndexOf(':') + 1).toInt
+          id.setString(id.getString().substring(0, id.getString().lastIndexOf(':') - 1))
         }
       }
-      channels.add(new TimingOrderItem(getChannel(id, TimingChannel.class), i));
+      channels.add(new TimingOrderItem(getChannel(id, classOf[TimingChannel]), i))
     }
-    getExperiment().setTimingOrder(channels);
-    configDirty = true;
+    getExperiment().setTimingOrder(channels)
+    configDirty = true
   }
 
   @Setting(id = 250,
       name = "Config Setup Packets",
-      doc = "Configure other setup state and packets for this experiment."
-          + "\n\n"
-          + "Setup information should be specified as a list of token strings "
-          + "describing the state that should be setup before this sequence runs, "
-          + "and a cluster of packets to be sent to initialize the other "
-          + "servers into that state.  Each packet is a cluster of context (ww), "
-          + "server name, and cluster of records, where each record is a cluster of "
-          + "setting name and data.  These setup packets will get sent before "
-          + "this sequence is run, allowing various sequences to be interleaved.")
-  public void config_setup_packets(List<String> states, Data packets) {
-    List<Data> packetList = Lists.newArrayList();
-    for (int i = 0; i < packets.getClusterSize(); i++) {
-      Data packet = packets.get(i);
-      checkSetupPacket(packet);
-      packetList.add(packet);
+      doc = """Configure other setup state and packets for this experiment.
+              |
+              |Setup information should be specified as a list of token strings
+              |describing the state that should be setup before this sequence runs,
+              |and a cluster of packets to be sent to initialize the other
+              |servers into that state.  Each packet is a cluster of context (ww),
+              |server name, and cluster of records, where each record is a cluster of
+              |setting name and data.  These setup packets will get sent before
+              |this sequence is run, allowing various sequences to be interleaved.""")
+  def config_setup_packets(states: List[String], packets: Data): Unit = {
+    def packetList: List[Data] = Lists.newArrayList()
+    for (i <- 0 until packets.getClusterSize()) {
+      val packet = packets.get(i)
+      checkSetupPacket(packet)
+      packetList.add(packet)
     }
-    getExperiment().setSetupState(states, packetList);
-    configDirty = true;
+    getExperiment().setSetupState(states, packetList)
+    configDirty = true
   }
 
   @Setting(id = 260,
       name = "Config Autotrigger",
-      doc = "Configure automatic inclusion of a trigger pulse on every SRAM sequence."
-          + "\n\n"
-          + "Specifying a trigger channel name (e.g. 'S3') will cause a trigger pulse "
-          + "to be automatically added to that channel on every board at the beginning of "
-          + "every SRAM sequence.  This can be very helpful when viewing and debugging "
-          + "SRAM output on the sampling scope, for example."
-          + "\n\n"
-          + "You can also specify an optional length for the trigger pulse, which will "
-          + "be rounded to the nearest ns.  If no length is specified, the default (16 ns) "
-          + "will be used.")
-  public void config_autotrigger(String channel) {
-    config_autotrigger(channel, Constants.AUTOTRIGGER_PULSE_LENGTH);
-    configDirty = true;
+      doc = """Configure automatic inclusion of a trigger pulse on every SRAM sequence.
+              |
+              |Specifying a trigger channel name (e.g. 'S3') will cause a trigger pulse
+              |to be automatically added to that channel on every board at the beginning of
+              |every SRAM sequence.  This can be very helpful when viewing and debugging
+              |SRAM output on the sampling scope, for example.
+              |
+              |You can also specify an optional length for the trigger pulse, which will
+              |be rounded to the nearest ns.  If no length is specified, the default (16 ns)
+              |will be used.""")
+  def config_autotrigger(channel: String): Unit = {
+    config_autotrigger(channel, Constants.AUTOTRIGGER_PULSE_LENGTH)
+    configDirty = true
   }
   @SettingOverload
-  public void config_autotrigger(String channel, @Accepts("v[ns]") double length) {
-    getExperiment().setAutoTrigger(DacTriggerId.fromString(channel), (int)length);
-    configDirty = true;
+  def config_autotrigger(channel: String, @Accepts(Array("v[ns]")) length: Double): Unit = {
+    getExperiment().setAutoTrigger(DacTriggerId.fromString(channel), length.toInt)
+    configDirty = true
   }
 
   @Setting(id = 280,
       name = "Config Switch Intervals",
       doc = "Configure switching intervals for processing timing data from a particular timing channel.")
-  public void config_switch_intervals(@Accepts({"s", "ss"}) Data id,
-      @Accepts({"*(v[us], v[us])"}) Data intervals) {
-    PreampChannel channel = getChannel(id, PreampChannel.class);
-    double[][] ints = new double[intervals.getArraySize()][];
-    for (int i = 0; i < ints.length; i++) {
-      Data interval = intervals.get(i);
-      double a = interval.get(0).getValue();
-      double b = interval.get(1).getValue();
-      ints[i] = new double[] {a, b};
+  def config_switch_intervals(@Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("*(v[us], v[us])")) intervals: Data): Unit = {
+    val channel = getChannel(id, classOf[PreampChannel])
+    val ints = Array.ofDim[(Double, Double)](intervals.getArraySize())
+    for (i <- ints.indices) {
+      val interval = intervals.get(i)
+      ints(i) = (interval.get(0).getValue(), interval.get(1).getValue())
     }
-    channel.setSwitchIntervals(ints);
+    channel.setSwitchIntervals(ints)
   }
 
   @Setting(id = 290,
       name = "Config Critical Phase",
       doc = "Configure the critical phases for processing ADC readout.")
-  public void config_critical_phases(@Accepts({"s","ss"}) Data id,
-      @Accepts("v{phase}") Data phase) {
-    AdcChannel channel = getChannel(id, AdcChannel.class);
-    channel.setCriticalPhase(phase.getValue());
+  def config_critical_phases(@Accepts(Array("s","ss")) id: Data,
+      @Accepts(Array("v{phase}")) phase: Data): Unit = {
+    val channel = getChannel(id, classOf[AdcChannel])
+    channel.setCriticalPhase(phase.getValue())
   }
 
   @Setting(id = 291,
       name = "Reverse Critical Phase Comparison",
-      doc = "By default we do atan2(Q, I) > criticalPhase. Give this function"
-          + "True and we do < instead (for this ADC channel).")
-  public void reverse_critical_phase_comparison(@Accepts({"s", "ss"}) Data id,
-      @Accepts("b{reverse}") Data reverse) {
-    AdcChannel channel = getChannel(id, AdcChannel.class);
-    channel.reverseCriticalPhase(reverse.getBool());
+      doc = """By default we do atan2(Q, I) > criticalPhase. Give this function
+              |True and we do < instead (for this ADC channel).""")
+  def reverse_critical_phase_comparison(@Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("b{reverse}")) reverse: Data): Unit = {
+    val channel = getChannel(id, classOf[AdcChannel])
+    channel.reverseCriticalPhase(reverse.getBool())
   }
 
   @Setting(id = 292,
       name = "Set IQ Offsets",
       doc = "Bother Dan")
-  public void set_iq_offset(@Accepts({"s", "ss"}) Data id, @Accepts("ii") Data offsets) {
-    AdcChannel channel = getChannel(id, AdcChannel.class);
-    channel.setIqOffset(offsets.get(0).getInt(),offsets.get(1).getInt());
+  def set_iq_offset(@Accepts(Array("s", "ss")) id: Data, @Accepts(Array("ii")) offsets: Data): Unit = {
+    val channel = getChannel(id, classOf[AdcChannel])
+    channel.setIqOffset(offsets.get(0).getInt(), offsets.get(1).getInt())
   }
 
   //
@@ -381,9 +372,9 @@ public class QubitContext extends AbstractServerContext {
   @Setting(id = 300,
       name = "New Mem",
       doc = "Clear memory content in this context.")
-  public void new_mem() {
-    getExperiment().clearControllers();
-    memDirty = true;
+  def new_mem(): Unit = {
+    getExperiment().clearControllers()
+    memDirty = true
   }
 
   /**
@@ -393,111 +384,111 @@ public class QubitContext extends AbstractServerContext {
    */
   @Setting(id = 310,
       name = "Mem Bias",
-      doc = "Adds Bias box commands to the specified channels."
-          + "\n\n"
-          + "Each bias command is specified as a cluster of channel, command "
-          + "name, and voltage level.  As for other settings, the channel can "
-          + "be specified as either a device name, or a (device, channel) cluster, "
-          + "where the first option is allowed only when there is no ambiguity, "
-          + "that is, when there is only one bias channel for the device."
-          + "\n\n"
-          + "The command name specifies which DAC and mode are to be used for this "
-          + "bias command.  Allowed values are 'dac0', 'dac0noselect', 'dac1', and 'dac1slow'.  "
-          + "See the FastBias documentation for information about these options."
-          + "\n\n"
-          + "A final delay can be specified to have a delay command added after the bias "
-          + "commands on all memory sequences.  If no final delay is specified, a default "
-          + "delay will be added (currently 4.3 microseconds).")
-  public void mem_bias(@Accepts({"*(s s v[mV])", "*((ss) s v[mV])"}) List<Data> commands) {
-    mem_bias(commands, Constants.DEFAULT_BIAS_DELAY);
-    memDirty = true;
+      doc = """Adds Bias box commands to the specified channels.
+              |
+              |Each bias command is specified as a cluster of channel, command
+              |name, and voltage level.  As for other settings, the channel can
+              |be specified as either a device name, or a (device, channel) cluster,
+              |where the first option is allowed only when there is no ambiguity,
+              |that is, when there is only one bias channel for the device.
+              |
+              |The command name specifies which DAC and mode are to be used for this
+              |bias command.  Allowed values are 'dac0', 'dac0noselect', 'dac1', and 'dac1slow'.
+              |See the FastBias documentation for information about these options.
+              |
+              |A final delay can be specified to have a delay command added after the bias
+              |commands on all memory sequences.  If no final delay is specified, a default
+              |delay will be added (currently 4.3 microseconds).""")
+  def mem_bias(@Accepts(Array("*(s s v[mV])", "*((ss) s v[mV])")) commands: List[Data]): Unit = {
+    mem_bias(commands, Constants.DEFAULT_BIAS_DELAY)
+    memDirty = true
   }
   @SettingOverload
-  public void mem_bias(@Accepts({"*(s s v[mV])", "*((ss) s v[mV])"}) List<Data> commands,
-      @Accepts("v[us]") double microseconds) {
+  def mem_bias(@Accepts(Array("*(s s v[mV])", "*((ss) s v[mV])")) commands: List[Data],
+      @Accepts(Array("v[us]")) microseconds: Double): Unit = {
     // create a map with a list of commands for each board
-    ListMultimap<FpgaModelDac, MemoryCommand> fpgas = ArrayListMultimap.create();
+    val fpgas: ListMultimap[FpgaModelDac, MemoryCommand] = ArrayListMultimap.create()
 
     // parse the commands and group them for each fpga
-    for (Data cmd : commands) {
-      FastBiasFpgaChannel ch = getChannel(cmd.get(0), FastBiasFpgaChannel.class);
-      BiasCommandType type = BiasCommandType.fromString(cmd.get(1).getString());
-      double voltage = cmd.get(2).getValue();
-      fpgas.put(ch.getFpgaModel(), FastBiasCommands.get(type, ch, voltage));
+    for (cmd <- commands.asScala) {
+      val ch = getChannel(cmd.get(0), classOf[FastBiasFpgaChannel])
+      val cmdType = BiasCommandType.fromString(cmd.get(1).getString())
+      val voltage = cmd.get(2).getValue()
+      fpgas.put(ch.getFpgaModel(), FastBiasCommands.get(cmdType, ch, voltage))
     }
 
-    getExperiment().addBiasCommands(fpgas, microseconds);
-    memDirty = true;
+    getExperiment().addBiasCommands(fpgas, microseconds)
+    memDirty = true
   }
 
   @Setting(id = 320,
       name = "Mem Delay",
       doc = "Add a delay to all channels.")
-  public void mem_delay(@Accepts("v[us]") double delay) {
-    getExperiment().addMemoryDelay(delay);
-    memDirty = true;
+  def mem_delay(@Accepts(Array("v[us]")) delay: Double): Unit = {
+    getExperiment().addMemoryDelay(delay)
+    memDirty = true
   }
 
   @Setting(id = 321,
-      name = "Mem Delay Single",
-      doc = "Add a delay to a single channel.")
-  public void mem_delay_single(@Accepts({"(s v[us])", "((ss) v[us])"}) Data command) {
-    FastBiasFpgaChannel ch = getChannel(command.get(0), FastBiasFpgaChannel.class);
-    double delay_us = command.get(1).getValue();
-    getExperiment().addSingleMemoryDelay(ch.getFpgaModel(), delay_us);
-    memDirty = true;
+    name = "Mem Delay Single",
+    doc = "Add a delay to a single channel.")
+  def mem_delay_single(@Accepts(Array("(s v[us])", "((ss) v[us])")) command: Data): Unit = {
+    val ch = getChannel(command.get(0), classOf[FastBiasFpgaChannel])
+    val delay_us = command.get(1).getValue()
+    getExperiment().addSingleMemoryDelay(ch.getFpgaModel(), delay_us)
+    memDirty = true
   }
 
   @Setting(id = 330,
       name = "Mem Call SRAM",
-      doc = "Call the SRAM block specified by name."
-          + "\n\n"
-          + "The actual call will not be resolved until the sequence is run, "
-          + "so the SRAM blocks do not have to be defined when this call is made."
-          + "\n\n"
-          + "If running a dual-block SRAM sequence, you must provide the names "
-          + "of the first and second blocks (the delay between the END of the first block "
-          + "and the START of the second block must be specified separately).")
-  public void mem_call_sram(String block) {
-    getExperiment().callSramBlock(block);
-    memDirty = true;
+      doc = """Call the SRAM block specified by name.
+              |
+              |The actual call will not be resolved until the sequence is run,
+              |so the SRAM blocks do not have to be defined when this call is made.
+              |
+              |If running a dual-block SRAM sequence, you must provide the names
+              |of the first and second blocks (the delay between the END of the first block
+              |and the START of the second block must be specified separately).""")
+  def mem_call_sram(block: String): Unit = {
+    getExperiment().callSramBlock(block)
+    memDirty = true
   }
   @SettingOverload
-  public void mem_call_sram(String block1, String block2) {
-    getExperiment().callSramDualBlock(block1, block2);
-    memDirty = true;
+  def mem_call_sram(block1: String, block2: String) {
+    getExperiment().callSramDualBlock(block1, block2)
+    memDirty = true
   }
 
   @Setting(id = 340,
       name = "Mem Start Timer",
       doc = "Start the timer for the specified timing channels.")
-  public void mem_start_timer(@Accepts({"*s", "*(ss)"}) List<Data> ids) {
-    List<PreampChannel> channels = Lists.newArrayList();
-    for (Data ch : ids) {
-      channels.add(getChannel(ch, PreampChannel.class));
+  def mem_start_timer(@Accepts(Array("*s", "*(ss)")) ids: List[Data]): Unit = {
+    val channels: List[PreampChannel] = Lists.newArrayList()
+    for (ch <- ids.asScala) {
+      channels.add(getChannel(ch, classOf[PreampChannel]))
     }
-    getExperiment().startTimer(channels);
-    memDirty = true;
+    getExperiment().startTimer(channels)
+    memDirty = true
   }
 
   @Setting(id = 350,
       name = "Mem Stop Timer",
       doc = "Stop the timer for the specified timing channels.")
-  public void mem_stop_timer(@Accepts({"*s", "*(ss)"}) List<Data> ids) {
-    List<PreampChannel> channels = Lists.newArrayList();
-    for (Data ch : ids) {
-      channels.add(getChannel(ch, PreampChannel.class));
+  def mem_stop_timer(@Accepts(Array("*s", "*(ss)")) ids: List[Data]): Unit = {
+    val channels: List[PreampChannel] = Lists.newArrayList()
+    for (ch <- ids.asScala) {
+      channels.add(getChannel(ch, classOf[PreampChannel]))
     }
-    getExperiment().stopTimer(channels);
-    memDirty = true;
+    getExperiment().stopTimer(channels)
+    memDirty = true
   }
 
   @Setting(id = 360,
       name = "Mem Sync Delay",
       doc = "Adds a memory delay to synchronize all channels.  Call last in the memory sequence.")
-  public void mem_sync_delay() {
-    getExperiment().addMemSyncDelay();
-    memDirty = true;
+  def mem_sync_delay(): Unit = {
+    getExperiment().addMemSyncDelay()
+    memDirty = true
   }
 
   //
@@ -505,20 +496,20 @@ public class QubitContext extends AbstractServerContext {
   //
 
   @Setting(id = 365,
-          name = "Config Bias Voltage",
-          doc = "Set the bias for this fastBias card (controlled by the DC rack server, over serial)")
-  public void config_bias_voltage(@Accepts({"s", "ss"}) Data id, String dac, @Accepts("v[V]") double voltage) {
+      name = "Config Bias Voltage",
+      doc = "Set the bias for this fastBias card (controlled by the DC rack server, over serial)")
+  def config_bias_voltage(@Accepts(Array("s", "ss")) id: Data, dac: String, @Accepts(Array("v[V]")) voltage: Double): Unit = {
     // TODO: create a mem_bias call if the channel is a FastBiasFpga channel.
-    FastBiasSerialChannel ch = getChannel(id, FastBiasSerialChannel.class);
-    ch.setDac(dac);
-    ch.setBias(voltage);
+    val ch = getChannel(id, classOf[FastBiasSerialChannel])
+    ch.setDac(dac)
+    ch.setBias(voltage)
   }
 
   @Setting(id = 366,
-          name = "Config loop delay",
-          doc = "Set the delay between stats. This used to be called 'biasOperateSettling'.")
-  public void config_loop_delay(@Accepts("v[us]") double loop_delay) {
-    getExperiment().configLoopDelay(loop_delay);
+      name = "Config loop delay",
+      doc = "Set the delay between stats. This used to be called 'biasOperateSettling'.")
+  def config_loop_delay(@Accepts(Array("v[us]")) loop_delay: Double): Unit = {
+    getExperiment.configLoopDelay(loop_delay)
   }
 
 
@@ -527,11 +518,11 @@ public class QubitContext extends AbstractServerContext {
   //
 
   @Setting(id = 371,
-           name = "Jump Table Add Entry",
-           doc = "Add a jump table entry to a single board.")
-  public void jump_table_add_entry(String command_name,
-                                   @Accepts({"w{NOP,END}", "ww{IDLE}", "www{JUMP}", "wwww{CYCLE}"}) Data command_data) {
-    getExperiment().addJumpTableEntry(command_name, command_data);
+      name = "Jump Table Add Entry",
+      doc = "Add a jump table entry to a single board.")
+  def jump_table_add_entry(command_name: String,
+                           @Accepts(Array("w{NOP,END}", "ww{IDLE}", "www{JUMP}", "wwww{CYCLE}")) command_data: Data): Unit = {
+    getExperiment.addJumpTableEntry(command_name, command_data)
   }
 
 
@@ -544,34 +535,32 @@ public class QubitContext extends AbstractServerContext {
    */
   @Setting(id = 400,
       name = "New SRAM Block",
-      doc = "Create a new SRAM block with the specified name and length, for this channel."
-          + "\n\n"
-          + "All subsequent SRAM calls will affect this block, until a new block "
-          + "is created.  If you do not provide SRAM data for a particular channel, "
-          + "it will be filled with zeros (and deconvolved).  If the length is not "
-          + "a multiple of 4, the data will be padded at the beginning after "
-          + "deconvolution.")
-  public void new_sram_block(String name, long length, @Accepts({"ss"}) Data id) {
-
-    @SuppressWarnings("rawtypes")
-    SramChannelBase ch = getChannel(id, SramChannelBase.class);
-    ch.getFpgaModel().startSramBlock(name, length);
-    ch.setCurrentBlock(name);
-    sramDirty = true;
+      doc = """Create a new SRAM block with the specified name and length, for this channel.
+              |
+              |All subsequent SRAM calls will affect this block, until a new block
+              |is created.  If you do not provide SRAM data for a particular channel,
+              |it will be filled with zeros (and deconvolved).  If the length is not
+              |a multiple of 4, the data will be padded at the beginning after
+              |deconvolution.""")
+  def new_sram_block(name: String, length: Long, @Accepts(Array("ss")) id: Data): Unit = {
+    val ch = getChannel(id, classOf[SramChannelBase[_]])
+    ch.getFpgaModel().startSramBlock(name, length)
+    ch.setCurrentBlock(name)
+    sramDirty = true
   }
 
   @Setting(id = 401,
       name = "SRAM Dual Block Delay",
-      doc = "Set the delay between the first and second blocks of a dual-block SRAM command."
-          + "\n\n"
-          + "Note that if dual-block SRAM is used in a given sequence, there can only be one "
-          + "such call, so that this command sets the delay regardless of the block names.  "
-          + "Also note that this delay will be rounded to the nearest integral number of "
-          + "nanoseconds which may give unexpected results if the delay is converted from "
-          + "another unit of time.")
-  public void sram_dual_block_delay(@Accepts("v[ns]") double delay) {
-    getExperiment().setSramDualBlockDelay(delay);
-    sramDirty = true;
+      doc = """Set the delay between the first and second blocks of a dual-block SRAM command.
+              |
+              |Note that if dual-block SRAM is used in a given sequence, there can only be one
+              |such call, so that this command sets the delay regardless of the block names.
+              |Also note that this delay will be rounded to the nearest integral number of
+              |nanoseconds which may give unexpected results if the delay is converted from
+              |another unit of time.""")
+  def sram_dual_block_delay(@Accepts(Array("v[ns]")) delay: Double): Unit = {
+    getExperiment().setSramDualBlockDelay(delay)
+    sramDirty = true
   }
 
 
@@ -580,49 +569,49 @@ public class QubitContext extends AbstractServerContext {
    */
   @Setting(id = 410,
       name = "SRAM IQ Data",
-      doc = "Set IQ data for the specified channel."
-          + "\n\n"
-          + "The data is specified as a list of complex numbers, "
-          + "with the real and imaginary parts giving the I and Q "
-          + "microwave quadratures.  The length of the data should "
-          + "match the length of the current SRAM block.  "
-          + "An optional boolean specifies whether the data "
-          + "should be deconvolved (default: true).  "
-          + "If deconvolve=false, the data can be specified as DAC-ready "
-          + "I and Q integers. "
-          + "If zeroEnds=true (default: true), then the first and last "
-          + "4 nanoseconds of the deconvolved sequence will be set to the "
-          + "deconvolved zero value, to ensure microwaves are turned off.")
-  public void sram_iq_data(
-      @Accepts({"s", "ss"}) Data id,
-      @Accepts("*c") Data vals
-  ) {
-    sram_iq_data(id, vals, true);
+      doc = """Set IQ data for the specified channel.
+              |
+              |The data is specified as a list of complex numbers,
+              |with the real and imaginary parts giving the I and Q
+              |microwave quadratures.  The length of the data should
+              |match the length of the current SRAM block.
+              |An optional boolean specifies whether the data
+              |should be deconvolved (default: true).
+              |If deconvolve=false, the data can be specified as DAC-ready
+              |I and Q integers.
+              |If zeroEnds=true (default: true), then the first and last
+              |4 nanoseconds of the deconvolved sequence will be set to the
+              |deconvolved zero value, to ensure microwaves are turned off.""")
+  def sram_iq_data(
+      @Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("*c")) vals: Data
+  ): Unit = {
+    sram_iq_data(id, vals, deconvolve = true)
   }
   @SettingOverload
-  public void sram_iq_data(
-      @Accepts({"s", "ss"}) Data id,
-      @Accepts({"*c", "(*i{I}, *i{Q})"}) Data vals,
-      boolean deconvolve
-  ) {
-    sram_iq_data(id, vals, deconvolve, true);
+  def sram_iq_data(
+      @Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("*c", "(*i{I}, *i{Q})")) vals: Data,
+      deconvolve: Boolean
+  ): Unit = {
+    sram_iq_data(id, vals, deconvolve, zeroEnds = true)
   }
   @SettingOverload
-  public void sram_iq_data(
-      @Accepts({"s", "ss"}) Data id,
-      @Accepts({"*c", "(*i{I}, *i{Q})"}) Data vals,
-      boolean deconvolve,
-      boolean zeroEnds
-  ) {
-    IqChannel ch = getChannel(id, IqChannel.class);
+  def sram_iq_data(
+      @Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("*c", "(*i{I}, *i{Q})")) vals: Data,
+      deconvolve: Boolean,
+      zeroEnds: Boolean
+  ): Unit = {
+    val ch = getChannel(id, classOf[IqChannel])
     if (vals.isCluster()) {
-      Preconditions.checkArgument(!deconvolve, "Must not deconvolve if providing DAC'ified IQ data.");
-      ch.addData(new IqDataTimeDacified(vals.get(0).getIntArray(), vals.get(1).getIntArray()));
+      require(!deconvolve, "Must not deconvolve if providing DAC'ified IQ data.")
+      ch.addData(new IqDataTimeDacified(vals.get(0).getIntArray(), vals.get(1).getIntArray()))
     } else {
-      ComplexArray c = ComplexArray.fromData(vals);
-      ch.addData(new IqDataTime(c, !deconvolve, zeroEnds));
+      val c = ComplexArray.fromData(vals)
+      ch.addData(new IqDataTime(c, !deconvolve, zeroEnds))
     }
-    sramDirty = true;
+    sramDirty = true
   }
 
 
@@ -631,33 +620,33 @@ public class QubitContext extends AbstractServerContext {
    */
   @Setting(id = 411,
       name = "SRAM IQ Data Fourier",
-      doc = "Set IQ data in Fourier representation for the specified channel."
-          + "\n\n"
-          + "The data is specified as a list of complex numbers, "
-          + "with the real and imaginary parts giving the I and Q "
-          + "microwave quadratures.  The length of the data should "
-          + "match the length of the current SRAM block.  "
-          + "If zeroEnds=true (default: true), then the first and last "
-          + "4 nanoseconds of the deconvolved sequence will be set to the "
-          + "deconvolved zero value, to ensure microwaves are turned off.")
-  public void sram_iq_data_fourier(
-      @Accepts({"s", "ss"}) Data id,
-      @Accepts("*c") Data vals,
-      @Accepts("v[ns]") double t0
-  ) {
-    sram_iq_data_fourier(id, vals, t0, true);
+      doc = """Set IQ data in Fourier representation for the specified channel.
+              |
+              |The data is specified as a list of complex numbers,
+              |with the real and imaginary parts giving the I and Q
+              |microwave quadratures.  The length of the data should
+              |match the length of the current SRAM block.
+              |If zeroEnds=true (default: true), then the first and last
+              |4 nanoseconds of the deconvolved sequence will be set to the
+              |deconvolved zero value, to ensure microwaves are turned off.""")
+  def sram_iq_data_fourier(
+      @Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("*c")) vals: Data,
+      @Accepts(Array("v[ns]")) t0: Double
+  ): Unit = {
+    sram_iq_data_fourier(id, vals, t0, zeroEnds = true)
   }
   @SettingOverload
-  public void sram_iq_data_fourier(
-      @Accepts({"s", "ss"}) Data id,
-      @Accepts("*c") Data vals,
-      @Accepts("v[ns]") double t0,
-      boolean zeroEnds
-  ) {
-    IqChannel ch = getChannel(id, IqChannel.class);
-    ComplexArray c = ComplexArray.fromData(vals);
-    ch.addData(new IqDataFourier(c, t0, zeroEnds));
-    sramDirty = true;
+  def sram_iq_data_fourier(
+      @Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("*c")) vals: Data,
+      @Accepts(Array("v[ns]")) t0: Double,
+      zeroEnds: Boolean
+  ): Unit = {
+    val ch = getChannel(id, classOf[IqChannel])
+    val c = ComplexArray.fromData(vals)
+    ch.addData(new IqDataFourier(c, t0, zeroEnds))
+    sramDirty = true
   }
 
 
@@ -666,61 +655,61 @@ public class QubitContext extends AbstractServerContext {
    */
   @Setting(id = 420,
       name = "SRAM Analog Data",
-      doc = "Set analog data for the specified channel."
-          + "\n\n"
-          + "The length of the data should match the length of the "
-          + "current SRAM block.  An optional boolean specifies "
-          + "whether the data should be deconvolved (default: true).  "
-          + "If deconvolve=false, the data can be supplied as DAC-ready "
-          + "integers.  "
-          + "If averageEnds=true (default: true), then the first and last "
-          + "4 nanoseconds of the deconvolved sequence will be averaged and "
-          + "set to the same value, to ensure the DAC outputs a constant "
-          + "after the sequence is run.  "
-          + "If dither=true (default: false), then the deconvolved data "
-          + "will be dithered by adding random noise to reduce quantization "
-          + "noise (see http://en.wikipedia.org/wiki/Dither).")
-  public void sram_analog_data(
-      @Accepts({"s", "ss"}) Data id,
-      @Accepts("*v") Data vals
-  ) {
-    sram_analog_data(id, vals, true);
+      doc = """Set analog data for the specified channel.
+              |
+              |The length of the data should match the length of the
+              |current SRAM block.  An optional boolean specifies
+              |whether the data should be deconvolved (default: true).
+              |If deconvolve=false, the data can be supplied as DAC-ready
+              |integers.
+              |If averageEnds=true (default: true), then the first and last
+              |4 nanoseconds of the deconvolved sequence will be averaged and
+              |set to the same value, to ensure the DAC outputs a constant
+              |after the sequence is run.
+              |If dither=true (default: false), then the deconvolved data
+              |will be dithered by adding random noise to reduce quantization
+              |noise (see http://en.wikipedia.org/wiki/Dither).""")
+  def sram_analog_data(
+      @Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("*v")) vals: Data
+  ): Unit = {
+    sram_analog_data(id, vals, deconvolve = true)
   }
   @SettingOverload
-  public void sram_analog_data(
-      @Accepts({"s", "ss"}) Data id,
-      @Accepts({"*v", "*i"}) Data vals,
-      boolean deconvolve
-  ) {
-    sram_analog_data(id, vals, deconvolve, true);
+  def sram_analog_data(
+      @Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("*v")) vals: Data,
+      deconvolve: Boolean
+  ): Unit = {
+    sram_analog_data(id, vals, deconvolve, averageEnds = true)
   }
   @SettingOverload
-  public void sram_analog_data(
-      @Accepts({"s", "ss"}) Data id,
-      @Accepts({"*v", "*i"}) Data vals,
-      boolean deconvolve,
-      boolean averageEnds
-  ) {
-    sram_analog_data(id, vals, deconvolve, averageEnds, false);
+  def sram_analog_data(
+      @Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("*v")) vals: Data,
+      deconvolve: Boolean,
+      averageEnds: Boolean
+  ): Unit = {
+    sram_analog_data(id, vals, deconvolve, averageEnds, dither = false)
   }
   @SettingOverload
-  public void sram_analog_data(
-      @Accepts({"s", "ss"}) Data id,
-      @Accepts({"*v", "*i"}) Data vals,
-      boolean deconvolve,
-      boolean averageEnds,
-      boolean dither
-  ) {
-    AnalogChannel ch = getChannel(id, AnalogChannel.class);
+  def sram_analog_data(
+      @Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("*v", "*i")) vals: Data,
+      deconvolve: Boolean,
+      averageEnds: Boolean,
+      dither: Boolean
+  ): Unit = {
+    val ch = getChannel(id, classOf[AnalogChannel])
     if (vals.matchesType("*v")) {
-      double[] arr = vals.getValueArray();
-      ch.addData(new AnalogDataTime(arr, !deconvolve, averageEnds, dither));
+      val arr = vals.getValueArray()
+      ch.addData(new AnalogDataTime(arr, !deconvolve, averageEnds, dither))
     } else {
-      Preconditions.checkArgument(!deconvolve, "Must not deconvolve if providing DAC'ified data.");
-      int[] arr = vals.getIntArray();
-      ch.addData(new AnalogDataTimeDacified(arr));
+      require(!deconvolve, "Must not deconvolve if providing DAC'ified data.")
+      val arr = vals.getIntArray()
+      ch.addData(new AnalogDataTimeDacified(arr))
     }
-    sramDirty = true;
+    sramDirty = true
   }
 
 
@@ -729,46 +718,46 @@ public class QubitContext extends AbstractServerContext {
    */
   @Setting(id = 421,
       name = "SRAM Analog Data Fourier",
-      doc = "Set analog data in Fourier representation for the specified channel."
-          + "\n\n"
-          + "Because this represents real data, we only need half as many samples.  "
-          + "In particular, for a sequence of length n, the fourier data given "
-          + "here must have length n/2+1 (n even) or (n+1)/2 (n odd)."
-          + "If averageEnds=true (default: true), then the first and last "
-          + "4 nanoseconds of the deconvolved sequence will be averaged and "
-          + "set to the same value, to ensure the DAC outputs a constant "
-          + "after the sequence is run.  "
-          + "If dither=true (default: false), then the deconvolved data "
-          + "will be dithered by adding random noise to reduce quantization "
-          + "noise (see http://en.wikipedia.org/wiki/Dither).")
-  public void sram_analog_fourier_data(
-      @Accepts({"s", "ss"}) Data id,
-      @Accepts("*c") Data vals,
-      @Accepts("v[ns]") double t0
-  ) {
-    sram_analog_fourier_data(id, vals, t0, true);
+      doc = """Set analog data in Fourier representation for the specified channel.
+              |
+              |Because this represents real data, we only need half as many samples.
+              |In particular, for a sequence of length n, the fourier data given
+              |here must have length n/2+1 (n even) or (n+1)/2 (n odd).
+              |If averageEnds=true (default: true), then the first and last
+              |4 nanoseconds of the deconvolved sequence will be averaged and
+              |set to the same value, to ensure the DAC outputs a constant
+              |after the sequence is run.
+              |If dither=true (default: false), then the deconvolved data
+              |will be dithered by adding random noise to reduce quantization
+              |noise (see http://en.wikipedia.org/wiki/Dither).""")
+  def sram_analog_fourier_data(
+      @Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("*c")) vals: Data,
+      @Accepts(Array("v[ns]")) t0: Double
+  ): Unit = {
+    sram_analog_fourier_data(id, vals, t0, averageEnds = true)
   }
   @SettingOverload
-  public void sram_analog_fourier_data(
-      @Accepts({"s", "ss"}) Data id,
-      @Accepts("*c") Data vals,
-      @Accepts("v[ns]") double t0,
-      boolean averageEnds
-  ) {
-    sram_analog_fourier_data(id, vals, t0, averageEnds, false);
+  def sram_analog_fourier_data(
+      @Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("*c")) vals: Data,
+      @Accepts(Array("v[ns]")) t0: Double,
+      averageEnds: Boolean
+  ): Unit = {
+    sram_analog_fourier_data(id, vals, t0, averageEnds, dither = false)
   }
   @SettingOverload
-  public void sram_analog_fourier_data(
-      @Accepts({"s", "ss"}) Data id,
-      @Accepts("*c") Data vals,
-      @Accepts("v[ns]") double t0,
-      boolean averageEnds,
-      boolean dither
-  ) {
-    AnalogChannel ch = getChannel(id, AnalogChannel.class);
-    ComplexArray c = ComplexArray.fromData(vals);
-    ch.addData(new AnalogDataFourier(c, t0, averageEnds, dither));
-    sramDirty = true;
+  def sram_analog_fourier_data(
+      @Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("*c")) vals: Data,
+      @Accepts(Array("v[ns]")) t0: Double,
+      averageEnds: Boolean,
+      dither: Boolean
+  ): Unit = {
+    val ch = getChannel(id, classOf[AnalogChannel])
+    val c = ComplexArray.fromData(vals)
+    ch.addData(new AnalogDataFourier(c, t0, averageEnds, dither))
+    sramDirty = true
   }
 
 
@@ -777,28 +766,28 @@ public class QubitContext extends AbstractServerContext {
   @Setting(id = 430,
       name = "SRAM Trigger Data",
       doc = "Set trigger data for the specified trigger channel")
-  public void sram_trigger_data(@Accepts({"s", "ss"}) Data id,
-      @Accepts("*b") Data data) {
-    TriggerChannel ch = getChannel(id, TriggerChannel.class);
-    ch.addData(new TriggerDataTime(data.getBoolArray()));
-    sramDirty = true;
+  def sram_trigger_data(@Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("*b")) data: Data): Unit = {
+    val ch = getChannel(id, classOf[TriggerChannel])
+    ch.addData(new TriggerDataTime(data.getBoolArray()))
+    sramDirty = true
   }
 
   @Setting(id = 431,
       name = "SRAM Trigger Pulses",
-      doc = "Set trigger data as a series of pulses for the specified trigger channel"
-          + "\n\n"
-          + "Each pulse is given as a cluster of (start, length) values, "
-          + "specified in nanoseconds.")
-  public void sram_trigger_pulses(@Accepts({"s", "ss"}) Data id,
-      @Accepts("*(v[ns] v[ns])") List<Data> pulses) {
-    TriggerChannel ch = getChannel(id, TriggerChannel.class);
-    for (Data pulse : pulses) {
-      int start = (int)pulse.get(0).getValue();
-      int length = (int)pulse.get(1).getValue();
-      ch.addPulse(start, length);
+      doc = """Set trigger data as a series of pulses for the specified trigger channel
+              |
+              |Each pulse is given as a cluster of (start, length) values,
+              |specified in nanoseconds.""")
+  def sram_trigger_pulses(@Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("*(v[ns] v[ns])")) pulses: List[Data]): Unit = {
+    val ch = getChannel(id, classOf[TriggerChannel])
+    for (pulse <- pulses.asScala) {
+      val start = pulse.get(0).getValue().toInt
+      val length = pulse.get(1).getValue().toInt
+      ch.addPulse(start, length)
     }
-    sramDirty = true;
+    sramDirty = true
   }
 
   //
@@ -807,100 +796,100 @@ public class QubitContext extends AbstractServerContext {
 
   @Setting(id = 510,
       name = "Set Start Delay",
-      doc = "Sets the SRAM start delay for this channel; valid for ADC, IQ, and analog channels."
-          + "\n\n"
-          + "First argument {s or (ss)}: channel (either device name or (device name, channel name)\n"
-          + "Second: delay, in clock cycles (typically 4 ns) (w)")
-  public void adc_set_start_delay(@Accepts({"s", "ss"}) Data id,
-      @Accepts("i") int delay) {
-    StartDelayChannel ch = getChannel(id, StartDelayChannel.class);
-    ch.setStartDelay(delay);
+      doc = """Sets the SRAM start delay for this channel; valid for ADC, IQ, and analog channels.
+              |
+              |First argument {s or (ss)}: channel (either device name or (device name, channel name)
+              |Second: delay, in clock cycles (typically 4 ns) (w)""")
+  def adc_set_start_delay(@Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("i")) delay: Int): Unit = {
+    val ch = getChannel(id, classOf[StartDelayChannel])
+    ch.setStartDelay(delay)
   }
 
   @Setting(id = 520,
       name = "ADC Set Mode",
-      doc = "Sets the mode of this channel."
-          + "\n\n"
-          + "First argument {s or (ss)}: channel (either device name or (device name, channel name)\n"
-          + "Second {s or (si)}: either 'demodulate' or ('average', [demod channel number])")
-  public void adc_set_mode(@Accepts({"s", "ss"}) Data id,
-      @Accepts({"s", "si"}) Data mode) {
-    AdcChannel ch = getChannel(id, AdcChannel.class);
+      doc = """Sets the mode of this channel.
+              |
+              |First argument {s or (ss)}: channel (either device name or (device name, channel name)
+              |Second {s or (si)}: either 'demodulate' or ('average', [demod channel number])""")
+  def adc_set_mode(@Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("s", "si")) mode: Data): Unit = {
+    val ch = getChannel(id, classOf[AdcChannel])
     if (mode.isString()) {
-      ch.setToAverage();
+      ch.setToAverage()
     } else {
-      ch.setToDemodulate(mode.get(1).getInt());
+      ch.setToDemodulate(mode.get(1).getInt())
     }
   }
 
   @Setting(id = 530,
       name = "ADC Set Filter Function",
-      doc = "Sets the filter function for this channel; must be an adc channel in demod mode."
-          + "\n\n"
-          + "First argument {s or (ss)}: channel (either device name or (device name, channel name)\n"
-          + "Second {s}: the filter function, represented as a string\n"
-          + "Third {w}: the length of the stretch\n"
-          + "Fourth {w}: the index at which to stretch")
-  public void adc_set_filter_function(@Accepts({"s", "ss"}) Data id,
-      @Accepts("s") Data bytes,
-      @Accepts("w") Data stretchLen,
-      @Accepts("w") Data stretchAt) {
-    AdcChannel ch = getChannel(id, AdcChannel.class);
-    ch.setFilterFunction(bytes.getString(), (int)stretchLen.getWord(), (int)stretchAt.getWord());
+      doc = """Sets the filter function for this channel; must be an adc channel in demod mode.
+              |
+              |First argument {s or (ss)}: channel (either device name or (device name, channel name)
+              |Second {s}: the filter function, represented as a string
+              |Third {w}: the length of the stretch
+              |Fourth {w}: the index at which to stretch""")
+  def adc_set_filter_function(@Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("s")) bytes: Data,
+      @Accepts(Array("w")) stretchLen: Data,
+      @Accepts(Array("w")) stretchAt: Data): Unit = {
+    val ch = getChannel(id, classOf[AdcChannel])
+    ch.setFilterFunction(bytes.getString(), stretchLen.getWord().toInt, stretchAt.getWord().toInt)
   }
 
   @Setting(id = 531,
       name = "ADC Set Trig Magnitude",
-      doc = "Sets the filter function for this channel."
-          + "\n\n"
-          + "Must be an adc channel in demod mode and the sub-channel must be valid (i.e. under 4 for build 1). "
-          + "sineAmp and cosineAmp range from 0 to 255.\n"
-          + "First argument {s or (ss)}: channel (either device name or (device name, channel name)\n"
-          + "Second {w}: sine amplitude\n"
-          + "Third {w}: cosine amplitude")
-  public void adc_set_trig_magnitude(@Accepts({"s", "ss"}) Data id,
-      @Accepts("w") Data sineAmp,
-      @Accepts("w") Data cosineAmp) {
-    AdcChannel ch = getChannel(id, AdcChannel.class);
-    ch.setTrigMagnitude((int)sineAmp.getWord(), (int)cosineAmp.getWord());
+      doc = """Sets the filter function for this channel.
+              |
+              |Must be an adc channel in demod mode and the sub-channel must be valid (i.e. under 4 for build 1).
+              |sineAmp and cosineAmp range from 0 to 255.
+              |First argument {s or (ss)}: channel (either device name or (device name, channel name)
+              |Second {w}: sine amplitude
+              |Third {w}: cosine amplitude""")
+  def adc_set_trig_magnitude(@Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("w")) sineAmp: Data,
+      @Accepts(Array("w")) cosineAmp: Data): Unit = {
+    val ch = getChannel(id, classOf[AdcChannel])
+    ch.setTrigMagnitude(sineAmp.getWord().toInt, cosineAmp.getWord().toInt)
   }
 
   @Setting(id = 532,
       name = "ADC Demod Phase",
-      doc = "Sets the demodulation phase."
-          + "\n\n"
-          + "Must be an adc channel in demod mode.\n"
-          + "See the documentation for this in the GHz FPGA server.\n"
-          + "First argument {s or (ss)}: channel (either device name or (device name, channel name)\n "
-          + "Second {(i,i) or (v[Hz], v[rad])}: (dPhi, phi0) or (frequency (Hz), offset (radians))")
-  public void adc_demod_phase(@Accepts({"s", "ss"}) Data id,
-      @Accepts({"ii", "v[Hz]v[rad]"}) Data dat) {
-    AdcChannel ch = getChannel(id, AdcChannel.class);
+      doc = """Sets the demodulation phase.
+              |
+              |Must be an adc channel in demod mode.
+              |See the documentation for this in the GHz FPGA server.
+              |First argument {s or (ss)}: channel (either device name or (device name, channel name)
+              |Second {(i,i) or (v[Hz], v[rad])}: (dPhi, phi0) or (frequency (Hz), offset (radians))""")
+  def adc_demod_phase(@Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("ii", "v[Hz]v[rad]")) dat: Data): Unit = {
+    val ch = getChannel(id, classOf[AdcChannel])
     if (dat.matchesType("(ii)")) {
-      ch.setPhase(dat.get(0).getInt(), dat.get(1).getInt());
+      ch.setPhase(dat.get(0).getInt(), dat.get(1).getInt())
     } else {
-      ch.setPhase(dat.get(0).getValue(), dat.get(1).getValue());
+      ch.setPhase(dat.get(0).getValue(), dat.get(1).getValue())
     }
   }
 
   @Setting(id = 533, name = "ADC Trigger Table",
-      doc = "Pass through to GHz FPGA server's ADC Trigger Table."
-          + "\n\n"
-          + "data: List of (count,delay,length,rchan) tuples.")
-  public void adc_trigger_table(@Accepts({"s", "ss"}) Data id,
-      @Accepts("*(i,i,i,i)") Data data) {
-    AdcChannel ch = getChannel(id, AdcChannel.class);
-    ch.setTriggerTable(data);
+      doc = """Pass through to GHz FPGA server's ADC Trigger Table.
+              |
+              |data: List of (count,delay,length,rchan) tuples.""")
+  def adc_trigger_table(@Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("*(i,i,i,i)")) data: Data): Unit = {
+    val ch = getChannel(id, classOf[AdcChannel])
+    ch.setTriggerTable(data)
   }
 
   @Setting(id = 534, name = "ADC Mixer Table",
-      doc = "Pass through to GHz FPGA server's ADC Mixer Table."
-          + "\n\n"
-          + "data: List of (count,delay,length,rchan) tuples.")
-  public void adc_mixer_table(@Accepts({"s", "ss"}) Data id,
-      @Accepts("*2i {Nx2 array of IQ values}") Data data) {
-    AdcChannel ch = getChannel(id, AdcChannel.class);
-    ch.setMixerTable(data);
+      doc = """Pass through to GHz FPGA server's ADC Mixer Table.
+              |
+              |data: List of (count,delay,length,rchan) tuples.""")
+  def adc_mixer_table(@Accepts(Array("s", "ss")) id: Data,
+      @Accepts(Array("*2i {Nx2 array of IQ values}")) data: Data): Unit = {
+    val ch = getChannel(id, classOf[AdcChannel])
+    ch.setMixerTable(data)
   }
 
   //
@@ -909,14 +898,14 @@ public class QubitContext extends AbstractServerContext {
 
   @Setting(id = 900,
       name = "Build Sequence",
-      doc = "Compiles SRAM and memory sequences into runnable form."
-          + "\n\n"
-          + "Any problems with the setup (for example, conflicting microwave "
-          + "settings for two channels that use the same microwave source) "
-          + "will be detected at this point and cause an error to be thrown.")
-  public void build_sequence() throws InterruptedException, ExecutionException {
+      doc = """Compiles SRAM and memory sequences into runnable form.
+              |
+              |Any problems with the setup (for example, conflicting microwave
+              |settings for two channels that use the same microwave source)
+              |will be detected at this point and cause an error to be thrown.""")
+  def build_sequence(): Unit = {
 
-    Experiment expt = getExperiment();
+    val expt = getExperiment()
 
     //
     // sanity checks
@@ -938,25 +927,25 @@ public class QubitContext extends AbstractServerContext {
     }*/
 
     // check microwave source configuration
-    Map<MicrowaveSource, MicrowaveSourceConfig> uwaveConfigs = Maps.newHashMap();
-    for (IqChannel ch : expt.getChannels(IqChannel.class)) {
-      MicrowaveSource src = ch.getMicrowaveSource();
-      MicrowaveSourceConfig config = ch.getMicrowaveConfig();
-      Preconditions.checkNotNull(config, "No microwaves configured for channel '%s'", ch.getName());
+    val uwaveConfigs: Map[MicrowaveSource, MicrowaveSourceConfig] = Maps.newHashMap()
+    for (ch <- expt.getChannels(classOf[IqChannel]).asScala) {
+      val src = ch.getMicrowaveSource()
+      val config = ch.getMicrowaveConfig()
+      require(config != null, s"No microwaves configured for channel '${ch.getName}'")
       if (!uwaveConfigs.containsKey(src)) {
         // keep track of which microwave sources we have seen
-        uwaveConfigs.put(src, config);
+        uwaveConfigs.put(src, config)
       } else {
         // check that microwave configurations are compatible
-        Preconditions.checkState(config.equals(uwaveConfigs.get(src)),
-            "Conflicting microwave configurations for source '%s'", src.getName());
+        require(config == uwaveConfigs.get(src),
+            s"Conflicting microwave configurations for source '${src.getName}'")
       }
     }
     // turn off the microwave source for any boards whose source is not configured
-    for (FpgaModelMicrowave fpga : getExperiment().getMicrowaveFpgas()) {
-      MicrowaveSource src = fpga.getMicrowaveSource();
+    for (fpga <- getExperiment().getMicrowaveFpgas().asScala) {
+      val src = fpga.getMicrowaveSource()
       if (!uwaveConfigs.containsKey(src)) {
-        uwaveConfigs.put(src, MicrowaveSourceOffConfig$.MODULE$);
+        uwaveConfigs.put(src, MicrowaveSourceOffConfig)
       }
     }
 
@@ -966,57 +955,56 @@ public class QubitContext extends AbstractServerContext {
     //
 
     // start with setup packets that have already been configured
-    List<Data> setupPackets = Lists.newArrayList(expt.getSetupPackets());
-    List<String> setupState = Lists.newArrayList(expt.getSetupState());
+    val setupPackets: List[Data] = Lists.newArrayList(expt.getSetupPackets())
+    val setupState: List[String] = Lists.newArrayList(expt.getSetupState())
 
     // build setup packets for microwave sources
     // TODO if a microwave source is used for dummy channels and real channels, resolve here
-    Request anristuRequest = Request.to(Constants.ANRITSU_SERVER);
-    anristuRequest.add("List Devices");
-    List<Data> anritsuList = getConnection().sendAndWait(anristuRequest).get(0).getDataList();
-    HashSet<String> anritsuNames = new HashSet<String>();
-    for (Data d : anritsuList) {
-      anritsuNames.add(d.get(1).getString());
+    val anristuRequest = Request.to(Constants.ANRITSU_SERVER)
+    anristuRequest.add("List Devices")
+    val anritsuList = getConnection().sendAndWait(anristuRequest).get(0).getDataList()
+    val anritsuNames = new HashSet[String]()
+    for (d <- anritsuList.asScala) {
+      anritsuNames.add(d.get(1).getString())
       //System.out.println("Anritsu Device: '" + d.get(1).getString() + "'");
     }
-    Request hittiteRequest = Request.to(Constants.HITTITE_SERVER);
-    hittiteRequest.add("List Devices");
-    List<Data> hittiteList = getConnection().sendAndWait(hittiteRequest).get(0).getDataList();
-    HashSet<String> hittiteNames = new HashSet<String>();
-    for (Data d : hittiteList) {
-      hittiteNames.add(d.get(1).getString());
+    val hittiteRequest = Request.to(Constants.HITTITE_SERVER)
+    hittiteRequest.add("List Devices")
+    val hittiteList = getConnection().sendAndWait(hittiteRequest).get(0).getDataList()
+    val hittiteNames = new HashSet[String]()
+    for (d <- hittiteList.asScala) {
+      hittiteNames.add(d.get(1).getString())
       //System.out.println("Hittite Device: '" + d.get(1).getString() + "'");
     }
-    for (Map.Entry<MicrowaveSource, MicrowaveSourceConfig> entry : uwaveConfigs.entrySet()) {
-      SetupPacket p = entry.getValue().getSetupPacket(entry.getKey());
-      String devName = entry.getKey().getName();
+    for (entry <- uwaveConfigs.entrySet().asScala) {
+      val p = entry.getValue().getSetupPacket(entry.getKey())
+      val devName = entry.getKey().getName()
       if (anritsuNames.contains(devName)) {
-        setupPackets.add(buildSetupPacket(Constants.ANRITSU_SERVER, p.records()));
+        setupPackets.add(buildSetupPacket(Constants.ANRITSU_SERVER, p.records))
       } else if (hittiteNames.contains(devName)) {
-        setupPackets.add(buildSetupPacket(Constants.HITTITE_SERVER, p.records()));
+        setupPackets.add(buildSetupPacket(Constants.HITTITE_SERVER, p.records))
       } else {
-        Preconditions.checkState(false, "Microwave device not found: '%s'", devName);
+        sys.error(s"Microwave device not found: '$devName'")
       }
 
-      setupState.add(p.state());
+      setupState.add(p.state)
     }
 
     // build setup packets for preamp boards
     // TODO improve DC Racks server (e.g. need caching)
-    for (PreampChannel ch : expt.getChannels(PreampChannel.class)) {
+    for (ch <- expt.getChannels(classOf[PreampChannel]).asScala) {
       if (ch.hasPreampConfig()) {
-        SetupPacket p = ch.getPreampConfig().getSetupPacket(ch);
-        setupPackets.add(buildSetupPacket(Constants.DC_RACK_SERVER, p.records()));
-        setupState.add(p.state());
+        val p = ch.getPreampConfig().getSetupPacket(ch)
+        setupPackets.add(buildSetupPacket(Constants.DC_RACK_SERVER, p.records))
+        setupState.add(p.state)
       }
     }
 
-    for (FastBiasSerialChannel ch : expt.getChannels(FastBiasSerialChannel.class)) {
-      System.out.println("channel " + ch.getName() + " hasSetupPacket: " + ch.hasSetupPacket());
+    for (ch <- expt.getChannels(classOf[FastBiasSerialChannel]).asScala) {
       if (ch.hasSetupPacket()) {
-        SetupPacket p = ch.getSetupPacket();
-        setupPackets.add(buildSetupPacket(Constants.DC_RACK_SERVER, p.records()));
-        setupState.add(p.state());
+        val p = ch.getSetupPacket()
+        setupPackets.add(buildSetupPacket(Constants.DC_RACK_SERVER, p.records))
+        setupState.add(p.state)
       }
     }
 
@@ -1028,153 +1016,150 @@ public class QubitContext extends AbstractServerContext {
     //
 
     // this is the new-style deconvolution routine which sends all deconvolution requests in separate packets
-    DeconvolutionProxy deconvolver = new DeconvolutionProxy(getConnection());
-    List<Future<Void>> deconvolutions = Lists.newArrayList();
-    for (FpgaModelDac fpga : expt.getDacFpgas()) {
+    val deconvolver = new DeconvolutionProxy(getConnection())
+    val deconvolutions: List[Future[Void]] = Lists.newArrayList()
+    for (fpga <- expt.getDacFpgas().asScala) {
       // pomalley 4/22/14 added this check, as we now handle the case of boards not having defined channels a bit differently
       if (fpga.hasSramChannel()) {
-        deconvolutions.add(fpga.deconvolveSram(deconvolver));
+        deconvolutions.add(fpga.deconvolveSram(deconvolver))
       }
     }
-    Futures.waitForAll(deconvolutions).get();
-    // System.out.println("deconv finished");
+    Futures.waitForAll(deconvolutions).get()
+    // println("deconv finished")
 
     //
     // build run packet
     //
 
-    Request runRequest = Request.to(Constants.GHZ_DAC_SERVER, getContext());
+    val runRequest = Request.to(Constants.GHZ_DAC_SERVER, getContext())
 
     // NEW 4/22/2011 - pomalley
     // settings for ADCs
-    for (FpgaModelAdc fpga : expt.getAdcFpgas()) {
-      runRequest.add("Select Device", Data.valueOf(fpga.getName()));
-      fpga.addPackets(runRequest);
+    for (fpga <- expt.getAdcFpgas().asScala) {
+      runRequest.add("Select Device", Data.valueOf(fpga.getName()))
+      fpga.addPackets(runRequest)
     }
 
     // upload all memory and SRAM data
-    for (FpgaModelDac fpga : expt.getDacFpgas()) {
-      fpga.addPackets(runRequest);
+    for (fpga <- expt.getDacFpgas().asScala) {
+      fpga.addPackets(runRequest)
       // TODO: this feels like a hack. loop delay is per board in the fpga server, but global to the expt here.
       if (getExperiment().isLoopDelayConfigured()) {
-        runRequest.add("Loop Delay", Data.valueOf(getExperiment().getLoopDelay(), "us"));
+        runRequest.add("Loop Delay", Data.valueOf(getExperiment().getLoopDelay(), "us"))
       }
     }
 
     // set up daisy chain and timing order
-    runRequest.add("Daisy Chain", Data.listOf(expt.getFpgaNames(), Setters.stringSetter));
-    runRequest.add("Timing Order", Data.listOf(expt.getTimingOrder(), Setters.stringSetter));
+    runRequest.add("Daisy Chain", Data.listOf(expt.getFpgaNames(), Setters.stringSetter))
+    runRequest.add("Timing Order", Data.listOf(expt.getTimingOrder(), Setters.stringSetter))
 
     // run the sequence
     runIndex = runRequest.addRecord("Run Sequence",
         Data.valueOf(0L), // put in a dummy value for number of reps
         Data.valueOf(true), // return timing results
         Data.clusterOf(setupPackets),
-        Data.listOf(setupState, Setters.stringSetter));
-    nextRequest = runRequest;
-    /* for (Record r : runRequest.getRecords()) {
-      System.out.println(r.toString());
-    }*/
+        Data.listOf(setupState, Setters.stringSetter))
+    nextRequest = runRequest
 
     // clear the dirty bits
-    configDirty = false;
-    memDirty = false;
-    sramDirty = false;
+    configDirty = false
+    memDirty = false
+    sramDirty = false
   }
 
   @Setting(id = 1009,
       name = "Get SRAM Final",
       doc = "Make sure to run build sequence first.")
-  public Data get_sram_final(@Accepts({"s", "ss"}) Data id) {
-    IqChannel iq = getChannel(id, IqChannel.class);
-    return Data.valueOf(iq.getFpgaModel().getSram());
+  def get_sram_final(@Accepts(Array("s", "ss")) id: Data): Data = {
+    val iq = getChannel(id, classOf[IqChannel])
+    Data.valueOf(iq.getFpgaModel().getSram())
   }
 
   @Setting(id = 1000,
       name = "Run",
-      doc = "Runs the current sequence by sending to the GHz DACs server."
-        + "\n\n"
-        + "Note that no timing data are returned here.  You must call one or more "
-        + "of the 'Get Data *' methods to retrieve the data in the desired format.")
-  public void run_experiment(long reps) throws InterruptedException, ExecutionException {
-    Preconditions.checkArgument(reps > 0, "Reps must be a positive integer");
+      doc = """Runs the current sequence by sending to the GHz DACs server.
+              |
+              |Note that no timing data are returned here.  You must call one or more
+              |of the 'Get Data *' methods to retrieve the data in the desired format.""")
+  def run_experiment(reps: Long): Unit = {
+    require(reps > 0, "Reps must be a positive integer")
     if (configDirty || memDirty || sramDirty) {
-      build_sequence();
+      build_sequence()
     }
-    // System.out.println("running sequence");
-    nextRequest.getRecord(runIndex).getData().setWord(reps, 0);
-    lastData = getConnection().sendAndWait(nextRequest).get(runIndex);
+    nextRequest.getRecord(runIndex).getData().setWord(reps, 0)
+    lastData = getConnection().sendAndWait(nextRequest).get(runIndex)
   }
 
   @Setting(id = 1001,
       name = "Run DAC SRAM",
-      doc = "Similar to 'Run', but does dac_run_sram instead of run_sequence."
-          + "\n\n"
-          + "This simply runs the DAC SRAM (once or repeatedly) and gives "
-          + "no data back. Used to determine the power output, etc.")
-  public void run_dac_sram(@Accepts("*w") Data data,
-      @Accepts("b") Data loop) throws InterruptedException, ExecutionException {
+      doc = """Similar to 'Run', but does dac_run_sram instead of run_sequence.
+              |
+              |This simply runs the DAC SRAM (once or repeatedly) and gives
+              |no data back. Used to determine the power output, etc.""")
+  def run_dac_sram(@Accepts(Array("*w")) data: Data,
+      @Accepts(Array("b")) loop: Data): Unit = {
 
     if (configDirty || memDirty || sramDirty) {
-      build_sequence();
+      build_sequence()
     }
 
     // change the run request to dac_run_sram request
-    nextRequest.getRecords().remove(runIndex);
-    nextRequest.add("DAC Run SRAM", data, loop);
+    nextRequest.getRecords().remove(runIndex)
+    nextRequest.add("DAC Run SRAM", data, loop)
 
-    getConnection().sendAndWait(nextRequest);
+    getConnection().sendAndWait(nextRequest)
   }
 
   @Setting(id = 1002,
       name = "ADC Run Demod",
       doc = "Builds the sequence and runs ADC Run Demod")
-  @Returns("*3i{I,Q}, *i{pktCounters}, *i{readbackCounters}")
-  public Data adc_run_demod(@Accepts("s") Data mode) throws InterruptedException, ExecutionException {
+  @Returns(Array("*3i{I,Q}, *i{pktCounters}, *i{readbackCounters}"))
+  def adc_run_demod(@Accepts(Array("s")) mode: Data): Data = {
     if (configDirty || memDirty || sramDirty) {
-      build_sequence();
+      build_sequence()
     }
-    nextRequest.getRecords().remove(runIndex);
-    nextRequest.add("ADC Run Demod", mode);
-    return getConnection().sendAndWait(nextRequest).get(nextRequest.size()-1);
+    nextRequest.getRecords().remove(runIndex)
+    nextRequest.add("ADC Run Demod", mode)
+    getConnection().sendAndWait(nextRequest).get(nextRequest.size() - 1)
   }
   @SettingOverload
-  public Data adc_run_demod() throws InterruptedException, ExecutionException {
-    return adc_run_demod(Data.valueOf("iq"));
+  def adc_run_demod(): Data = {
+    adc_run_demod(Data.valueOf("iq"))
   }
 
   @Setting(id = 1100,
       name = "Get Data Raw",
       doc = "Gets the raw timing data from the previous run. Given a deinterlace argument, only DAC data are returned")
-  @Returns("*4i")
-  public Data get_data_raw() {
-    return lastData;
+  @Returns(Array("*4i"))
+  def get_data_raw(): Data = {
+    lastData
   }
 
   @Setting(id = 1112,
       name = "Get Data Raw Phases",
       doc = "Gets the raw data from the ADC results, converted to phases.")
-  @Returns("*3v[rad]")
-  public Data get_data_raw_phases() {
-    double[][][] ans = extractDataPhases();
-    return Data.valueOf(ans, "rad");
+  @Returns(Array("*3v[rad]"))
+  def get_data_raw_phases(): Data = {
+    val ans = extractDataPhases()
+    Data.valueOf(ans, "rad")
   }
 
-  private double[][][] extractDataPhases() {
-    int[] shape = lastData.getArrayShape();
-    double[][][] ans = new double[shape[0]][shape[1]][];
-    List<Integer> adcIndices = this.getExperiment().adcTimingOrderIndices();
-    for (int whichAdcChannel = 0; whichAdcChannel < shape[0]; whichAdcChannel++) {
+  private def extractDataPhases(): Array[Array[Array[Double]]] = {
+    val shape = lastData.getArrayShape()
+    val ans = Array.ofDim[Array[Double]](shape(0), shape(1))
+    val adcIndices = this.getExperiment().adcTimingOrderIndices()
 
-      AdcChannel ch = (AdcChannel)this.getExperiment().getTimingChannels().get(adcIndices.get(whichAdcChannel)).getChannel();
-      for (int j=0; j<shape[1]; j++) {
-        ans[whichAdcChannel][j] = ch.getPhases(
-            lastData.get(whichAdcChannel, j, 0).getIntArray(),
-            lastData.get(whichAdcChannel, j, 1).getIntArray()
-        );
+    for (whichAdcChannel <- 0 until shape(0)) {
+
+      val ch = getExperiment().getTimingChannels().get(adcIndices.get(whichAdcChannel)).getChannel().asInstanceOf[AdcChannel]
+      for (j <- 0 until shape(1)) {
+        ans(whichAdcChannel)(j) = ch.getPhases(
+          lastData.get(whichAdcChannel, j, 0).getIntArray(),
+          lastData.get(whichAdcChannel, j, 1).getIntArray()
+        )
       }
     }
-    return ans;
+    ans
   }
 
   //
@@ -1183,99 +1168,103 @@ public class QubitContext extends AbstractServerContext {
 
   @Setting(id = 2001,
       name = "Dump Sequence Packet",
-      doc = "Returns a dump of the packet to be sent to the GHz DACs server."
-          + "\n\n"
-          + "The packet dump is a cluster of records where each record is itself "
-          + "a cluster of (name, data).  For a human-readable dump of the packet, "
-          + "see the 'Dump Sequence Text' setting.")
-  public Data dump_packet() {
-    List<Data> records = Lists.newArrayList();
-    for (Record r : nextRequest.getRecords()) {
+      doc = """Returns a dump of the packet to be sent to the GHz DACs server.
+              |
+              |The packet dump is a cluster of records where each record is itself
+              |a cluster of (name, data).  For a human-readable dump of the packet,
+              |see the 'Dump Sequence Text' setting.""")
+  def dump_packet(): Data = {
+    val records: List[Data] = Lists.newArrayList()
+    for (r <- nextRequest.getRecords().asScala) {
       records.add(Data.clusterOf(Data.valueOf(r.getName()),
-          r.getData()));
+          r.getData()))
     }
-    return Data.clusterOf(records);
+    Data.clusterOf(records)
   }
 
   @Setting(id = 2002,
       name = "Dump Sequence Text",
       doc = "Returns a dump of the current sequence in human-readable form")
-  @Returns("s")
-  public Data dump_text() {
+  @Returns(Array("s"))
+  def dump_text(): Data = {
 
-    List<String> deviceNames = Lists.newArrayList();
-    Map<String, long[]> memorySequences = Maps.newHashMap();
-    Map<String, long[]> sramSequences = Maps.newHashMap();
-    List<Record> commands = Lists.newArrayList();
+    val deviceNames: List[String] = Lists.newArrayList()
+    val memorySequences: Map[String, Array[Long]] = Maps.newHashMap()
+    val sramSequences: Map[String, Array[Long]] = Maps.newHashMap()
+    val commands: List[Record] = Lists.newArrayList()
 
     // iterate over packet, pulling out commands
-    String currentDevice = null;
-    for (Record r : nextRequest.getRecords()) {
-      String cmd = r.getName();
-      if ("Select Device".equals(cmd)) {
-        currentDevice = r.getData().getString();
-        deviceNames.add(currentDevice);
-      } else if ("Memory".equals(cmd)) {
-        memorySequences.put(currentDevice, r.getData().getWordArray());
-      } else if ("SRAM".equals(cmd)) {
-        sramSequences.put(currentDevice, r.getData().getWordArray());
-      } else if ("SRAM Address".equals(cmd)) {
-        // do nothing
-      } else {
-        commands.add(r);
+    var currentDevice: String = null
+    for (r <- nextRequest.getRecords().asScala) {
+      r.getName() match {
+        case "Select Device" =>
+          currentDevice = r.getData().getString()
+          deviceNames.add(currentDevice)
+
+        case "Memory" =>
+          memorySequences.put(currentDevice, r.getData().getWordArray())
+
+        case "SRAM" =>
+          sramSequences.put(currentDevice, r.getData().getWordArray())
+
+        case "SRAM Address" =>
+          // do nothing
+
+        case _ =>
+          commands.add(r)
       }
     }
-    Collections.sort(deviceNames);
+    Collections.sort(deviceNames)
 
-    List<String> lines = Lists.newArrayList();
+    val lines: List[String] = Lists.newArrayList()
 
-    StringBuilder devLine = new StringBuilder();
-    for (String dev : deviceNames) {
-      devLine.append(dev);
-      devLine.append(", ");
+    val devLine = new StringBuilder()
+    for (dev <- deviceNames.asScala) {
+      devLine.append(dev)
+      devLine.append(", ")
     }
-    lines.add(devLine.toString());
-    lines.add("");
+    lines.add(devLine.toString())
+    lines.add("")
 
-    lines.add("Memory");
+    lines.add("Memory")
     if (deviceNames.size() > 0) {
-      int N = memorySequences.get(deviceNames.get(0)).length;
-      for (int i = 0; i < N; i++) {
-        StringBuilder row = new StringBuilder();
-        for (String name : deviceNames) {
-          row.append(String.format("%06X", memorySequences.get(name)[i]));
-          row.append("  ");
+      val N = memorySequences.get(deviceNames.get(0)).length
+      for (i <- 0 until N) {
+        val row = new StringBuilder()
+        for (name <- deviceNames.asScala) {
+          row.append("%06X".format(memorySequences.get(name)(i)))
+          row.append("  ")
         }
-        lines.add(row.toString());
+        lines.add(row.toString())
       }
     }
-    lines.add("");
+    lines.add("")
 
-    lines.add("SRAM");
+    lines.add("SRAM")
     if (deviceNames.size() > 0) {
-      int N = sramSequences.get(deviceNames.get(0)).length;
-      for (int i = 0; i < N; i++) {
-        StringBuilder row = new StringBuilder();
-        for (String name : deviceNames) {
-          row.append(String.format("%08X", sramSequences.get(name)[i]));
-          row.append("  ");
+      val N = sramSequences.get(deviceNames.get(0)).length
+      for (i <- 0 until N) {
+        val row = new StringBuilder()
+        for (name <- deviceNames.asScala) {
+          row.append("%08X".format(sramSequences.get(name)(i)))
+          row.append("  ")
         }
-        lines.add(row.toString());
+        lines.add(row.toString())
       }
     }
-    lines.add("");
+    lines.add("")
 
-    for (Record r : commands) {
-      lines.add(r.getName());
-      lines.add(r.getData().toString());
-      lines.add("");
+    for (r <- commands.asScala) {
+      lines.add(r.getName())
+      lines.add(r.getData().toString())
+      lines.add("")
     }
 
-    StringBuilder builder = new StringBuilder();
-    for (String line : lines) {
-      builder.append(line);
-      builder.append("\n");
+    val builder = new StringBuilder()
+    for (line <- lines.asScala) {
+      builder.append(line)
+      builder.append("\n")
     }
-    return Data.valueOf(builder.toString());
+    Data.valueOf(builder.toString())
   }
 }
