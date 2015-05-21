@@ -1,25 +1,20 @@
-package org.labrad.qubits.controller;
+package org.labrad.qubits.controller
 
-import org.labrad.data.Request;
-import org.labrad.qubits.FpgaModelDac;
+import org.labrad.data.Request
+import org.labrad.qubits.FpgaModelDac
 
 /**
  * The FpgaController represents the controlling architecture of a DAC board.
  * Currently, there are two types: {@link MemoryController} and {@link JumpTableController}.
  */
-public abstract class FpgaController {
-  protected FpgaModelDac fpga;
+abstract class FpgaController(protected val fpga: FpgaModelDac) {
 
-  public abstract double getSequenceLength_us();
-  public abstract double getSequenceLengthPostSRAM_us();
+  def getSequenceLength_us(): Double
+  def getSequenceLengthPostSRAM_us(): Double
 
-  public FpgaController(FpgaModelDac fpga) {
-    this.fpga = fpga;
-  }
+  def hasDualBlockSram(): Boolean
 
-  public abstract boolean hasDualBlockSram();
+  def addPackets(runRequest: Request): Unit
 
-  public abstract void addPackets(Request runRequest);
-
-  public abstract void clear();
+  def clear(): Unit
 }

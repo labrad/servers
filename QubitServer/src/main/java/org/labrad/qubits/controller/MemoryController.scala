@@ -1,102 +1,97 @@
-package org.labrad.qubits.controller;
+package org.labrad.qubits.controller
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
-import org.labrad.data.Data;
-import org.labrad.data.Request;
-import org.labrad.qubits.FpgaModelDac;
-import org.labrad.qubits.mem.*;
-
-import java.util.List;
+import java.util.ArrayList
+import java.util.List
+import org.labrad.data.Data
+import org.labrad.data.Request
+import org.labrad.qubits.FpgaModelDac
+import org.labrad.qubits.mem._
+import scala.collection.JavaConverters._
 
 /**
  * The MemoryController
  */
-public class MemoryController extends FpgaController {
+class MemoryController(fpga: FpgaModelDac) extends FpgaController(fpga) {
 
-  public MemoryController(FpgaModelDac fpgaModelDac) {
-    super(fpgaModelDac);
-    clear();
+  clear()
+
+  private val memory = new ArrayList[MemoryCommand]
+  private var timerStartCount = 0
+  private var timerStopCount = 0
+  private var sramCalled = false
+  private var sramCalledDualBlock = false
+  private var sramDualBlockCmd: CallSramDualBlockCommand = null
+  private var sramDualBlockDelay: Double = -1
+
+  def addPackets(runRequest: Request): Unit = {
+    runRequest.add("Memory", Data.valueOf(getMemory()))
   }
 
-  private final List<MemoryCommand> memory = Lists.newArrayList();
-  private int timerStartCount = 0;
-  private int timerStopCount = 0;
-  private boolean sramCalled = false;
-  private boolean sramCalledDualBlock = false;
-  private CallSramDualBlockCommand sramDualBlockCmd = null;
-  private Double sramDualBlockDelay = null;
-
-  public void addPackets(Request runRequest) {
-    runRequest.add("Memory", Data.valueOf(getMemory()));
+  def clear(): Unit = {
+    memory.clear()
+    timerStartCount = 0
+    timerStopCount = 0
+    sramCalled = false
+    sramCalledDualBlock = false
+    sramDualBlockCmd = null
   }
 
-  public void clear() {
-    memory.clear();
-    timerStartCount = 0;
-    timerStopCount = 0;
-    sramCalled = false;
-    sramCalledDualBlock = false;
-    sramDualBlockCmd = null;
+  def addMemoryCommand(cmd: MemoryCommand): Unit = {
+    memory.add(cmd)
   }
 
-  public void addMemoryCommand(MemoryCommand cmd) {
-    memory.add(cmd);
+  def addMemoryCommands(cmds: List[MemoryCommand]): Unit = {
+    memory.addAll(cmds)
   }
 
-  public void addMemoryCommands(List<MemoryCommand> cmds) {
-    memory.addAll(cmds);
+  def addMemoryNoop(): Unit = {
+    addMemoryCommand(NoopCommand)
   }
 
-  public void addMemoryNoop() {
-    addMemoryCommand(NoopCommand$.MODULE$);
-  }
-
-  public void addMemoryNoops(int n) {
-    for (int i = 0; i < n; i++) {
-      addMemoryCommand(NoopCommand$.MODULE$);
+  def addMemoryNoops(n: Int): Unit = {
+    for (i <- 0 until n) {
+      addMemoryCommand(NoopCommand)
     }
   }
 
-  public void addMemoryDelay(double microseconds) {
-    int cycles = (int) FpgaModelDac.microsecondsToClocks(microseconds);
-    int mem_size = this.memory.size();
-    if (mem_size > 0) {
-      MemoryCommand last_cmd = this.memory.get(this.memory.size()-1);
-      if (last_cmd instanceof DelayCommand) {
-        DelayCommand delay_cmd = (DelayCommand) last_cmd;
-        delay_cmd.setDelay(cycles + delay_cmd.getDelay());
-      } else {
-        addMemoryCommand(new DelayCommand(cycles));
+  def addMemoryDelay(microseconds: Double): Unit = {
+    val cycles = FpgaModelDac.microsecondsToClocks(microseconds).toInt
+    val memSize = this.memory.size()
+    if (memSize > 0) {
+      val lastCmd = this.memory.get(memSize - 1)
+      lastCmd match {
+        case delayCmd: DelayCommand =>
+          delayCmd.setDelay(cycles + delayCmd.getDelay)
+
+        case _ =>
+          addMemoryCommand(new DelayCommand(cycles))
       }
     } else {
-      addMemoryCommand(new DelayCommand(cycles));
+      addMemoryCommand(new DelayCommand(cycles))
     }
   }
 
 
 
-  @Override
-  public double getSequenceLength_us() {
-    double t_us = this.fpga.getStartDelay() * FpgaModelDac.START_DELAY_UNIT_NS / 1000.0;
-    for (MemoryCommand mem_cmd : this.memory) {
-      t_us += mem_cmd.getTime_us(fpga);
+  override def getSequenceLength_us(): Double = {
+    var t_us = this.fpga.getStartDelay() * FpgaModelDac.START_DELAY_UNIT_NS / 1000.0
+    for (memCmd <- this.memory.asScala) {
+      t_us += memCmd.getTime_us(fpga)
     }
-    return t_us;
+    t_us
   }
-  @Override
-  public double getSequenceLengthPostSRAM_us() {
-    double t_us=this.fpga.getStartDelay() * FpgaModelDac.START_DELAY_UNIT_NS / 1000.0;
-    boolean SRAMStarted = false;
-    for (MemoryCommand mem_cmd : this.memory) {
-      if ( (mem_cmd instanceof CallSramDualBlockCommand) || (mem_cmd instanceof CallSramCommand)) {
-        SRAMStarted = true;
+  override def getSequenceLengthPostSRAM_us(): Double = {
+    var t_us = this.fpga.getStartDelay() * FpgaModelDac.START_DELAY_UNIT_NS / 1000.0
+    var SRAMStarted = false
+    for (memCmd <- this.memory.asScala) {
+      if (memCmd.isInstanceOf[CallSramDualBlockCommand] || memCmd.isInstanceOf[CallSramCommand]) {
+        SRAMStarted = true
       }
       if (SRAMStarted) {
-        t_us += mem_cmd.getTime_us(fpga);
+        t_us += memCmd.getTime_us(fpga)
       }
     }
-    return t_us;
+    t_us
   }
   // timer logic
 
@@ -104,24 +99,24 @@ public class MemoryController extends FpgaController {
    * Check whether the timer has been started at least once
    * @return
    */
-  public boolean isTimerStarted() {
-    return timerStartCount > 0;
+  def isTimerStarted(): Boolean = {
+    timerStartCount > 0
   }
 
   /**
    * Check whether the timer is currently running (has been started but not yet stopped)
    * @return
    */
-  public boolean isTimerRunning() {
-    return timerStartCount == timerStopCount + 1;
+  def isTimerRunning(): Boolean = {
+    timerStartCount == timerStopCount + 1
   }
 
   /**
    * Check whether the timer is currently stopped
    * @return
    */
-  public boolean isTimerStopped() {
-    return timerStartCount == timerStopCount;
+  def isTimerStopped(): Boolean = {
+    timerStartCount == timerStopCount
   }
 
   /**
@@ -129,27 +124,27 @@ public class MemoryController extends FpgaController {
    * has been started at least once and stopped as many times as it has been
    * started.  This ensures that all boards will be run properly.
    */
-  public void checkTimerStatus() {
-    Preconditions.checkState(isTimerStarted(), "%s: timer not started", fpga.getName());
-    Preconditions.checkState(isTimerStopped(), "%s: timer not stopped", fpga.getName());
+  def checkTimerStatus(): Unit = {
+    require(isTimerStarted(), s"${fpga.getName}: timer not started")
+    require(isTimerStopped(), s"${fpga.getName}: timer not stopped")
   }
 
   /**
    * Issue a start timer command.  Will only succeed if the timer is currently stopped.
    */
-  public void startTimer() {
-    Preconditions.checkState(isTimerStopped(), "%s: timer already started", fpga.getName());
-    addMemoryCommand(StartTimerCommand$.MODULE$);
-    timerStartCount++;
+  def startTimer(): Unit = {
+    require(isTimerStopped(), s"${fpga.getName}: timer already started")
+    addMemoryCommand(StartTimerCommand)
+    timerStartCount += 1
   }
 
   /**
    * Issue a stop timer command.  Will only succeed if the timer is currently running.
    */
-  public void stopTimer() {
-    Preconditions.checkState(isTimerRunning(), "%s: timer not started", fpga.getName());
-    addMemoryCommand(StopTimerCommand$.MODULE$);
-    timerStopCount++;
+  def stopTimer(): Unit = {
+    require(isTimerRunning(), s"${fpga.getName}: timer not started")
+    addMemoryCommand(StopTimerCommand)
+    timerStopCount += 1
   }
 
   // SRAM calls
@@ -158,41 +153,40 @@ public class MemoryController extends FpgaController {
   // SRAM
   //
 
-  public void callSramBlock(String blockName) {
-    Preconditions.checkState(!sramCalledDualBlock, "Cannot call SRAM and dual-block in the same sequence.");
-    addMemoryCommand(new CallSramCommand(blockName));
-    sramCalled = true;
+  def callSramBlock(blockName: String): Unit = {
+    require(!sramCalledDualBlock, "Cannot call SRAM and dual-block in the same sequence.")
+    addMemoryCommand(new CallSramCommand(blockName))
+    sramCalled = true
   }
 
-  public void callSramDualBlock(String block1, String block2) {
-    Preconditions.checkState(!sramCalled, "Cannot call SRAM and dual-block in the same sequence.");
-    Preconditions.checkState(!sramCalledDualBlock, "Only one dual-block SRAM call allowed per sequence.");
-    CallSramDualBlockCommand cmd = new CallSramDualBlockCommand(block1, block2, sramDualBlockDelay);
-    addMemoryCommand(cmd);
-    sramDualBlockCmd = cmd;
-    sramCalledDualBlock = true;
+  def callSramDualBlock(block1: String, block2: String): Unit = {
+    require(!sramCalled, "Cannot call SRAM and dual-block in the same sequence.")
+    require(!sramCalledDualBlock, "Only one dual-block SRAM call allowed per sequence.")
+    val cmd = new CallSramDualBlockCommand(block1, block2, sramDualBlockDelay)
+    addMemoryCommand(cmd)
+    sramDualBlockCmd = cmd
+    sramCalledDualBlock = true
   }
 
-  public void setSramDualBlockDelay(double delay_ns) {
-    sramDualBlockDelay = delay_ns;
+  def setSramDualBlockDelay(delay_ns: Double): Unit = {
+    sramDualBlockDelay = delay_ns
     if (sramCalledDualBlock) {
       // need to update the already-created dual-block command
-      sramDualBlockCmd.setDelay(delay_ns);
+      sramDualBlockCmd.setDelay(delay_ns)
     }
   }
 
-  @Override
-  public boolean hasDualBlockSram() {
-    return sramCalledDualBlock;
+  override def hasDualBlockSram(): Boolean = {
+    sramCalledDualBlock
   }
 
   /**
    * Get the delay between blocks in a dual-block SRAM call
    * @return
    */
-  public long getSramDualBlockDelay() {
-    Preconditions.checkState(sramCalledDualBlock, "Sequence does not have a dual-block SRAM call");
-    return (long)sramDualBlockCmd.getDelay();
+  def getSramDualBlockDelay(): Long = {
+    require(sramCalledDualBlock, "Sequence does not have a dual-block SRAM call")
+    sramDualBlockCmd.getDelay().toLong
   }
 
 
@@ -204,58 +198,53 @@ public class MemoryController extends FpgaController {
   /**
    * Get the bits of the memory sequence for this board
    */
-  public long[] getMemory() {
-    List<MemoryCommand> mem = Lists.newArrayList(memory);
+  def getMemory(): Array[Long] = {
+    val mem = new ArrayList[MemoryCommand]
     // add initial noop and final mem commands
-    mem.add(0, NoopCommand$.MODULE$);
-    mem.add(EndSequenceCommand$.MODULE$);
+    mem.add(0, NoopCommand)
+    mem.add(EndSequenceCommand)
 
     // resolve addresses of all SRAM blocks
-    for (MemoryCommand c : mem) {
-      if (c instanceof CallSramCommand) {
-        CallSramCommand cmd = (CallSramCommand)c;
-        String block = cmd.getBlockName();
-        if (fpga.getBlockNames().contains(block)) {
-          cmd.setStartAddress(fpga.getBlockStartAddress(block));
-          cmd.setEndAddress(fpga.getBlockEndAddress(block));
-        } else {
-          // if this block wasn't defined for us, then it will be filled with zeros
-          cmd.setStartAddress(0);
-          cmd.setEndAddress(fpga.getExperiment().getShortestSram());
-        }
+    for (c <- mem.asScala) {
+      c match {
+        case cmd: CallSramCommand =>
+          val block = cmd.getBlockName()
+          if (fpga.getBlockNames().contains(block)) {
+            cmd.setStartAddress(fpga.getBlockStartAddress(block))
+            cmd.setEndAddress(fpga.getBlockEndAddress(block))
+          } else {
+            // if this block wasn't defined for us, then it will be filled with zeros
+            cmd.setStartAddress(0)
+            cmd.setEndAddress(fpga.getExperiment().getShortestSram())
+          }
+
+        case _ => // do nothing
       }
     }
 
     // get bits for all memory commands
-    int len = 0;
-    List<long[]> memBits = Lists.newArrayList();
-    for (MemoryCommand cmd : mem) {
-      long[] bits = cmd.getBits();
-      memBits.add(bits);
-      len += bits.length;
-    }
-    // concatenate commands into one array
-    long[] bits = new long[len];
-    int pos = 0;
-    for (long[] cmdBits : memBits) {
-      System.arraycopy(cmdBits, 0, bits, pos, cmdBits.length);
-      pos += cmdBits.length;
+    val bits = {
+      val builder = Array.newBuilder[Long]
+      for (cmd <- mem.asScala) {
+        builder ++= cmd.getBits()
+      }
+      builder.result()
     }
 
     // check that the total memory sequence is not too long
     if (bits.length > fpga.getDacBoard().getBuildProperties().get("SRAM_WRITE_PKT_LEN")) {
-      throw new RuntimeException("Memory sequence exceeds maximum length");
+      sys.error("Memory sequence exceeds maximum length")
     }
-    return bits;
+    bits
   }
 
-  public String getDualBlockName1() {
-    Preconditions.checkState(sramCalledDualBlock, "Sequence does not have a dual-block SRAM call");
-    return sramDualBlockCmd.getBlockName1();
+  def getDualBlockName1(): String = {
+    require(sramCalledDualBlock, "Sequence does not have a dual-block SRAM call")
+    sramDualBlockCmd.getBlockName1()
   }
 
-  public String getDualBlockName2() {
-    Preconditions.checkState(sramCalledDualBlock, "Sequence does not have a dual-block SRAM call");
-    return sramDualBlockCmd.getBlockName2();
+  def getDualBlockName2(): String = {
+    require(sramCalledDualBlock, "Sequence does not have a dual-block SRAM call")
+    sramDualBlockCmd.getBlockName2()
   }
 }

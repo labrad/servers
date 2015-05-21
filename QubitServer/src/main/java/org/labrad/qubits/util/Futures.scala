@@ -1,15 +1,16 @@
-package org.labrad.qubits.util;
+package org.labrad.qubits.util
 
-import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.List
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.Future
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
+import scala.collection.JavaConverters._
 
-import com.google.common.base.Function;
-import com.google.common.collect.Lists;
+import com.google.common.base.Function
+import com.google.common.collect.Lists
 
-public class Futures {
+object Futures {
   /**
    * Create from an existing Future a new Future that transforms the result using the given function.
    * @param <F>
@@ -18,35 +19,33 @@ public class Futures {
    * @param func
    * @return
    */
-  public static <F, T> Future<T> chain(final Future<F> in, final Function<F, T> func) {
-    return new Future<T>() {
-      @Override
-      public boolean cancel(boolean mayInterruptIfRunning) {
-        return in.cancel(mayInterruptIfRunning);
+  def chain[F, T](in: Future[F], func: Function[F, T]): Future[T] = {
+    new Future[T] {
+      def cancel(mayInterruptIfRunning: Boolean): Boolean = {
+        in.cancel(mayInterruptIfRunning)
       }
 
-      @Override
-      public T get() throws InterruptedException, ExecutionException {
-        return func.apply(in.get());
+      @throws[InterruptedException]
+      @throws[ExecutionException]
+      def get(): T = {
+        func.apply(in.get())
       }
 
-      @Override
-      public T get(long timeout, TimeUnit unit)
-          throws InterruptedException, ExecutionException, TimeoutException {
-        return func.apply(in.get(timeout, unit));
+      @throws[InterruptedException]
+      @throws[ExecutionException]
+      @throws[TimeoutException]
+      def get(timeout: Long, unit: TimeUnit): T = {
+        func.apply(in.get(timeout, unit))
       }
 
-      @Override
-      public boolean isCancelled() {
-        return in.isCancelled();
+      def isCancelled(): Boolean = {
+        in.isCancelled()
       }
 
-      @Override
-      public boolean isDone() {
-        return in.isDone();
+      def isDone(): Boolean = {
+        in.isDone()
       }
-
-    };
+    }
   }
 
   /**
@@ -57,55 +56,53 @@ public class Futures {
    * @param func
    * @return
    */
-  public static <F, T> Future<T> chainAll(final List<Future<F>> futures, final Function<List<F>, T> func) {
-    return new Future<T>() {
-      @Override
-      public boolean cancel(boolean mayInterruptIfRunning) {
-        boolean cancelled = true;
-        for (Future<F> f : futures) {
-          cancelled &= f.cancel(mayInterruptIfRunning);
+  def chainAll[F, T](futures: List[Future[F]], func: Function[List[F], T]): Future[T] = {
+    new Future[T] {
+      def cancel(mayInterruptIfRunning: Boolean): Boolean = {
+        var cancelled = true
+        for (f <- futures.asScala) {
+          cancelled &= f.cancel(mayInterruptIfRunning)
         }
-        return cancelled;
+        cancelled
       }
 
-      @Override
-      public T get() throws InterruptedException, ExecutionException {
-        List<F> results = Lists.newArrayList();
-        for (Future<F> f : futures) {
-          results.add(f.get());
+      @throws[InterruptedException]
+      @throws[ExecutionException]
+      def get(): T = {
+        val results: List[F] = Lists.newArrayList()
+        for (f <- futures.asScala) {
+          results.add(f.get())
         }
-        return func.apply(results);
+        func.apply(results)
       }
 
-      @Override
-      public T get(long timeout, TimeUnit unit)
-          throws InterruptedException, ExecutionException, TimeoutException {
-        List<F> results = Lists.newArrayList();
-        for (Future<F> f : futures) {
-          results.add(f.get(timeout, unit));
+      @throws[InterruptedException]
+      @throws[ExecutionException]
+      @throws[TimeoutException]
+      def get(timeout: Long, unit: TimeUnit): T = {
+        val results: List[F] = Lists.newArrayList()
+        for (f <- futures.asScala) {
+          results.add(f.get(timeout, unit))
         }
-        return func.apply(results);
+        func.apply(results)
       }
 
-      @Override
-      public boolean isCancelled() {
-        boolean isCancelled = true;
-        for (Future<F> f : futures) {
-          isCancelled &= f.isCancelled();
+      def isCancelled(): Boolean = {
+        var cancelled = true
+        for (f <- futures.asScala) {
+          cancelled &= f.isCancelled()
         }
-        return isCancelled;
+        cancelled
       }
 
-      @Override
-      public boolean isDone() {
-        boolean isDone = true;
-        for (Future<F> f : futures) {
-          isDone &= f.isDone();
+      def isDone(): Boolean = {
+        var done = true
+        for (f <- futures.asScala) {
+          done &= f.isDone()
         }
-        return isDone;
+        done
       }
-
-    };
+    }
   }
 
   /**
@@ -117,12 +114,11 @@ public class Futures {
    * @return 
    * @return
    */
-  public static <F> Future<Void> waitForAll(final List<Future<F>> futures) {
-    return chainAll(futures, new Function<List<F>, Void>() {
-      @Override
-      public Void apply(List<F> results) {
-        return null;
+  def waitForAll[F](futures: List[Future[F]]): Future[Void] = {
+    chainAll(futures, new Function[List[F], Void] {
+      def apply(results: List[F]): Void = {
+        null
       }
-    });
+    })
   }
 }

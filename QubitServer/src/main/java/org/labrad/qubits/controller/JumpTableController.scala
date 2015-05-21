@@ -1,52 +1,44 @@
-package org.labrad.qubits.controller;
+package org.labrad.qubits.controller
 
-import org.labrad.data.Data;
-import org.labrad.data.Request;
-import org.labrad.qubits.FpgaModelDac;
-import org.labrad.qubits.jumptable.JumpTable;
+import org.labrad.data.Data
+import org.labrad.data.Request
+import org.labrad.qubits.FpgaModelDac
+import org.labrad.qubits.jumptable.JumpTable
 
 /**
- * Runs da jump table.
+ * Controller class for jump table boards.
+ *
+ * Essentially just a pass-through for addJumpTableEntry and addPackets.
  */
-public class JumpTableController extends FpgaController {
-  private final JumpTable jumpTable = new JumpTable();
+class JumpTableController(fpga: FpgaModelDac) extends FpgaController(fpga) {
+  private val jumpTable = new JumpTable()
 
-  public JumpTableController(FpgaModelDac fpga) {
-    super(fpga);
-    clear();
+  clear()
+
+  override def hasDualBlockSram(): Boolean = {
+    false
   }
 
-  @Override
-  public boolean hasDualBlockSram() {
-    return false;
-  }
-
-  @Override
-  public void addPackets(Request runRequest) {
-    jumpTable.addPackets(runRequest);
+  override def addPackets(runRequest: Request): Unit = {
+    jumpTable.addPackets(runRequest)
   }
 
   //
   // Jump Table
   //
-  public void clear() {
-    jumpTable.clear();
-  }
-  public void addJumpTableEntry(String name, Data data) {
-    jumpTable.addEntry(name, data);
+  def clear(): Unit = {
+    jumpTable.clear()
   }
 
-  public JumpTable getJumpTable() {
-    return jumpTable;
+  def addJumpTableEntry(name: String, data: Data): Unit = {
+    jumpTable.addEntry(name, data)
   }
 
-  @Override
-  public double getSequenceLength_us() {
-    throw new RuntimeException("TODO: implement get sequence length for JT.");
+  override def getSequenceLength_us(): Double = {
+    sys.error("TODO: implement get sequence length for JT.")
   }
 
-  @Override
-  public double getSequenceLengthPostSRAM_us() {
-    throw new RuntimeException("TODO: implement get sequence length for JT.");
+  override def getSequenceLengthPostSRAM_us(): Double = {
+    sys.error("TODO: implement get sequence length for JT.")
   }
 }
