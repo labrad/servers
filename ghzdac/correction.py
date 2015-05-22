@@ -1229,7 +1229,9 @@ class DACcorrection:
                 # c3 = 1.5  (~pi/2 per 1 GHz)
                 # Note the log notation for c0, c1 to keep parameters close to unity for easier NM optimization
                 if np.alen(reflectionRates):
-                    for idx,rate in enumerate([reflectionRates[0]]): #limit it to one reflectionrate, because of limitations in qubit server
+                    numberOfRates=np.int(np.fix(np.alen(reflectionAmplitudes)/4.))
+                    print numberOfRates
+                    for idx,rate in enumerate(reflectionRates[0:numberOfRates]): #limit the reflectionrates, because of limitations in qubit server
                         if abs(rate) > 0.0:
                             c = reflectionAmplitudes[idx*4:idx*4+4]
                             amplitude = 10**(-c[0]) + 10**(-c[1]) * freqs**c[2]
