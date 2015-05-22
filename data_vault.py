@@ -88,7 +88,7 @@ class DataVault(LabradServer):
             try:
                 print 'Could not load repository location from registry.'
                 print 'Please enter data storage directory or hit enter to use the current directory:'
-                datadir = raw_input('>>>')
+                datadir = os.path.expanduser(raw_input('>>>'))
                 if datadir == '':
                     datadir = os.path.join(os.path.split(__file__)[0], '__data__')
                 if not os.path.exists(datadir):
