@@ -122,6 +122,7 @@ class CryoNotifier(LabradServer):
         folder in the registry. '''
         # pull out node names
         nodes = [x for x in self.client.servers if x.lower().startswith('node')]
+        print nodes
         nodes = [x.partition(' ')[2] for x in nodes]
         p = self.reg.packet()
         p.cd(self.path)

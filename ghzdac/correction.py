@@ -1291,7 +1291,19 @@ class DACcorrection:
         dithering[0:4] = 0.0
         dithering[-4:] = 0.0
 
-        signal = np.round(1.0*signal * fullscale + zero + dithering).astype(np.int32)
+
+        #hack to kick out LSB
+        kickout=False
+        if np.alen(reflectionRates):
+            if reflectionRates[-1] == 1.:
+                kickout=True
+
+        if kickout:
+            print 'kicking out LSB'
+            signal = np.round(1.0*signal*fullscale/2.)*2
+            signal = np.round(signal + zero + dithering).astype(np.int32)
+        else:
+            signal = np.round(1.0*signal * fullscale + zero + dithering).astype(np.int32)
 
         if not rescale:
             if (np.max(signal) > 0x1FFF) or (np.min(signal) < -0x2000):
