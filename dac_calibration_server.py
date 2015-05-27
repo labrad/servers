@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = DAC Calibration
-version = 1.2.0
+version = 1.2.1
 description = Calibrate sequences for the GHz DAC boards.
 
 [startup]
@@ -349,7 +349,7 @@ class CalibrationServer(LabradServer):
 
     @setting(33,
         'Correct Analog FT',
-        data=['*v: Single channel data'],
+        data=['*c: Single channel data'],
         average_ends='b',
         dither='b',
         returns=['*i: Single channel DAC values'])
