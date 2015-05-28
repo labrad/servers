@@ -15,6 +15,7 @@
 
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 # CHANGELOG
 #
@@ -1291,6 +1292,17 @@ class DACcorrection:
         dithering[0:4] = 0.0
         dithering[-4:] = 0.0
 
+        #check for and implement nonlinearity:
+        if np.alen(reflectionRates):
+            #we want to implement nonlinearity, but not change the reference, otherwise it is hard to tune up.
+            numberOfRates=np.int(np.fix(np.alen(reflectionAmplitudes)/4.))
+            nonlinearityFactor = reflectionRates[numberOfRates] #just one
+            nonlinearityPower = reflectionRates[numberOfRates+1] #just one
+            if abs(nonlinearityFactor)>0.0:
+                print 'nonlinearity: ', nonlinearityFactor, nonlinearityPower
+                signalNew = signal * (1. + nonlinearityFactor * abs(signal)**nonlinearityPower )
+                signalNew -= signalNew[0] - signal[0]
+                signal = signalNew
 
         #hack to kick out LSB
         kickout=False
