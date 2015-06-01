@@ -356,7 +356,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         wordLength = 2 #Hardcoding to set data transer word length to 2 bytes
         
         dev = self.selectedDevice(c)
-        yield dev.write('WAV:SOUR CH%d' %channel)
+        yield dev.write('WAV:SOUR CHAN%d' %channel)
 
         #Read data MSB first
         yield dev.write('WAV:BYT MSBF')
