@@ -499,7 +499,7 @@ def calibrateDCPulse_infiniium(cxn, boardname, channel, conf_10_MHz):
     scope.reset()
     print 'scope reset'
 
-    fpga.dac_run_sram([makeSample(dac_neutral, dac_neutral)]*4,False) #set DAC to zero BEFORE setting the scope to acquire
+    fpga.dac_run_sram([makeSample(dac_neutral, dac_neutral)]*20, False)  # zero dac output
     time.sleep(2)
 
     numberofaverages=4096
@@ -540,7 +540,7 @@ def calibrateDCPulse_infiniium(cxn, boardname, channel, conf_10_MHz):
 
     # set the output to zero so that the fridge does not warm up when the
     # cable is plugged back in
-    fpga.dac_run_sram([makeSample(dac_neutral, dac_neutral)]*4,False)
+    fpga.dac_run_sram([makeSample(dac_neutral, dac_neutral)]*20, False)  # Zero output
     ds = cxn.data_vault
     ds.cd(['', keys.SESSIONNAME, boardname],True)
     dataset = ds.new(keys.CHANNELNAMES[channel], [('Time', 'ns')],
