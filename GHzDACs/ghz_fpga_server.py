@@ -177,7 +177,7 @@ cmdTime_cycles does not properly estimate sram length
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 5.0.0
+version = 5.0.1
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -273,8 +273,7 @@ class BoardGroup(object):
         self.fpgaServer = fpgaServer
         self.server = server
         self.port = port
-        self.cxn = server._cxn
-        self.ctx = server.context()
+        self.ctx = None
         #self.sourceMac = getLocalMac(port)
         self.pipeSemaphore = defer.DeferredSemaphore(NUM_PAGES)
         self.pageNums = itertools.cycle(range(NUM_PAGES))
@@ -288,6 +287,7 @@ class BoardGroup(object):
     @inlineCallbacks
     def init(self):
         """Set up the direct ethernet server in our own context."""
+        self.ctx = self.server.context()
         p = self.server.packet(context=self.ctx)
         p.connect(self.port)
         #p.source_mac(self.sourceMac)
@@ -297,7 +297,8 @@ class BoardGroup(object):
     def shutdown(self):
         """Clean up when this board group is removed."""
         # expire our context with the manager
-        yield self.cxn.manager.expire_context(self.server.ID, context=self.ctx)
+        cxn = self.server._cxn
+        yield cxn.manager.expire_context(self.server.ID, context=self.ctx)
         
     def configure(self, name, boards):
         """Update configuration for this board group."""
@@ -415,7 +416,8 @@ class BoardGroup(object):
             returnValue(found)
         finally:
             # expire the detection context
-            yield self.cxn.manager.expire_context(self.server.ID, context=ctx)
+            cxn = self.server._cxn
+            yield cxn.manager.expire_context(self.server.ID, context=ctx)
 
     def devices(self):
         """
@@ -992,13 +994,13 @@ class FPGAServer(DeviceServer):
                       % (name, server, port)
             de = cxn.servers[server]
             boardGroup = BoardGroup(self, de, port) #Sets attributes
-            yield boardGroup.init() #Gets context with direct ethernet
             self.boardGroups[server, port] = boardGroup
         
         # update configuration of all board groups and detect devices
         detections = []
         groupNames = []
         for (server, port), boardGroup in self.boardGroups.items():
+            yield boardGroup.init() #Gets context with direct ethernet
             name, boards = config[server, port]
             boardGroup.configure(name, boards)
             detections.append(boardGroup.detectBoards()) #Board detection#
