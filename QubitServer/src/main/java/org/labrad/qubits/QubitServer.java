@@ -43,7 +43,7 @@ import org.labrad.qubits.resources.Resources;
         + "Channels are identified either by a pair of strings "
         + "(<device name>, <channel name>), or a single string <device name> "
         + "if the device has only one channel of the type needed for the command."
-        + "\n\nVersion 0.6.0.")
+        + "\n\nVersion 0.6.1.")
 public class QubitServer extends AbstractServer {
 
   private Context wiringContext;

@@ -1065,8 +1065,6 @@ public class QubitContext extends AbstractServerContext {
     runRequest.add("Daisy Chain", Data.listOf(expt.getFpgaNames(), Setters.stringSetter));
     runRequest.add("Timing Order", Data.listOf(expt.getTimingOrder(), Setters.stringSetter));
 
-    System.out.println(setupPackets);
-
     // run the sequence
     runIndex = runRequest.addRecord("Run Sequence",
         Data.valueOf(0L), // put in a dummy value for number of reps

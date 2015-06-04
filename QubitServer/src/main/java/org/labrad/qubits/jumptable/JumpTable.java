@@ -12,6 +12,7 @@ import org.labrad.data.Request;
  * Basic logic for the jump table.
  */
 public class JumpTable {
+  private static final int NUM_COUNTERS = 4; // TODO: get num counters from hardware
   private final List<String> entryNames;
   private final List<Data> entryArguments;
   private long[] counters;
@@ -34,21 +35,21 @@ public class JumpTable {
   }
 
   public void addEntry(String name, Data argument) {
+    Data arg_clone = argument.clone();
     // TODO: type check the name and argument
     if (name.equals("CYCLE")) {
-      List<Data> args = argument.getClusterAsList();
+      List<Data> args = arg_clone.getClusterAsList();
       Preconditions.checkArgument(args.size() == 4, "Cycle must have 4 arguments; currently has " + args.toString());
-      if (countersUsed == 3) {     // TODO: get num counters from hardware
+      if (countersUsed == NUM_COUNTERS) {
         throw new RuntimeException("More than 4 counters used in jump table.");
       } else {
-        counters[countersUsed] = argument.get(2).getWord();
-        argument.get(2).setWord(countersUsed);
+        counters[countersUsed] = arg_clone.get(3).getWord();
+        arg_clone.get(3).setWord(countersUsed);
         countersUsed += 1;
       }
     }
-
     entryNames.add(name);
-    entryArguments.add(argument);
+    entryArguments.add(arg_clone);
   }
 
   /**

@@ -1153,6 +1153,7 @@ class DAC_Build15(DAC_Build8):
     JT_MAX_FROM_ADDR = SRAM_LEN // 4 + JT_FROM_ADDR_OFFSET
     JT_MAX_END_ADDR = SRAM_LEN // 4 + JT_END_ADDR_OFFSET
     JT_MAX_TO_ADDR = SRAM_LEN // 4
+    JT_IDX_OFFSET = 1  # compensate for first entry always NOP
 
     MONITOR_0 = 5
     MONITOR_1 = 10
@@ -1229,6 +1230,21 @@ class DAC_Build15(DAC_Build8):
                 cls.JT_IDLE_MIN*4, cls.JT_IDLE_MAX*4, x_ns
             ))
         return x_ns // 4 + cls.JT_IDLE_OFFSET
+
+    @classmethod
+    def convert_jt_idx(cls, jt_idx):
+        """ Offset jump table index to compensate for first NOP.
+
+        :param int jt_idx: jump table index in, with convention 0 is first user
+                           defined entry.
+        :return: jt_idx with compensation for offset
+        :rtype: int
+        """
+
+        if jt_idx < 0:
+            raise ValueError("Jump table index cannot be negative: {}".format(jt_idx))
+
+        return jt_idx + cls.JT_IDX_OFFSET
 
     def buildRunner(self, reps, info):
         jt_entries = info['jt_entries']
@@ -1380,12 +1396,14 @@ class DAC_Build15(DAC_Build8):
             entry = jump_table.JumpEntry(from_address, 0, op)
         elif name == 'JUMP':
             from_address_ns, to_address_ns, jt_idx = arg
+            jt_idx = cls.convert_jt_idx(jt_idx)
             from_address = cls.convert_from_address(from_address_ns)
             to_address = cls.convert_to_address(to_address_ns)
             op = jump_table.JUMP(jt_idx)
             entry = jump_table.JumpEntry(from_address, to_address, op)
         elif name == 'CYCLE':
             from_address_ns, to_address_ns, jt_idx, counter_idx = arg
+            jt_idx = cls.convert_jt_idx(jt_idx)
             from_address = cls.convert_from_address(from_address_ns)
             to_address = cls.convert_to_address(to_address_ns)
             if counter_idx >= cls.NUM_COUNTERS:
