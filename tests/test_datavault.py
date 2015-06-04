@@ -55,7 +55,11 @@ def test_read_dataset():
         dv = setup_dv(cxn)
 
         path, name = dv.new('test', ['x', 'y'], ['z'])
-
+        
+        indep, dep = dv.variables()
+        assert indep[0][0] == 'x'
+        assert indep[1][0] == 'y'
+        assert dep[0][0] == 'z'
         for row in data:
             dv.add(row)
 
