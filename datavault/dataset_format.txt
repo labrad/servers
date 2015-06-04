@@ -1,0 +1,31 @@
+HDF datasets are stored in the following fashion
+
+HDF5 root:
+     Attribute: 'Version' : [2,0,0] for extended, [1,0,0] for standard
+     datasets: 'Dataset' All data and parameters for a single dataset
+	Simple datasets: 1-D array of (f,f,f, ...) cluster -- one float per column
+	Extended datasets: 1-D array of structs matching the column types
+
+	attributes:
+		'Title':		Dataset title
+		'Access Time':		Access time (stored as float64)  
+		'Modification Time': 	Modification time
+		'Creation Time': 	Creation time
+		'Comments':		1-D array of comments, type is (float64, vstr, vstr) == (timestamp, username, comment)
+		'Param.Foo':		Foo parameter, value stored as urlencoded flattened data
+Simple datasets:
+		'Independent1':		2 element vector of vstr: (label, unit)
+		'Dependent11':		3 element vector of vstr: (label, legend, unit)
+		
+Exteneded datasets:
+		'Independent1.label':	string (label)
+		'Independent1.shape:	n-d array of int
+		'Independent1.datatype':	[istvc]
+		'Independent1.unit':	'ns' -- only if type is c or v
+
+		'Dependent21.legend':	string (legend)
+		'Dependent21.label':	string (label)
+		'Dependent21.shape':	n-d array of int
+		'Dependent21.datatype':	[istvc]
+		'Dependent21.unit':	'ns' -- only if type is c or v
+		
