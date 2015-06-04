@@ -4,7 +4,7 @@ import collections
 
 from twisted.internet.defer import inlineCallbacks
 import twisted.internet.task
-
+import numpy as np
 from labrad.server import LabradServer, Signal, setting
 
 from . import errors
@@ -76,14 +76,12 @@ class DataVault(LabradServer):
                          '*(s*s){subdirs}, *(s*s){datasets}'])
     def dir(self, c, tagFilters=['-trash'], includeTags=False):
         """Get subdirectories and datasets in the current directory."""
-        #print 'dir:', tagFilters, includeTags
         if isinstance(tagFilters, str):
             tagFilters = [tagFilters]
         sess = self.getSession(c)
         dirs, datasets = sess.listContents(tagFilters)
         if includeTags:
             dirs, datasets = sess.getTags(dirs, datasets)
-        #print dirs, datasets
         return dirs, datasets
 
     @setting(7, path=['{get current directory}',
@@ -171,6 +169,46 @@ class DataVault(LabradServer):
         c['writing'] = True
         return c['path'], c['dataset']
 
+    @setting(1009, name='s', 
+             independents='*(s*iss)',
+             dependents='*(ss*iss)',
+             returns=['*ss'])
+    def new_ex(self, c, name, independents, dependents):
+        """Create a new extended dataset
+
+        Independents are specified as: (label, shape, type, unit)
+        Dependents are specified as: (label, legend, shape, type, unit)
+
+        Label and legend have the same meaining as in regular new()
+        shape is a list of integers representing the shape of the array.
+            For A scalar column, use [1].
+        type is the column data type including a type tag if applicable.
+            Types use the labrad typetags, but only scalar types are supported.
+            i:          32 bit integer
+            v:          double precision floating point with unit.  Use v[] for scalar
+            c:          double precision complex with unit.  Use c[] for scalar
+            s:          string.  The string must be plain ASCII or UTF-8 encoded 
+                        unicode (until labrad has native unicode support)
+                        Arbitrary binary data is *not* supported.
+            t:          Timestamp
+        unit is the unit of the column.  Only applies for types 'v' and 'c'.
+            It *must* be an empty string ('') for i,s,t datatypes
+
+        Note that any dataset created with this function that does not conform
+        to the old style restrictions will show up as an empty dataset to legacy
+        code.  The name and parameters will be there, but no actual data.
+
+        The legacy format requires each column be a scalar v[unit] type.
+        """
+        session = self.getSession(c)
+        dataset = session.newDataset(name, independents, dependents, extended=True)
+        c['dataset'] = dataset.name # not the same as name; has number prefixed
+        c['datasetObj'] = dataset
+        c['filepos'] = 0 # start at the beginning
+        c['commentpos'] = 0
+        c['writing'] = True
+        return c['path'], c['dataset']
+
     @setting(10, name=['s', 'w'], append='b', returns='(*s{path}, s{name})')
     def open(self, c, name, append=False):
         """Open a Dataset for reading.
@@ -190,6 +228,17 @@ class DataVault(LabradServer):
         dataset.keepStreamingComments(key, 0)
         return c['path'], c['dataset']
 
+    @setting(1010, returns='s')
+    def get_version(self, c):
+        """Get version of current dataset
+
+        1.x:   CSV dataset
+        2.x:   Simple HDF5 dataset
+        3.x:   Extended dataset
+        """
+        dataset = self.getDataset(c)
+        return dataset.version()
+
     @setting(20, data=['*v: add one row of data',
                        '*2v: add multiple rows of data'],
                  returns='')
@@ -203,7 +252,41 @@ class DataVault(LabradServer):
         dataset = self.getDataset(c)
         if not c['writing']:
             raise errors.ReadOnlyError()
-        dataset.addData(data)
+        data = np.atleast_2d(np.asarray(data))
+        # fromarrays is faster than fromrecords, and when we have a simple 2-D array
+        # we can just transpose the array.
+        rec_data = np.core.records.fromarrays(data.T, dtype=dataset.data.dtype)
+        dataset.addData(rec_data)
+
+    @setting(1020, data='?', returns='')
+    def add_ex(self, c, data):
+        """Add data to the current dataset in the extended format.
+
+        Data should be a list of clusters suitable for the current
+        dataset.  For instance, for a dataset with a timestamp, an
+        integer, and a voltage the data type should be *(tiv[V]).
+
+        Because pylabrad is inefficient at packing and unpacking lists
+        of clusters, consider using add_ex_t for performance.
+        """
+        dataset = self.getDataset(c)
+        if not c['writing']:
+            raise errors.ReadOnlyError()
+        list_data = [tuple(row) for row in data]
+        dataset.addData(np.core.records.fromrecords(list_data, dtype=dataset.data.dtype))
+
+    @setting(2020, data='?', returns='')
+    def add_ex_t(self, c, data):
+        """Add data to the current dataset in the extended format.
+
+        Data should be a cluster of List/array types, one per column.
+        This is a transposed version of add_ex, and will have better
+        performance.
+        """
+        dataset = self.getDataset(c)
+        if not c['writing']:
+            raise errors.ReadOnlyError()
+        dataset.addData(np.core.records.fromarrays(data, dtype=dataset.data.dtype))
 
     @setting(21, limit='w', startOver='b', returns='*2v')
     def get(self, c, limit=None, startOver=False):
@@ -217,9 +300,43 @@ class DataVault(LabradServer):
         """
         dataset = self.getDataset(c)
         c['filepos'] = 0 if startOver else c['filepos']
-        data, c['filepos'] = dataset.getData(limit, c['filepos'])
+        data, c['filepos'] = dataset.getData(limit, c['filepos'], simpleOnly=True)
         key = self.contextKey(c)
         dataset.keepStreaming(key, c['filepos'])
+        return data
+
+    @setting(1021, limit='w', startOver='b', returns='?')
+    def get_ex(self, c, limit=None, startOver=False):
+        """Get data from the current dataset in the extended format.
+
+        Data is returned as *(...).  That is, a list of clusters, one per
+        row.  Because of the inefficiency of python flattening and
+        unflattening cluster arrays, consider using get_ex_t for
+        performance.
+        """
+        dataset = self.getDataset(c)
+        c['filepos'] = 0 if startOver else c['filepos']
+        data, c['filepos'] = dataset.getData(limit, c['filepos'], transpose=False)
+        ctx = self.contextKey(c)
+        dataset.keepStreaming(ctx, c['filepos'])
+        return data
+
+    @setting(2021, limit='w', startOver='b', returns='?')
+    def get_ex_t(self, c, limit=None, startOver=False):
+        """Get data from the current dataset in the extended format.
+
+        Data is returned as (*c1*c2*c3): that is, a cluster of lists,
+        one per row.  Each column list is N+1 dimensional, where N is
+        the array dimension of that particular column.  Scalar columns
+        result in 1-D lists.  This is the transpose of the normal
+        format, but is more efficient for pylabrad flatten/unflatten
+        code.
+        """
+        dataset = self.getDataset(c)
+        c['filepos'] = 0 if startOver else c['filepos']
+        data, c['filepos'] = dataset.getData(limit, c['filepos'], transpose=True)
+        ctx = self.contextKey(c)
+        dataset.keepStreaming(ctx, c['filepos'])
         return data
 
     @setting(100, returns='(*(ss){independents}, *(sss){dependents})')
@@ -232,9 +349,42 @@ class DataVault(LabradServer):
         traces, while legend is unique to each trace.
         """
         ds = self.getDataset(c)
+        ind = [(i.label, i.unit) for i in ds.getIndependents()]
+        dep = [(d.label, d.legend, d.unit) for d in ds.getDependents()]
+        return ind, dep
+
+    @setting(101, returns=('*(s*iss), *(ss*iss)'))
+    def variables_ex(self, c):
+        """Get the independent and dependent variables for the current dataset in the extended format
+
+        Returns (*indep, *dep)
+
+        The independent variables are a cluster of (label, shape, type, unit)
+        The dependent variables are a cluster of (label, legend, shape, type, unit)
+
+        See new_ex for descriptions of these items
+        """
+        ds = self.getDataset(c)
         ind = ds.getIndependents()
         dep = ds.getDependents()
         return ind, dep
+
+    @setting(102, returns='s')
+    def row_type(self, c):
+        """Returns the labrad typetag for a single row of the current dataset.
+
+        This is mostly only useful with the extended format.
+        """
+        ds = self.getDataset(c)
+        return ds.getRowType()
+
+    @setting(103, returns='s')
+    def transpose_type(self, c):
+        """Returns the labrad typetag for accessing the dataset with the transpose commands
+        add_ex_t and get_ex_t.
+        """
+        ds = self.getDataset(c)
+        return ds.getTransposeType()
 
     @setting(120, returns='*s')
     def parameters(self, c):

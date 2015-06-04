@@ -42,7 +42,123 @@ def test_create_dataset(dv):
         dv.add(row)
 
     stored = dv.get()
+    assert dv.get_version() == "2.0.0"
     assert np.equal(data, stored).all()
+
+def test_string_type(dv):
+    _path, _name = dv.new_ex('test', [('label', [1], 's', '')],
+                             [('data', 'data', [1], 's', '')])
+    print "string dataset created with path: %s, name: %s" % (_path, _name)
+    dv.add_ex([('label', 'data')])
+    stored = dv.get_ex()
+    assert stored[0][0] == 'label'
+    assert stored[0][1] == 'data'
+    stored = dv.get_ex_t(10, True)
+
+def test_create_extended_dataset(dv):
+    """Create an extended dataset, add some data and read it back"""
+    _path, _name = dv.new_ex('test', [('t', [1], 'v', 'ns'),
+                                      ('x', [2,2], 'c', 'V')],
+                             [('clicks', 'I', [1], 'i', ''),
+                              ('clicks', 'Q', [1], 'i', '')])
+
+    t_data = 3.3
+    x = np.array([[3.2+4j, 1.0], [15.8+11j, 2j]])
+    I = 3
+    Q = 7
+    row  = (t_data, x, I, Q)
+    dv.add_ex([row, row])
+    dv.add_ex_t(([3.3, 3.3], np.array([x, x]), [3,3], [7,7]))
+
+    dv.add_parameter('foo', 32.1)
+    dv.add_parameter('bar', 'x')
+    dv.add_parameter('baz', [1, 2, 3, 4])
+
+    dv.open(_name)
+    assert dv.get_version() == "3.0.0"
+
+    (indep_ex, dep_ex) = dv.variables_ex()
+    assert len(indep_ex) == 2
+    assert indep_ex[0] == ('t', [1], 'v', 'ns')
+    assert indep_ex[1][0] == 'x'
+    assert np.all(indep_ex[1][1] == [2,2])
+    assert indep_ex[1][2:4] == ('c', 'V')
+    assert len(dep_ex) == 2
+    assert dep_ex[0] == ('clicks', 'I', [1], 'i', '')
+    assert dep_ex[1] == ('clicks', 'Q', [1], 'i', '')
+
+    (indep, dep) = dv.variables()
+    assert indep[0] == ('t', 'ns')
+    assert indep[1] == ('x', 'V')
+    assert dep[0] == ('clicks', 'I', '')
+    assert dep[1] == ('clicks', 'Q', '')
+
+    row_type = dv.row_type()
+    tt = T.parseTypeTag(row_type)
+    assert tt == T.parseTypeTag('*(v[ns]*2c,ii)')
+
+    stored = dv.get_ex()
+    for j in range(4):
+        for k in range(4):
+            assert np.all(stored[k][j] == row[j])
+
+    stored = dv.get_ex_t(100, True)
+    for j in range(4):
+        for j in range(4):
+            assert np.all(stored[j][k] == row[j])
+
+def test_create_std_read_ex(dv):
+    """Create a simple dataset and read it back as an extended dataset"""
+    _path, name = dv.new('test', ['x', 'y'], ['z'])
+    data = []
+    for x in xrange(10):
+        for y in xrange(10):
+            data.append([x/10., y/10., x*y])
+
+    for row in data:
+        dv.add(row)
+    dv.open(name)
+    assert dv.get_version() == "2.0.0"
+
+    data_read = dv.get_ex()
+    for sent, read in zip(data, data_read):
+        assert np.array_equal(list(sent), list(read))
+
+def test_create_ex_read_std(dv):
+    """Create a simple dataset using the extended call, but read it back with the traditional API"""
+    _path, _name = dv.new_ex('test', [('t', [1], 'v', 'ns')],
+                             [('clicks', 'I', [1], 'v', ''),
+                              ('clicks', 'Q', [1], 'v', '')])
+
+    t_data = 3.3
+    I = 3.0
+    Q = 7.0
+    row  = (t_data, I, Q)
+    dv.add_ex([row, row, row, row])
+    dv.open(_name)
+    assert dv.get_version() == "3.0.0"
+
+    result = dv.get()
+    for result_row in result:
+        assert np.array_equal(list(result_row), list(row))
+
+def test_create_ex_read_std_fail(dv):
+    """Create a dataset using the extended call, but try read it back with the traditional API which should fail"""
+    _path, _name = dv.new_ex('test', [('t', [1], 'v', 'ns'),
+                                      ('x', [2,2], 'c', 'V')],
+                             [('clicks', 'I', [1], 'i', ''),
+                              ('clicks', 'Q', [1], 'i', '')])
+
+    t_data = 3.3
+    x = np.array([[3.2+4j, 1.0], [15.8+11j, 2j]])
+    I = 3
+    Q = 7
+    row  = (t_data, x, I, Q)
+    dv.add_ex([row, row])
+    dv.add_ex_t(([3.3, 3.3], np.array([x, x]), [3,3], [7,7]))
+    dv.open(_name)
+    with pytest.raises(T.Error):
+        result = dv.get()
 
 def test_read_dataset():
     """Create a simple dataset and read it back while still open and after closed"""
@@ -56,6 +172,10 @@ def test_read_dataset():
 
         path, name = dv.new('test', ['x', 'y'], ['z'])
 
+        indep, dep = dv.variables()
+        assert indep[0][0] == 'x'
+        assert indep[1][0] == 'y'
+        assert dep[0][0] == 'z'
         for row in data:
             dv.add(row)
 
