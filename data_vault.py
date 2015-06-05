@@ -44,7 +44,7 @@ from __future__ import with_statement
 import os
 import sys
 
-from twisted.internet.defer import inlineCallbacks
+from twisted.internet.defer import inlineCallbacks, returnValue
 
 from labrad.server import LabradServer, Signal, setting
 import labrad.util
@@ -64,69 +64,42 @@ from datavault import errors
 class DataVault(LabradServer):
     name = 'Data Vault'
 
-    @inlineCallbacks
+    def __init__(self, session_store):
+        LabradServer.__init__(self)
+
+        self.session_store = session_store
+
+        # session signals
+        self.onNewDir = Signal(543617, 'signal: new dir', 's')
+        self.onNewDataset = Signal(543618, 'signal: new dataset', 's')
+        self.onTagsUpdated = Signal(543622, 'signal: tags updated', '*(s*s)*(s*s)')
+
+        # dataset signals
+        self.onDataAvailable = Signal(543619, 'signal: data available', '')
+        self.onNewParameter = Signal(543620, 'signal: new parameter', '')
+        self.onCommentsAvailable = Signal(543621, 'signal: comments available', '')
+
     def initServer(self):
-        # load configuration info from registry
-        try:
-            path = ['', 'Servers', self.name, 'Repository']
-            nodename = labrad.util.getNodeName()
-            reg = self.client.registry
-            try:
-                # try to load for this node
-                p = reg.packet()
-                p.cd(path)
-                p.get(nodename, 's')
-                ans = yield p.send()
-            except:
-                # try to load default
-                p = reg.packet()
-                p.cd(path)
-                p.get('__default__', 's')
-                ans = yield p.send()
-            datadir = ans.get
-        except:
-            try:
-                print 'Could not load repository location from registry.'
-                print 'Please enter data storage directory or hit enter to use the current directory:'
-                datadir = os.path.expanduser(raw_input('>>>'))
-                if datadir == '':
-                    datadir = os.path.join(os.path.split(__file__)[0], '__data__')
-                if not os.path.exists(datadir):
-                    os.makedirs(datadir)
-                # set as default and for this node
-                p = reg.packet()
-                p.cd(path, True)
-                p.set(nodename, datadir)
-                p.set('__default__', datadir)
-                yield p.send()
-                print datadir, "has been saved in the registry",
-                print "as the data location."
-                print "To change this, stop this server,"
-                print "edit the registry keys at", path,
-                print "and then restart."
-            except Exception, E:
-                print
-                print E
-                print
-                print "Press [Enter] to continue..."
-                raw_input()
-                sys.exit()
-        self.session_store = dv.SessionStore(datadir, self)
         # create root session
         _root = self.session_store.get([''])
+
+    def contextKey(self, c):
+        """The key used to identify a given context for notifications"""
+        return c.ID
 
     def initContext(self, c):
         # start in the root session
         c['path'] = ['']
         # start listening to the root session
         c['session'] = self.session_store.get([''])
-        c['session'].listeners.add(c.ID)
+        c['session'].listeners.add(self.contextKey(c))
 
     def expireContext(self, c):
         """Stop sending any signals to this context."""
+        key = self.contextKey(c)
         def removeFromList(ls):
-            if c.ID in ls:
-                ls.remove(c.ID)
+            if key in ls:
+                ls.remove(key)
         for session in self.session_store.get_all():
             removeFromList(session.listeners)
             for dataset in session.datasets.values():
@@ -144,26 +117,10 @@ class DataVault(LabradServer):
             raise errors.NoDatasetError()
         return c['datasetObj']
 
-    # session signals
-    onNewDir = Signal(543617, 'signal: new dir', 's')
-    onNewDataset = Signal(543618, 'signal: new dataset', 's')
-    onTagsUpdated = Signal(543622, 'signal: tags updated', '*(s*s)*(s*s)')
-
-    # dataset signals
-    onDataAvailable = Signal(543619, 'signal: data available', '')
-    onNewParameter = Signal(543620, 'signal: new parameter', '')
-    onCommentsAvailable = Signal(543621, 'signal: comments available', '')
-
-
     @setting(5, returns=['*s'])
     def dump_existing_sessions(self, c):
-        sessions = []
-        for session in self.session_store.geta_all():
-            sessionString=''
-            for s in session.path:
-                sessionString += s+'/'
-            sessions.append(sessionString)
-        return sessions
+        return ['/'.join(session.path)
+                for session in self.session_store.get_all()]
 
     @setting(6, tagFilters=['s', '*s'], includeTags='b',
                 returns=['*s{subdirs}, *s{datasets}',
@@ -215,9 +172,10 @@ class DataVault(LabradServer):
                 _session = self.session_store.get(temp) # touch the session
         if c['path'] != temp:
             # stop listening to old session and start listening to new session
-            c['session'].listeners.remove(c.ID)
+            key = self.contextKey(c)
+            c['session'].listeners.remove(key)
             session = self.session_store.get(temp)
-            session.listeners.add(c.ID)
+            session.listeners.add(key)
             c['session'] = session
             c['path'] = temp
         return c['path']
@@ -278,8 +236,9 @@ class DataVault(LabradServer):
         c['filepos'] = 0
         c['commentpos'] = 0
         c['writing'] = False
-        dataset.keepStreaming(c.ID, 0)
-        dataset.keepStreamingComments(c.ID, 0)
+        key = self.contextKey(c)
+        dataset.keepStreaming(key, 0)
+        dataset.keepStreamingComments(key, 0)
         return c['path'], c['dataset']
 
     @setting(20, data=['*v: add one row of data',
@@ -293,11 +252,6 @@ class DataVault(LabradServer):
         (independents + dependents).
         """
         dataset = self.getDataset(c)
-        #Check for unfavored persons, and make them wait
-        # if 'Matteo' in dataset.session:
-            # start = time.time()
-            # while time.time()-start<3:
-                # yield
         if not c['writing']:
             raise errors.ReadOnlyError()
         dataset.addData(data)
@@ -315,7 +269,8 @@ class DataVault(LabradServer):
         dataset = self.getDataset(c)
         c['filepos'] = 0 if startOver else c['filepos']
         data, c['filepos'] = dataset.getData(limit, c['filepos'])
-        dataset.keepStreaming(c.ID, c['filepos'])
+        key = self.contextKey(c)
+        dataset.keepStreaming(key, c['filepos'])
         return data
 
     @setting(100, returns='(*(ss){independents}, *(sss){dependents})')
@@ -336,7 +291,8 @@ class DataVault(LabradServer):
     def parameters(self, c):
         """Get a list of parameter names."""
         dataset = self.getDataset(c)
-        dataset.param_listeners.add(c.ID) # send a message when new parameters are added
+        key = self.contextKey(c)
+        dataset.param_listeners.add(key) # send a message when new parameters are added
         return [par['label'] for par in dataset.parameters]
 
     @setting(121, 'add parameter', name='s', returns='')
@@ -376,7 +332,8 @@ class DataVault(LabradServer):
         dataset = self.getDataset(c)
         names = [par['label'] for par in dataset.parameters]
         params = tuple((name, dataset.getParameter(name)) for name in names)
-        dataset.param_listeners.add(c.ID) # send a message when new parameters are added
+        key = self.contextKey(c)
+        dataset.param_listeners.add(key) # send a message when new parameters are added
         if len(params):
             return params
 
@@ -393,7 +350,8 @@ class DataVault(LabradServer):
         dataset = self.getDataset(c)
         c['commentpos'] = 0 if startOver else c['commentpos']
         comments, c['commentpos'] = dataset.getComments(limit, c['commentpos'])
-        dataset.keepStreamingComments(c.ID, c['commentpos'])
+        key = self.contextKey(c)
+        dataset.keepStreamingComments(key, c['commentpos'])
         return comments
 
     @setting(300, 'update tags', tags=['s', '*s'],
@@ -432,8 +390,56 @@ class DataVault(LabradServer):
             datasets = [datasets]
         return sess.getTags(dirs, datasets)
 
+@inlineCallbacks
+def load_settings(cxn, name):
+    """Load settings from registry with fallback to command line if needed.
 
-__server__ = DataVault()
+    Attempts to load the data vault configuration for this node from the
+    registry. If not configured, we instead prompt the user to enter a path
+    to use for storing data, and save this config into the registry to be
+    used later.
+    """
+    path = ['', 'Servers', name, 'Repository']
+    nodename = labrad.util.getNodeName()
+    reg = cxn.registry
+    yield reg.cd(path, True)
+    (dirs, keys) = yield reg.dir()
+    if nodename in keys:
+        datadir = yield reg.get(nodename)
+    elif '__default__' in keys:
+        datadir = yield reg.get('__default__')
+    else:
+        print 'Could not load repository location from registry.'
+        print 'Please enter data storage directory or hit enter to use the current directory:'
+        datadir = os.path.expanduser(raw_input('>>>'))
+        if datadir == '':
+            datadir = os.path.join(os.path.split(__file__)[0], '__data__')
+        if not os.path.exists(datadir):
+            os.makedirs(datadir)
+        # set as default and for this node
+        yield reg.set(nodename, datadir)
+        yield reg.set('__default__', datadir)
+        print 'Data location configured in the registry at {}: {}'.format(
+            path + [nodename], datadir)
+        print 'To change this, edit the registry keys and restart the server.'
+    returnValue(datadir)
+
+def main(argv=sys.argv):
+    @inlineCallbacks
+    def start():
+        opts = labrad.util.parseServerOptions(name=DataVault.name)
+        cxn = yield labrad.wrappers.connectAsync(
+            host=opts['host'], port=int(opts['int']), password=opts['password'])
+        datadir = yield load_settings(cxn, opts['name'])
+        session_store = dv.SessionStore(datadir, self)
+        server = DataVault(session_store)
+
+        # Run the server. We do not need to start the reactor, but we will
+        # stop it after the data_vault shuts down.
+        labrad.util.runServer(server, run_reactor=False, stop_reactor=True)
+
+    _ = start()
+    reactor.run()
 
 if __name__ == '__main__':
-    labrad.util.runServer(__server__)
+    main()
