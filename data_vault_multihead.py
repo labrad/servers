@@ -42,16 +42,13 @@ from twisted.application.service import MultiService
 from twisted.application.internet import TCPClient
 from twisted.internet import reactor
 from twisted.internet.reactor import callLater
-from twisted.internet.defer import inlineCallbacks, returnValue, maybeDeferred
-import twisted.internet.task
+from twisted.internet.defer import inlineCallbacks, returnValue
 
-import labrad
-from labrad import constants, types as T, util
-from labrad.server import LabradServer, Signal, setting
+from labrad import constants, util
 import labrad.wrappers
 
-import datavault as dv
-from datavault import errors
+from datavault import SessionStore
+from datavault.server import DataVaultMultiHead
 
 def lock_path(d):
     '''
@@ -85,125 +82,8 @@ def unlock(fd):
     import fcntl
     fcntl.flock(fd, fcntl.LOCK_UN)
 
-class ExtendedContext(object):
-    '''
-    This is an extended context that contains the manager.  This prevents multiple
-    contexts with the same client ID from conflicting if they are connected
-    to different managers.
-    '''
-    def __init__(self, server, ctx):
-        self.__server = server
-        self.__ctx = ctx
 
-    @property
-    def server(self):
-        return self.__server
-
-    @property
-    def context(self):
-        return self.__ctx
-
-    def __eq__(self, other):
-        return (self.context == other.context) and (self.server == other.server)
-
-    def __ne__(self, other):
-        return not (self == other)
-
-    def __hash__(self):
-        return hash(self.context) ^ hash(self.server.host) ^ self.server.port
-
-
-# TODO: tagging
-# - search globally (or in some subtree of sessions) for matching tags
-#     - this is the least common case, and will be an expensive operation
-#     - don't worry too much about optimizing this
-#     - since we won't bother optimizing the global search case, we can store
-#       tag information in the session
-
-
-# One instance per manager.  Not persistent, recreated when connection is lost/regained
-class DataVaultMultiHead(DataVault):
-    name = 'Data Vault'
-
-    def __init__(self, host, port, password, hub, path, session_store):
-        DataVault.__init__(self, session_store)
-        self.host = host
-        self.port = port
-        self.password = password
-        self.hub = hub
-        self.path = path
-        self.alive = False
-
-    def initServer(self):
-        DataVault.initServer(self)
-        # let the DataVaultHost know that we connected
-        self.hub.connect(self)
-        self.alive = True
-        self.keepalive_timer = twisted.internet.task.LoopingCall(self.keepalive)
-        self.onShutdown().addBoth(self.end_keepalive)
-        self.keepalive_timer.start(120)
-
-    def end_keepalive(self, *ignored):
-        # stopServer is only called when the whole application shuts down.
-        # We need to manually use the onShutdown() callback
-        self.keepalive_timer.stop()
-
-    @inlineCallbacks
-    def keepalive(self):
-        print "sending keepalive to %s:%d" % (self.host, self.port)
-        p = self.client.manager.packet()
-        p.echo('123')
-        try:
-            yield p.send()
-        except:
-            pass # We don't care about errors, dropped connections will be recognized automatically
-
-    def listenerKey(self, c):
-        return ExtendedContext(self, c.ID)
-
-    @setting(401, 'get servers', returns='*(swb)')
-    def get_servers(self, c):
-        """
-        Returns the list of running servers as tuples of (host, port, connected?)
-        """
-        rv = []
-        for s in self.hub:
-            host = s.host
-            port = s.port
-            running = hasattr(s, 'server') and bool(s.server.alive)
-            print "host: %s port: %s running: %s" % (host, port, running)
-            rv.append((host, port, running))
-        return rv
-
-    @setting(402, 'add server', host=['s'], port=['w'], password=['s'])
-    def add_server(self, c, host, port=0, password=None):
-        """
-        Add new server to the list.
-        """
-        port = port or self.port
-        password = password or self.password
-        dvc = DataVaultConnector(host, port, password, self.hub, self.path, self.session_store)
-        dvc.setServiceParent(self.hub)
-        #self.hub.addService(DataVaultConnector(host, port, password, self.hub, self.path))
-
-    @setting(403, 'Ping Managers')
-    def ping_managers(self, c):
-        self.hub.ping()
-
-    @setting(404, 'Kick Managers', host_regex='s', port='w')
-    def kick_managers(self, c, host_regex, port=0):
-        self.hub.kick(host_regex, port)
-
-    @setting(405, 'Reconnect', host_regex='s', port='w')
-    def reconnect(self, c, host_regex, port=0):
-        self.hub.reconnect(host_regex, port)
-
-    @setting(406, 'Refresh Managers')
-    def refresh_managers(self, c):
-        return self.hub.refresh_managers()
-
-
-# One instance per manager, persistant (not recreated when connections are dropped)
+# One instance per manager, persistent (not recreated when connections are dropped)
 class DataVaultConnector(MultiService):
     """Service that connects the Data Vault to a single LabRAD manager
 
@@ -213,13 +93,12 @@ class DataVaultConnector(MultiService):
     """
     reconnectDelay = 10
 
-    def __init__(self, host, port, password, hub, path, session_store):
+    def __init__(self, host, port, password, hub, session_store):
         MultiService.__init__(self)
         self.host = host
         self.port = port
         self.password = password
         self.hub = hub
-        self.path = path
         self.session_store = session_store
         self.die = False
 
@@ -230,7 +109,7 @@ class DataVaultConnector(MultiService):
     def startConnection(self):
         """Attempt to start the data vault and connect to LabRAD."""
         print 'Connecting to %s:%d...' % (self.host, self.port)
-        self.server = DataVault(self.host, self.port, self.password, self.hub, self.path, self.session_store)
+        self.server = DataVaultMultiHead(self.host, self.port, self.password, self.hub, self.session_store)
         self.server.onStartup().addErrback(self._error)
         self.server.onShutdown().addCallbacks(self._disconnected, self._error)
         self.cxn = TCPClient(self.host, self.port, self.server)
@@ -284,13 +163,11 @@ class DataVaultServiceHost(MultiService):
         self.path = path
         self.managers = managers
         self.servers = set()
-        self.session_store = dv.SessionStore(path, self)
+        self.session_store = SessionStore(path, self)
         for signal in self.signals:
             self.wrapSignal(signal)
         for host, port, password in managers:
-            x = DataVaultConnector(host, port, password, self, self.path, self.session_store)
-            x.setServiceParent(self)
-            #self.addService(DataVaultConnector(host, port, password, self, self.path))
+            self.add_server(host, port, password)
 
     def connect(self, server):
         print 'server connected: %s:%d' % (server.host, server.port)
@@ -360,16 +237,18 @@ class DataVaultServiceHost(MultiService):
                 if connector.host == host and connector.port == port:
                     break
             else:
-                dvc = DataVaultConnector(host, port, password, self, self.path, self.session_store)
-                dvc.setServiceParent(self)
-                #self.addService(DataVaultConnector(host, port, password, self, self.path))
+                self.add_server(host, port, password)
 
         cxn.disconnect()
         return
 
+    def add_server(self, host, port, password):
+        dvc = DataVaultConnector(host, port, password, self, self.session_store)
+        dvc.setServiceParent(self)
+
     def __str__(self):
         managers = ['%s:%d' % (connector.host, connector.port) for connector in self]
-        return 'DataVaultServiceHost(%s)' % (managers,) 
+        return 'DataVaultServiceHost(%s)' % (managers,)
 
     def wrapSignal(self, signal):
         print 'wrapping signal:', signal
