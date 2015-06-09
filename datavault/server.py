@@ -292,7 +292,7 @@ class DataVault(LabradServer):
         """
         dataset = self.getDataset(c)
         c['filepos'] = 0 if startOver else c['filepos']
-        data, c['filepos'] = dataset.getData(limit, c['filepos'])
+        data, c['filepos'] = dataset.getData(limit, c['filepos'], simpleOnly=True)
         key = self.contextKey(c)
         dataset.keepStreaming(key, c['filepos'])
         return data
@@ -309,7 +309,7 @@ class DataVault(LabradServer):
         dataset = self.getDataset(c)
         c['filepos'] = 0 if startOver else c['filepos']
         data, c['filepos'] = dataset.getData(limit, c['filepos'], transpose=False)
-        ctx = ExtendedContext(self, c.ID)
+        ctx = self.contextKey(c)
         dataset.keepStreaming(ctx, c['filepos'])
         return data
 
@@ -327,7 +327,7 @@ class DataVault(LabradServer):
         dataset = self.getDataset(c)
         c['filepos'] = 0 if startOver else c['filepos']
         data, c['filepos'] = dataset.getData(limit, c['filepos'], transpose=True)
-        ctx = ExtendedContext(self, c.ID)
+        ctx = self.contextKey(c)
         dataset.keepStreaming(ctx, c['filepos'])
         return data
 
