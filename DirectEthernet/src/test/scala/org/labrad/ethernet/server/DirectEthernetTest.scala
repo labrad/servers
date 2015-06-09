@@ -55,8 +55,8 @@ class EthernetServerTest extends FunSuite with Matchers {
           assert(pkts.length == 1)
           pkts.head match {
             case (srcMac, dstMac, etherType, pktData) =>
-              assert(srcMac == src.toString)
-              assert(dstMac == dst.toString)
+              assert(MacAddress.getByName(srcMac) == src)
+              assert(MacAddress.getByName(dstMac) == dst)
               assert(etherType == pktData.length)
               assert(pktData.toSeq == data.toSeq)
           }
@@ -84,8 +84,8 @@ class EthernetServerTest extends FunSuite with Matchers {
           de3.sendTrigger(triggerContext)
 
           val t = await(f, timeout = 1.seconds) // should return very quickly
-          assert(t > 1.99) // total wait should have been about two seconds
-          assert(t < 2.50)
+          assert(t > 1.9) // total wait should have been about two seconds
+          assert(t < 2.5)
 
           // can send triggers in advance
           await(de2.sendTrigger(triggerContext))
@@ -100,8 +100,8 @@ class EthernetServerTest extends FunSuite with Matchers {
           Thread.sleep(1000)
           await(de3.sendTrigger(triggerContext))
           val t3 = await(f3, timeout = 1.seconds)
-          assert(t3 > 0.99) // should have taken about one second
-          assert(t3 < 1.50)
+          assert(t3 > 0.9) // should have taken about one second
+          assert(t3 < 1.5)
         }
       }
     }

@@ -1,22 +1,24 @@
 package org.labrad.ethernet.server
 
+import org.labrad.util.Logging
 import org.pcap4j.core._
 import org.pcap4j.packet._
 import org.pcap4j.packet.namednumber.EtherType
 import org.pcap4j.util.MacAddress
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.concurrent.duration._
 
 trait Bus {
   def addListener(listener: EthernetPacket => Unit)
   def removeListener(listener: EthernetPacket => Unit)
-  def send(packet: EthernetPacket)
+  def send(packet: EthernetPacket, maxAttempts: Int = 2)
 }
 
 class EthernetBus(
   device: PcapNetworkInterface,
   mode: PcapNetworkInterface.PromiscuousMode = PcapNetworkInterface.PromiscuousMode.PROMISCUOUS
-) extends Bus {
+) extends Bus with Logging {
 
   val name = device.getName
   val description = Option(device.getDescription)
@@ -39,8 +41,7 @@ class EthernetBus(
   private val snaplen = 0xFFFF // Capture all packets, no trucation
   private val timeout = 1 // minimal non-zero timeout, so listeners are invoked immediately
 
-  private val pcap = device.openLive(snaplen, mode, timeout)
-  private val sender = device.openLive(snaplen, mode, timeout)
+  private var sender = device.openLive(snaplen, mode, timeout)
 
   // Create a packet handler to receive packets from the libpcap loop.
   // The packet handler sends packets to all registered listeners.
@@ -58,26 +59,84 @@ class EthernetBus(
   private lazy val listenThread = {
     val thread = new Thread {
       override def run(): Unit = {
-        try {
-          pcap.loop(-1, packetListener)
-          pcap.close()
-        } catch {
-          case e: Exception =>
-            // should never get here
-            e.printStackTrace()
-            throw e
+        var alive = true
+        while (alive) {
+          val pcap = reopen()
+          try {
+            pcap.loop(-1, packetListener)
+            log.warn(s"pcap loop exited unexpectedly. bus=$name")
+          } catch {
+            case e: InterruptedException =>
+              log.info(s"pcap loop interrupted; exiting. bus=$name")
+              alive = false
+            case e: Exception =>
+              log.error(s"error in listen thread. bus=$name", e)
+          } finally {
+            try {
+              pcap.close()
+            } catch {
+              case e: Exception =>
+                log.error(s"error while closing pcap handle. bus=$name", e)
+            }
+          }
         }
-        // should never get here
-        print(s"pcap loop exited unexpectedly for bus $name")
       }
     }
+    thread.setName(s"EthernetBus-listenThread-$name")
     thread.setDaemon(false)
     thread.start()
     thread
   }
 
-  override def send(pkt: EthernetPacket): Unit = {
-    sender.sendPacket(pkt)
+  override def send(pkt: EthernetPacket, maxAttempts: Int = 2): Unit = {
+    var sent = false
+    var attempt = 0
+    while (!sent && attempt < maxAttempts) {
+      try {
+        sender.sendPacket(pkt)
+        sent = true
+      } catch {
+        case e: PcapNativeException =>
+          log.error(s"error while sending packet. attempt=$attempt, bus=$name", e)
+          sender = reopen()
+      }
+      attempt += 1
+    }
+    if (!sent) {
+      sys.error(s"unable to send packet in $maxAttempts attempts. bus=$name")
+    }
+  }
+
+  /**
+   * Attempt to open a PcapHandle to the ethernet device for this bus.
+   *
+   * We retry up to the specified maximum number of attempts, with a pause of
+   * the specified delay between failed attempts.
+   */
+  private def reopen(maxAttempts: Int = 10, delay: Duration = 1.second): PcapHandle = {
+    var pcap: PcapHandle = null
+    var attempt = 0
+    while (pcap == null && attempt < maxAttempts) {
+      if (attempt > 0) {
+        Thread.sleep(delay.toMillis)
+      }
+      val device = Pcaps.getDevByName(name)
+      if (device == null) {
+        log.info(s"attempt=$attempt; failed to get device $name")
+      } else {
+        try {
+          pcap = device.openLive(snaplen, mode, timeout)
+        } catch {
+          case e: PcapNativeException =>
+            log.info(s"attempt=$attempt; failed to open pcap handle", e)
+        }
+      }
+      attempt += 1
+    }
+    if (pcap == null) {
+      sys.error(s"failed to reopen pcap handle in $maxAttempts attempts")
+    }
+    pcap
   }
 }
 

@@ -2,7 +2,7 @@ organization := "org.labrad"
 
 name := "DirectEthernet"
 
-version := "1.0.0-M1"
+version := "1.1.0"
 
 scalaVersion := "2.11.6"
 
@@ -11,7 +11,7 @@ resolvers += "maffoo" at "https://dl.bintray.com/maffoo/maven"
 
 libraryDependencies ++= Seq(
   "org.labrad" %% "scalabrad" % "0.2.0-M6",
-  "org.pcap4j" % "pcap4j-core" % "1.4.0"
+  "org.pcap4j" % "pcap4j-core" % "1.5.0"
 )
 
 // testing
