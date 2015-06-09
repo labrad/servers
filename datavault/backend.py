@@ -324,7 +324,7 @@ class CsvListData(IniData):
         # append the data to the file
         self._saveData(data)
 
-    def getData(self, limit, start, transpose):
+    def getData(self, limit, start, transpose, simpleOnly):
         if transpose:
             raise RuntimeError("Transpose specified for simple data format: not supported")
         if limit is None:
@@ -419,7 +419,7 @@ class CsvNumpyData(CsvListData):
         # append data to file
         self._saveData(data)
 
-    def getData(self, limit, start, transpose):
+    def getData(self, limit, start, transpose, simpleOnly):
         if transpose:
             raise RuntimeError("Transpose specified for simple data format: not supported")
 
@@ -694,10 +694,15 @@ class ExtendedHDF5Data(HDF5MetaData):
         self.dataset.resize((old_rows + new_rows,))
         self.dataset[old_rows:(old_rows+new_rows)] = data
 
-    def getData(self, limit, start, transpose):
+    def getData(self, limit, start, transpose, simpleOnly):
         """
         Get up to limit rows from a dataset.
         """
+        if simpleOnly:
+            datatype = self.dataset.dtype
+            for idx in range(len(datatype)):
+                if datatype[idx] != np.float64:
+                    raise errors.DataVersionMismatchError()
         if transpose:
             return self.getDataTranspose(limit, start)
 
@@ -709,7 +714,22 @@ class ExtendedHDF5Data(HDF5MetaData):
         struct_data, new_pos = self._getData(limit, start)
         columns = []
         for idx in range(len(struct_data.dtype)):
-            columns.append(struct_data['f%d'%idx])
+            col = struct_data['f%d'%idx]
+            # Strings are stored as hdf5 vlen objects.  Numpy can't do
+            # variable length strings, so they get encoded as object
+            # arrays by hdf5.  we don't know how to flatten object
+            # arrays so we special case vlen types here and convert
+            # them to lists.  Also, h5py has a bug where when you
+            # index a dataset with a compound type, it loses the
+            # special dtype information, so we pull it directly from
+            # self.dataset.dtype rather than the data returned by
+            # _getData
+            if self.dataset.dtype[idx] == np.object:
+                base_type = h5py.check_dtype(vlen=self.dataset.dtype[idx])
+                if not base_type or not issubclass(base_type, str):
+                    raise RuntimeError("Found object type array, but not vlen str.  Not supported.  This shouldn't happen")
+                col = [base_type(x) for x in col]
+            columns.append(col)
         columns = tuple(columns)
         return columns, new_pos
 
@@ -773,7 +793,7 @@ class SimpleHDF5Data(HDF5MetaData):
             new_data[field] = data[:,col]
         self.dataset[old_rows:(old_rows+new_rows)] = new_data
 
-    def getData(self, limit, start, transpose):
+    def getData(self, limit, start, transpose, simpleOnly):
         """
         Get up to limit rows from a dataset.
         """

@@ -41,3 +41,8 @@ class ParameterInUseError(T.Error):
     code = 10
     def __init__(self, name):
         self.msg = "Already a parameter called '{0}'.".format(name)
+
+class DataVersionMismatchError(T.Error):
+    code = 11
+    def __init__(self):
+        self.msg = "Dataset was created with newer API, cannot be read.  Use get_ex"

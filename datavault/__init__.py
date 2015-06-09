@@ -430,8 +430,8 @@ class Dataset(object):
         self.hub.onDataAvailable(None, self.listeners)
         self.listeners = set()
 
-    def getData(self, limit, start, transpose=False):
-        return self.data.getData(limit, start, transpose)
+    def getData(self, limit, start, transpose=False, simpleOnly=False):
+        return self.data.getData(limit, start, transpose, simpleOnly)
 
     def keepStreaming(self, context, pos):
         # keepStreaming does something a bit odd and has a confusing name (ERJ)
