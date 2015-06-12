@@ -28,6 +28,9 @@ from labrad.units import Value
 NUM_DACS = 3
 DAC_BUILD = 15
 
+_JUMP_TABLE_IDLE_OFFSET = 0
+_JUMP_TABLE_FROM_ADDR_OFFSET = -2
+_JUMP_TABLE_END_ADDR_OFFSET = -3
 
 class TestFPGAServer(object):
 
@@ -70,7 +73,8 @@ class TestFPGAServer(object):
         startAddr, endAddr = 0, len(dataIn)
         jt = self.dev.jt_run_sram(startAddr, endAddr, loop=True)
         jt_packet = np.fromstring(jt.toString(), dtype='u1')
-        entry = jump_table.JumpEntry(PERIOD // 4 - 2, 0, jump_table.JUMP(1))
+        entry = jump_table.JumpEntry(PERIOD // 4 + _JUMP_TABLE_FROM_ADDR_OFFSET,
+                                     0, jump_table.JUMP(1))
         matching_jt = jump_table.JumpTable(start_addr=0, jumps=[entry])
         matching_jt_packet = np.fromstring(matching_jt.toString(), dtype='u1')
         assert np.array_equal(matching_jt_packet, jt_packet)
@@ -80,7 +84,8 @@ class TestFPGAServer(object):
         matching_jt = jump_table.JumpTable(
             start_addr=0,
             # from_addr offset of -3 for END for this version of the JT
-            jumps=[jump_table.JumpEntry(256//4-3, 0, jump_table.END())],
+            jumps=[jump_table.JumpEntry(256//4 + _JUMP_TABLE_END_ADDR_OFFSET,
+                                        0, jump_table.END())],
             counters=[0, 0, 0, 0]
         )
         matching_packet = np.fromstring(matching_jt.toString(), dtype='u1')
@@ -125,8 +130,15 @@ class TestFPGAServer(object):
         sram_data_2 = np.array(np.ones_like(sram_data_1), dtype='<u4')
         matching_jt = jump_table.JumpTable(
             start_addr=0,
-            jumps=[jump_table.JumpEntry(256//4-2, 0, jump_table.IDLE(1000//4-1)),
-                   jump_table.JumpEntry(512//4-3, 0, jump_table.END())],
+            jumps=[
+                    jump_table.JumpEntry(
+                            256//4 + _JUMP_TABLE_FROM_ADDR_OFFSET,
+                            0,
+                            jump_table.IDLE(1000//4 + _JUMP_TABLE_IDLE_OFFSET)),
+                    jump_table.JumpEntry(
+                            512//4 + _JUMP_TABLE_END_ADDR_OFFSET,
+                            0,
+                            jump_table.END())],
             counters=[0, 0, 0, 0]
         )
         matching_jt_packet = np.fromstring(matching_jt.toString(), dtype='u1')
