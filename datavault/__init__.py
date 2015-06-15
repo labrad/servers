@@ -422,9 +422,9 @@ class Dataset(object):
     def getParamNames(self):
         return self.data.getParamNames()
 
-    def addData(self, data, transpose=False):
+    def addData(self, data):
         # append the data to the file
-        self.data.addData(data, transpose)
+        self.data.addData(data)
 
         # notify all listening contexts
         self.hub.onDataAvailable(None, self.listeners)

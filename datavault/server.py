@@ -4,7 +4,7 @@ import collections
 
 from twisted.internet.defer import inlineCallbacks
 import twisted.internet.task
-
+import numpy as np
 from labrad.server import LabradServer, Signal, setting
 
 from . import errors
@@ -76,14 +76,12 @@ class DataVault(LabradServer):
                          '*(s*s){subdirs}, *(s*s){datasets}'])
     def dir(self, c, tagFilters=['-trash'], includeTags=False):
         """Get subdirectories and datasets in the current directory."""
-        #print 'dir:', tagFilters, includeTags
         if isinstance(tagFilters, str):
             tagFilters = [tagFilters]
         sess = self.getSession(c)
         dirs, datasets = sess.listContents(tagFilters)
         if includeTags:
             dirs, datasets = sess.getTags(dirs, datasets)
-        #print dirs, datasets
         return dirs, datasets
 
     @setting(7, path=['{get current directory}',
@@ -253,7 +251,11 @@ class DataVault(LabradServer):
         dataset = self.getDataset(c)
         if not c['writing']:
             raise errors.ReadOnlyError()
-        dataset.addData(data)
+        data = np.atleast_2d(np.asarray(data))
+        # fromarrays is faster than fromrecords, and when we have a simple 2-D array
+        # we can just transpose the array.
+        rec_data = np.core.records.fromarrays(data.T, dtype=dataset.data.dtype)
+        dataset.addData(rec_data)
 
     @setting(1020, data='?', returns='')
     def add_ex(self, c, data):
@@ -267,7 +269,10 @@ class DataVault(LabradServer):
         of clusters, consider using add_transpose for performance.
         """
         dataset = self.getDataset(c)
-        dataset.addData(data, transpose=False)
+        if not c['writing']:
+            raise errors.ReadOnlyError()
+        list_data = [tuple(row) for row in data]
+        dataset.addData(np.core.records.fromrecords(list_data, dtype=dataset.data.dtype))
 
     @setting(2020, data='?', returns='')
     def add_ex_t(self, c, data):
@@ -278,7 +283,9 @@ class DataVault(LabradServer):
         performance
         """
         dataset = self.getDataset(c)
-        dataset.addData(data, transpose=True)
+        if not c['writing']:
+            raise errors.ReadOnlyError()
+        dataset.addData(np.core.records.fromarrays(data, dtype=dataset.data.dtype))
 
     @setting(21, limit='w', startOver='b', returns='*2v')
     def get(self, c, limit=None, startOver=False):
