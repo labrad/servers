@@ -7,7 +7,7 @@ import collections
 import h5py
 import re
 from twisted.internet import reactor
-
+import datavault
 ## Data types for variable defintions
 
 Independent = collections.namedtuple('Independent', ['label', 'shape', 'datatype', 'unit'])
@@ -171,7 +171,7 @@ class IniData(object):
             sec = 'Independent %d' % (i+1)
             S.add_section(sec)
             S.set(sec, 'Label', ind.label)
-            S.set(sec, 'Units', ind.units)
+            S.set(sec, 'Units', ind.unit)
 
         for i, dep in enumerate(self.dependents):
             sec = 'Dependent %d' % (i+1)
@@ -206,6 +206,10 @@ class IniData(object):
         self.comments = []
         self.cols = len(indep) + len(dep)
 
+    @property
+    def dtype(self):
+        return np.dtype(','.join(['f8']*self.cols))
+    
     def access(self):
         self.accessed = datetime.datetime.now()
 
@@ -313,7 +317,7 @@ class CsvListData(IniData):
             f.write(', '.join(DATA_FORMAT % v for v in row) + '\r\n')
         f.flush()
 
-    def addData(self, data, transpose):
+    def addData(self, data):
         if transpose:
             raise RuntimeError("Transpose specified for simple data format: not supported")
         if not len(data) or not isinstance(data[0], list):
@@ -397,24 +401,18 @@ class CsvNumpyData(CsvListData):
         np.savetxt(f, data, fmt=DATA_FORMAT, delimiter=',', newline='\r\n')
         f.flush()
 
-    def addData(self, data, transpose):
-        if transpose:
-            raise RuntimeError("Transpose specified for simple data format: not supported")
-        data = np.asarray(data)
-
-        # reshape single row
-        if len(data.shape) == 1:
-            data.shape = (1, data.size)
-
+    def addData(self, data):
         # check row length
-        if data.shape[-1] != self.cols:
+        if len(data[0]) != self.cols:
             raise errors.BadDataError(self.cols, data.shape[-1])
 
+        # Ordinarily, we are using record arrays, but for numpy savetxt we want a 2-D array
+        record_data = datavault.util.from_record_array(data)
         # append data to in-memory data
         if self.data.size > 0:
-            self.data = np.vstack((self.data, data))
+            self.data = np.vstack((self.data, record_data))
         else:
-            self.data = data
+            self.data = record_data
 
         # append data to file
         self._saveData(data)
@@ -460,6 +458,10 @@ class HDF5MetaData(object):
         """
         pass
 
+    @property
+    def dtype(self):
+        return self.dataset.dtype
+    
     def initialize_info(self, title, indep, dep):
         """
         Initializes the metadata for a newly created dataset.
@@ -669,26 +671,10 @@ class ExtendedHDF5Data(HDF5MetaData):
     def dataset(self):
         return self.file["DataVault"]
 
-    def addDataTranspose(self, data):
-        """
-        Add data from a list of column arrays.
-        """
-        new_rows = data[0].shape[0]
-        old_rows = self.dataset.shape[0]
-        self.dataset.resize((old_rows + new_rows,))
-        new_data = np.zeros((new_rows,), self.dataset.dtype)
-        for idx,col in enumerate(data):
-            column_name = 'f{}'.format(idx)
-            new_data[column_name] = col
-        self.dataset[old_rows:(old_rows+new_rows)] = new_data
-
-    def addData(self, data, transpose):
+    def addData(self, data):
         """
         Adds one or more rows or data from a numpy struct array.
         """
-        if transpose:
-            self.addDataTranspose(data)
-            return
         new_rows = len(data)
         old_rows = self.dataset.shape[0]
         self.dataset.resize((old_rows + new_rows,))
@@ -774,24 +760,22 @@ class SimpleHDF5Data(HDF5MetaData):
     def dataset(self):
         return self.file["DataVault"]
 
-    def addData(self, data, transpose):
+    def addData(self, data):
         """
         Adds one or more rows or data from a 2D array of floats.
         """
-        if transpose:
-            raise RuntimeError("Transpose specified for simple data format: not supported")
-        data = np.atleast_2d(np.asarray(data))
         new_rows = data.shape[0]
         old_rows = self.dataset.shape[0]
-        if data.shape[1] != len(self.dataset.dtype):
+        """if data.shape[1] != len(self.dataset.dtype):
             raise errors.BadDataError(len(self.dataset.dtype), data.shape[1])
-
+        """
+            
         self.dataset.resize((old_rows + new_rows,))
-        new_data = np.zeros((new_rows,), dtype=self.dataset.dtype)
-        for col in range(data.shape[1]):
-            field = "f%d" % (col,)
-            new_data[field] = data[:,col]
-        self.dataset[old_rows:(old_rows+new_rows)] = new_data
+        #new_data = np.zeros((new_rows,), dtype=self.dataset.dtype)
+        #for col in range(data.shape[1]):
+        #    field = "f%d" % (col,)
+        #    new_data[field] = data[:,col]
+        self.dataset[old_rows:(old_rows+new_rows)] = data
 
     def getData(self, limit, start, transpose, simpleOnly):
         """

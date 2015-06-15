@@ -1,4 +1,5 @@
 import ConfigParser as cp
+import numpy as np
 
 class DVSafeConfigParser(cp.SafeConfigParser):
     """.ini-style config parser with improved handling of line-endings.
@@ -23,3 +24,10 @@ class DVSafeConfigParser(cp.SafeConfigParser):
                     fp.write(("%s = %s" + newline) %
                              (key, str(value).replace('\n', '\n\t')))
             fp.write(newline)
+
+def to_record_array(data):
+    """Take a 2-D array of numpy data and return a 1-D array of records."""
+    return np.core.records.fromarrays(data.T)
+def from_record_array(data):
+    """Take a 1-D array of records and convert to a 2-D array.  The records must be homogeneous"""
+    return np.vstack( [np.array(tuple(row)) for row in data] )
