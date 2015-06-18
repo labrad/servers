@@ -285,7 +285,7 @@ class BoardGroup(object):
     @inlineCallbacks
     def init(self):
         """Set up the direct ethernet server in our own context."""
-        self.ctx = self.server.context()
+        self.ctx = self.directEthernetServer.context()
         p = self.directEthernetServer.packet(context=self.ctx)
         p.connect(self.port)
         yield p.send()
@@ -294,7 +294,7 @@ class BoardGroup(object):
     def shutdown(self):
         """Clean up when this board group is removed."""
         # expire our context with the manager
-        cxn = self.server._cxn
+        cxn = self.directEthernetServer._cxn
         yield cxn.manager.expire_context(
                 self.directEthernetServer.ID, context=self.ctx)
 
@@ -415,8 +415,8 @@ class BoardGroup(object):
             returnValue(found)
         finally:
             # Expire the detection context.
-            cxn = self.server._cxn
-            yield cxn.manager.expire_context(self.self.directEthernetServer.ID,
+            cxn = self.directEthernetServer._cxn
+            yield cxn.manager.expire_context(self.directEthernetServer.ID,
                                              context=ctx)
 
     def devices(self):
