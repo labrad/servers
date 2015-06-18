@@ -294,7 +294,7 @@ class BoardGroup(object):
     def shutdown(self):
         """Clean up when this board group is removed."""
         # expire our context with the manager
-        cxn = self.server._cxn
+        cxn = self.directEthernetServer._cxn
         yield cxn.manager.expire_context(
                 self.directEthernetServer.ID, context=self.ctx)
 
@@ -415,7 +415,7 @@ class BoardGroup(object):
             returnValue(found)
         finally:
             # Expire the detection context.
-            cxn = self.server._cxn
+            cxn = self.directEthernetServer._cxn
             yield cxn.manager.expire_context(self.self.directEthernetServer.ID,
                                              context=ctx)
 
