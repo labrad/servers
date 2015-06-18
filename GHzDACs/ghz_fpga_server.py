@@ -285,7 +285,7 @@ class BoardGroup(object):
     @inlineCallbacks
     def init(self):
         """Set up the direct ethernet server in our own context."""
-        self.ctx = self.server.context()
+        self.ctx = self.directEthernetServer.context()
         p = self.directEthernetServer.packet(context=self.ctx)
         p.connect(self.port)
         yield p.send()
