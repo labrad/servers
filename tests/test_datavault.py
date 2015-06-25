@@ -54,7 +54,7 @@ def test_string_type(dv):
     assert stored[0][0] == 'label'
     assert stored[0][1] == 'data'
     stored = dv.get_ex_t(10, True)
-    
+
 def test_create_extended_dataset(dv):
     """Create an extended dataset, add some data and read it back"""
     _path, _name = dv.new_ex('test', [('t', [1], 'v', 'ns'),
@@ -63,18 +63,20 @@ def test_create_extended_dataset(dv):
                               ('clicks', 'Q', [1], 'i', '')])
 
     t_data = 3.3
-    x = np.array([[3.2+4j, 1.0],[15.8+11j, 2j]])
+    x = np.array([[3.2+4j, 1.0], [15.8+11j, 2j]])
     I = 3
     Q = 7
     row  = (t_data, x, I, Q)
     dv.add_ex([row, row])
     dv.add_ex_t(([3.3, 3.3], np.array([x, x]), [3,3], [7,7]))
-    
+
     dv.add_parameter('foo', 32.1)
     dv.add_parameter('bar', 'x')
     dv.add_parameter('baz', [1, 2, 3, 4])
 
     dv.open(_name)
+    assert dv.get_version() == "3.0.0"
+
     (indep_ex, dep_ex) = dv.variables_ex()
     assert len(indep_ex) == 2
     assert indep_ex[0] == ('t', [1], 'v', 'ns')
@@ -84,7 +86,7 @@ def test_create_extended_dataset(dv):
     assert len(dep_ex) == 2
     assert dep_ex[0] == ('clicks', 'I', [1], 'i', '')
     assert dep_ex[1] == ('clicks', 'Q', [1], 'i', '')
-    
+
     (indep, dep) = dv.variables()
     assert indep[0] == ('t', 'ns')
     assert indep[1] == ('x', 'V')
@@ -94,8 +96,6 @@ def test_create_extended_dataset(dv):
     row_type = dv.row_type()
     tt = T.parseTypeTag(row_type)
     assert tt == T.parseTypeTag('*(v[ns]*2c,ii)')
-
-    assert dv.get_version() == "3.0.0"
 
     stored = dv.get_ex()
     for j in range(4):
@@ -108,8 +108,7 @@ def test_create_extended_dataset(dv):
             assert np.all(stored[j][k] == row[j])
 
 def test_create_std_read_ex(dv):
-    """Create a simple dataset and read it back as an extended dataset
-    """
+    """Create a simple dataset and read it back as an extended dataset"""
     _path, name = dv.new('test', ['x', 'y'], ['z'])
     data = []
     for x in xrange(10):
@@ -119,10 +118,10 @@ def test_create_std_read_ex(dv):
     for row in data:
         dv.add(row)
     dv.open(name)
-    version = dv.get_version()
-    assert version=="2.0.0"
+    assert dv.get_version() == "2.0.0"
+
     data_read = dv.get_ex()
-    for sent,read in zip(data, data_read):
+    for sent, read in zip(data, data_read):
         assert np.array_equal(list(sent), list(read))
 
 def test_create_ex_read_std(dv):
@@ -137,8 +136,8 @@ def test_create_ex_read_std(dv):
     row  = (t_data, I, Q)
     dv.add_ex([row, row, row, row])
     dv.open(_name)
-    version = dv.get_version()
-    assert version=="3.0.0"
+    assert dv.get_version() == "3.0.0"
+
     result = dv.get()
     for result_row in result:
         assert np.array_equal(list(result_row), list(row))
@@ -151,7 +150,7 @@ def test_create_ex_read_std_fail(dv):
                               ('clicks', 'Q', [1], 'i', '')])
 
     t_data = 3.3
-    x = np.array([[3.2+4j, 1.0],[15.8+11j, 2j]])
+    x = np.array([[3.2+4j, 1.0], [15.8+11j, 2j]])
     I = 3
     Q = 7
     row  = (t_data, x, I, Q)
@@ -160,7 +159,7 @@ def test_create_ex_read_std_fail(dv):
     dv.open(_name)
     with pytest.raises(T.Error):
         result = dv.get()
-    
+
 def test_read_dataset():
     """Create a simple dataset and read it back while still open and after closed"""
     data = []
@@ -172,7 +171,7 @@ def test_read_dataset():
         dv = setup_dv(cxn)
 
         path, name = dv.new('test', ['x', 'y'], ['z'])
-        
+
         indep, dep = dv.variables()
         assert indep[0][0] == 'x'
         assert indep[1][0] == 'y'

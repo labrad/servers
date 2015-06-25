@@ -180,10 +180,10 @@ class DataVault(LabradServer):
         Dependents are specified as: (label, legend, shape, type, unit)
 
         Label and legend have the same meaining as in regular new()
-        shape is a list of integers representing the shape of the array.  For
-            A scalar column, use [1].
-        type is the column data type including a type tag if applicable.  Types use
-            the labrad typetags, but only scalar types are supported
+        shape is a list of integers representing the shape of the array.
+            For A scalar column, use [1].
+        type is the column data type including a type tag if applicable.
+            Types use the labrad typetags, but only scalar types are supported.
             i:          32 bit integer
             v:          double precision floating point with unit.  Use v[] for scalar
             c:          double precision complex with unit.  Use c[] for scalar
@@ -191,17 +191,17 @@ class DataVault(LabradServer):
                         unicode (until labrad has native unicode support)
                         Arbitrary binary data is *not* supported.
             t:          Timestamp
-        unit is the unit of the column.  Only applies for types 'v' and 'c'.  
-              It *must* be an empty string ('') for i,s,t datatypes
+        unit is the unit of the column.  Only applies for types 'v' and 'c'.
+            It *must* be an empty string ('') for i,s,t datatypes
 
-            Note that any dataset created with this function that does not conform
-            to the old style restrictions will show up as an empty dataset to legacy
-            code.  The name and parameters will be there, but no actual data.
+        Note that any dataset created with this function that does not conform
+        to the old style restrictions will show up as an empty dataset to legacy
+        code.  The name and parameters will be there, but no actual data.
 
-            The legacy format requires each column be a scalar v[unit] type.
+        The legacy format requires each column be a scalar v[unit] type.
         """
         session = self.getSession(c)
-        dataset = session.newDataset(name, independents, dependents, True)
+        dataset = session.newDataset(name, independents, dependents, extended=True)
         c['dataset'] = dataset.name # not the same as name; has number prefixed
         c['datasetObj'] = dataset
         c['filepos'] = 0 # start at the beginning
@@ -232,9 +232,10 @@ class DataVault(LabradServer):
     def get_version(self, c):
         """Get version of current dataset
 
-        0:   CSV dataset
-        1:   Simple HDF5 dataset
-        2:   Extended dataset """
+        1.x:   CSV dataset
+        2.x:   Simple HDF5 dataset
+        3.x:   Extended dataset
+        """
         dataset = self.getDataset(c)
         return dataset.version()
 
@@ -266,7 +267,7 @@ class DataVault(LabradServer):
         integer, and a voltage the data type should be *(tiv[V]).
 
         Because pylabrad is inefficient at packing and unpacking lists
-        of clusters, consider using add_transpose for performance.
+        of clusters, consider using add_ex_t for performance.
         """
         dataset = self.getDataset(c)
         if not c['writing']:
@@ -279,8 +280,8 @@ class DataVault(LabradServer):
         """Add data to the current dataset in the extended format.
 
         Data should be a cluster of List/array types, one per column.
-        This is a transposed version of add_ex, an will have higher
-        performance
+        This is a transposed version of add_ex, and will have better
+        performance.
         """
         dataset = self.getDataset(c)
         if not c['writing']:
@@ -309,8 +310,8 @@ class DataVault(LabradServer):
         """Get data from the current dataset in the extended format.
 
         Data is returned as *(...).  That is, a list of clusters, one per
-        row.  Because of the inefficiency of python flattening and 
-        unflattening cluster arrays, consider using get_transpose for
+        row.  Because of the inefficiency of python flattening and
+        unflattening cluster arrays, consider using get_ex_t for
         performance.
         """
         dataset = self.getDataset(c)

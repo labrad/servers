@@ -28,6 +28,15 @@ class DVSafeConfigParser(cp.SafeConfigParser):
 def to_record_array(data):
     """Take a 2-D array of numpy data and return a 1-D array of records."""
     return np.core.records.fromarrays(data.T)
+
 def from_record_array(data):
-    """Take a 1-D array of records and convert to a 2-D array.  The records must be homogeneous"""
-    return np.vstack( [np.array(tuple(row)) for row in data] )
+    """Take a 1-D array of records and convert to a 2-D array.
+
+    The records must be homogeneous.
+    """
+    return np.vstack([np.array(tuple(row)) for row in data])
+
+def braced(s):
+    """Wrap the given string in braces, which is awkward with str.format"""
+    return '{' + s + '}'
+
