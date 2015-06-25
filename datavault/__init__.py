@@ -262,7 +262,7 @@ class Session(object):
 
         filename = filename_encode(name)
         file_base = os.path.join(self.dir, filename)
-        if not (os.path.exists(file_base + '.csv') or os.path.exists(file_base + '.bin') or os.path.exists(file_base + '.hdf5')):
+        if not (os.path.exists(file_base + '.csv') or os.path.exists(file_base + '.hdf5')):
             raise errors.DatasetNotFoundError(name)
 
         if name in self.datasets:
@@ -328,7 +328,7 @@ class Dataset(object):
     All the actual data or metadata access is proxied through to a
     backend object.
     """
-    def __init__(self, session, name, title=None, num=None, create=False, independents=[], dependents=[], extended=False):
+    def __init__(self, session, name, title=None, create=False, independents=[], dependents=[], extended=False):
         self.hub = session.hub
         self.name = name
         file_base = os.path.join(session.dir, filename_encode(name))
