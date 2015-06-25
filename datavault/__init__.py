@@ -198,12 +198,10 @@ class Session(object):
     def listContents(self, tagFilters):
         """Get a list of directory names in this directory."""
         files = os.listdir(self.dir)
-        files.sort()
         dirs = [filename_decode(s[:-4]) for s in files if s.endswith('.dir')]
         csv_datasets = [filename_decode(s[:-4]) for s in files if s.endswith('.ini') and s.lower() != 'session.ini' ]
         hdf5_datasets = [filename_decode(s[:-5]) for s in files if s.endswith('.hdf5')]
-        datasets = csv_datasets+hdf5_datasets
-        datasets.sort()
+        datasets = sorted(csv_datasets + hdf5_datasets)
         # apply tag filters
         def include(entries, tag, tags):
             """Include only entries that have the specified tag."""
@@ -226,13 +224,12 @@ class Session(object):
     def listDatasets(self):
         """Get a list of dataset names in this directory."""
         files = os.listdir(self.dir)
-        files.sort()
         filenames = []
         for s in files:
             base, _, ext = s.rpartition('.')
             if ext in ['csv', 'hdf5']:
                 filenames.append(base)
-        return filenames
+        return sorted(filenames)
 
     def newDataset(self, title, independents, dependents, extended=False):
         num = self.counter
@@ -240,9 +237,9 @@ class Session(object):
         self.modified = datetime.now()
 
         name = '%05d - %s' % (num, title)
-        dataset = Dataset(self, name, title, create=True, 
-                          independents=independents, 
-                          dependents=dependents, 
+        dataset = Dataset(self, name, title, create=True,
+                          independents=independents,
+                          dependents=dependents,
                           extended=extended)
         self.datasets[name] = dataset
         self.access()
@@ -357,7 +354,7 @@ class Dataset(object):
 
     def version(self):
         v = self.data.version
-        return '.'.join((str(x) for x in v))
+        return '.'.join(str(x) for x in v)
 
     def access(self):
         """Update time of last access for this dataset."""

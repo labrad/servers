@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 import tempfile
 import os
+
 def test_create_ex_backend():
     fname = tempfile.mktemp(suffix='.hdf5')
     try:
@@ -26,7 +27,7 @@ def test_create_ex_backend():
         assert np.array_equal(data, ref_data)
     finally:
         unlink_if_exist(fname)
-        
+
 def test_create_simple_backend():
     try:
         fname = tempfile.mktemp(suffix='.hdf5')
@@ -47,13 +48,6 @@ def test_create_simple_backend():
     finally:
         unlink_if_exist(fname)
 
-def unlink_if_exist(*names):
-    for name in names:
-        try:
-            os.unlink(name)
-        except OSError:
-            pass
-    
 def test_create_csv_backend():
     indep = [backend.Independent(label='ilabel1', shape=[1], datatype='v', unit=''),
              backend.Independent(label='ilabel2', shape=[1], datatype='v', unit='')]
@@ -61,7 +55,7 @@ def test_create_csv_backend():
            backend.Dependent(label='dlabel', legend='dlegend2', shape=[1], datatype='v', unit='')]
 
     csv_filename = tempfile.mktemp(suffix='.csv')
-    ini_filename = csv_filename[:-4]+'.ini'
+    ini_filename = csv_filename[:-4] + '.ini'
     try:
         dataset = backend.CsvNumpyData(csv_filename)
         dataset.initialize_info('test CSV dataset', indep, dep)
@@ -82,3 +76,9 @@ def test_create_csv_backend():
     finally:
         unlink_if_exist(ini_filename, csv_filename)
 
+def unlink_if_exist(*names):
+    for name in names:
+        try:
+            os.unlink(name)
+        except OSError:
+            pass
