@@ -958,7 +958,7 @@ class FPGAServer(DeviceServer):
         # Determine what board groups are to be added, removed and kept as is.
         existing = set(self.boardGroups.keys())
         configured = set((server, port)
-                         for name, server, _, _ in self.boardGroupDefs)
+                         for _, server, port, _ in self.boardGroupDefs)
 
         additions = configured - existing
         removals = existing - configured
