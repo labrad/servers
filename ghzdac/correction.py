@@ -451,7 +451,7 @@ class IQcorrection:
         #demodulate
         low = i[carrierfreqIndex:carrierfreqIndex-finalLength/2-1:-1]
         high = i[carrierfreqIndex:carrierfreqIndex+finalLength/2+1:1]
-        #calcualte the phase of the carrier
+        #calculate the phase of the carrier
         phase = np.sqrt(np.sum(low*high))
         phase /= abs(phase)
         if (phase.conjugate()*low[0]).real < 0:

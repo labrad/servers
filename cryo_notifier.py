@@ -196,7 +196,7 @@ class CryoNotifier(LabradServer):
     @setting(10, timer_name='s', message='s', returns='v[s]')
     def reset_timer(self, c, timer_name, message=''):
         if timer_name not in self.timers:
-            raise KeyError("Timer %s unknown" % name)
+            raise KeyError("Timer %s unknown" % timer_name)
         else:
             dt = datetime.datetime.now()
             p = self.reg.packet()

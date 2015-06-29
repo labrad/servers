@@ -375,7 +375,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB, use_switch=True):
     traceB = measureImpulseResponse(fpga, scope, baseline,
         makeSample(baselineA,baselineB+pulseheight),
         dacoffsettime=offsettime['ns'])
-
+    print "GOT TO HERE"
     starttime = traceA[0]
     timestep = traceA[1]
     if (starttime != traceB[0]) or (timestep != traceB[1]) :
@@ -383,7 +383,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB, use_switch=True):
         Did you change settings on the scope during the measurement?"""
         exit
     #set output to zero
-    fpga.dac_run_sram([baseline]*4)
+    fpga.dac_run_sram([baseline]*25)
     uwaveSource.output(False)
     ds = cxn.data_vault
     ds.cd(['',keys.SESSIONNAME,boardname],True)
@@ -420,7 +420,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB, use_switch=True):
     return (datasetNumber(dataset))
 
 
-def calibrateDCPulse(cxn,boardname,channel):
+def calibrateDCPulse(cxn, boardname, channel):
 
     reg = cxn.registry
     reg.cd(['',keys.SESSIONNAME,boardname])

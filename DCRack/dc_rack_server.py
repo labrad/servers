@@ -233,7 +233,8 @@ class DcRackWrapper(DeviceWrapper):
         return state
 
     def getMonitorState(self):
-        return self.rackMonitor.monitorState()
+        state = self.rackMonitor.monitorState()
+        return state
         
     @inlineCallbacks
     def commitToRegistry(self, reg):
@@ -467,7 +468,8 @@ class DcRackServer(DeviceServer):
         """
         dev = self.selectedDevice(c)
         cards = dev.returnCardList()
-        returnValue(cards)
+        return cards
+        
 
     @setting(455, 'get_preamp_state')
     def getPreampState(self, c, cardNumber, channel):
@@ -478,8 +480,8 @@ class DcRackServer(DeviceServer):
     @setting(423, 'get_monitor_state')
     def getMonitorState(self, c):
         dev = self.selectedDevice(c)
-        state = yield dev.getMonitorState()
-        returnValue(state)
+        state = dev.getMonitorState()
+        return state
     
     @setting(867, 'commit_to_registry')
     def commit_to_registry(self, c):
