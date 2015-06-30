@@ -166,6 +166,7 @@ class CryoNotifier(LabradServer):
         else:
             self.node = 'node_'+self.path[0]
         print self.path
+        self.last_ok_time = time.time()
         yield start_server(self.client, self.node, 'Telecomm Server')
         self.cb = LoopingCall(self.checkForAndSendAlerts)
         self.cb.start(interval=10.0, now=True)
@@ -273,6 +274,7 @@ class CryoNotifier(LabradServer):
         p.get('notify_users', key='users') #List of who receives notifications
         p.get('notify_email', False, [], key='email') #...and their emails.
         p.get('sleepyTime', key='sleepyTime') # night time: ((HH, MM), (HH, MM))
+        p.get('gracePeriod', True, 60*s, key='gracePeriod')
         ans = yield p.send()
         
         self.users = ans['users']
@@ -281,7 +283,8 @@ class CryoNotifier(LabradServer):
         self.sleepyTime = ans['sleepyTime']
         self.timerSettings = dict(ans['timers'])
         self.temperatureBounds = dict(ans['temperatures'])
-    
+        self.gracePeriod = ans['gracePeriod']
+
     @inlineCallbacks
     def update_temperatures(self):
         data = {}
@@ -293,7 +296,7 @@ class CryoNotifier(LabradServer):
             ans = yield p.send()
             # only keep the ones we're interested in
             names = ["4Kin", "4Kout", "77K",]# "Ret", "Mix", "Xchg", "Still", "Pot"]
-            data.update(dict(zip(names, ans['tempetratures'])))
+            data.update(dict(zip(names, ans['temperatures'])))
             self.cold = ans['temperatures'][1]['K'] < 10.0
         except Exception:
             #Assume we are cold if we can't reach the lakeshore server
@@ -375,13 +378,15 @@ class CryoNotifier(LabradServer):
                         pass
                 else:
                     self.sent_notifications.discard(t)
-        if alerts:
+        if not alerts:
+            last_ok_time = time.time()
+        if alerts and (time.time()-last_ok_time) > self.gracePeriod['s']:
             print "Alerts exist on: ", alerts
             print "Notifying the following users: ", self.users
             #SMS notifications
             yield self.sendSMSNotifications("Cryo Alert", "%s cryos need to be filled." % (alerts,))
             yield self.sendEmailNotifications("Cryo Alert", "%s cryos need to be filled." % (alerts,))
-    
+
     @inlineCallbacks
     def sendEmailNotifications(self, subj, msg):
         """Notify all users via email"""
