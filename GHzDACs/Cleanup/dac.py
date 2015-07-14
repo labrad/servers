@@ -677,8 +677,19 @@ class DAC_Build7(DAC):
 
     @inlineCallbacks
     def _checkPHOF(self, op, fifoReadings, counterValue):
-        # Determine for which PHOFs (FIFO offsets) the FIFO counter equals
-        # counterValue.
+        """Determine correct PHOF for FIFO counter of counterValue.
+
+        If we find a successful PHOF (phase offset), set PHOF and read FIFO
+        counter to verify that FIFO counter equals counterValue.
+
+        If no PHOF gives an acceptable FIFO counter, return (-1,False).
+
+        :param int op: 2 for DAC A, 3 for DAC B
+        :param list[int] fifoReadings: FIFO counters for each PHOF
+        :param int counterValue: Desired FIFO counter.
+        :return: (PHOF for given counterValue, success)
+        :rtype: (int, bool)
+        """
         # Relying on indices matching PHOF values.
         PHOFS = np.where(fifoReadings == counterValue)[0]
         # If no PHOF can be found with the target FIFO counter value...
@@ -765,21 +776,31 @@ class DAC_Build7(DAC):
         return self.testMode(self._setPolarity, chan, invert)
 
     def setLVDS(self, cmd, sd, optimizeSD):
-        """
-        INPUTS
-        cmd - int: 2 for DAC A, 3 for DAC B
-        sd - :
-        optimizeSD - bool:
-        
-        Returns (success, MSD, MHD, t, (range(16), MSDbits, MHDbits), checkHex)
-        success - bool: 
-        MSD - int:
-        MHD - int:
-        t - :
-        range(16)
-        MSDbits - :
-        MHDbits - :
-        checkHes - :
+        """Calibrate DAC LVDS.
+        Align DAC clocks for LVDS, varying SD (sample delay).
+        :param int cmd: 2 for DAC A, 3 for DAC B
+        :param int/None sd: If int, SD value to be set. If None, SD set to value
+                            in registry. Ignored if optimizeSD=True.
+        :param bool optimizeSD: Whether to follow procedure from data sheet to
+                                determine SD
+        :return: success - If LVDS bringup successful. MSD and MHD should only
+                           flip once with flip locations within one bit of each
+                           other. If varies, could mean clock noise.
+                 MSD - Measured sample delay. If optimizeSD, where MSD flips
+                       when MHD=SD=0. Else -1.
+                 MHD - Measured hold delay. If optimizeSD, where MHD flips when
+                       MSD=SD=0. Else -1.
+                 t - SD value set
+                 tuple - Transpose of [SD, MSD(SD), MHD(SD) for SD in range(16)]
+                 checkHex - In binary, '0bABC', where
+                            A=1: An LVDS input was above the IEEE input voltage
+                                 specification limit
+                            B=1: An LVDS input was below the IEEE input voltage
+                                 specification limit
+                            C=1: Sampling in correct data cycle
+        :rtype: (bool, int, int, int,
+                 tuple(list[int], list[bool], list[bool]),
+                 int)
         """
 
         @inlineCallbacks
@@ -850,6 +871,32 @@ class DAC_Build7(DAC):
         return self.testMode(func)
 
     def setFIFO(self, chan, op, targetFifo):
+        """Adjust FIFO buffer. (DAC only)
+
+        Adjust PHOF (phase offset) so FIFO (first-in-first-out) counter equals
+        targetFifo. If FIFO counter equals targetFifo, this PHOF is written and
+        the FIFO counter read back; the PHOF is deemed successful only if this
+        last FIFO counter is targetFifo.
+
+        If no PHOF can be found to get an acceptable FIFO counter after
+        MAX_FIFO_TRIES tries, found=False. Here, return PHOF=-1 if the initial
+        check failed and otherwise the PHOF where the FIFO counter was
+        targetFifo initially.
+
+        :param str chan: Which DAC channel ('A','B')
+        :param int op: 2 for DAC A, 3 for DAC B
+        :param int targetFifo: Desired number bits between read/write signals
+                               for 8-bit buffer. If None, use value from board
+                               registry entry.
+        :return: found - If procedure successful
+                 clkinv - Clock polarity
+                 PHOF - PHOF required for targetFifo.
+                 tries - Number of tries for FIFO counter to equal targetFifo
+                 targetFifo - Desired number bits between read/write signals
+                              for 8-bit buffer. If input targetFifo not None,
+                              returned value same as input.
+        :rtype: (bool, bool, int, int, int)
+        """
         if targetFifo is None:
             # Grab targetFifo from registry if not specified.
             targetFifo = int(self.boardParams['fifoCounter'])

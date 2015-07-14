@@ -1933,14 +1933,33 @@ class FPGAServer(DeviceServer):
     @setting(1221, 'DAC LVDS', chan='s', optimizeSD='b', data='w',
                                returns='biii(*w*b*b)w')
     def dac_lvds(self, c, chan, optimizeSD=False, data=None):
-        """
-        Set or determine DAC LVDS phase shift and return y, z check data.
-        (DAC only)
+        """Calibrate LVDS Phase Shift. (DAC Only)
 
-        If optimizeSD=False but sd is None, sd will be set to a value
-        retrieved from the registry entry for this board.
+        Align DAC clocks for LVDS phase shift, varying SD (sample delay).
 
-        Returns success, MSD, MHD, SD, timing profile, checkHex
+        If optimizeSD=False but sd is None, SD will be set to a value retrieved
+        from the registry entry for this board.
+
+        Args:
+            chan: Which DAC channel ('A','B')
+            optimizeSD: Whether to follow data sheet procedure to determine SD
+            data: If int, SD value to be set. If None, SD set to value in
+                registry. Ignored if optimizeSD=True.
+
+        Returns:
+            success: If LVDS bringup successful. MSD and MHD should only flip
+                once with flip locations within one bit of each other. If
+                varies, could mean clock noise.
+            MSD: Measured sample delay. If optimizeSD, where MSD flips when
+                MHD=SD=0. Else -1.
+            MHD: Measured hold delay. If optimizeSD, where MHD flips when
+                MSD=SD=0. Else -1.
+            SD: SD value set
+            timing profile: Cluster (SDs 0-15, MSD(SDs), MHD(SDs))
+            checkHex: In binary, '0bABC', where
+                      A=1: An LVDS input was above specification
+                      B=1: An LVDS input was below specification
+                      C=1: Sampling in correct data cycle
         """
         cmd = dac.DAC.getCommand({'A': 2, 'B': 3}, chan)
         dev = self.selectedDAC(c)
@@ -1951,13 +1970,22 @@ class FPGAServer(DeviceServer):
     def dac_fifo(self, c, chan, targetFifo=None):
         """Adjust FIFO buffer. (DAC only)
 
-        If no targetFifo is provided, the target FIFO will be retrieved from
-        the registry entry for this board.
+        Adjust PHOF (phase offset) so FIFO (first-in-first-out) counter equals
+        targetFifo. If FIFO counter equals targetFifo, this PHOF is written and
+        the FIFO counter read back; the PHOF is deemed successful only if this
+        last FIFO counter is targetFifo.
 
-        If no PHOF can be found to get an acceptable FIFO counter, PHOF will
-        be returned as -1, and success will be False.
+        If no PHOF can be found to get an acceptable FIFO counter after 5 tries,
+        success=False. Here, return PHOF=-1 if the initial check failed and
+        otherwise the PHOF where the FIFO counter was targetFifo initially.
 
-        Returns success, clock polarity, PHOF, number of tries, FIFO counter
+        Args:
+            chan: Which DAC channel ('A','B')
+            targetFifo: Desired targetFifo. If None, use value from board
+                registry entry.
+
+        Returns:
+            success, clock polarity, PHOF, number of tries, FIFO counter
         """
         op = dac.DAC.getCommand({'A': 2, 'B': 3}, chan)
         dev = self.selectedDAC(c)
