@@ -709,8 +709,6 @@ class ADC_Branch2(ADC):
             raise Exception("Trigger table max len = 128")
         if triggerTable[0][1] < 1:
             raise Exception("Trigger table row0 rdelay is 0")
-        if triggerTable[0][0] > 1:
-            raise Exception("Trigger table row0 rcount > 1, this is dangerous as repeating this row accounts for the first rdelay")
         
         rlens = [row[1]<50 for row in triggerTable]
         
