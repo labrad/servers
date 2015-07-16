@@ -107,15 +107,10 @@ class GPIBBusServer(LabradServer):
             deletions = set(self.devices.keys()) - set(addresses)
             for addr in additions:
                 try:
-                    if addr.startswith('GPIB'):
-                        instName = addr
-                    elif addr.startswith('TCPIP'):
-                        instName = addr
-                    elif addr.startswith('USB'):
-                        instName = addr + '::INSTR'
-                    else:
+                    device_prefixes = ('GPIB', 'USB', 'TCPIP')
+                    if not (addr.startswith(device_prefixes)):
                         continue
-                    instr = rm.get_instrument(instName)
+                    instr = rm.get_instrument(addr)
                     instr.write_termination = ''
                     instr.clear()
                     if addr.endswith('SOCKET'):
