@@ -38,6 +38,7 @@
 
 from labrad.server import LabradServer, setting
 from twisted.internet.defer import inlineCallbacks
+from twisted.internet import defer
 from twisted.internet.reactor import callLater
 from labrad.errors import DeviceNotSelectedError
 import labrad.units as units
@@ -140,6 +141,23 @@ class GPIBBusServer(LabradServer):
         instr = self.devices[c['addr']]
         return instr
 
+    def asynchronous_wait(self, seconds, result=None):
+        """
+        Pause the reactor for seconds to wait for GPIB devices that require
+        time between read and write calls.
+
+        Parameters
+        ----------
+        seconds: float, sleep time in seconds
+
+        Returns
+        -------
+        Deferred
+        """
+        d = defer.Deferred()
+        callLater(seconds, d.callback, result)
+        return d
+
     @setting(0, addr='s', returns='s')
     def address(self, c, addr=None):
         """Get or set the GPIB address for this context.
@@ -171,10 +189,26 @@ class GPIBBusServer(LabradServer):
         Otherwise, reads until the device stops sending.
         """
         instr = self.getDevice(c)
-        if n_bytes is None:
-            ans = instr.read_raw()
+        if instr.resource_name.startswith('USB'):
+            try:
+                if n_bytes is None:
+                    ans = instr.read()
+                else:
+                    ans = instr.read(n_bytes)
+            except:
+                self.asynchronous_wait(0.1)
+                if n_bytes is None:
+                    ans = instr.read()
+                else:
+                    ans = instr.read(n_bytes)
+            ans = str(ans)
+            if ",," in ans:
+                ans = ans.replace(",,", ",")  # rigol specific stupidity
         else:
-            ans = instr.read_raw(n_bytes)
+            if n_bytes is None:
+                ans = instr.read_raw()
+            else:
+                ans = instr.read_raw(n_bytes)
         return str(ans).strip()
 
     @setting(5, data='s', returns='s')
