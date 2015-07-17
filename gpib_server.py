@@ -181,7 +181,6 @@ class GPIBBusServer(LabradServer):
                     ans = instr.read(n_bytes)
             except:
                 util.wakeupCall(0.1)
-                # self.asynchronous_wait(0.1)
                 if n_bytes is None:
                     ans = instr.read()
                 else:
