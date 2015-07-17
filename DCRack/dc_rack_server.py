@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = DC Rack Server
-version = 2.1
+version = 2.2
 description = Control Fastbias and Preamp boards.
 
 [startup]
@@ -38,9 +38,104 @@ from labrad.server import setting
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 
-class NoConnectionError(Error):
-    """You need to connect first."""
-    code = 2
+# map from dac channel names to IDs
+CHANNEL_IDS = {
+    'A': 0,
+    'B': 1,
+    'C': 2,
+    'D': 3
+}
+
+# map from high pass filter names to numeric codes.
+HIGH_PASS = {
+    'DC': 0,
+    '3300': 1,
+    '1000': 2,
+    '330': 3,
+    '100': 4,
+    '33': 5,
+    '10': 6,
+    '3.3': 7
+}
+
+# map from low pass filter names to numeric codes.
+LOW_PASS = {
+    '0': 0,
+    '0.22': 1,
+    '0.5': 2,
+    '1.0': 3,
+    '2.2': 4,
+    '5': 5,
+    '10': 6,
+    '22': 7
+}
+
+# map from polarity names to numeric codes.
+POLARITY = {
+    'positive': 0,
+    'negative': 1
+}
+
+# map from monitor bus name to allowed settings for that bus.
+# for each bus, the settings are given as a map from name to numeric code.
+BUS_SETTINGS = {
+    'Abus0': {
+        'A0': 80L,
+        'B0': 81L,
+        'C0': 82L,
+        'D0': 83L
+    },
+    'Abus1': {
+        'A1': 88L,
+        'B1': 89L,
+        'C1': 90L,
+        'D1': 91L
+    },
+    'Dbus0': {
+        'trigA': 64L,
+        'trigB': 65L,
+        'trigC': 66L,
+        'trigD': 67L,
+        'Pbus0': 64L,
+        'clk': 65L,
+        'clockon': 66L,
+        'cardsel': 67L,
+        'dadata': 68L,
+        'done': 69L,
+        'strobe': 70L,
+        'clk': 71L,
+        'clk1': 68L,
+        'clk2': 69L,
+        'clk3': 70L,
+        'clk4': 71L
+    },
+    'Dbus1': {
+        'FOoutA': 72L,
+        'FOoutB': 73L,
+        'FOoutC': 74L,
+        'FOoutD': 75L,
+        'foin1': 72L,
+        'foin2': 73L,
+        'foin3': 74L,
+        'foin4': 75L,
+        'dasyn': 76L,
+        'cardsel': 77L,
+        'Pbus0': 78L,
+        'Clockon': 79L,
+        'on1': 76L,
+        'on2': 77L,
+        'on3': 78L,
+        'on4': 79L
+    }
+}
+
+# op codes for DAC commands
+OP_AUTODETECT = 0x60 # 01100000
+OP_REG_WRITE  = 0x80 # 10000000
+OP_TRIGGER    = 0xc0 # 11000000
+OP_INIT       = 0xc4 # 11000100
+OP_STREAM     = 0xc8 # 11001000
+OP_LEDS       = 0xe0 # 11100000
 
 
 class DcRackWrapper(DeviceWrapper):
@@ -77,7 +172,7 @@ class DcRackWrapper(DeviceWrapper):
         return self.packet().close().send()
 
     @inlineCallbacks
-    def write(self, code, index=0):
+    def write(self, code):
         """Write a data value to the dc rack."""
         yield self.packet().write(code).send()
         print code
@@ -85,91 +180,73 @@ class DcRackWrapper(DeviceWrapper):
     @inlineCallbacks
     def initDACs(self):
         """Initialize the DACs."""
-        yield self.write([196])
-        returnValue(196L)
+        yield self.write([OP_INIT])
+        returnValue(OP_INIT)
 
     @inlineCallbacks
     def selectCard(self, data):
         """Sends a select card command."""
         self.activeCard = str(data)
-        yield self.write([long(data & 63)])
-        returnValue(long(data & 63))
+        yield self.write([long(data & 0x3f)])
+        returnValue(long(data & 0x3f))
 
     @inlineCallbacks
     def changeHighPassFilter(self, channel, data):
         preamp = self.rackCards[self.activeCard]
-        lp = preamp.channels[channel].lowPass
-        pol = preamp.channels[channel].polarity
-        off = preamp.channels[channel].offset
-        preamp.updateChannel(channel, data, lp, pol, off)
-        hp = yield self.sendChannelPacket(channel, data, lp, pol, off)
-        returnValue(hp)
-
+        ch = preamp.channels[channel]
+        ch.update(highPass=data)
+        yield self.sendPreampPacket(channel, ch)
+        returnValue(ch.highPass)
 
     @inlineCallbacks
     def changeLowPassFilter(self, channel, data):
         preamp = self.rackCards[self.activeCard]
-        hp = preamp.channels[channel].highPass
-        pol = preamp.channels[channel].polarity
-        off = preamp.channels[channel].offset
-        preamp.updateChannel(channel, hp, data, pol, off)
-        lp = yield self.sendChannelPacket(channel, hp, data, pol, off)
-        returnValue(lp)
+        ch = preamp.channels[channel]
+        ch.update(lowPass=data)
+        yield self.sendPreampPacket(channel, ch)
+        returnValue(ch.lowPass)
 
     @inlineCallbacks
     def changePolarity(self, channel, data):
         preamp = self.rackCards[self.activeCard]
-        hp = preamp.channels[channel].highPass
-        lp = preamp.channels[channel].lowPass
-        off = preamp.channels[channel].offset
-        preamp.updateChannel(channel, hp, lp, data, off)
-        pol = yield self.sendChannelPacket(channel, hp, lp, data, off)
-        returnValue(pol)
+        ch = preamp.channels[channel]
+        ch.update(polarity=data)
+        yield self.sendPreampPacket(channel, ch)
+        returnValue(ch.polarity)
 
     @inlineCallbacks
     def changeDCOffset(self, channel, data):
         preamp = self.rackCards[self.activeCard]
-        hp = preamp.channels[channel].highPass
-        lp = preamp.channels[channel].lowPass
-        pol = preamp.channels[channel].polarity
-        preamp.updateChannel(channel, hp, lp, pol, data)
-        offset = yield self.sendChannelPacket(channel, hp, lp, pol, data)
-        returnValue(offset)
+        ch = preamp.channels[channel]
+        ch.update(offset=data)
+        yield self.sendPreampPacket(channel, ch)
+        returnValue(ch.offset)
 
     @inlineCallbacks
-    def sendChannelPacket(self, channel, hp, lp, pol, off):
-        command = []
-        command.append({'DC': 0, '3300': 1, '1000': 2, '330': 3, '100': 4, '33': 5, '10': 6, '3.3': 7}[hp])
-        command.append({'0': 0, '0.22': 1, '0.5': 2, '1.0': 3, '2.2': 4, '5': 5, '10': 6, '22': 7}[lp])
-        command.append({'positive': 0, 'negative': 1}[pol])
-        command.append(off)
-        ID = {'A': 192L, 'B': 193L, 'C': 194L, 'D': 195L}[channel]
-        data = (
-            ((command[0] & 7) << 21) |
-            ((command[1] & 7) << 18) |
-            ((command[2] & 1) << 17) |
-             (command[3] & 0xFFFF))
-        L = [(data >> 18) & 0x3f | 0x80,
-             (data >> 12) & 0x3f | 0x80,
-             (data >>  6) & 0x3f | 0x80,
-              data        & 0x3f | 0x80,
-             (ID)]
-        yield self.write(L)
-        returnValue(data)
+    def sendPreampPacket(self, channelName, channel):
+        ID = CHANNEL_IDS[channelName]
+
+        hp = HIGH_PASS[channel.highPass]
+        lp = LOW_PASS[channel.lowPass]
+        pol = POLARITY[channel.polarity]
+        ofs = channel.offset
+
+        # assemble the full value to be written to the registry
+        reg = ((hp & 7) << 21) | ((lp & 7) << 18) | ((pol & 1) << 17) | (ofs & 0xFFFF)
+
+        # write data into registry and then trigger the DAC output
+        yield self.write([
+            OP_REG_WRITE | ((reg >> 18) & 0x3f),
+            OP_REG_WRITE | ((reg >> 12) & 0x3f),
+            OP_REG_WRITE | ((reg >>  6) & 0x3f),
+            OP_REG_WRITE | ( reg        & 0x3f),
+            OP_TRIGGER | ID
+        ])
 
     @inlineCallbacks
-    def changeMonitor(self, channel, command, keys = None):
-        ID = {'Abus0': 0, 'Abus1': 1, 'Dbus0': 2, 'Dbus1': 3}[channel]
-        settings = [{'A0': 80L, 'B0': 81L, 'C0': 82L, 'D0': 83L},
-                    {'A1': 88L, 'B1': 89L, 'C1': 90L, 'D1': 91L},
-                    {'trigA':  64L, 'trigB': 65L, 'trigC':  66L, 'trigD': 67L,
-                     'Pbus0': 64L, 'clk':  65L, 'clockon': 66L, 'cardsel':  67L,
-                     'dadata': 68L, 'done':  69L, 'strobe': 70L, 'clk': 71L,
-                     'clk1': 68L, 'clk2': 69L, 'clk3':  70L, 'clk4': 71L},
-                    {'FOoutA': 72L, 'FOoutB':  73L, 'FOoutC': 74L, 'FOoutD':  75L,
-                     'foin1':  72L, 'foin2': 73L, 'foin3':  74L, 'foin4': 75L,
-                     'dasyn':  76L, 'cardsel': 77L, 'Pbus0':  78L, 'Clockon': 79L,
-                     'on1': 76L, 'on2':  77L, 'on3': 78L, 'on4': 79L}][ID]
+    def changeMonitor(self, channel, command, keys=None):
+        settings = BUS_SETTINGS[channel]
+
         if keys is None:
             keys = sorted(settings.keys())
 
@@ -193,12 +270,12 @@ class DcRackWrapper(DeviceWrapper):
     def changeLEDs(self, data):
         """Sets LED status."""
         if isinstance(data, tuple):
-            data = 224 + 4*data[0] + 2*data[1] + 1*data[2]
+            data = 4*data[0] + 2*data[1] + 1*data[2]
         else:
-            data = 224 + (data & 7)
+            data &= 0x7
         self.write([1L])
-        yield self.write([data])
-        returnValue(data & 7)
+        yield self.write([OP_LEDS | data])
+        returnValue(data)
 
     @inlineCallbacks
     def identSelf(self, timeout=1):
@@ -206,7 +283,7 @@ class DcRackWrapper(DeviceWrapper):
         p = self.packet()
         p.timeout()
         p.read()
-        p.write([96L])
+        p.write([OP_AUTODETECT])
         p.timeout(timeout)
         p.read(1, key='ID')
         p.timeout()
@@ -218,16 +295,16 @@ class DcRackWrapper(DeviceWrapper):
             raise Exception('Ident error')
 
     def returnCardList(self):
-        returnList = []
+        cards = []
         for key in self.rackCards.keys():
             if self.rackCards[key] == 'fastbias':
-                returnList.append([key, 'fastbias'])
+                cards.append([key, 'fastbias'])
             else:
-                returnList.append([key, 'preamp'])
-        return returnList
+                cards.append([key, 'preamp'])
+        return cards
 
     def preampState(self, cardNumber, channel):
-        state = self.rackCards[str(cardNumber)].preampChannelState(channel)
+        state = self.rackCards[str(cardNumber)].channels[channel].strState()
         return state
 
     def getMonitorState(self):
@@ -240,10 +317,10 @@ class DcRackWrapper(DeviceWrapper):
             yield reg.cd(['', 'Servers', 'DC Racks', 'Preamps'], True)
             cardName = 'Preamp {}'.format(self.activeCard)
             p = reg.packet()
-            p.set(cardName, ((card.A.highPass, card.A.lowPass, card.A.polarity, card.A.offset),
-                             (card.B.highPass, card.B.lowPass, card.B.polarity, card.B.offset),
-                             (card.C.highPass, card.C.lowPass, card.C.polarity, card.C.offset),
-                             (card.D.highPass, card.D.lowPass, card.D.polarity, card.D.offset)))
+            def state(chan):
+                """Return a tuple of channel state, to be stored in the registry"""
+                return (chan.highPass, chan.lowPass, chan.polarity, chan.offset)
+            p.set(cardName, (state(card.A), state(card.B), state(card.C), state(card.D)))
             yield p.send()
         else:
             print 'card is not a preamp'
@@ -258,39 +335,31 @@ class DcRackWrapper(DeviceWrapper):
             p.get(cardName, key=cardName)
             result = yield p.send()
             ans = result[cardName]
-            card.A.highPass = ans[0][0]
-            card.A.lowPass = ans[0][1]
-            card.A.polarity = ans[0][2]
-            card.A.offset = ans[0][3]
-            card.B.highPass = ans[1][0]
-            card.B.lowPass = ans[1][1]
-            card.B.polarity = ans[1][2]
-            card.B.offset = ans[1][3]
-            card.C.highPass = ans[2][0]
-            card.C.lowPass = ans[2][1]
-            card.C.polarity = ans[2][2]
-            card.C.offset = ans[2][3]
-            card.D.highPass = ans[3][0]
-            card.D.lowPass = ans[3][1]
-            card.D.polarity = ans[3][2]
-            card.D.offset = ans[3][3]
+            def update(chan, state):
+                """Update channel state from a tuple stored in the registry"""
+                chan.highPass, chan.lowPass, chan.polarity, chan.offset = state[0]
+            for i, chan in enumerate([card.A, card.B, card.C, card.D]):
+                update(chan, ans[i])
         else:
             print 'card is not a preamp'
 
 
     @inlineCallbacks
     def triggerChannel(self, channel):
-        """Tells selected channel to pull data from registry and update DAC value"""
-        ChannelID = {'A': 0, 'B': 1, 'C': 2, 'D': 3}[channel]
-        #Bitwise OR with 11000000
-        yield self.write([192 | ChannelID])
+        """Tell the given channel to pull data from register and update DAC value"""
+        ID = CHANNEL_IDS[channel]
+        yield self.write([OP_TRIGGER | ID])
 
 
     @inlineCallbacks
-    def pushRegistryValue(self, dac, slow, voltage):
-        """Pushes 18 bits of data into 18 bit shift register. First bit is fine(0) or coarse(1) DAC, 
-        last bit is fast(0) or slow(1) slew rate, and middle 16 bits are voltage value"""
-        #Conversion of voltage value into 16-bit number, plus bits for DAC selection and slew rate
+    def pushRegisterValue(self, dac, slow, voltage):
+        """Pushes 18 bits of data into 18 bit shift register.
+
+        High bit is fine(0) or coarse(1) DAC, low bit is fast(0) or slow(1)
+        slew rate, and middle 16 bits are voltage value.
+        """
+
+        # clip voltage to allowed range
         num = voltage['V']
         if num > 2.5:
             num = 2.5
@@ -298,41 +367,38 @@ class DcRackWrapper(DeviceWrapper):
             num = 0
         elif num < -2.5:
             num = -2.5
+
+        # convert voltage into 16-bit number, plus low bit for DAC selection
         if dac:
-            intNum = long(float(num+2.5)/5.0 * 65535)
-            intNum = (intNum << 1) | 1
-            if slow:
-                intNum = intNum | 131702
+            dac_value = long(float(num+2.5)/5.0 * 0xffff)
+            reg = (dac_value << 1) | 1
         else:
-            intNum = long(float(num)/2.5 * 65535)
-            intNum = (intNum << 1)
-            if slow:
-                intNum = intNum | 131702
+            dac_value = long(float(num)/2.5 * 0xffff)
+            reg = (dac_value << 1)
 
-        #Push bits to proper positions
-        Byte1 = long(intNum)
-        Byte2 = long(intNum >> 6)
-        Byte3 = long(intNum >> 12)
+        # set high bit for slew rate
+        if slow:
+            reg |= 0x20000
 
-        #Write 8 bit sequences
-        yield self.write([128 | (Byte3 & 63)])
-        yield self.write([128 | (Byte2 & 63)])
-        yield self.write([128 | (Byte1 & 63)])
+        # shift bits into register in groups of 6
+        yield self.write([
+            OP_REG_WRITE | ((reg >> 12) & 0x3f),
+            OP_REG_WRITE | ((reg >> 6) & 0x3f),
+            OP_REG_WRITE | ((reg) & 0x3f)
+        ])
 
     @inlineCallbacks
     def setVoltage(self, card, channel, dac, slow, num):
         """Executes sequence of commands to set a voltage value"""
         yield self.selectCard(card)
-        yield self.pushRegistryValue(dac, slow, num)
+        yield self.pushRegisterValue(dac, slow, num)
         yield self.triggerChannel(channel)
 
     @inlineCallbacks
     def streamChannel(self, channel):
         """Command to set channel to take streaming data from GHz DAC"""
-        ChannelID = {'A':0, 'B':1, 'C':2, 'D':3}[channel]
-        #Bitwise OR with 11001000
-        long(ChannelID)
-        yield self.write([200|ChannelID])
+        ID = CHANNEL_IDS[channel]
+        yield self.write([OP_STREAM | ID])
 
     @inlineCallbacks
     def setChannelStream(self, card, channel):
@@ -505,24 +571,45 @@ class Preamp:
         self.D = Channel('DC', '0', 'positive', 0)
         self.channels = {'A': self.A, 'B': self.B, 'C': self.C, 'D': self.D}
 
-    def updateChannel(self, ch, hp, lp, pol, off):
-        channel = self.channels[ch]
-        channel.highPass = hp
-        channel.lowPass = lp
-        channel.polarity = pol
-        channel.offset = off
-
-    def preampChannelState(self, channel):
-        ch = self.channels[channel]
-        state = [ch.highPass, ch.lowPass, ch.polarity, str(ch.offset)]
-        return state
 
 class Channel:
-    def __init__(self, w, x, y, z):
-        self.highPass = w
-        self.lowPass = x
-        self.polarity = y
-        self.offset = z
+    def __init__(self, hp, lp, pol, ofs):
+        self.highPass = hp
+        self.lowPass = lp
+        self.polarity = pol
+        self.offset = ofs
+
+    def update(self, highPass=None, lowPass=None, polarity=None, offset=None):
+        """Update channel parameter(s) to the given values.
+
+        Before updating a given parameter, we check that it is valid by
+        looking it up in the appropriate map from name to code (for highPass,
+        lowPass, and polarity) or converting to an int (for offset).
+        """
+        if highPass is not None:
+            HIGH_PASS[highPass]
+            self.highPass = highPass
+
+        if lowPass is not None:
+            LOW_PASS[lowPass]
+            self.lowPass = lowPass
+
+        if polarity is not None:
+            POLARITY[polarity]
+            self.polarity = polarity
+
+        if offset is not None:
+            self.offset = int(offset)
+
+    def state(self):
+        """Returns the channel state as a tuple (str, str, str, int)"""
+        return (self.highPass, self.lowPass, self.polarity, self.offset)
+
+    def strState(self):
+        """Returns the channel state as a list of strings"""
+        s = list(self.state)
+        s[-1] = str(s[-1])
+        return s
 
 
 class Monitor:
@@ -542,12 +629,7 @@ class Monitor:
             self.busses[bus][1] = newState
 
     def monitorState(self):
-        state = []
-        state.append(self.dBus0)
-        state.append(self.dBus1)
-        state.append(self.aBus0)
-        state.append(self.aBus1)
-        return state
+        return [self.dBus0, self.dBus1, self.aBus0, self.aBus1]
 
 
 TIMEOUT = 1 * labrad.units.s
