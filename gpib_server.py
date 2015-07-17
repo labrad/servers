@@ -179,8 +179,8 @@ class GPIBBusServer(LabradServer):
                     ans = instr.read()
                 else:
                     ans = instr.read(n_bytes)
-            except:
-                util.wakeupCall(0.1)
+            except Exception:
+                util.wakeupCall(0.7)
                 if n_bytes is None:
                     ans = instr.read()
                 else:
