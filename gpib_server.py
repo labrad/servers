@@ -179,13 +179,12 @@ class GPIBBusServer(LabradServer):
                     ans = instr.read()
                 else:
                     ans = instr.read(n_bytes)
-            except Exception:
-                util.wakeupCall(0.7)
+            except Exception, e:
+                util.wakeupCall(.3)
                 if n_bytes is None:
                     ans = instr.read()
                 else:
                     ans = instr.read(n_bytes)
-            ans = str(ans)
             # Handles a special use case for a device (Rigol DG1022) that
             # returns an address with ,, instead of ,.
             if ",," in ans:
