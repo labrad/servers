@@ -37,6 +37,7 @@
 # connections work, and should be improved.
 
 from labrad.server import LabradServer, setting
+from labrad import util
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet import defer
 from twisted.internet.reactor import callLater
@@ -141,23 +142,6 @@ class GPIBBusServer(LabradServer):
         instr = self.devices[c['addr']]
         return instr
 
-    def asynchronous_wait(self, seconds, result=None):
-        """
-        Pause the reactor for seconds to wait for GPIB devices that require
-        time between read and write calls.
-
-        Parameters
-        ----------
-        seconds: float, sleep time in seconds
-
-        Returns
-        -------
-        Deferred
-        """
-        d = defer.Deferred()
-        callLater(seconds, d.callback, result)
-        return d
-
     @setting(0, addr='s', returns='s')
     def address(self, c, addr=None):
         """Get or set the GPIB address for this context.
@@ -196,7 +180,8 @@ class GPIBBusServer(LabradServer):
                 else:
                     ans = instr.read(n_bytes)
             except:
-                self.asynchronous_wait(0.1)
+                util.wakeupCall(0.1)
+                # self.asynchronous_wait(0.1)
                 if n_bytes is None:
                     ans = instr.read()
                 else:
