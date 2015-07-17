@@ -31,13 +31,12 @@ timeout = 20
 """
 
 
-
-from labrad.types import Value
-from labrad.units import s
+import labrad
 from labrad.devices import DeviceServer, DeviceWrapper
-from labrad.server import LabradServer, setting
 from labrad.errors import Error
+from labrad.server import setting
 from twisted.internet.defer import inlineCallbacks, returnValue
+
 
 class NoConnectionError(Error):
     """You need to connect first."""
@@ -45,11 +44,11 @@ class NoConnectionError(Error):
 
 
 class DcRackWrapper(DeviceWrapper):
-    
+
     @inlineCallbacks
     def connect(self, server, port, cards):
         """Connect to a dc rack device."""
-        print 'connecting to "%s" on port "%s"...' % (server.name, port)
+        print 'connecting to "{}" on port "{}"...'.format(server.name, port)
         self.rackCards = {}
         self.rackMonitor = Monitor()
         self.activeCard = 100
@@ -63,16 +62,16 @@ class DcRackWrapper(DeviceWrapper):
         p.timeout(TIMEOUT)
         yield p.send()
         for card in cards:
-            if card[1]=='preamp':
+            if card[1] == 'preamp':
                 self.rackCards[card[0]] = Preamp()
             else:
                 self.rackCards[card[0]] = 'fastbias'
         print 'done.'
-    
+
     def packet(self):
         """Create a packet in our private context."""
         return self.server.packet(context=self.ctx)
-    
+
     def shutdown(self):
         """Disconnect from the serial port when we shut down."""
         return self.packet().close().send()
@@ -84,17 +83,17 @@ class DcRackWrapper(DeviceWrapper):
         print code
 
     @inlineCallbacks
-    def InitDACs(self):
+    def initDACs(self):
         """Initialize the DACs."""
         yield self.write([196])
         returnValue(196L)
-     
+
     @inlineCallbacks
     def selectCard(self, data):
         """Sends a select card command."""
         self.activeCard = str(data)
-        yield self.write([long(data&63)])
-        returnValue(long(data&63))
+        yield self.write([long(data & 63)])
+        returnValue(long(data & 63))
 
     @inlineCallbacks
     def changeHighPassFilter(self, channel, data):
@@ -102,8 +101,8 @@ class DcRackWrapper(DeviceWrapper):
         lp = preamp.channels[channel].lowPass
         pol = preamp.channels[channel].polarity
         off = preamp.channels[channel].offset
-        preamp.updateChannel(channel,data,lp,pol,off)
-        hp = yield self.sendChannelPacket(channel,data,lp,pol,off)
+        preamp.updateChannel(channel, data, lp, pol, off)
+        hp = yield self.sendChannelPacket(channel, data, lp, pol, off)
         returnValue(hp)
 
 
@@ -113,8 +112,8 @@ class DcRackWrapper(DeviceWrapper):
         hp = preamp.channels[channel].highPass
         pol = preamp.channels[channel].polarity
         off = preamp.channels[channel].offset
-        preamp.updateChannel(channel,hp,data,pol,off)
-        lp = yield self.sendChannelPacket(channel,hp,data,pol,off)
+        preamp.updateChannel(channel, hp, data, pol, off)
+        lp = yield self.sendChannelPacket(channel, hp, data, pol, off)
         returnValue(lp)
 
     @inlineCallbacks
@@ -123,8 +122,8 @@ class DcRackWrapper(DeviceWrapper):
         hp = preamp.channels[channel].highPass
         lp = preamp.channels[channel].lowPass
         off = preamp.channels[channel].offset
-        preamp.updateChannel(channel,hp,lp,data,off)
-        pol = yield self.sendChannelPacket(channel,hp,lp,data,off)
+        preamp.updateChannel(channel, hp, lp, data, off)
+        pol = yield self.sendChannelPacket(channel, hp, lp, data, off)
         returnValue(pol)
 
     @inlineCallbacks
@@ -133,23 +132,23 @@ class DcRackWrapper(DeviceWrapper):
         hp = preamp.channels[channel].highPass
         lp = preamp.channels[channel].lowPass
         pol = preamp.channels[channel].polarity
-        preamp.updateChannel(channel,hp,lp,pol,data)
-        offset = yield self.sendChannelPacket(channel,hp,lp,pol,data)
+        preamp.updateChannel(channel, hp, lp, pol, data)
+        offset = yield self.sendChannelPacket(channel, hp, lp, pol, data)
         returnValue(offset)
-        
+
     @inlineCallbacks
     def sendChannelPacket(self, channel, hp, lp, pol, off):
-        command = []          
-        command.append({'DC':0,'3300':1,'1000':2,'330':3,'100':4,'33':5,'10':6,'3.3':7}[hp])
-        command.append({'0':0,'0.22':1,'0.5':2,'1.0':3,'2.2':4,'5':5,'10':6,'22':7}[lp])
-        command.append({'positive':0,'negative':1}[pol])
+        command = []
+        command.append({'DC': 0, '3300': 1, '1000': 2, '330': 3, '100': 4, '33': 5, '10': 6, '3.3': 7}[hp])
+        command.append({'0': 0, '0.22': 1, '0.5': 2, '1.0': 3, '2.2': 4, '5': 5, '10': 6, '22': 7}[lp])
+        command.append({'positive': 0, 'negative': 1}[pol])
         command.append(off)
-        tupleCommand = (command[0]&7,command[1]&7,command[2]&1,command[3]&0xFFFF)
-        ID = {'A':192L,'B':193L,'C':194L,'D':195L}[channel]
-        data = ((tupleCommand[0] & 7) << 21) | \
-                ((tupleCommand[1] & 7) << 18)| \
-                ((tupleCommand[2] & 1) << 17)| \
-                (tupleCommand[3] & 0xFFFF)
+        ID = {'A': 192L, 'B': 193L, 'C': 194L, 'D': 195L}[channel]
+        data = (
+            ((command[0] & 7) << 21) |
+            ((command[1] & 7) << 18) |
+            ((command[2] & 1) << 17) |
+             (command[3] & 0xFFFF))
         L = [(data >> 18) & 0x3f | 0x80,
              (data >> 12) & 0x3f | 0x80,
              (data >>  6) & 0x3f | 0x80,
@@ -157,10 +156,10 @@ class DcRackWrapper(DeviceWrapper):
              (ID)]
         yield self.write(L)
         returnValue(data)
-        
+
     @inlineCallbacks
     def changeMonitor(self, channel, command, keys = None):
-        ID = {'Abus0':0,'Abus1':1,'Dbus0':2,'Dbus1':3}[channel]
+        ID = {'Abus0': 0, 'Abus1': 1, 'Dbus0': 2, 'Dbus1': 3}[channel]
         settings = [{'A0': 80L, 'B0': 81L, 'C0': 82L, 'D0': 83L},
                     {'A1': 88L, 'B1': 89L, 'C1': 90L, 'D1': 91L},
                     {'trigA':  64L, 'trigB': 65L, 'trigC':  66L, 'trigD': 67L,
@@ -178,19 +177,18 @@ class DcRackWrapper(DeviceWrapper):
             returnValue(keys)
 
         if command not in settings:
-            raise Error('Allowed commands: %s.' % ', '.join(keys))
+            raise Error('Allowed commands: {}.'.format(', '.join(keys)))
 
         self.rackMonitor.updateBus(channel, self.activeCard, command)
         change = yield self.sendMonitorPacket(command, settings)
         returnValue(change)
-        
+
     @inlineCallbacks
     def sendMonitorPacket(self, command, settings):
         com = settings[command]
         yield self.write([com])
         returnValue(com)
-        
-        
+
     @inlineCallbacks
     def changeLEDs(self, data):
         """Sets LED status."""
@@ -210,9 +208,9 @@ class DcRackWrapper(DeviceWrapper):
         p.read()
         p.write([96L])
         p.timeout(timeout)
-        p.read(1, key = 'ID')
+        p.read(1, key='ID')
         p.timeout()
-        p.read(key = 'ID')
+        p.read(key='ID')
         try:
             res = yield p.send()
             returnValue(''.join(res['ID']))
@@ -222,7 +220,7 @@ class DcRackWrapper(DeviceWrapper):
     def returnCardList(self):
         returnList = []
         for key in self.rackCards.keys():
-            if self.rackCards[key]=='fastbias':
+            if self.rackCards[key] == 'fastbias':
                 returnList.append([key, 'fastbias'])
             else:
                 returnList.append([key, 'preamp'])
@@ -234,35 +232,35 @@ class DcRackWrapper(DeviceWrapper):
 
     def getMonitorState(self):
         return self.rackMonitor.monitorState()
-        
+
     @inlineCallbacks
     def commitToRegistry(self, reg):
         card = self.rackCards[self.activeCard]
         if isinstance(card, Preamp):
             yield reg.cd(['', 'Servers', 'DC Racks', 'Preamps'], True)
-            cardName = 'Preamp ' + str(self.activeCard)
+            cardName = 'Preamp {}'.format(self.activeCard)
             p = reg.packet()
-            p.set(cardName,((card.A.highPass, card.A.lowPass, card.A.polarity, card.A.offset),
+            p.set(cardName, ((card.A.highPass, card.A.lowPass, card.A.polarity, card.A.offset),
                              (card.B.highPass, card.B.lowPass, card.B.polarity, card.B.offset),
                              (card.C.highPass, card.C.lowPass, card.C.polarity, card.C.offset),
                              (card.D.highPass, card.D.lowPass, card.D.polarity, card.D.offset)))
             yield p.send()
         else:
             print 'card is not a preamp'
-    
+
     @inlineCallbacks
     def loadFromRegistry(self, reg):
         card = self.rackCards[self.activeCard]
         if isinstance(card, Preamp):
             yield reg.cd(['', 'Servers', 'DC Racks', 'Preamps'], True)
-            cardName = 'Preamp ' + str(self.activeCard)
+            cardName = 'Preamp {}'.format(self.activeCard)
             p = reg.packet()
-            p.get(cardName, key = cardName)
+            p.get(cardName, key=cardName)
             result = yield p.send()
             ans = result[cardName]
             card.A.highPass = ans[0][0]
             card.A.lowPass = ans[0][1]
-            card.A.polarity = ans[0][2] 
+            card.A.polarity = ans[0][2]
             card.A.offset = ans[0][3]
             card.B.highPass = ans[1][0]
             card.B.lowPass = ans[1][1]
@@ -283,9 +281,9 @@ class DcRackWrapper(DeviceWrapper):
     @inlineCallbacks
     def triggerChannel(self, channel):
         """Tells selected channel to pull data from registry and update DAC value"""
-        ChannelID = {'A':0, 'B':1, 'C':2, 'D':3}[channel]
+        ChannelID = {'A': 0, 'B': 1, 'C': 2, 'D': 3}[channel]
         #Bitwise OR with 11000000
-        yield self.write([192|ChannelID])
+        yield self.write([192 | ChannelID])
 
 
     @inlineCallbacks
@@ -302,25 +300,25 @@ class DcRackWrapper(DeviceWrapper):
             num = -2.5
         if dac:
             intNum = long(float(num+2.5)/5.0 * 65535)
-            intNum = (intNum << 1)|1
+            intNum = (intNum << 1) | 1
             if slow:
-                intNum = intNum|131702
+                intNum = intNum | 131702
         else:
             intNum = long(float(num)/2.5 * 65535)
             intNum = (intNum << 1)
             if slow:
-                intNum = intNum|131702
-                
+                intNum = intNum | 131702
+
         #Push bits to proper positions
         Byte1 = long(intNum)
-        Byte2 = long(intNum>>6)
-        Byte3 = long(intNum>>12)
+        Byte2 = long(intNum >> 6)
+        Byte3 = long(intNum >> 12)
 
         #Write 8 bit sequences
-        yield self.write([128|(Byte3&63)])
-        yield self.write([128|(Byte2&63)])
-        yield self.write([128|(Byte1&63)])
-        
+        yield self.write([128 | (Byte3 & 63)])
+        yield self.write([128 | (Byte2 & 63)])
+        yield self.write([128 | (Byte1 & 63)])
+
     @inlineCallbacks
     def setVoltage(self, card, channel, dac, slow, num):
         """Executes sequence of commands to set a voltage value"""
@@ -328,7 +326,6 @@ class DcRackWrapper(DeviceWrapper):
         yield self.pushRegistryValue(dac, slow, num)
         yield self.triggerChannel(channel)
 
-        
     @inlineCallbacks
     def streamChannel(self, channel):
         """Command to set channel to take streaming data from GHz DAC"""
@@ -379,11 +376,11 @@ class DcRackServer(DeviceServer):
             ports = yield server.list_serial_ports()
             if port not in ports:
                 continue
-            devName = '%s - %s' % (server, port)
+            devName = '{} - {}'.format(server, port)
             devs += [(name, (server, port, cards))]
         returnValue(devs)
 
-    
+
     @setting(20, 'Select Card', data='w', returns='w')
     def select_card(self, c, data):
         """Sends a select card command."""
@@ -392,57 +389,47 @@ class DcRackServer(DeviceServer):
         returnValue(card)
 
     @setting(70, 'init_dacs', returns='w')
-    def Init_DACs(self, c):
+    def init_DACs(self, c):
         """Initialize the DACs."""
         dev = self.selectedDevice(c)
-        init = yield dev.InitDACs()
+        init = yield dev.initDACs()
         returnValue(init)
 
-    @setting(60, 'Change High Pass Filter',channel = 's', data = 's')
+    @setting(60, 'Change High Pass Filter', channel='s', data='s')
     def change_high_pass_filter(self, c, channel, data):
-        """
-        Change high pass filter settings for preamp channel on selected card.
-        """
+        """Change high pass filter settings for preamp channel on selected card."""
         dev = self.selectedDevice(c)
         hp = yield dev.changeHighPassFilter(channel, data)
         returnValue(hp)
 
-    @setting(34, 'Change Low Pass Filter',channel = 's', data = 's')
+    @setting(34, 'Change Low Pass Filter', channel='s', data='s')
     def change_low_pass_filter(self, c, channel, data):
-        """
-        Change low pass filter settings for preamp channel on selected card.
-        """
+        """Change low pass filter settings for preamp channel on selected card."""
         dev = self.selectedDevice(c)
         lp = yield dev.changeLowPassFilter(channel, data)
         returnValue(lp)
 
-    @setting(400, 'Change Polarity',channel = 's', data = 's')
+    @setting(400, 'Change Polarity', channel='s', data='s')
     def change_polarity(self, c, channel, data):
-        """
-        Change polarity of preamp channel on selected card.
-        """
+        """Change polarity of preamp channel on selected card."""
         dev = self.selectedDevice(c)
         pol = yield dev.changePolarity(channel, data)
         returnValue(pol)
 
-    @setting(123, 'change_dc_offset', channel = 's', data ='w')
+    @setting(123, 'change_dc_offset', channel='s', data='w')
     def change_dc_offset(self, c, channel, data): 
-        """
-        Change DC offset for preamp channel on selected card.
-        """
+        """Change DC offset for preamp channel on selected card."""
         dev = self.selectedDevice(c)
         offset = yield dev.changeDCOffset(channel, data)
         returnValue(offset)
 
-    @setting(130, 'change monitor', channel = 's', command = 's')
+    @setting(130, 'change monitor', channel='s', command='s')
     def change_monitor(self, c, channel, command=None):
-        """
-        Change monitor output.
-        """
+        """Change monitor output."""
         dev = self.selectedDevice(c)
         change = yield dev.changeMonitor(channel, command)
         returnValue(change)
-        
+
     @setting(336, 'leds',
                  data=['w: Lowest 3 bits: LED flags',
                        '(bbb): Status of BP LED, FP FOout flash, FP Reg. Load Flash'],
@@ -462,9 +449,7 @@ class DcRackServer(DeviceServer):
 
     @setting(565, 'list_cards')
     def list_cards(self, c):
-        """
-        List cards configured in the registry (does not query cards directly)
-        """
+        """List cards configured in the registry (does not query cards directly)."""
         dev = self.selectedDevice(c)
         cards = dev.returnCardList()
         returnValue(cards)
@@ -480,19 +465,19 @@ class DcRackServer(DeviceServer):
         dev = self.selectedDevice(c)
         state = yield dev.getMonitorState()
         returnValue(state)
-    
+
     @setting(867, 'commit_to_registry')
     def commit_to_registry(self, c):
         dev = self.selectedDevice(c)
         reg = self.client.registry()
         yield dev.commitToRegistry(reg)
-    
-    @setting(868, 'load_from_registry')      
+
+    @setting(868, 'load_from_registry')
     def load_from_registry(self, c):
         dev = self.selectedDevice(c)
         reg = self.client.registry()
         yield dev.loadFromRegistry(reg)
-      
+
     @setting(874, 'channel_set_voltage', card='w', channel='s', dac='w{0=Fine (unipolar), 1=Coarse (bipolar)}', slow='w', value='v[V]')
     def channel_set_voltage(self, c, card, channel, dac, slow, value):
         """Executes sequence of commands to set a voltage value.
@@ -504,24 +489,23 @@ class DcRackServer(DeviceServer):
         """
         dev = self.selectedDevice(c)
         yield dev.setVoltage(card, channel, dac, slow, value)
-    
-        
+
     @setting(875, 'channel_stream')
     def channel_stream(self, c, card, channel):
         """Executes sequence of commands to set a channel to streaming mode"""
         dev = self.selectedDevice(c)
         yield dev.setChannelStream(card, channel)
-        
+
 
 class Preamp:
     def __init__(self):
-        self.A = Channel('DC','0','positive',0)
-        self.B = Channel('DC','0','positive',0)
-        self.C = Channel('DC','0','positive',0)
-        self.D = Channel('DC','0','positive',0)
-        self.channels = {'A':self.A,'B':self.B,'C':self.C,'D':self.D}
+        self.A = Channel('DC', '0', 'positive', 0)
+        self.B = Channel('DC', '0', 'positive', 0)
+        self.C = Channel('DC', '0', 'positive', 0)
+        self.D = Channel('DC', '0', 'positive', 0)
+        self.channels = {'A': self.A, 'B': self.B, 'C': self.C, 'D': self.D}
 
-    def updateChannel(self,ch,hp,lp,pol,off):
+    def updateChannel(self, ch, hp, lp, pol, off):
         channel = self.channels[ch]
         channel.highPass = hp
         channel.lowPass = lp
@@ -534,21 +518,20 @@ class Preamp:
         return state
 
 class Channel:
-    def __init__(self,w,x,y,z):
+    def __init__(self, w, x, y, z):
         self.highPass = w
         self.lowPass = x
         self.polarity = y
         self.offset = z
-        
-        
+
 
 class Monitor:
     def __init__(self):
-        self.dBus0 = ['0','null']
-        self.dBus1 = ['0','null']
-        self.aBus0 = ['0','null']
-        self.aBus1 = ['0','null']
-        self.busses = {'Abus0':self.aBus0,'Abus1':self.aBus1,'Dbus0':self.dBus0,'Dbus1':self.dBus1}
+        self.dBus0 = ['0', 'null']
+        self.dBus1 = ['0', 'null']
+        self.aBus0 = ['0', 'null']
+        self.aBus1 = ['0', 'null']
+        self.busses = {'Abus0': self.aBus0, 'Abus1': self.aBus1, 'Dbus0': self.dBus0, 'Dbus1': self.dBus1}
 
     def updateBus(self, bus, card, newState):
         card = str(card)
@@ -566,8 +549,8 @@ class Monitor:
         state.append(self.aBus1)
         return state
 
-        
-TIMEOUT = 1*s
+
+TIMEOUT = 1 * labrad.units.s
 
 __server__ = DcRackServer()
 
