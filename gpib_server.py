@@ -186,6 +186,8 @@ class GPIBBusServer(LabradServer):
                 else:
                     ans = instr.read(n_bytes)
             ans = str(ans)
+            # Handles a special use case for a device (Rigol DG1022) that
+            # returns an address with ,, instead of ,.
             if ",," in ans:
                 ans = ans.replace(",,", ",")  # rigol specific stupidity
         else:
