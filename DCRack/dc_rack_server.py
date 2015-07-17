@@ -38,11 +38,6 @@ from labrad.server import setting
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 
-class NoConnectionError(Error):
-    """You need to connect first."""
-    code = 2
-
-
 class DcRackWrapper(DeviceWrapper):
 
     @inlineCallbacks
