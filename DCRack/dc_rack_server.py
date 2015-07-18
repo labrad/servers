@@ -172,7 +172,7 @@ class DcRackWrapper(DeviceWrapper):
         return self.packet().close().send()
 
     @inlineCallbacks
-    def write(self, code, index=0):
+    def write(self, code):
         """Write a data value to the dc rack."""
         yield self.packet().write(code).send()
         print code
@@ -193,59 +193,55 @@ class DcRackWrapper(DeviceWrapper):
     @inlineCallbacks
     def changeHighPassFilter(self, channel, data):
         preamp = self.rackCards[self.activeCard]
-        lp = preamp.channels[channel].lowPass
-        pol = preamp.channels[channel].polarity
-        off = preamp.channels[channel].offset
-        preamp.updateChannel(channel, data, lp, pol, off)
-        hp = yield self.sendChannelPacket(channel, data, lp, pol, off)
-        returnValue(hp)
-
+        ch = preamp.channels[channel]
+        ch.update(highPass=data)
+        yield self.sendPreampPacket(channel, ch)
+        returnValue(ch.highPass)
 
     @inlineCallbacks
     def changeLowPassFilter(self, channel, data):
         preamp = self.rackCards[self.activeCard]
-        hp = preamp.channels[channel].highPass
-        pol = preamp.channels[channel].polarity
-        off = preamp.channels[channel].offset
-        preamp.updateChannel(channel, hp, data, pol, off)
-        lp = yield self.sendChannelPacket(channel, hp, data, pol, off)
-        returnValue(lp)
+        ch = preamp.channels[channel]
+        ch.update(lowPass=data)
+        yield self.sendPreampPacket(channel, ch)
+        returnValue(ch.lowPass)
 
     @inlineCallbacks
     def changePolarity(self, channel, data):
         preamp = self.rackCards[self.activeCard]
-        hp = preamp.channels[channel].highPass
-        lp = preamp.channels[channel].lowPass
-        off = preamp.channels[channel].offset
-        preamp.updateChannel(channel, hp, lp, data, off)
-        pol = yield self.sendChannelPacket(channel, hp, lp, data, off)
-        returnValue(pol)
+        ch = preamp.channels[channel]
+        ch.update(polarity=data)
+        yield self.sendPreampPacket(channel, ch)
+        returnValue(ch.polarity)
 
     @inlineCallbacks
     def changeDCOffset(self, channel, data):
         preamp = self.rackCards[self.activeCard]
-        hp = preamp.channels[channel].highPass
-        lp = preamp.channels[channel].lowPass
-        pol = preamp.channels[channel].polarity
-        preamp.updateChannel(channel, hp, lp, pol, data)
-        offset = yield self.sendChannelPacket(channel, hp, lp, pol, data)
-        returnValue(offset)
+        ch = preamp.channels[channel]
+        ch.update(offset=data)
+        yield self.sendPreampPacket(channel, ch)
+        returnValue(ch.offset)
 
     @inlineCallbacks
-    def sendChannelPacket(self, channel, hp, lp, pol, off):
-        command = [HIGH_PASS[hp], LOW_PASS[lp], POLARITY[pol], off]
-        ID = CHANNEL_IDS[channel]
-        data = (((command[0] & 7) << 21) |
-                ((command[1] & 7) << 18) |
-                ((command[2] & 1) << 17) |
-                 (command[3] & 0xFFFF))
-        L = [OP_REG_WRITE | ((data >> 18) & 0x3f),
-             OP_REG_WRITE | ((data >> 12) & 0x3f),
-             OP_REG_WRITE | ((data >>  6) & 0x3f),
-             OP_REG_WRITE | ( data        & 0x3f),
-             OP_TRIGGER | ID]
-        yield self.write(L)
-        returnValue(data)
+    def sendPreampPacket(self, channelName, channel):
+        ID = CHANNEL_IDS[channelName]
+
+        hp = HIGH_PASS[channel.highPass]
+        lp = LOW_PASS[channel.lowPass]
+        pol = POLARITY[channel.polarity]
+        ofs = channel.offset
+
+        # assemble the full value to be written to the registry
+        reg = ((hp & 7) << 21) | ((lp & 7) << 18) | ((pol & 1) << 17) | (ofs & 0xFFFF)
+
+        # write data into registry and then trigger the DAC output
+        yield self.write([
+            OP_REG_WRITE | ((reg >> 18) & 0x3f),
+            OP_REG_WRITE | ((reg >> 12) & 0x3f),
+            OP_REG_WRITE | ((reg >>  6) & 0x3f),
+            OP_REG_WRITE | ( reg        & 0x3f),
+            OP_TRIGGER | ID
+        ])
 
     @inlineCallbacks
     def changeMonitor(self, channel, command, keys=None):
@@ -299,16 +295,16 @@ class DcRackWrapper(DeviceWrapper):
             raise Exception('Ident error')
 
     def returnCardList(self):
-        returnList = []
+        cards = []
         for key in self.rackCards.keys():
             if self.rackCards[key] == 'fastbias':
-                returnList.append([key, 'fastbias'])
+                cards.append([key, 'fastbias'])
             else:
-                returnList.append([key, 'preamp'])
-        return returnList
+                cards.append([key, 'preamp'])
+        return cards
 
     def preampState(self, cardNumber, channel):
-        state = self.rackCards[str(cardNumber)].preampChannelState(channel)
+        state = self.rackCards[str(cardNumber)].channels[channel].strState()
         return state
 
     def getMonitorState(self):
@@ -575,24 +571,45 @@ class Preamp:
         self.D = Channel('DC', '0', 'positive', 0)
         self.channels = {'A': self.A, 'B': self.B, 'C': self.C, 'D': self.D}
 
-    def updateChannel(self, ch, hp, lp, pol, off):
-        channel = self.channels[ch]
-        channel.highPass = hp
-        channel.lowPass = lp
-        channel.polarity = pol
-        channel.offset = off
-
-    def preampChannelState(self, channel):
-        ch = self.channels[channel]
-        return [ch.highPass, ch.lowPass, ch.polarity, str(ch.offset)]
-
 
 class Channel:
-    def __init__(self, w, x, y, z):
-        self.highPass = w
-        self.lowPass = x
-        self.polarity = y
-        self.offset = z
+    def __init__(self, hp, lp, pol, ofs):
+        self.highPass = hp
+        self.lowPass = lp
+        self.polarity = pol
+        self.offset = ofs
+
+    def update(self, highPass=None, lowPass=None, polarity=None, offset=None):
+        """Update channel parameter(s) to the given values.
+
+        Before updating a given parameter, we check that it is valid by
+        looking it up in the appropriate map from name to code (for highPass,
+        lowPass, and polarity) or converting to an int (for offset).
+        """
+        if highPass is not None:
+            HIGH_PASS[highPass]
+            self.highPass = highPass
+
+        if lowPass is not None:
+            LOW_PASS[lowPass]
+            self.lowPass = lowPass
+
+        if polarity is not None:
+            POLARITY[polarity]
+            self.polarity = polarity
+
+        if offset is not None:
+            self.offset = int(offset)
+
+    def state(self):
+        """Returns the channel state as a tuple (str, str, str, int)"""
+        return (self.highPass, self.lowPass, self.polarity, self.offset)
+
+    def strState(self):
+        """Returns the channel state as a list of strings"""
+        s = list(self.state)
+        s[-1] = str(s[-1])
+        return s
 
 
 class Monitor:
