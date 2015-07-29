@@ -19,11 +19,15 @@ being sent to the boards.
 """
 
 import numpy as np
+import os
 import pytest
 import mock
 import servers.GHzDACs.ghz_fpga_server as fpga
 import servers.GHzDACs.jump_table as jump_table
 from labrad.units import Value
+
+from twisted.trial import unittest
+from twisted.test import proto_helpers
 
 NUM_DACS = 3
 DAC_BUILD = 15
@@ -32,8 +36,14 @@ _JUMP_TABLE_IDLE_OFFSET = 0
 _JUMP_TABLE_FROM_ADDR_OFFSET = -2
 _JUMP_TABLE_END_ADDR_OFFSET = -3
 
-class TestFPGAServer(object):
+class LabradStringTransport(proto_helpers.StringTransport):
+    def setTcpNoDelay(self, value):
+        pass
+    def setTcpKeepAlive(self, value):
+        pass
 
+class TestFPGAServer(unittest.TestCase):
+    '''
     @classmethod
     def setup_class(cls):
         cls.global_board_delay = 16
@@ -53,7 +63,7 @@ class TestFPGAServer(object):
             dev.server = mock.MagicMock()
             dev.ctx = {}
             delay = (NUM_DACS - i) * 5  # TODO: account for this delay
-            cls.server.devices[dev.guid] = dev
+            cls.server.devices[dev.gid] = dev
             cls.server.devices[dev.name] = dev
             if i == 1:
                 cls.dev = dev  # store the first one for easy reference
@@ -62,11 +72,23 @@ class TestFPGAServer(object):
         # reset the calls on the DE, for some reason mock hangs onto them.
         for dev in self.server.devices.values():
             dev.server = mock.MagicMock()
+    '''
 
-    def test_setup(self):
-        assert(isinstance(self.dev, fpga.dac.DAC_Build15))
-        assert(self.server.selectedDAC(self.ctx) is self.dev)
+   # def test_setup(self):
+   #     assert(isinstance(self.dev, fpga.dac.DAC_Build15))
+   #     assert(self.server.selectedDAC(self.ctx) is self.dev)
 
+    def test_find_devices(self):
+        server =  fpga.FPGAServer()
+        server.password = ""
+        proto = server.buildProtocol(('127.0.0.1', 0))
+        tr = LabradStringTransport()
+        proto.makeConnection(tr)
+        print server.client
+        server.findDevices()
+        print server.boardGroupDefs
+        assert server.boardGroupDefs is None
+    '''
     def test_jt_run_sram(self):
         PERIOD = 2000  # as in IQ mixer calibration
         dataIn = np.zeros(PERIOD)
@@ -209,6 +231,6 @@ class TestFPGAServer(object):
                 page=0, slave=int(not is_master), delay=self.global_board_delay, sync=249,
             ))
             is_master = False
-
+        '''
 if __name__ == '__main__':
     pytest.main(['-v', __file__])
