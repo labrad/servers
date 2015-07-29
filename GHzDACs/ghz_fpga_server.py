@@ -293,7 +293,7 @@ class BoardGroup(object):
     @inlineCallbacks
     def shutdown(self):
         """Clean up when this board group is removed."""
-        # expire our context with the manager
+        # Expire our context with the manager.
         cxn = self.directEthernetServer._cxn
         yield cxn.manager.expire_context(
                 self.directEthernetServer.ID, context=self.ctx)
@@ -946,6 +946,9 @@ class FPGAServer(DeviceServer):
 
     @inlineCallbacks
     def findDevices(self):
+        # Notify the board groups that they're not connected anymore.
+        # for boardGroup in self.boardGroups.items():
+            
         print 'Refreshing client connection...'
         cxn = self.client
         yield cxn.refresh()
