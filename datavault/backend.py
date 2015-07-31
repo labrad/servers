@@ -662,6 +662,7 @@ class ExtendedHDF5Data(HDF5MetaData):
     @property
     def file(self):
         return self._file()
+
     @property
     def dataset(self):
         return self.file["DataVault"]
