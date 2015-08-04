@@ -116,7 +116,7 @@ public class QubitServer extends AbstractServer {
     req.add("cd", Data.valueOf(Constants.WIRING_PATH),
         Data.valueOf(true)); // create the directory if needed
     int idx = req.addRecord("get", Data.valueOf(Constants.WIRING_KEY)); //,
-    // Data.valueOf(Constants.WIRING_TYPE)); // no longer enforcing wiring type ==> cluster fuck!
+    // Data.valueOf(Constants.WIRING_TYPE)); // no longer enforcing wiring type ==> FAIL!
     List<Data> ans;
     try {
       ans = getConnection().sendAndWait(req);

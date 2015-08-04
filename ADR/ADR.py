@@ -1120,7 +1120,7 @@ class ADRServer(DeviceServer):
     def set_heat_switch(self, c, value):
         """ 
         True opens the heat switch, False closes it.
-        There is no confirmation! Don't fuck up.
+        There is no confirmation! Don't mess up.
         """
         dev = self.selectedDevice(c)
         dev.set_heat_switch(value)
