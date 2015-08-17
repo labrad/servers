@@ -29,7 +29,7 @@ Dependent = collections.namedtuple('Dependent', ['label', 'legend', 'shape', 'da
 TIME_FORMAT = '%Y-%m-%d, %H:%M:%S'
 PRECISION = 12 # digits of precision to use when saving data
 DATA_FORMAT = '%%.%dG' % PRECISION
-FILE_TIMEOUT = 60 # how long to keep datafiles open if not accessed
+FILE_TIMEOUT_SEC = 60 # how long to keep datafiles open if not accessed
 DATA_TIMEOUT = 300 # how long to keep data in memory if not accessed
 DATA_URL_PREFIX = 'data:application/labrad;base64,'
 
@@ -53,7 +53,8 @@ def labrad_urldecode(data_url):
         data = T.unflatten(data_bytes, t)
         return data
     else:
-        raise ValueError("Trying to labrad_urldecode data that doesn't start with prefix: {}".format(DATA_URL_PREFIX))
+        raise ValueError("Trying to labrad_urldecode data that doesn't start "
+                         "with prefix: {}".format(DATA_URL_PREFIX))
 
 class SelfClosingFile(object):
     """A container for a file object that manages the underlying file handle.
@@ -61,19 +62,22 @@ class SelfClosingFile(object):
     The file will be opened on demand when this container is called, then
     closed automatically if not accessed within a specified timeout.
     """
-    def __init__(self, opener=open, open_args=(), open_kw={}, timeout=FILE_TIMEOUT, touch=True):
+    def __init__(self, opener=open, open_args=(), open_kw={},
+                 timeout=FILE_TIMEOUT_SEC, touch=True, reactor=reactor):
         self.opener = opener
         self.open_args = open_args
         self.open_kw = open_kw
         self.timeout = timeout
         self.callbacks = []
+        self.reactor = reactor
         if touch:
             self.__call__()
 
     def __call__(self):
         if not hasattr(self, '_file'):
             self._file = self.opener(*self.open_args, **self.open_kw)
-            self._fileTimeoutCall = reactor.callLater(self.timeout, self._fileTimeout)
+            self._fileTimeoutCall = self.reactor.callLater(
+                    self.timeout, self._fileTimeout)
         else:
             self._fileTimeoutCall.reset(self.timeout)
         return self._file
@@ -89,10 +93,11 @@ class SelfClosingFile(object):
         return os.fstat(self().fileno()).st_size
 
     def onClose(self, callback):
+        """Calls callback *before* the file is closes."""
         self.callbacks.append(callback)
 
 class IniData(object):
-    """Handles dataset metadata stored in INI files.  
+    """Handles dataset metadata stored in INI files.
 
     This is used via subclassing mostly out of laziness: this was the
     easy way to separate it from the code that messes with the acutal
@@ -275,11 +280,18 @@ class CsvListData(IniData):
     Stores the entire contents of the file in memory as a list or numpy array
     """
 
-    def __init__(self, filename, file_timeout=FILE_TIMEOUT, data_timeout=DATA_TIMEOUT):
+    def __init__(self,
+                 filename,
+                 file_timeout=FILE_TIMEOUT_SEC,
+                 data_timeout=DATA_TIMEOUT,
+                 reactor=reactor):
         self.filename = filename
-        self._file = SelfClosingFile(open_args=(filename, 'a+'), timeout=file_timeout)
+        self._file = SelfClosingFile(open_args=(filename, 'a+'),
+                                     timeout=file_timeout,
+                                     reactor=reactor)
         self.timeout = data_timeout
         self.infofile = filename[:-4] + '.ini'
+        self.reactor = reactor
 
     @property
     def file(self):
@@ -297,7 +309,8 @@ class CsvListData(IniData):
         if not hasattr(self, '_data'):
             self._data = []
             self._datapos = 0
-            self._timeout_call = reactor.callLater(self.timeout, self._on_timeout)
+            self._timeout_call = self.reactor.callLater(self.timeout,
+                                                        self._on_timeout)
         else:
             self._timeout_call.reset(DATA_TIMEOUT)
         f = self.file
@@ -320,8 +333,6 @@ class CsvListData(IniData):
         f.flush()
 
     def addData(self, data):
-        if transpose:
-            raise RuntimeError("Transpose specified for simple data format: not supported")
         if not len(data) or not isinstance(data[0], list):
             data = [data]
         if len(data[0]) != self.cols:
@@ -348,10 +359,11 @@ class CsvNumpyData(CsvListData):
     Stores the entire contents of the file in memory as a list or numpy array
     """
 
-    def __init__(self, filename):
+    def __init__(self, filename, reactor=reactor):
         self.filename = filename
-        self._file = SelfClosingFile(open_args=(filename, 'a+'))
+        self._file = SelfClosingFile(open_args=(filename, 'a+'), reactor=reactor)
         self.infofile = filename[:-4] + '.ini'
+        self.reactor = reactor
 
     @property
     def file(self):
@@ -382,7 +394,7 @@ class CsvNumpyData(CsvListData):
                 # this error is raised by numpy 1.3
                 self.file.seek(0)
                 self._data = np.array([[]])
-            self._timeout_call = reactor.callLater(DATA_TIMEOUT, self._on_timeout)
+            self._timeout_call = self.reactor.callLater(DATA_TIMEOUT, self._on_timeout)
         else:
             self._timeout_call.reset(DATA_TIMEOUT)
         return self._data
@@ -581,7 +593,7 @@ class HDF5MetaData(object):
                 return labrad_urldecode(self.dataset.attrs[keyname])
         else:
             for k in self.dataset.attrs:
-                if k.lower == keyname.lower:
+                if k.lower() == keyname.lower():
                     return labrad_urldecode(self.dataset.attrs[k])
         raise errors.BadParameterError(name)
 
