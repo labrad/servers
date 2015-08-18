@@ -320,8 +320,6 @@ class CsvListData(IniData):
         f.flush()
 
     def addData(self, data):
-        if transpose:
-            raise RuntimeError("Transpose specified for simple data format: not supported")
         if not len(data) or not isinstance(data[0], list):
             data = [data]
         if len(data[0]) != self.cols:
@@ -368,6 +366,7 @@ class CsvNumpyData(CsvListData):
                 # will be the case.  Even if the file exists on disk, we must
                 # check its size
                 if self._file.size() > 0:
+                    self.file.seek(0)
                     self._data = np.loadtxt(self.file, delimiter=',')
                 else:
                     self._data = np.array([[]])
@@ -570,6 +569,8 @@ class HDF5MetaData(object):
 
     def addParam(self, name, data):
         keyname = 'Param.{}'.format(name)
+        if keyname in self.dataset.attrs:
+            raise errors.ParameterInUseError(name)
         value = labrad_urlencode(data)
         self.dataset.attrs[keyname] = value
 
@@ -581,7 +582,7 @@ class HDF5MetaData(object):
                 return labrad_urldecode(self.dataset.attrs[keyname])
         else:
             for k in self.dataset.attrs:
-                if k.lower == keyname.lower:
+                if k.lower() == keyname.lower():
                     return labrad_urldecode(self.dataset.attrs[k])
         raise errors.BadParameterError(name)
 
