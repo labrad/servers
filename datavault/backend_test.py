@@ -811,5 +811,6 @@ class SimpleHDF5DataTest(_BackendDataTest):
         self.assertEqual(read_data.dtype, np.dtype(float))
         self.assertEqual(read_data.size, 0)
 
+
 if __name__ == '__main__':
     pytest.main(['-v', __file__])
