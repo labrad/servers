@@ -9,12 +9,12 @@ import time
 import tempfile
 import unittest
 
-import labrad.types as T
-import labrad.units as U
+from labrad import types as T
+from labrad import units as U
 
 from twisted.internet import task
 
-from servers.datavault import backend, errors
+from .datavault import backend, errors
 
 
 def _unique_filename(suffix='.hdf5'):
@@ -810,7 +810,6 @@ class SimpleHDF5DataTest(_BackendDataTest):
         read_data, _ =  self.data.getData(None, 0, False, None)
         self.assertEqual(read_data.dtype, np.dtype(float))
         self.assertEqual(read_data.size, 0)
-
 
 if __name__ == '__main__':
     pytest.main(['-v', __file__])
