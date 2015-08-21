@@ -228,7 +228,7 @@ class Session(object):
         for s in files:
             base, _, ext = s.rpartition('.')
             if ext in ['csv', 'hdf5']:
-                filenames.append(base)
+                filenames.append(filename_decode(base))
         return sorted(filenames)
 
     def newDataset(self, title, independents, dependents, extended=False):
