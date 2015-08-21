@@ -24,6 +24,6 @@ class DelayCommand(var cycles: Int) extends MemoryCommand {
       left -= 0x0FFFFF
     }
     arr += (0x300000 + left)
-    arr.result
+    arr.result()
   }
 }
