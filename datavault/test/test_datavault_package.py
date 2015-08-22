@@ -5,10 +5,6 @@ import pytest
 import tempfile
 import unittest
 
-from labrad import types
-
-from twisted.internet import task
-
 from datavault import Session, Dataset, SessionStore
 
 
@@ -185,32 +181,33 @@ class SessionTest(_DatavaultTestCase):
                 (expected_session_tags, expected_dataset_tags), set([]))
 
     def test_get_tags(self):
+        # Create another session to store tags for the other sessions and
+        # datasets in.
+
         # Create some sessions and add some datasets.
-        session1 = self._get_session()
+        session1 = self._get_session(path=['session 1'])
         dataset1 = session1.newDataset(
                 self._TITLE, self._INDEPENDENTS, self._DEPENDENTS)
-        session2 = self._get_session()
+        session2 = self._get_session(path=['session 2'])
         dataset2 = session2.newDataset(
                 self._TITLE, self._INDEPENDENTS, self._DEPENDENTS)
 
-        # Create another session to store tags for the other sessions and
-        # datasets in.
         session = self._get_session()
-        session.updateTags(['foo'], [session1, session2], [dataset1, dataset2])
-        session.updateTags(['bar'], [session1], [])
+        session.updateTags(['foo'], ['session 1', 'session 2'], ['00001 - Foo'])
+        session.updateTags(['bar'], ['session 1'], [])
 
         # Check the session has the right tags for the other sessions and
         # datasets.
-        tags = session.getTags([session1, session2], [dataset1, dataset2])
+        tags = session.getTags(['session 1', 'session 2'], ['00001 - Foo'])
         self.assertEqual(2, len(tags))
 
         session_tags = tags[0]
         expected_session_tags = [
-                (session1, ['bar', 'foo']), (session2, ['foo'])]
+                ('session 1', ['bar', 'foo']), ('session 2', ['foo'])]
         self.assertEqual(expected_session_tags, session_tags)
 
         dataset_tags = tags[1]
-        expected_dataset_tags = [(dataset1, ['foo']), (dataset2, ['foo'])]
+        expected_dataset_tags = [('00001 - Foo', ['foo'])]
         self.assertEqual(expected_dataset_tags, dataset_tags)
 
         # Check the sessions themselves don't have any of the tags.
@@ -260,6 +257,54 @@ class SessionTest(_DatavaultTestCase):
         self.assertEqual([(session, ['tag'])], session_tags)
         self.assertEqual([(dataset, ['tag'])], dataset_tags)
 
+    def test_list_contents_with_tag(self):
+        session = self._get_session(path=['parent'])
+        self.store.get.return_value = session
+        # Add some datasets
+        dataset1 = session.newDataset(
+                self._TITLE, self._INDEPENDENTS, self._DEPENDENTS)
+
+        dataset2 = session.newDataset(
+                self._TITLE, self._INDEPENDENTS, self._DEPENDENTS)
+        # Create some child sessions.
+        session1 = self._get_session(path=['parent', '1'])
+        session2 = self._get_session(path=['parent', '2'])
+
+        #session1.save()
+        #session2.save()
+        # Create another session to store tags for the other sessions and
+        # datasets in.
+        session.updateTags(['foo'], ['2'], ['00001 - Foo'])
+        session.updateTags(['bar'], ['1'], ['00002 - Foo'])
+
+        dirs, datasets = session.listContents(['foo'])
+        self.assertEqual(['2'], dirs)
+        self.assertEqual(['00001 - Foo'], datasets)
+
+    def test_list_contents_without_tag(self):
+        session = self._get_session(path=['parent'])
+        self.store.get.return_value = session
+        # Add some datasets
+        dataset1 = session.newDataset(
+                self._TITLE, self._INDEPENDENTS, self._DEPENDENTS)
+
+        dataset2 = session.newDataset(
+                self._TITLE, self._INDEPENDENTS, self._DEPENDENTS)
+        # Create some child sessions.
+        session1 = self._get_session(path=['parent', '1'])
+        session2 = self._get_session(path=['parent', '2'])
+
+        #session1.save()
+        #session2.save()
+        # Create another session to store tags for the other sessions and
+        # datasets in.
+        session.updateTags(['foo'], ['2'], ['00001 - Foo'])
+        session.updateTags(['bar'], ['1'], ['00002 - Foo'])
+
+        dirs, datasets = session.listContents(['-foo'])
+        self.assertEqual(['1'], dirs)
+        self.assertEqual(['00002 - Foo'], datasets)
+
 
 class DatasetTest(_DatavaultTestCase):
 
@@ -287,7 +332,6 @@ class DatasetTest(_DatavaultTestCase):
             data_record[i] = row
         return data_record
 
-
     def test_init_create_simple(self):
         dataset = Dataset(
                 self.session,
@@ -296,6 +340,35 @@ class DatasetTest(_DatavaultTestCase):
                 create=True,
                 independents=self._INDEPENDENTS,
                 dependents=self._DEPENDENTS)
+
+        self.assertEqual('2.0.0', dataset.version())
+
+        self.assertEqual('*(v[mA],v[Ghz],v[V])', dataset.getRowType())
+        self.assertEqual('(*v[mA],*v[Ghz],*v[V])', dataset.getTransposeType())
+
+        # Check dependents added correctly
+        dependents = dataset.getDependents()
+        self.assertEqual(len(self._DEPENDENTS), len(dependents))
+        self.assertEqual(self._DEPENDENTS[0][0], dependents[0].label)
+        self.assertEqual(self._DEPENDENTS[0][1], dependents[0].legend)
+        self.assertEqual(self._DEPENDENTS[0][2], dependents[0].unit)
+
+        # Check independents added correctly
+        independents = dataset.getIndependents()
+        self.assertEqual(len(self._INDEPENDENTS), len(independents))
+        self.assertEqual(self._INDEPENDENTS[0][0], independents[0].label)
+        self.assertEqual(self._INDEPENDENTS[0][1], independents[0].unit)
+        self.assertEqual(self._INDEPENDENTS[1][0], independents[1].label)
+        self.assertEqual(self._INDEPENDENTS[1][1], independents[1].unit)
+
+    def test_init_create_simple_text_variables(self):
+        dataset = Dataset(
+                self.session,
+                "Foo Name",
+                title=self._TITLE,
+                create=True,
+                independents=['Current [mA]', 'Freq [Ghz]'],
+                dependents=['Dep 1 (Voltage) [V]'])
 
         self.assertEqual('2.0.0', dataset.version())
 
@@ -509,10 +582,14 @@ class DatasetTest(_DatavaultTestCase):
         dataset.addData(data)
 
         listener = 'listener'
+        # Add the listener to check it's removed
+        dataset.listeners.add(listener)
         # Start streaming the listener
         dataset.keepStreaming(listener, 0)
         # Check the listener is notified of the data already available
         self.hub.onDataAvailable.assert_called_with(None, [listener])
+        # Check the lisener is removed
+        self.assertEqual(0, len(dataset.listeners))
         self.hub.reset_mock()
         # Keep streaming for more data added
         dataset.keepStreaming(listener, 1)

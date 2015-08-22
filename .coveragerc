@@ -1,2 +1,5 @@
 [run]
 omit = datavault/test/*
+
+[report]
+directory = /home/johanstr/code/_coverage_reports
