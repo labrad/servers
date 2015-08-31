@@ -144,7 +144,10 @@ class CsvNumpyData(CsvListData):
                 # will be the case.  Even if the file exists on disk, we must
                 # check its size
                 if self._file.size() > 0:
-                    self._data = np.loadtxt(self.file, delimiter=',')
+                    f = self.file
+                    f.seek(0)
+                    self._data = np.vstack([float(n) for n in line.split(',')]
+                                           for line in f.xreadlines())
                 else:
                     self._data = np.array([[]])
                 if len(self._data.shape) == 1:
