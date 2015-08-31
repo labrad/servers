@@ -9,6 +9,46 @@ from labrad import types as T
 from . import backend, errors, util
 
 
+def _VmB(VmKey):
+    ''' Get VM usage data.  Linux only.  Returns 0.0 on error or wrong platform.
+    '''
+    # get pseudo file  /proc/<pid>/status
+    scale = {'kB': 1024.0, 'mB': 1024.0*1024.0,
+            'KB': 1024.0, 'MB': 1024.0*1024.0}
+    try:
+        proc_status = '/proc/%d/status' % os.getpid()
+        t = open(proc_status)
+        v = t.read()
+        t.close()
+    except:
+        return 0.0  # non-Linux?
+    # get VmKey line e.g. 'VmRSS:  9999  kB\n ...'
+    i = v.index(VmKey)
+    v = v[i:].split(None, 3)  # whitespace
+    if len(v) < 3:
+        return 0.0  # invalid format?
+     # convert Vm value to bytes
+    return float(v[1]) * scale[v[2]]
+
+
+def memory():
+    '''Return memory usage in bytes.
+    '''
+    return _VmB('VmSize:')
+
+
+def resident():
+    '''Return resident memory usage in bytes.
+    '''
+    return _VmB('VmRSS:')
+
+
+def stacksize():
+    '''Return stack size in bytes.
+    '''
+    return _VmB('VmStk:')
+
+
 ## Filename translation.
 
 _encodings = [
@@ -327,6 +367,7 @@ class Dataset(object):
         self.param_listeners = set()
         self.comment_listeners = set()
 
+        print "MEMLOG: New dataset: %s.  Create: %s. MEM: %f MiB RSS: %f MiB " % (self.infofile[:-4], create, memory()/(1024*1024.0), resident()/(1024*1024.0))
         if create:
             self.title = title
             self.created = self.accessed = self.modified = datetime.now()
@@ -341,6 +382,15 @@ class Dataset(object):
 
         self.data = backend.create_backend(file_base, cols=len(self.independents) + len(self.dependents))
 
+    def __del__(self):
+        """__del__ warning:  CPython will not collect cycles of garbage if any of
+
+        the objects in the cycle have a __del__ method, since it doesn't
+        know in which order to call the destructors.  This shouldn't be
+        a problem here.
+        """
+        print "MEMLOG: Dataset object for %s deleted.  MEM: %f MiB RSS: %f MIB" % (self.infofile[:-4], memory()/(1024 * 1024.0), resident()/(1024*1024.0))
+        
     def load(self):
         S = util.DVSafeConfigParser()
         S.read(self.infofile)
