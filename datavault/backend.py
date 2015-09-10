@@ -145,7 +145,17 @@ class IniData(object):
                 data = labrad_urldecode(raw)
             else:
                 # old parameters may have been saved using repr
-                data = T.evalLRData(raw)
+                try:
+                    data = T.evalLRData(raw)
+                except RuntimeError:
+                    # This is a hack to parse some very old data that seems to
+                    # have been created by converting delphi data to python
+                    # format. '1.#IND' was produced by old versions of the
+                    # delphi labrad api when stringifying NaN.
+                    if '1.#IND' in raw:
+                        data = T.evalLRData(raw.replace('1.#IND', 'nan'))
+                    else:
+                        raise Exception('unable to parse parameter {}: {}'.format(label, raw))
             return dict(label=label, data=data)
         count = S.getint(gen, 'Parameters')
         self.parameters = [getPar(i) for i in range(count)]
