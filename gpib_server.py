@@ -112,7 +112,7 @@ class GPIBBusServer(LabradServer):
                     elif addr.startswith('TCPIP'):
                         instName = addr
                     elif addr.startswith('USB'):
-                        instName = addr + '::INSTR'
+                        instName = addr 
                     else:
                         continue
                     instr = rm.get_instrument(instName)
@@ -176,6 +176,7 @@ class GPIBBusServer(LabradServer):
         Otherwise, reads until the device stops sending.
         """
         instr = self.getDevice(c)
+        instr.timeout = c['timeout']['ms']
         if n_bytes is None:
             ans = instr.read_raw()
         else:
@@ -191,6 +192,7 @@ class GPIBBusServer(LabradServer):
         """
         instr = self.getDevice(c)
         instr.write(data)
+        instr.timeout = c['timeout']['ms']
         ans = instr.read_raw()
         return str(ans).strip()
 
