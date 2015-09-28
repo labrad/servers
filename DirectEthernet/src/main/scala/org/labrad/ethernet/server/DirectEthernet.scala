@@ -15,36 +15,37 @@ import scala.concurrent.duration._
 object DirectEthernet {
   def main(args: Array[String]): Unit = {
     val server = new DirectEthernet
-    server.run(args)
+    Server.run(server, args)
   }
 }
 
-@IsServer(name = "%LABRADNODE% Direct Ethernet", doc = "")
-class DirectEthernet extends Server[EthernetContext] {
+class DirectEthernet extends Server[DirectEthernet, EthernetContext] {
+  val name = "%LABRADNODE% Direct Ethernet"
+  val doc = ""
 
   private val adapters = Pcaps.findAllDevs().asScala.toSeq
 
   // start listening on all interfaces
   val busses = adapters.map { a => new EthernetBus(a) }
 
-  var cxn: ServerConnection[EthernetContext] = _
+  override def init(): Unit = {}
 
-  override def init(cxn: ServerConnection[EthernetContext]): Unit = {
-    this.cxn = cxn
+  def newContext(context: Context): EthernetContext = {
+    new EthernetContext(cxn, this, context)
   }
 
   /**
    * Send a trigger signal to another context.
    */
   def sendTrigger(context: Context): Unit = {
-    for (ctx <- cxn.get(context)) ctx.sendTrigger()
+    for (ctx <- this.get(context)) ctx.sendTrigger()
   }
 
   override def shutdown(): Unit = {}
 }
 
 class EthernetContext(cxn: Connection, server: DirectEthernet, context: Context)
-extends ServerContext(cxn, server, context) with Logging {
+extends ServerContext with Logging {
 
   import Filters._
 
