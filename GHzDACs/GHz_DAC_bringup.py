@@ -24,9 +24,8 @@ import time
 
 import labrad
 from math import sin, pi
-from msvcrt import getch, kbhit
 
-FPGA_SERVER='ghz_fpgas'
+FPGA_SERVER = 'ghz_fpgas'
 DACS = ['A','B']
 NUM_TRIES = 2
 
@@ -234,13 +233,11 @@ def interactiveBringup(fpga, board):
 
 def getChoice(keys):
     """Get a keypress from the user from the specified keys."""
-    while kbhit():
-        getch()
     r = ''
     while not r or r not in keys:
         r = raw_input().upper()
     return r
-    
+
 def selectFromList(options, title):
     """Get a user-selected option
     
