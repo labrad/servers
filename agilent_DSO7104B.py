@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Agilent 7104B Oscilloscope
-version = 0.2.2
+version = 0.2.3
 description = Talks to the Agilent 7104B oscilloscope
 
 [startup]
@@ -290,7 +290,7 @@ class Agilent7104BServer(GPIBManagedServer):
         else:
             raise Exception('Select valid trigger channel')
         returnValue(resp)
-        
+
     @setting(134, mode='s', returns = ['s'])
     def trigger_mode(self, c, mode=None):
         """
@@ -303,6 +303,24 @@ class Agilent7104BServer(GPIBManagedServer):
             yield dev.write(':TRIG:SWE NORM')
         ans = yield dev.query(":TRIG:SWE?")
         returnValue(str(ans))
+
+    @setting(141, mode='s', returns=['s'])
+    def external_reference(self, c, mode=None):
+        """
+        Get/set 10MHz reference mode. Allowed values:
+            OFF - Disable 10MHz REF connector.
+            OUT - Sync timebase of 2+ instruments.
+            IN - Supply 10MHz clock to scope.
+        """
+        dev = self.selectedDevice(c)
+        if mode != None:
+            mode = mode.upper()
+            if mode not in ['OFF', 'OUT', 'IN']:
+                raise Exception('Mode must be in ["OFF", "OUT", "IN"]')
+            else:
+                yield dev.write(':ACQ:RSIG {}'.format(mode))
+        resp = yield dev.query(':ACQ:RSIG?')
+        returnValue(resp)
         
     '''
     @setting(151, position = 'v', returns = ['v'])
