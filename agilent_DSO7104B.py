@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Agilent 7104B Oscilloscope
-version = 0.2.1
+version = 0.2.2
 description = Talks to the Agilent 7104B oscilloscope
 
 [startup]
@@ -54,7 +54,8 @@ class Agilent7104BWrapper(GPIBDeviceWrapper):
 
 class Agilent7104BServer(GPIBManagedServer):
     name = 'Agilent 7104B Oscilloscope'
-    deviceName = 'AGILENT TECHNOLOGIES DSO7104B'
+    deviceName = ['AGILENT TECHNOLOGIES DSO7104B',
+                  'AGILENT TECHNOLOGIES DSO-X 4104A']
     deviceWrapper = Agilent7104BWrapper
         
     @setting(11, returns=[])
