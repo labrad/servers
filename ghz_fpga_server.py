@@ -220,9 +220,9 @@ from labrad.units import Unit, Value
 from labrad.devices import DeviceServer
 from labrad.server import setting
 
-import servers.GHzDACs.Cleanup.fpga as fpga
-import servers.GHzDACs.Cleanup.dac as dac
-import servers.GHzDACs.Cleanup.adc as adc
+import fpgalib.fpga as fpga
+import fpgalib.dac as dac
+import fpgalib.adc as adc
 
 from util import TimedLock, LoggingPacket
 LOGGING_PACKET=False

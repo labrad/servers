@@ -25,9 +25,9 @@ import numpy as np
 from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad import types as T
 
-from servers.GHzDACs.util import littleEndian
-import servers.GHzDACs.Cleanup.fpga as fpga
-import servers.GHzDACs.jump_table as jump_table
+from fpgalib.util import littleEndian
+import fpgalib.fpga as fpga
+import fpgalib.jump_table as jump_table
 
 # CHANGELOG
 #

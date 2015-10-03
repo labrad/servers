@@ -21,8 +21,8 @@ being sent to the boards.
 import numpy as np
 import pytest
 import mock
-import servers.GHzDACs.ghz_fpga_server as fpga
-import servers.GHzDACs.jump_table as jump_table
+import fpgalib.ghz_fpga_server as fpga
+import fpgalib.jump_table as jump_table
 from labrad.units import Value
 
 NUM_DACS = 3

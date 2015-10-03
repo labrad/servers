@@ -1,12 +1,12 @@
 """
 
-This is intended to test servers.GHzDACs.jumpTable.py
+This is intended to test fpgalib/jump_table.py
 
 """
 
 import numpy as np
 import pytest
-import servers.GHzDACs.jump_table as jump_table
+import fpgalib.jump_table as jump_table
 
 
 def test_end():

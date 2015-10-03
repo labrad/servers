@@ -2,8 +2,8 @@
 # Created: July 2013
 
 import numpy as np
-from util import littleEndian
-from servers.GHzDACs.Cleanup import fpga
+from fpgalib.util import littleEndian
+from fpgalib import fpga
 
 IDLE_NUM_BITS = 15
 IDLE_MIN_CYCLES = 0
