@@ -177,7 +177,7 @@ cmdTime_cycles does not properly estimate sram length
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 5.0.2
+version = 5.0.3
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -2030,7 +2030,7 @@ class FPGAServer(DeviceServer):
              lvdsSD='w',
              signed='b',
              targetFifo='w',
-             returns=('*((ss)(sb)(sw)(sw)(sw)(s(*w*b*b))(sw)(sb)(sb)(si)(sw)'
+             returns=('*((ss)(sb)(si)(si)(sw)(s(*w*b*b))(sw)(sb)(sb)(si)(sw)'
                       '(sw)(sb)(s(ww))(s(ww))(s(ww)))'))
     def dac_bringup(self, c, lvdsOptimize=False, lvdsSD=None, signed=True,
                     targetFifo=None):
