@@ -4,14 +4,15 @@ Quick start::
 
 .. code:: python
 
-    import servers.ghzdac_cal.GHz_DAC_calibrate as gc
+    import ghzdac_cal.GHz_DAC_calibrate as gc
     gc.calibrate_iq(cxn, ['Vince DAC 11'])
     # or if you want to do all the boards in one go:
     gc.calibrate_iq(cxn, gc.find_microwave_dacs(cxn))
 
 Generally, this module calls calibration code in the ``ghzdac`` package.
 Therefore, this module requires that the ``servers`` repository is in the Python
-path; that is, ``import servers`` must work.
+path (the ``servers/`` directory should be put on the Python path, not its
+parent directory. When this is set up properly, ``import ghzdac`` will succeed.
 
 The most user-facing functions in this module are at the bottom; recommended
 reading order is bottom-to-top (i.e. start with ``calibrate_iq``, then
@@ -53,9 +54,9 @@ import labrad.async
 # GHz_DAC_calibrate is only a front-end, the actual calibration
 # routines are in ghzdac.calibrate
 
-import servers.ghzdac as ghzdac
-import servers.ghzdac.calibrate as calibrate
-import servers.ghzdac.keys as keys
+import ghzdac
+import ghzdac.calibrate as calibrate
+import ghzdac.keys as keys
 
 FPGA_SERVER_NAME = 'ghz_fpgas'
 

@@ -18,11 +18,14 @@ being sent to the boards.
 
 """
 
+import mock
 import numpy as np
 import pytest
-import mock
-import fpgalib.ghz_fpga_server as fpga
+
+import fpgalib.dac as dac
+import fpgalib.fpga as fpga
 import fpgalib.jump_table as jump_table
+import ghz_fpga_server
 from labrad.units import Value
 
 NUM_DACS = 3
@@ -38,7 +41,7 @@ class TestFPGAServer(object):
     def setup_class(cls):
         cls.global_board_delay = 16
         cls.global_reps = 3000
-        cls.server = fpga.FPGAServer()
+        cls.server = ghz_fpga_server.FPGAServer()
         cls.ctx = cls.server.newContext(10)
         cls.server.initServer()
         cls.server.initContext(cls.ctx)
@@ -47,7 +50,7 @@ class TestFPGAServer(object):
 
     @classmethod
     def _setup_devices(cls):
-        dev_cls = fpga.fpga.REGISTRY[('DAC', 15)]
+        dev_cls = fpga.REGISTRY[('DAC', 15)]
         for i in range(1, NUM_DACS + 1):
             dev = dev_cls(i, 'Test DAC {}'.format(i))
             dev.server = mock.MagicMock()
@@ -64,7 +67,7 @@ class TestFPGAServer(object):
             dev.server = mock.MagicMock()
 
     def test_setup(self):
-        assert(isinstance(self.dev, fpga.dac.DAC_Build15))
+        assert(isinstance(self.dev, dac.DAC_Build15))
         assert(self.server.selectedDAC(self.ctx) is self.dev)
 
     def test_jt_run_sram(self):
@@ -111,7 +114,7 @@ class TestFPGAServer(object):
         assert run_pkt[14] == self.global_reps >> 8           # reps high byte
         assert run_pkt[15] == 50                              # loop delay
         assert run_pkt[16] == 0
-        delay = 12 + self.global_board_delay + fpga.dac.MASTER_SRAM_DELAY_US
+        delay = 12 + self.global_board_delay + dac.MASTER_SRAM_DELAY_US
         assert run_pkt[43] == delay & 0xFF                    # delay
         assert run_pkt[44] == delay >> 8
 
@@ -174,7 +177,7 @@ class TestFPGAServer(object):
             packet_delay = p[43] + (p[44] >> 8)
             expected_delay = start_delays[i] + self.global_board_delay
             if i == 0:
-                expected_delay += fpga.dac.MASTER_SRAM_DELAY_US
+                expected_delay += dac.MASTER_SRAM_DELAY_US
             assert packet_delay == expected_delay
 
             load_writes = self.load_writes[i]

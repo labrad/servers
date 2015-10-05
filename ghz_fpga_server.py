@@ -177,7 +177,7 @@ cmdTime_cycles does not properly estimate sram length
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 5.0.5
+version = 5.1.0
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -190,12 +190,31 @@ timeout = 20
 ### END NODE INFO
 """
 
-import sys
-import os
 import itertools
-import struct
-import time
 import logging
+import os
+import random
+import struct
+import sys
+import time
+
+import numpy as np
+
+from twisted.internet import defer
+from twisted.internet.defer import inlineCallbacks, returnValue
+
+from labrad import types as T, units as U
+from labrad.devices import DeviceServer
+from labrad.server import setting
+from labrad.units import Unit, Value
+import labrad.util
+
+import fpgalib.adc as adc
+import fpgalib.dac as dac
+import fpgalib.fpga as fpga
+from fpgalib.util import TimedLock, LoggingPacket
+
+
 # The logging level is set at the bottom of the file where the server starts.
 # To get additional info about what the server is doing (i.e. to see if it
 # gets to a certain part of run_sequence), change the logging level to
@@ -207,25 +226,8 @@ def timeString():
           .format(time.localtime()))
     return ts
 
-import random
 
-import numpy as np
-
-from twisted.internet import defer
-from twisted.internet.defer import inlineCallbacks, returnValue
-
-from labrad import types as T
-import labrad.units as U
-from labrad.units import Unit, Value
-from labrad.devices import DeviceServer
-from labrad.server import setting
-
-import fpgalib.fpga as fpga
-import fpgalib.dac as dac
-import fpgalib.adc as adc
-
-from util import TimedLock, LoggingPacket
-LOGGING_PACKET=False
+LOGGING_PACKET = False
 
 
 NUM_PAGES = 2
@@ -1508,7 +1510,6 @@ class FPGAServer(DeviceServer):
                 returnValue(ans)
             except TimeoutError as err:
                 # log attempt to stdout and file
-                import os
                 userpath = os.path.expanduser('~')
                 logpath = os.path.join(userpath, 'dac_timeout_log.txt')
                 with open(logpath, 'a') as logfile:
@@ -2226,6 +2227,5 @@ __server__ = FPGAServer()
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.WARNING)
-    from labrad import util
     logging.info('running server')
-    util.runServer(__server__)
+    labrad.util.runServer(__server__)
