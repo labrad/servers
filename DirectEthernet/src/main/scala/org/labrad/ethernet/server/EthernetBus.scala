@@ -7,6 +7,7 @@ import org.pcap4j.packet.namednumber.EtherType
 import org.pcap4j.util.MacAddress
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.concurrent.{Await, Promise}
 import scala.concurrent.duration._
 
 trait Bus {
@@ -30,6 +31,7 @@ class EthernetBus(
 
   override def addListener(listener: EthernetPacket => Unit): Unit = synchronized {
     val _ = listenThread // force listen thread to start when first listener is added
+    Await.result(listenPromise.future, 5.seconds) // wait for listen thread to start
     listeners += listener
   }
 
@@ -63,6 +65,7 @@ class EthernetBus(
         while (alive) {
           val pcap = reopen()
           try {
+            listenPromise.trySuccess(())
             pcap.loop(-1, packetListener)
             log.warn(s"pcap loop exited unexpectedly. bus=$name")
           } catch {
@@ -87,6 +90,9 @@ class EthernetBus(
     thread.start()
     thread
   }
+
+  // a promise that will be fired when the listenThread is running
+  private val listenPromise = Promise[Unit]
 
   override def send(pkt: EthernetPacket, maxAttempts: Int = 2): Unit = {
     var sent = false

@@ -2,7 +2,7 @@ organization := "org.labrad"
 
 name := "DirectEthernet"
 
-version := "1.2.0"
+version := "1.2.1"
 
 scalaVersion := "2.11.7"
 javacOptions ++= Seq("-source", "1.7", "-target", "1.7")
