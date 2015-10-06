@@ -46,13 +46,11 @@ object TestUtils extends {
 
   def withServer[T](host: String, port: Int, password: Array[Char])(body: => T) = {
     val server = new DirectEthernet
-    val s = ServerConnection(server, host, port, password)
-    s.connect()
-    s.serve()
+    server.start(host, port, password, nameOpt = Some("Test Direct Ethernet"))
     try {
       body
     } finally {
-      try s.triggerShutdown() catch { case _: Throwable => }
+      try server.stop() catch { case _: Throwable => }
     }
   }
 }
