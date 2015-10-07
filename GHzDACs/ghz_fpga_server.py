@@ -177,7 +177,7 @@ cmdTime_cycles does not properly estimate sram length
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 5.0.3
+version = 5.0.4
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -214,6 +214,7 @@ import numpy as np
 from twisted.internet import defer
 from twisted.internet.defer import inlineCallbacks, returnValue
 
+import labrad
 from labrad import types as T
 import labrad.units as U
 from labrad.units import Unit, Value
@@ -990,7 +991,13 @@ class FPGAServer(DeviceServer):
         for key in removals:
             bg = self.boardGroups[key]
             del self.boardGroups[key]
-            yield bg.shutdown()
+            try:
+                yield bg.shutdown()
+            except labrad.types.Error, e:
+                if 'no such server' in str(e):
+                    pass
+                else:
+                    raise labrad.types.Error(e)
 
         # Add new board groups.
         for server, port in additions:
