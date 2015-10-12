@@ -31,8 +31,11 @@ timeout = 20
 ### END NODE INFO
 """
 
+import sys
+import os
 from time import sleep
 import time
+import collections
 
 from labrad import types as T
 from labrad.errors import Error
@@ -42,7 +45,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.task import deferLater
 from serial import Serial
 from serial.serialutil import SerialException
-
+import serial.tools.list_ports
 
 class NoPortSelectedError(Error):
     """Please open a port first."""
@@ -53,27 +56,61 @@ class NoPortsAvailableError(Error):
     """No serial ports are available."""
     code = 3
 
+SerialDevice = collections.namedtuple('SerialDevice', ['name', 'devicepath'])
 
 class SerialServer(LabradServer):
     """Provides access to a computer's serial (COM) ports."""
     name = '%LABRADNODE% Serial Server'
 
     def initServer(self):
+        if sys.platform.startswith('win32'):
+            self.enumerate_serial_windows()
+        else:
+            self.enumerate_serial_pyserial()
+            
+    def enumerate_serial_windows(self):
+        """This manually attempts to enumerate the first 20 COM ports.
+        pyserial includes a function to enumerate device names, but it
+        possibly doesn't work right on windows for COM ports above 4.
+        http://stackoverflow.com/questions/12090503/listing-available-com-ports-with-python
+        """
         self.SerialPorts = []
         print 'Searching for COM ports:'
         for a in range(1, 20):
             COMexists = True
             try:
-                ser = Serial('\\\\.\\COM%d' % a)
+                ser = Serial(r'\\.\COM%d' % a)
                 ser.close()
-            except SerialException, e:
+            except SerialException as e:
                 if e.message.find('cannot find') >= 0:
                     COMexists = False
             if COMexists:
-                self.SerialPorts += ['COM%d' % a]
+                self.SerialPorts.append(SerialDevice('COM%d' % a, r'\\.\COM%d' % a))
                 print '  COM%d' % a
         if not len(self.SerialPorts):
             print '  none'
+
+    def enumerate_serial_pyserial(self):
+        """This uses the pyserial built-in device enumeration.  However,
+        we ignore the pyserial "human readable" device name because that
+        appears to make no sense.  For instance, a particular FTDI USB-Serial
+        adapter shows up as 'Microsoft Corp. Optical Mouse 200'.
+
+        Following the example from the above windows version, we try to open
+        each port and ignore it if we can't.
+        """
+        dev_list = serial.tools.list_ports.comports()
+        self.SerialPorts = []
+        for d in dev_list:
+            dev_path = d[0]
+            try:
+                ser = Serial(dev_path)
+                ser.close()
+            except SerialException as e:
+                pass
+            else:
+                _, _, dev_name = dev_path.rpartition(os.sep)
+                self.SerialPorts.append(SerialDevice(dev_name, dev_path))
 
     def expireContext(self, c):
         if 'PortObject' in c:
@@ -93,10 +130,13 @@ class SerialServer(LabradServer):
         NOTES:
         This list contains all ports installed on the computer,
         including ones that are already in use by other programs."""
-        return self.SerialPorts
+        print self.SerialPorts
+        port_list = [x.name for x in self.SerialPorts]
+
+        return port_list
 
     @setting(10, 'Open',
-             port=[': Open the first available port',
+             port=[': Open the first available port', # Is this really useful??? - ERJ
                    's: Port to open, e.g. COM4'],
              returns=['s: Opened port'])
     def open(self, c, port=''):
@@ -108,21 +148,27 @@ class SerialServer(LabradServer):
         if not port:
             for i in range(len(self.SerialPorts)):
                 try:
-                    c['PortObject'] = Serial('\\\\.\\' + self.SerialPorts[i], timeout=0)
+                    c['PortObject'] = Serial(self.SerialPorts[i].devicepath, timeout=0)
                     break
                 except SerialException:
                     pass
             if 'PortObject' not in c:
                 raise NoPortsAvailableError()
         else:
-            try:
-                c['PortObject'] = Serial('\\\\.\\' + port, timeout=0)
-            except SerialException, e:
-                if e.message.find('cannot find') >= 0:
-                    raise Error(code=1, msg=e.message)
-                else:
-                    raise Error(code=2, msg=e.message)
-        return c['PortObject'].portstr.replace('\\\\.\\', '')
+            for x in self.SerialPorts:
+                if x.name.lower() == port.lower():
+                    try:
+                        c['PortObject'] = Serial(x.devicepath)
+                        # Strip off the leading \\.\ if it exists for
+                        # windows compatiblity
+                        return c['PortObject'].portstr.replace('\\\\.\\', '')
+                    except SerialException, e:
+                        if e.message.find('cannot find') >= 0:
+                            raise Error(code=1, msg=e.message)
+                        else:
+                            raise Error(code=2, msg=e.message)
+        raise Error(code=1, msg='Unknown port %s' % (port,))
+
 
     @setting(11, 'Close', returns=[''])
     def close(self, c):
@@ -350,7 +396,6 @@ class SerialServer(LabradServer):
             if r != skip:
                 recd += r
         returnValue(recd)
-
 
 __server__ = SerialServer()
 
