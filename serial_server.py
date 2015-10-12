@@ -33,6 +33,7 @@ timeout = 20
 
 import collections
 import os
+import os.path
 import sys
 import time
 from time import sleep
@@ -81,15 +82,17 @@ class SerialServer(LabradServer):
         print 'Searching for COM ports:'
         for a in range(1, 20):
             COMexists = True
+            dev_name = 'COM{}'.format(a)
+            dev_path = r'\\.\{}'.format(dev_name)
             try:
-                ser = Serial(r'\\.\COM%d' % a)
+                ser = Serial(dev_name)
                 ser.close()
             except SerialException as e:
                 if e.message.find('cannot find') >= 0:
                     COMexists = False
             if COMexists:
-                self.SerialPorts.append(SerialDevice('COM%d' % a, r'\\.\COM%d' % a))
-                print '  COM%d' % a
+                self.SerialPorts.append(SerialDevice(dev_name, dev_path))
+                print "  ", dev_name
         if not len(self.SerialPorts):
             print '  none'
 
@@ -145,7 +148,17 @@ class SerialServer(LabradServer):
                    's: Port to open, e.g. COM4'],
              returns=['s: Opened port'])
     def open(self, c, port=''):
-        """Opens a serial port in the current context."""
+        """Opens a serial port in the current context.
+
+        args:
+        port   device name as returned by list_serial_ports.
+
+        On windows, the device name will generally be of the form
+        COM1 or COM42 (i.e., without the device prefix \\\\.\\).  On
+        linux, it will be the device node name (ttyUSB0) without the
+        /dev/ prefix.  This is case insensitive on windows, case sensitive
+        on Linux.  For compatibility, always use the same case.
+        """
         c['Timeout'] = 0
         if 'PortObject' in c:
             c['PortObject'].close()
@@ -161,7 +174,7 @@ class SerialServer(LabradServer):
                 raise NoPortsAvailableError()
         else:
             for x in self.SerialPorts:
-                if x.name.lower() == port.lower():
+                if os.path.normcase(x.name) == os.path.normcase(port):
                     try:
                         c['PortObject'] = Serial(x.devicepath)
                         return x.name
@@ -404,5 +417,4 @@ __server__ = SerialServer()
 
 if __name__ == '__main__':
     from labrad import util
-
     util.runServer(__server__)
