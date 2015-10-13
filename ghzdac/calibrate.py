@@ -448,7 +448,7 @@ def calibrateDCPulse(cxn, boardname, channel):
     trace(1).\
     record_length(5120).\
     average(128).\
-    sensitivity(Value(100.0,'mV')).\
+    sensitivity(Value(200.0,'mV')).\
     offset(Value(0,'mV')).\
     time_step(Value(5,'ns')).\
     trigger_level(Value(0.18,'V')).\
@@ -465,7 +465,7 @@ def calibrateDCPulse(cxn, boardname, channel):
     trace = trace[trace.unit]  # strip units
     # set the output to zero so that the fridge does not warm up when the
     # cable is plugged back in
-    fpga.dac_run_sram([makeSample(dac_neutral, dac_neutral)]*4,False)
+    fpga.dac_run_sram([makeSample(dac_neutral, dac_neutral)]*25,False)
     ds = cxn.data_vault
     ds.cd(['', keys.SESSIONNAME, boardname],True)
     dataset = ds.new(keys.CHANNELNAMES[channel], [('Time','ns')],
