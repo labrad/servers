@@ -176,7 +176,7 @@ class SerialServer(LabradServer):
             for x in self.SerialPorts:
                 if os.path.normcase(x.name) == os.path.normcase(port):
                     try:
-                        c['PortObject'] = Serial(x.devicepath)
+                        c['PortObject'] = Serial(x.devicepath, timeout=0)
                         return x.name
                     except SerialException, e:
                         if e.message.find('cannot find') >= 0:
@@ -375,7 +375,14 @@ class SerialServer(LabradServer):
                                 'w: Read this many bytes'],
              returns=['s: Received data'])
     def read(self, c, count=0):
-        """Read data from the port."""
+        """Read data from the port.
+
+        Args:
+            count:   bytes to read.
+         
+        If count=0, reads the contents of the buffer (non-blocking).  Otherwise
+        reads for up to <count> characters or the timeout, whichever is first
+        """
         return self.readSome(c, count)
 
     @setting(51, 'Read as Words',
