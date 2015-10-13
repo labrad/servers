@@ -81,7 +81,11 @@ def _parName(meas):
 
 class AgilentPNAServer(GPIBManagedServer):
     name = 'PNA_X'
-    deviceName = ['Agilent Technologies N5242A','Agilent Technologies N5230A','Agilent Technologies E8364B', 'Agilent Technologies N5232A']
+    deviceName = ['Agilent Technologies N5242A',
+                  'Agilent Technologies N5230A',
+                  'Agilent Technologies E8364B',
+                  'Agilent Technologies N5232A',
+                  'Agilent Technologies N5231A']
     deviceWrapper = PNAWrapper
 
     def initContext(self, c):
