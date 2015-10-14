@@ -361,7 +361,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB, use_switch=True):
     fpga.select_device(boardname)
     offsettime = reg.get(keys.TIMEOFFSET)
 
-    baseline = makeSample(baselineA,baselineB)
+    baseline = makeSample(baselineA, baselineB)
 #    print "Measuring offset voltage..."
 #    offset = (measureImpulseResponse(fpga, scope, baseline, baseline))[2:]
 #    offset = sum(offset) / len(offset)
@@ -383,7 +383,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB, use_switch=True):
         Did you change settings on the scope during the measurement?"""
         exit
     #set output to zero
-    fpga.dac_run_sram([baseline]*4)
+    fpga.dac_run_sram([baseline]*24)
     uwaveSource.output(False)
     ds = cxn.data_vault
     ds.cd(['',keys.SESSIONNAME,boardname],True)
@@ -448,7 +448,7 @@ def calibrateDCPulse(cxn,boardname,channel):
     trace(1).\
     record_length(5120).\
     average(128).\
-    sensitivity(Value(100.0,'mV')).\
+    sensitivity(Value(200.0,'mV')).\
     offset(Value(0,'mV')).\
     time_step(Value(5,'ns')).\
     trigger_level(Value(0.18,'V')).\
@@ -465,7 +465,7 @@ def calibrateDCPulse(cxn,boardname,channel):
     trace = trace[trace.unit]  # strip units
     # set the output to zero so that the fridge does not warm up when the
     # cable is plugged back in
-    fpga.dac_run_sram([makeSample(dac_neutral, dac_neutral)]*4,False)
+    fpga.dac_run_sram([makeSample(dac_neutral, dac_neutral)]*24,False)
     ds = cxn.data_vault
     ds.cd(['', keys.SESSIONNAME, boardname],True)
     dataset = ds.new(keys.CHANNELNAMES[channel], [('Time','ns')],
