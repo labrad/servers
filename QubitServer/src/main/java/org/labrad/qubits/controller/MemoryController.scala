@@ -12,8 +12,6 @@ import scala.collection.mutable
  */
 class MemoryController(fpga: FpgaModelDac) extends FpgaController(fpga) {
 
-  clear()
-
   private val memory = mutable.Buffer.empty[MemoryCommand]
   private var timerStartCount = 0
   private var timerStopCount = 0

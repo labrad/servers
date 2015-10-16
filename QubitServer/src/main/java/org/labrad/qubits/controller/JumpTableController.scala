@@ -13,8 +13,6 @@ import org.labrad.qubits.jumptable.JumpTable
 class JumpTableController(fpga: FpgaModelDac) extends FpgaController(fpga) {
   private val jumpTable = new JumpTable()
 
-  clear()
-
   override def hasDualBlockSram(): Boolean = {
     false
   }
