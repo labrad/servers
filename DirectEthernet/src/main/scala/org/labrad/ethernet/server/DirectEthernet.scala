@@ -3,6 +3,7 @@ package org.labrad.ethernet.server
 import org.labrad._
 import org.labrad.annotations._
 import org.labrad.data._
+import org.labrad.errors.LabradException
 import org.labrad.util.Logging
 import org.pcap4j.core._
 import org.pcap4j.packet.EthernetPacket
@@ -59,8 +60,12 @@ extends ServerContext with Logging {
   private var readTimeout: Option[Duration] = None
   private val readFilters = mutable.Buffer.empty[Filter]
 
+  private def fail(code: Int, message: String) = {
+    throw new LabradException(code, message)
+  }
+
   private def bus: EthernetBus = {
-    busOpt.getOrElse { sys.error(s"context: $context. must connect to an adapter first") }
+    busOpt.getOrElse { fail(10, s"Context: $context. Must connect to an adapter first") }
   }
 
   private def busMac: MacAddress = {
@@ -166,8 +171,13 @@ extends ServerContext with Logging {
             |and start the next task before retrieving the data generated in
             |the first task.""")
   def collect(numPackets: Long = 1): Unit = {
-    val timeout = readTimeout.getOrElse { sys.error("Read Timeout not set!") }
-    queue.await(numPackets, timeout)
+    val timeout = readTimeout.getOrElse { fail(11, "Read Timeout not set") }
+    try {
+      queue.await(numPackets, timeout)
+    } catch {
+      case e: java.util.concurrent.TimeoutException =>
+        fail(12, s"Timeout! Failed to collect $numPackets packets after $timeout")
+    }
   }
 
   @Setting(
@@ -280,7 +290,7 @@ extends ServerContext with Logging {
     }
 
     val srcMac = writeSrcMac.getOrElse { busMac }
-    val dstMac = writeDstMac.getOrElse { sys.error("must specify destination MAC address") }
+    val dstMac = writeDstMac.getOrElse { fail(13, "Must specify destination MAC address before write") }
     val etherType = writeEtherType
 
     val packet = RawEthernet(srcMac, dstMac, bytes, etherType)
