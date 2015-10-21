@@ -112,6 +112,10 @@ class DataVaultConnector(MultiService):
         self.server = DataVaultMultiHead(self.host, self.port, self.password, self.hub, self.session_store)
         self.server.onStartup().addErrback(self._error)
         self.server.onShutdown().addCallbacks(self._disconnected, self._error)
+        try:
+            self.server.configure_tls(self.host, "starttls")
+        except AttributeError:
+            print "pylabrad doesn't support TLS"
         self.cxn = TCPClient(self.host, self.port, self.server)
         self.addService(self.cxn)
 
