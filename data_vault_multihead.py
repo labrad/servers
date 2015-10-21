@@ -18,7 +18,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Data Vault
-version = 2.3.7-hydra
+version = 2.3.8-hydra
 description = Store and retrieve numeric data
 
 [startup]
