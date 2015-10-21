@@ -177,7 +177,7 @@ cmdTime_cycles does not properly estimate sram length
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 5.0.3
+version = 5.0.4
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -295,8 +295,11 @@ class BoardGroup(object):
         """Clean up when this board group is removed."""
         # expire our context with the manager
         cxn = self.directEthernetServer._cxn
-        yield cxn.manager.expire_context(
-                self.directEthernetServer.ID, context=self.ctx)
+        servers = yield cxn.manager.servers()
+        server_ids = set(id for id, name in servers)
+        if self.directEthernetServer.ID in ids:
+            yield cxn.manager.expire_context(
+                    self.directEthernetServer.ID, context=self.ctx)
 
     def configure(self, name, boards):
         """Update configuration for this board group."""
@@ -990,7 +993,11 @@ class FPGAServer(DeviceServer):
         for key in removals:
             bg = self.boardGroups[key]
             del self.boardGroups[key]
-            yield bg.shutdown()
+            try:
+                yield bg.shutdown()
+            except Exception, e:
+                logging.error('Error removing board group: {}'.format(key),
+                              exc_info=True)
 
         # Add new board groups.
         for server, port in additions:
