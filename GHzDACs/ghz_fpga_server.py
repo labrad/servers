@@ -177,7 +177,7 @@ cmdTime_cycles does not properly estimate sram length
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 5.0.4
+version = 5.0.5
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -880,7 +880,7 @@ class BoardGroup(object):
         """Create a nice error message explaining which boards timed out."""
         lines = ['Some boards failed:']
         for runner, (success, result) in zip(runners, results):
-            if runner.executionCount is None:
+            if getattr(runner, 'executionCount', None) is None:
                 executionCount = 'not available'
             else:
                 executionCount = runner.executionCount
