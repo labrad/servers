@@ -877,7 +877,7 @@ class BoardGroup(object):
         """Create a nice error message explaining which boards timed out."""
         lines = ['Some boards failed:']
         for runner, (success, result) in zip(runners, results):
-            if runner.executionCount is None:
+            if getattr(runner, 'executionCount', None) is None:
                 executionCount = 'not available'
             else:
                 executionCount = runner.executionCount
