@@ -12,6 +12,6 @@ trait FpgaChannel extends Channel {
   def dacBoard: DacBoard
 
   def setFpgaModel(fpga: FpgaModel): Unit
-  def getFpgaModel(): FpgaModel
+  def fpgaModel: FpgaModel
 
 }

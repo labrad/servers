@@ -14,18 +14,18 @@ class FpgaModelMicrowave(microwaveBoard: MicrowaveBoard, expt: Experiment) exten
     this.iq = iq
   }
 
-  def getIqChannel(): IqChannel = {
+  def iqChannel: IqChannel = {
     iq
   }
 
-  def getMicrowaveSource(): MicrowaveSource = {
-    microwaveBoard.getMicrowaveSource()
+  def microwaveSource: MicrowaveSource = {
+    microwaveBoard.microwaveSource
   }
 
   def deconvolveSram(deconvolver: DeconvolutionProxy)(implicit ec: ExecutionContext): Future[Unit] = {
     val deconvolutions = for {
-      blockName <- getBlockNames()
-      block = iq.getBlockData(blockName)
+      blockName <- blockNames
+      block = iq.blockData(blockName)
       if !block.isDeconvolved
     } yield block.deconvolve(deconvolver)
 
@@ -37,11 +37,11 @@ class FpgaModelMicrowave(microwaveBoard: MicrowaveBoard, expt: Experiment) exten
    * @param block
    * @return
    */
-  override protected def getSramDacBits(block: String): Array[Long] = {
-    val sram = Array.fill[Long](getBlockLength(block)) { 0 }
+  override protected def sramDacBits(block: String): Array[Long] = {
+    val sram = Array.fill[Long](blockLength(block)) { 0 }
     if (iq != null) {
-      val A = iq.getSramDataA(block)
-      val B = iq.getSramDataB(block)
+      val A = iq.sramDataA(block)
+      val B = iq.sramDataB(block)
       for (i <- A.indices) {
         sram(i) |= (A(i) & 0x3FFF).toLong + ((B(i) & 0x3FFF).toLong << 14)
       }

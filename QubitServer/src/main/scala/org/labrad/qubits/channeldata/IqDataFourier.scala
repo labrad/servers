@@ -17,7 +17,7 @@ class IqDataFourier(data: ComplexArray, t0: Double, zeroEnds: Boolean) extends I
 
   def deconvolve(deconvolver: DeconvolutionProxy)(implicit ec: ExecutionContext): Future[Unit] = {
     val ch = getChannel()
-    val freq = ch.getMicrowaveConfig().frequency
+    val freq = ch.microwaveConfig.frequency
     val req = deconvolver.deconvolveIqFourier(ch.dacBoard, data, freq, t0, zeroEnds)
     req.map { result =>
       I = result.I

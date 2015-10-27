@@ -32,11 +32,11 @@ class JumpTableController(fpga: FpgaModelDac) extends FpgaController(fpga) {
     jumpTable.addEntry(name, data)
   }
 
-  override def getSequenceLength_us(): Double = {
+  override def sequenceLength_us: Double = {
     sys.error("TODO: implement get sequence length for JT.")
   }
 
-  override def getSequenceLengthPostSRAM_us(): Double = {
+  override def sequenceLengthPostSRAM_us: Double = {
     sys.error("TODO: implement get sequence length for JT.")
   }
 }

@@ -34,7 +34,7 @@ object Channel {
         if (boardName.contains("FastBias")) {
           val board = resources.get[FastBias](boardName)
           val fiberId = DcRackFiberId.fromString(channel)
-          val dacBoard = board.getDacBoard(fiberId)
+          val dacBoard = board.dacBoard(fiberId)
           new FastBiasFpgaChannel(name, dacBoard, fiberId)
         } else {
           val rackCard = boardName.toInt
@@ -66,9 +66,6 @@ object Channel {
  */
 trait Channel {
   def name: String
-
-  def setExperiment(expt: Experiment): Unit
-  def getExperiment(): Experiment
 
   def clearConfig(): Unit
 }

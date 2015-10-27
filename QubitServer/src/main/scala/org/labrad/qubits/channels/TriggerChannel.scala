@@ -7,7 +7,7 @@ import org.labrad.qubits.channeldata.TriggerDataTime
 import org.labrad.qubits.enums.DacTriggerId
 import org.labrad.qubits.resources.DacBoard
 
-class TriggerChannel(name: String, board: DacBoard, triggerId: DacTriggerId) extends SramChannelBase[TriggerData](name, board) {
+class TriggerChannel(name: String, board: DacBoard, val triggerId: DacTriggerId) extends SramChannelBase[TriggerData](name, board) {
 
   override def setFpgaModel(fpga: FpgaModel): Unit = {
     fpga match {
@@ -20,22 +20,18 @@ class TriggerChannel(name: String, board: DacBoard, triggerId: DacTriggerId) ext
     }
   }
 
-  def getShift(): Int = {
+  def shift: Int = {
     triggerId.getShift()
   }
 
-  def getTriggerId(): DacTriggerId = {
-    triggerId
-  }
-
   def addData(data: TriggerData): Unit = {
-    val expected = fpga.getBlockLength(currentBlock)
+    val expected = fpga.blockLength(currentBlock)
     data.checkLength(expected)
     blocks.put(currentBlock, data)
   }
 
   def addPulse(start: Int, len: Int): Unit = {
-    val data = getSramData(currentBlock)
+    val data = sramData(currentBlock)
     val newStart = Math.max(0, start)
     val end = Math.min(data.length, newStart + len)
     for (i <- start until end) {
@@ -43,10 +39,10 @@ class TriggerChannel(name: String, board: DacBoard, triggerId: DacTriggerId) ext
     }
   }
 
-  def getSramData(name: String): Array[Boolean] = {
+  def sramData(name: String): Array[Boolean] = {
     val trigger = blocks.getOrElseUpdate(name, {
       // create a dummy data block
-      val length = fpga.getBlockLength(name)
+      val length = fpga.blockLength(name)
       val zeros = Array.ofDim[Boolean](length)
       val d = new TriggerDataTime(zeros)
       d.setChannel(this)

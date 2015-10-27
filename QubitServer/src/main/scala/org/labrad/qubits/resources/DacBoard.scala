@@ -11,10 +11,6 @@ abstract class DacBoard(val name: String, val buildNumber: String, val buildProp
 
   val buildType = "dacBuild" // either 'adcBuild' or 'dacBuild'
 
-  def getBuildType(): String = {
-    buildType
-  }
-
   def setFiber(fiber: DacFiberId, board: BiasBoard, channel: DcRackFiberId): Unit = {
     fibers.put(fiber, board)
     fiberChannels.put(fiber, channel)

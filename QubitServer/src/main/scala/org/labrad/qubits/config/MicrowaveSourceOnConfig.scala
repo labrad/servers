@@ -9,7 +9,7 @@ case class MicrowaveSourceOnConfig(frequency: Double, power: Double) extends Mic
     true
   }
 
-  override def getSetupPacket(src: MicrowaveSource): SetupPacket = {
+  override def setupPacket(src: MicrowaveSource): SetupPacket = {
     val data = Seq(
       "Select Device" -> Str(src.name),
       "Output" -> Bool(true),

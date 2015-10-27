@@ -23,7 +23,7 @@ class IqDataTime(data: ComplexArray, isDeconvolved: Boolean, zeroEnds: Boolean) 
 
   override def deconvolve(deconvolver: DeconvolutionProxy)(implicit ec: ExecutionContext): Future[Unit] = {
     val ch = getChannel()
-    val freq = ch.getMicrowaveConfig().frequency
+    val freq = ch.microwaveConfig.frequency
     val req = deconvolver.deconvolveIq(ch.dacBoard, data, freq, zeroEnds)
     req.map { result =>
       I = result.I

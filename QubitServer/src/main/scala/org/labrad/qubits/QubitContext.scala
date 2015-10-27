@@ -51,7 +51,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
   /**
    * Get the currently-defined experiment in this context.
    */
-  private def getExperiment(): Experiment = {
+  private def experiment: Experiment = {
     require(expt != null, "No sequence initialized in this context.")
     expt
   }
@@ -94,7 +94,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
    * Get a channel from the experiment that is of a particular class
    */
   private def getChannel[T <: Channel : ClassTag](device: String, channel: String): T = {
-    getExperiment().getDevice(device).getChannel[T](channel)
+    experiment.device(device).getChannel[T](channel)
   }
 
   /**
@@ -103,7 +103,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
    * only if there is a unique channel of the appropriate type.
    */
   private def getChannel[T <: Channel : ClassTag](device: String): T = {
-    getExperiment().getDevice(device).getChannel[T]
+    experiment.device(device).getChannel[T]
   }
 
   /**
@@ -186,7 +186,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
               |This clears all configuration from the config calls,
               |but leaves the device and channel setup unchanged.""")
   def new_config(): Unit = {
-    getExperiment().clearConfig()
+    experiment.clearConfig()
     configDirty = true
   }
 
@@ -282,7 +282,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
       }
       channels += new TimingOrderItem(timingChannel, idx)
     }
-    getExperiment().setTimingOrder(channels.result)
+    experiment.setTimingOrder(channels.result)
     configDirty = true
   }
 
@@ -303,7 +303,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
       checkSetupPacket(packet)
       packet
     }
-    getExperiment().setSetupState(states, packetSeq)
+    experiment.setSetupState(states, packetSeq)
     configDirty = true
   }
 
@@ -323,7 +323,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
       channel: String,
       @Accept("v[ns]") length: Double = Constants.AUTOTRIGGER_PULSE_LENGTH
   ): Unit = {
-    getExperiment().setAutoTrigger(DacTriggerId.fromString(channel), length.toInt)
+    experiment.setAutoTrigger(DacTriggerId.fromString(channel), length.toInt)
     configDirty = true
   }
 
@@ -385,7 +385,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
       name = "New Mem",
       doc = "Clear memory content in this context.")
   def new_mem(): Unit = {
-    getExperiment().clearControllers()
+    experiment.clearControllers()
     memDirty = true
   }
 
@@ -419,7 +419,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
     val boardsAndCommands = commands.map { case (id, cmdTypeName, voltage) =>
       val ch = getChannel[FastBiasFpgaChannel](id)
       val cmdType = BiasCommandType.fromString(cmdTypeName)
-      (ch.getFpgaModel(), FastBiasCommands.get(cmdType, ch, voltage))
+      (ch.fpgaModel, FastBiasCommands(cmdType, ch, voltage))
     }
 
     // group commands by fpga board
@@ -427,7 +427,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
       .groupBy { case (board, cmd) => board }
       .map { case (board, cmds) => board -> cmds.map(_._2) } // just keep cmd from board, command tuple
 
-    getExperiment().addBiasCommands(fpgas, microseconds)
+    experiment.addBiasCommands(fpgas, microseconds)
     memDirty = true
   }
 
@@ -435,7 +435,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
       name = "Mem Delay",
       doc = "Add a delay to all channels.")
   def mem_delay(@Accept("v[us]") delay: Double): Unit = {
-    getExperiment().addMemoryDelay(delay)
+    experiment.addMemoryDelay(delay)
     memDirty = true
   }
 
@@ -445,7 +445,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
   def mem_delay_single(@Accept("(s v[us]) | ((ss) v[us])") command: Data): Unit = {
     val ch = getChannel[FastBiasFpgaChannel](command(0))
     val delay_us = command(1).getValue
-    getExperiment().addSingleMemoryDelay(ch.getFpgaModel(), delay_us)
+    experiment.addSingleMemoryDelay(ch.fpgaModel, delay_us)
     memDirty = true
   }
 
@@ -460,12 +460,12 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
               |of the first and second blocks (the delay between the END of the first block
               |and the START of the second block must be specified separately).""")
   def mem_call_sram(block: String): Unit = {
-    getExperiment().callSramBlock(block)
+    experiment.callSramBlock(block)
     memDirty = true
   }
 
   def mem_call_sram(block1: String, block2: String) {
-    getExperiment().callSramDualBlock(block1, block2)
+    experiment.callSramDualBlock(block1, block2)
     memDirty = true
   }
 
@@ -474,7 +474,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
       doc = "Start the timer for the specified timing channels.")
   def mem_start_timer(@Accept("*s | *(ss)") ids: Seq[Data]): Unit = {
     val channels = ids.map { id => getChannel[PreampChannel](id) }
-    getExperiment().startTimer(channels)
+    experiment.startTimer(channels)
     memDirty = true
   }
 
@@ -483,7 +483,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
       doc = "Stop the timer for the specified timing channels.")
   def mem_stop_timer(@Accept("*s | *(ss)") ids: Seq[Data]): Unit = {
     val channels = ids.map { id => getChannel[PreampChannel](id) }
-    getExperiment().stopTimer(channels)
+    experiment.stopTimer(channels)
     memDirty = true
   }
 
@@ -491,7 +491,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
       name = "Mem Sync Delay",
       doc = "Adds a memory delay to synchronize all channels.  Call last in the memory sequence.")
   def mem_sync_delay(): Unit = {
-    getExperiment().addMemSyncDelay()
+    experiment.addMemSyncDelay()
     memDirty = true
   }
 
@@ -516,7 +516,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
       name = "Config loop delay",
       doc = "Set the delay between stats. This used to be called 'biasOperateSettling'.")
   def config_loop_delay(@Accept("v[us]") loopDelay: Double): Unit = {
-    getExperiment.configLoopDelay(loopDelay)
+    experiment.configLoopDelay(loopDelay)
   }
 
 
@@ -531,7 +531,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
       commandName: String,
       @Accept("w{NOP,END} | ww{IDLE} | www{JUMP} | wwww{CYCLE}") commandData: Data
   ): Unit = {
-    getExperiment.addJumpTableEntry(commandName, commandData)
+    experiment.addJumpTableEntry(commandName, commandData)
   }
 
 
@@ -553,7 +553,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
               |deconvolution.""")
   def new_sram_block(name: String, length: Long, @Accept("ss") id: Data): Unit = {
     val ch = getChannel[SramChannelBase[_]](id)
-    ch.getFpgaModel().startSramBlock(name, length)
+    ch.fpgaModel.startSramBlock(name, length)
     ch.setCurrentBlock(name)
     sramDirty = true
   }
@@ -568,7 +568,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
               |nanoseconds which may give unexpected results if the delay is converted from
               |another unit of time.""")
   def sram_dual_block_delay(@Accept("v[ns]") delay: Double): Unit = {
-    getExperiment().setSramDualBlockDelay(delay)
+    experiment.setSramDualBlockDelay(delay)
     sramDirty = true
   }
 
@@ -867,7 +867,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
               |will be detected at this point and cause an error to be thrown.""")
   def build_sequence(): Unit = {
 
-    val expt = getExperiment()
+    val expt = experiment
 
     //
     // sanity checks
@@ -901,8 +901,8 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
       dev <- expt.devices
       chan <- dev.getChannels[IqChannel]
     } yield {
-      val src = chan.getMicrowaveSource()
-      val config = chan.getMicrowaveConfig()
+      val src = chan.microwaveSource
+      val config = chan.microwaveConfig
       require(config != null, s"No microwaves configured: dev=${dev.name}, channel=${chan.name}")
       src -> (dev, chan, config)
     }).groupByKeyValue
@@ -920,8 +920,8 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
       uwaveConfigs(src) = configs(0)
     }
 
-    for (fpga <- getExperiment().getMicrowaveFpgas()) {
-      val src = fpga.getMicrowaveSource()
+    for (fpga <- expt.microwaveFpgas) {
+      val src = fpga.microwaveSource
       if (!uwaveConfigs.contains(src)) {
         uwaveConfigs(src) = MicrowaveSourceOffConfig
       }
@@ -936,8 +936,8 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
     val setupState = Array.newBuilder[String]
 
     // start with setup packets that have already been configured
-    setupPackets ++= expt.getSetupPackets()
-    setupState ++= expt.getSetupState()
+    setupPackets ++= expt.setupPackets
+    setupState ++= expt.setupState
 
     // build setup packets for microwave sources
     // TODO if a microwave source is used for dummy channels and real channels, resolve here
@@ -951,7 +951,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
     val hittiteNames = hittiteList.map(_._2).toSet
 
     for ((src, config) <- uwaveConfigs) {
-      val p = config.getSetupPacket(src)
+      val p = config.setupPacket(src)
       val devName = src.name
       if (anritsuNames.contains(devName)) {
         setupPackets += buildSetupPacket(Constants.ANRITSU_SERVER, p.recordData)
@@ -966,17 +966,17 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
 
     // build setup packets for preamp boards
     // TODO improve DC Racks server (e.g. need caching)
-    for (ch <- expt.getChannels[PreampChannel]) {
-      if (ch.hasPreampConfig()) {
-        val p = ch.getPreampConfig().getSetupPacket(ch)
+    for (ch <- expt.channels[PreampChannel]) {
+      if (ch.hasPreampConfig) {
+        val p = ch.preampConfig.setupPacket(ch)
         setupPackets += buildSetupPacket(Constants.DC_RACK_SERVER, p.recordData)
         setupState += p.state
       }
     }
 
-    for (ch <- expt.getChannels[FastBiasSerialChannel]) {
-      if (ch.hasSetupPacket()) {
-        val p = ch.getSetupPacket()
+    for (ch <- expt.channels[FastBiasSerialChannel]) {
+      if (ch.hasSetupPacket) {
+        val p = ch.setupPacket
         setupPackets += buildSetupPacket(Constants.DC_RACK_SERVER, p.recordData)
         setupState += p.state
       }
@@ -992,7 +992,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
     // this is the new-style deconvolution routine which sends all deconvolution requests in separate packets
     val deconvolver = new DeconvolutionProxy(cxn)
     val deconvolutions = for {
-      fpga <- expt.getDacFpgas.toSeq
+      fpga <- expt.dacFpgas.toSeq
       if fpga.hasSramChannel
     } yield fpga.deconvolveSram(deconvolver)
 
@@ -1006,22 +1006,22 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
 
     // NEW 4/22/2011 - pomalley
     // settings for ADCs
-    for (fpga <- expt.getAdcFpgas()) {
+    for (fpga <- expt.adcFpgas) {
       runRequest += "Select Device" -> Str(fpga.name)
       runRequest ++= fpga.packets
     }
 
     // upload all memory and SRAM data
-    for (fpga <- expt.getDacFpgas()) {
+    for (fpga <- expt.dacFpgas) {
       runRequest ++= fpga.packets
-      if (getExperiment().isLoopDelayConfigured()) {
-        runRequest += "Loop Delay" -> Value(expt.getLoopDelay(), "us")
+      if (expt.isLoopDelayConfigured()) {
+        runRequest += "Loop Delay" -> Value(expt.loopDelay, "us")
       }
     }
 
     // set up daisy chain and timing order
-    runRequest += "Daisy Chain" -> Arr(expt.getFpgaNames().toArray)
-    runRequest += "Timing Order" -> Arr(expt.getTimingOrder().toArray)
+    runRequest += "Daisy Chain" -> Arr(expt.fpgaNames.toArray)
+    runRequest += "Timing Order" -> Arr(expt.timingOrder.toArray)
 
     // run the sequence
     nextRequest = (runRequest, setupPackets.result, setupState.result)
@@ -1039,7 +1039,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
   @Return("*w")
   def get_sram_final(@Accept("s|ss") id: Data): Array[Long] = {
     val iq = getChannel[IqChannel](id)
-    iq.getFpgaModel().getSram()
+    iq.fpgaModel.sramBits
   }
 
   @Setting(id = 1000,
@@ -1135,13 +1135,13 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
   private def extractDataPhases(): Array[Array[Array[Double]]] = {
     val shape = lastData.arrayShape
     val ans = Array.ofDim[Array[Double]](shape(0), shape(1))
-    val adcIndices = this.getExperiment().adcTimingOrderIndices()
-    val timingChannels = getExperiment().getTimingChannels()
+    val adcIndices = experiment.adcTimingOrderIndices()
+    val timingChannels = experiment.timingChannels
 
     for (whichAdcChannel <- 0 until shape(0)) {
-      val ch = timingChannels(adcIndices(whichAdcChannel)).getChannel().asInstanceOf[AdcChannel]
+      val ch = timingChannels(adcIndices(whichAdcChannel)).channel.asInstanceOf[AdcChannel]
       for (j <- 0 until shape(1)) {
-        ans(whichAdcChannel)(j) = ch.getPhases(
+        ans(whichAdcChannel)(j) = ch.phases(
           lastData(whichAdcChannel, j, 0).get[Array[Int]],
           lastData(whichAdcChannel, j, 1).get[Array[Int]]
         )

@@ -38,8 +38,8 @@ case class PreampConfig(offset: Long, polarity: Boolean, highPassName: String, l
     sys.error(s"Invalid low-pass filter value '$lowPassName'.  Must be one of ${lowPassFilters.keys.mkString(",")}")
   }
 
-  def getSetupPacket(ch: PreampChannel): SetupPacket = {
-    val chName = ch.getPreampBoard().name
+  def setupPacket(ch: PreampChannel): SetupPacket = {
+    val chName = ch.preampBoard.name
     val linkNameEnd = chName.indexOf("Preamp") - 1
     val linkName = chName.substring(0, linkNameEnd)
     val cardId = (chName.substring(linkNameEnd + "Preamp".length() + 2)).toLong
@@ -48,13 +48,13 @@ case class PreampConfig(offset: Long, polarity: Boolean, highPassName: String, l
       "Connect" -> Str(linkName),
       "Select Card" -> UInt(cardId),
       "Register" -> Cluster(
-        Str(ch.getPreampChannel.toString.toUpperCase),
+        Str(ch.preampChannel.toString.toUpperCase),
         Cluster(UInt(highPass), UInt(lowPass), UInt(if (polarity) 1 else 0), UInt(offset))
       ),
       "Disconnect" -> Data.NONE
     )
 
-    val state = s"${ch.getPreampBoard.name}${ch.getPreampChannel}: offset=$offset polarity=$polarity highPass=$highPass lowPass=$lowPass"
+    val state = s"${ch.preampBoard.name}${ch.preampChannel}: offset=$offset polarity=$polarity highPass=$highPass lowPass=$lowPass"
 
     SetupPacket(state, settings)
   }

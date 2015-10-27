@@ -13,8 +13,8 @@ import org.labrad.qubits.util.ComplexArray
 
 class IqChannel(name: String, board: MicrowaveBoard) extends SramChannelBase[IqData](name, board) {
 
-  private val uwaveSrc: MicrowaveSource = board.getMicrowaveSource()
-  private var uwaveConfig: MicrowaveSourceConfig = null
+  val microwaveSource: MicrowaveSource = board.microwaveSource
+  private var _microwaveConfig: MicrowaveSourceConfig = null
 
   clearConfig()
 
@@ -29,25 +29,21 @@ class IqChannel(name: String, board: MicrowaveBoard) extends SramChannelBase[IqD
     }
   }
 
-  def getMicrowaveSource(): MicrowaveSource = {
-    uwaveSrc
-  }
-
   /**
    * Add data to the current block
    * @param data
    */
   def addData(data: IqData): Unit = {
-    val expected = fpga.getBlockLength(currentBlock)
+    val expected = fpga.blockLength(currentBlock)
     data.setChannel(this)
     data.checkLength(expected)
     blocks.put(currentBlock, data)
   }
 
-  def getBlockData(name: String): IqData = {
+  def blockData(name: String): IqData = {
     blocks.getOrElseUpdate(name, {
       // create a dummy data set with zeros
-      val expected = fpga.getBlockLength(name)
+      val expected = fpga.blockLength(name)
       val zeros = Array.fill[Double](expected) { 0 }
       val data = new IqDataFourier(new ComplexArray(zeros, zeros), 0, true)
       data.setChannel(this)
@@ -55,22 +51,22 @@ class IqChannel(name: String, board: MicrowaveBoard) extends SramChannelBase[IqD
     })
   }
 
-  def getSramDataA(name: String): Array[Int] = {
+  def sramDataA(name: String): Array[Int] = {
     blocks(name).getDeconvolvedI()
   }
 
-  def getSramDataB(name: String): Array[Int] = {
+  def sramDataB(name: String): Array[Int] = {
     blocks(name).getDeconvolvedQ()
   }
 
   // configuration
 
   def clearConfig(): Unit = {
-    uwaveConfig = null
+    _microwaveConfig = null
   }
 
   def configMicrowavesOn(freq: Double, power: Double): Unit = {
-    uwaveConfig = new MicrowaveSourceOnConfig(freq, power)
+    _microwaveConfig = MicrowaveSourceOnConfig(freq, power)
     // mark all blocks as needing to be deconvolved again
     for (block <- blocks.values) {
       block.invalidate()
@@ -78,12 +74,12 @@ class IqChannel(name: String, board: MicrowaveBoard) extends SramChannelBase[IqD
   }
 
   def configMicrowavesOff(): Unit = {
-    uwaveConfig = MicrowaveSourceOffConfig
+    _microwaveConfig = MicrowaveSourceOffConfig
   }
 
-  def getMicrowaveConfig(): MicrowaveSourceConfig = {
-    require(uwaveConfig != null, s"No microwave configuration for channel '$name'")
-    uwaveConfig
+  def microwaveConfig: MicrowaveSourceConfig = {
+    require(_microwaveConfig != null, s"No microwave configuration for channel '$name'")
+    _microwaveConfig
   }
 
 }

@@ -22,12 +22,12 @@ class AnalogDataTime(data: Array[Double], isDeconvolved: Boolean, averageEnds: B
     val ch = getChannel()
     val req = deconvolver.deconvolveAnalog(
         ch.dacBoard,
-        ch.getDacId(),
+        ch.dacId,
         data,
-        ch.getSettlingRates(),
-        ch.getSettlingTimes(),
-        ch.getReflectionRates(),
-        ch.getReflectionAmplitudes(),
+        ch.settlingRates,
+        ch.settlingTimes,
+        ch.reflectionRates,
+        ch.reflectionAmplitudes,
         averageEnds,
         dither
     )

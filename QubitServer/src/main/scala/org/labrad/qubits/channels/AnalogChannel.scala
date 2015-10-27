@@ -8,13 +8,9 @@ import org.labrad.qubits.enums.DacAnalogId
 import org.labrad.qubits.resources.DacBoard
 import org.labrad.qubits.util.ComplexArray
 
-class AnalogChannel(name: String, board: DacBoard, dacId: DacAnalogId) extends SramChannelBase[AnalogData](name, board) {
+class AnalogChannel(name: String, board: DacBoard, val dacId: DacAnalogId) extends SramChannelBase[AnalogData](name, board) {
 
   clearConfig()
-
-  def getDacId(): DacAnalogId = {
-    dacId
-  }
 
   override def setFpgaModel(fpga: FpgaModel): Unit = {
     fpga match {
@@ -32,16 +28,16 @@ class AnalogChannel(name: String, board: DacBoard, dacId: DacAnalogId) extends S
    * @param data
    */
   def addData(data: AnalogData): Unit = {
-    val expected = fpga.getBlockLength(currentBlock)
+    val expected = fpga.blockLength(currentBlock)
     data.setChannel(this)
     data.checkLength(expected)
     blocks.put(currentBlock, data)
   }
 
-  def getBlockData(name: String): AnalogData = {
+  def blockData(name: String): AnalogData = {
     blocks.getOrElseUpdate(name, {
       // create a dummy data set with zeros
-      val len = fpga.getBlockLength(name)
+      val len = fpga.blockLength(name)
       val fourierLen = if (len % 2 == 0) len/2 + 1 else (len+1) / 2
       val zeros = Array.ofDim[Double](fourierLen)
       val data = new AnalogDataFourier(new ComplexArray(zeros, zeros), 0, true, false)
@@ -50,7 +46,7 @@ class AnalogChannel(name: String, board: DacBoard, dacId: DacAnalogId) extends S
     })
   }
 
-  def getSramData(name: String): Array[Int] = {
+  def sramData(name: String): Array[Int] = {
     blocks(name).getDeconvolved()
   }
 
@@ -59,53 +55,53 @@ class AnalogChannel(name: String, board: DacBoard, dacId: DacAnalogId) extends S
   // Configuration
   //
 
-  private var settlingRates: Array[Double] = null
-  private var settlingAmplitudes: Array[Double] = null
-  private var reflectionRates: Array[Double] = null
-  private var reflectionAmplitudes: Array[Double] = null
+  private var _settlingRates: Array[Double] = null
+  private var _settlingAmplitudes: Array[Double] = null
+  private var _reflectionRates: Array[Double] = null
+  private var _reflectionAmplitudes: Array[Double] = null
 
   def clearConfig(): Unit = {
-    settlingRates = Array.empty[Double]
-    settlingAmplitudes = Array.empty[Double]
-    reflectionRates = Array.empty[Double]
-    reflectionAmplitudes = Array.empty[Double]
+    _settlingRates = Array.empty[Double]
+    _settlingAmplitudes = Array.empty[Double]
+    _reflectionRates = Array.empty[Double]
+    _reflectionAmplitudes = Array.empty[Double]
   }
 
   def setSettling(rates: Array[Double], amplitudes: Array[Double]): Unit = {
     require(rates.length == amplitudes.length,
         s"$name: lists of settling rates and amplitudes must be the same length")
-    settlingRates = rates
-    settlingAmplitudes = amplitudes
+    _settlingRates = rates
+    _settlingAmplitudes = amplitudes
     // mark all blocks as needing to be deconvolved again
     for (block <- blocks.values) {
       block.invalidate()
     }
   }
 
-  def getSettlingRates(): Array[Double] = {
-    settlingRates.clone()
+  def settlingRates: Array[Double] = {
+    _settlingRates.clone()
   }
 
-  def getSettlingTimes(): Array[Double] = {
-    settlingAmplitudes.clone()
+  def settlingTimes: Array[Double] = {
+    _settlingAmplitudes.clone()
   }
 
   def setReflection(rates: Array[Double], amplitudes: Array[Double]): Unit = {
     require(rates.length == amplitudes.length,
         s"$name: lists of reflection rates and amplitudes must be the same length")
-    reflectionRates = rates;
-    reflectionAmplitudes = amplitudes;
+    _reflectionRates = rates;
+    _reflectionAmplitudes = amplitudes;
     // mark all blocks as needing to be deconvolved again
     for (block <- blocks.values) {
       block.invalidate()
     }
   }
 
-  def getReflectionRates(): Array[Double] = {
-    reflectionRates.clone()
+  def reflectionRates: Array[Double] = {
+    _reflectionRates.clone()
   }
 
-  def getReflectionAmplitudes(): Array[Double] = {
-    reflectionAmplitudes.clone()
+  def reflectionAmplitudes: Array[Double] = {
+    _reflectionAmplitudes.clone()
   }
 }

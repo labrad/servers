@@ -20,7 +20,7 @@ class FastBiasFpgaChannel(name: String, val dacBoard: DacBoard, fiberId: DcRackF
     }
   }
 
-  def getFpgaModel(): FpgaModelDac = {
+  def fpgaModel: FpgaModelDac = {
     fpga
   }
 }

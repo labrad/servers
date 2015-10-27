@@ -8,7 +8,7 @@ import org.labrad.qubits.enums.DcRackFiberId
  * Created by pomalley on 3/10/2015.
  * FastBias control via serial
  */
-class FastBiasSerialChannel(name: String, dcRackCard: Int, fiberId: DcRackFiberId) extends FastBiasChannel(name, fiberId) {
+class FastBiasSerialChannel(name: String, dcRackCard: Int, dcRackFiberId: DcRackFiberId) extends FastBiasChannel(name, dcRackFiberId) {
 
   private var voltage: Double = _
   private var configured = false
@@ -20,12 +20,12 @@ class FastBiasSerialChannel(name: String, dcRackCard: Int, fiberId: DcRackFiberI
     configured = true
   }
 
-  def hasSetupPacket(): Boolean = {
+  def hasSetupPacket: Boolean = {
     configured
   }
 
-  def getSetupPacket(): SetupPacket = {
-    require(hasSetupPacket(), s"Cannot get setup packet for channel '$name': it has not been configured.")
+  def setupPacket: SetupPacket = {
+    require(hasSetupPacket, s"Cannot get setup packet for channel '$name': it has not been configured.")
     val (dacNum, rcTimeConstant) = dac.toLowerCase match {
       case "dac0" => (0, 1)
       case "dac1slow" => (1, 1)
@@ -36,14 +36,14 @@ class FastBiasSerialChannel(name: String, dcRackCard: Int, fiberId: DcRackFiberI
       "Select Device" -> Data.NONE,
       "channel_set_voltage" -> Cluster(
         UInt(dcRackCard),
-        Str(getDcFiberId.toString.toUpperCase),
+        Str(dcRackFiberId.toString.toUpperCase),
         UInt(dacNum),
         UInt(rcTimeConstant),
         Value(voltage, "V")
       )
     )
 
-    val state = s"$dcRackCard$getDcFiberId: voltage=$voltage dac=$dac"
+    val state = s"$dcRackCard$dcRackFiberId: voltage=$voltage dac=$dac"
 
     SetupPacket(state, records)
   }

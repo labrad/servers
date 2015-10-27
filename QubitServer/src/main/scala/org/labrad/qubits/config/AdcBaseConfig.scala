@@ -7,10 +7,10 @@ abstract class AdcBaseConfig(channelName: String, builProperties: Map[String, Lo
   /**
    * number of clock cycles to delay
    */
-  protected var startDelay: Int = -1
+  protected var _startDelay: Int = -1
 
   def setStartDelay(startDelay: Int): Unit = {
-    this.startDelay = startDelay
+    _startDelay = startDelay
   }
 
   /**
@@ -32,8 +32,8 @@ abstract class AdcBaseConfig(channelName: String, builProperties: Map[String, Lo
    */
   def interpretPhases(Is: Array[Int], Qs: Array[Int], channel: Int): Array[Boolean]
 
-  def getStartDelay(): Int = {
-    startDelay
+  def startDelay: Int = {
+    _startDelay
   }
 
 }

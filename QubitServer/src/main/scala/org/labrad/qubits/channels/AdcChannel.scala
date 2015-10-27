@@ -54,16 +54,8 @@ class AdcChannel(val name: String, val dacBoard: AdcBoard) extends Channel with 
 
   clearConfig()
 
-  override def getExperiment(): Experiment = {
-    expt
-  }
-
-  override def getFpgaModel(): FpgaModelAdc = {
+  override def fpgaModel: FpgaModelAdc = {
     fpga
-  }
-
-  override def setExperiment(expt: Experiment): Unit = {
-    this.expt = expt
   }
 
   override def setFpgaModel(fpga: FpgaModel): Unit = {
@@ -157,7 +149,7 @@ class AdcChannel(val name: String, val dacBoard: AdcBoard) extends Channel with 
         s"Critical phase must be between -PI and PI")
     this.criticalPhase = criticalPhase
   }
-  def getPhases(Is: Array[Int], Qs: Array[Int]): Array[Double] = {
+  def phases(Is: Array[Int], Qs: Array[Int]): Array[Double] = {
     (Is zip Qs).map { case (i, q) =>
       Math.atan2(q + this.offsetQ, i + this.offsetI)
     }
@@ -165,7 +157,7 @@ class AdcChannel(val name: String, val dacBoard: AdcBoard) extends Channel with 
   def interpretPhases(Is: Array[Int], Qs: Array[Int]): Array[Boolean] = {
     require(Is.length == Qs.length, "Is and Qs must be of the same shape!")
     //System.out.println("interpretPhases: channel " + channel + " crit phase: " + criticalPhase[channel]);
-    val phases = getPhases(Is, Qs)
+    val phases = this.phases(Is, Qs)
     if (reverseCriticalPhase) {
       phases.map(_ < criticalPhase)
     } else {
@@ -182,12 +174,12 @@ class AdcChannel(val name: String, val dacBoard: AdcBoard) extends Channel with 
     this.mode = AdcMode.AVERAGE
   }
 
-  override def startDelay(): Int = {
-    this.getFpgaModel().getStartDelay()
+  override def startDelay: Int = {
+    fpgaModel.startDelay
   }
 
   override def setStartDelay(startDelay: Int): Unit = {
-    this.getFpgaModel().setStartDelay(startDelay)
+    fpgaModel.setStartDelay(startDelay)
   }
 
   // these are passthroughs to the config object. in most cases we do have to check that
@@ -259,7 +251,7 @@ class AdcChannel(val name: String, val dacBoard: AdcBoard) extends Channel with 
     this.offsetQ = offsetQ
   }
 
-  def getOffsets(): (Int, Int) = {
+  def offsets: (Int, Int) = {
     (offsetI, offsetQ)
   }
 

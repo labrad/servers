@@ -9,8 +9,8 @@ import org.labrad.qubits.FpgaModelDac
  */
 abstract class FpgaController(protected val fpga: FpgaModelDac) {
 
-  def getSequenceLength_us(): Double
-  def getSequenceLengthPostSRAM_us(): Double
+  def sequenceLength_us: Double
+  def sequenceLengthPostSRAM_us: Double
 
   def hasDualBlockSram(): Boolean
 

@@ -30,7 +30,7 @@ class Experiment(val devices: Seq[Device]) {
   private val boards = mutable.Map.empty[DacBoard, FpgaModel]
 
   // build models for all required resources
-  for (ch <- getChannels[FpgaChannel]) {
+  for (ch <- channels[FpgaChannel]) {
     val board = ch.dacBoard
     val fpga = boards.getOrElseUpdate(board, {
       board match {
@@ -40,50 +40,45 @@ class Experiment(val devices: Seq[Device]) {
         case _ => sys.error(s"Unknown DAC board type for board ${board.name}")
       }
     })
-    // connect this channel to the experiment and fpga model
-    ch.setExperiment(this)
+    // connect this channel to the correct fpga model
     ch.setFpgaModel(fpga)
   }
 
-  for (ch <- getChannels[FastBiasSerialChannel]) {
+  for (ch <- channels[FastBiasSerialChannel]) {
     // TODO: how to represent DC rack hardware in the experiment?
   }
 
-  private val fpgas = boards.values.toSet
+  val fpgas = boards.values.toSet
+
+  // sets of FPGA boards of various types
+  val microwaveFpgas = fpgas.collect { case fpga: FpgaModelMicrowave => fpga }
+  val dacFpgas = fpgas.collect { case dac: FpgaModelDac => dac }
+  val adcFpgas = fpgas.collect { case adc: FpgaModelAdc => adc }
 
   // build sets of FPGA boards that have or don't have a timing channel
-  private val timerFpgas = getChannels[PreampChannel].map(_.getFpgaModel).toSet
-  private val nonTimerFpgas = getDacFpgas() -- timerFpgas
+  val timerFpgas = channels[PreampChannel].map(_.fpgaModel).toSet
+  val nonTimerFpgas = dacFpgas -- timerFpgas
 
+  private val _setupPackets = mutable.Buffer.empty[Data]
+  private val _setupState = mutable.Buffer.empty[String]
+  private var _timingOrder: Seq[TimingOrderItem] = null
+  private var _autoTriggerId: DacTriggerId = null
+  private var _autoTriggerLen = 0
 
-  private val setupPackets = mutable.Buffer.empty[Data]
-  private val setupState = mutable.Buffer.empty[String]
-  private var timingOrder: Seq[TimingOrderItem] = null
-  private var autoTriggerId: DacTriggerId = null
-  private var autoTriggerLen = 0
-
-  private var loopDelay: Double = 0
-  private var loopDelayConfigured = false
+  private var _loopDelay: Double = 0
+  private var _loopDelayConfigured = false
 
   //
   // Devices
   //
 
-  def getDevice(name: String): Device = {
+  def device(name: String): Device = {
     devicesByName.get(name).getOrElse {
       sys.error(s"Device '$name' not found.")
     }
   }
 
-  private def getDevices(): Seq[Device] = {
-    devices
-  }
-
-  def getChannels(): Seq[Channel] = {
-    getChannels[Channel]
-  }
-
-  def getChannels[T <: Channel : ClassTag]: Seq[T] = {
+  def channels[T <: Channel : ClassTag]: Seq[T] = {
     devices.flatMap(_.getChannels[T])
   }
 
@@ -96,41 +91,12 @@ class Experiment(val devices: Seq[Device]) {
    * Clear the memory or jump table commands for these FPGAs.
    */
   def clearControllers(): Unit = {
-    for (fpga <- getDacFpgas()) {
+    for (fpga <- dacFpgas) {
       fpga.clearController()
     }
   }
 
-  /**
-   * Get a list of FPGAs involved in this experiment
-   */
-  def getFpgas(): Set[FpgaModel] = fpgas
-  def getTimerFpgas(): Set[FpgaModelDac] = timerFpgas
-  def getNonTimerFpgas(): Set[FpgaModelDac] = nonTimerFpgas
-
-  def getMicrowaveFpgas(): Set[FpgaModelMicrowave] = {
-    fpgas.collect { case fpga: FpgaModelMicrowave => fpga }
-  }
-
-  /**
-   * Many operations are only performed on DAC fpgas.
-   * @return A set of all FpgaModelDac's in this experiment.
-   * @author pomalley
-   */
-  def getDacFpgas(): Set[FpgaModelDac] = {
-    fpgas.collect { case dac: FpgaModelDac => dac }
-  }
-
-  /**
-   * Conversely, sometimes we need the ADC fpgas.
-   * @return A set of all FpgaModelAdc's in this experiment.
-   * @author pomalley
-   */
-  def getAdcFpgas(): Set[FpgaModelAdc] = {
-    fpgas.collect { case adc: FpgaModelAdc => adc }
-  }
-
-  def getFpgaNames(): Seq[String] = {
+  def fpgaNames: Seq[String] = {
     fpgas.map(_.name).toSeq
   }
 
@@ -142,87 +108,87 @@ class Experiment(val devices: Seq[Device]) {
     clearSetupState()
 
     // clear timing order
-    timingOrder = null
+    _timingOrder = null
 
     // clear autotrigger
-    autoTriggerId = null
+    _autoTriggerId = null
 
     // clear configuration on all channels
     for {
-      dev <- getDevices()
+      dev <- devices
       ch <- dev.getChannels()
     } {
       ch.clearConfig()
     }
 
     // de-configure loopDelay
-    loopDelayConfigured = false
+    _loopDelayConfigured = false
   }
 
 
   private def clearSetupState(): Unit = {
-    setupState.clear()
-    setupPackets.clear()
+    _setupState.clear()
+    _setupPackets.clear()
   }
 
   def setSetupState(state: Seq[String], packets: Seq[Data]): Unit = {
     clearSetupState()
-    setupState ++= state
-    setupPackets ++= packets
+    _setupState ++= state
+    _setupPackets ++= packets
   }
 
-  def getSetupState(): Seq[String] = {
-    setupState.toVector
+  def setupState: Seq[String] = {
+    _setupState.toVector
   }
 
-  def getSetupPackets(): Seq[Data] = {
-    setupPackets.toVector
+  def setupPackets: Seq[Data] = {
+    _setupPackets.toVector
   }
 
   def setAutoTrigger(id: DacTriggerId, length: Int): Unit = {
-    autoTriggerId = id
-    autoTriggerLen = length
+    _autoTriggerId = id
+    _autoTriggerLen = length
   }
 
-  def getAutoTriggerId(): DacTriggerId = {
-    autoTriggerId
+  def autoTriggerId: DacTriggerId = {
+    _autoTriggerId
   }
 
-  def getAutoTriggerLen(): Int = {
-    autoTriggerLen
+  def autoTriggerLen: Int = {
+    _autoTriggerLen
   }
 
   def setTimingOrder(to: Seq[TimingOrderItem]): Unit = {
-    timingOrder = to
+    _timingOrder = to
   }
 
   def configLoopDelay(loopDelay: Double): Unit = {
-    this.loopDelay = loopDelay
-    this.loopDelayConfigured = true
+    _loopDelay = loopDelay
+    _loopDelayConfigured = true
   }
 
   def isLoopDelayConfigured(): Boolean = {
-    loopDelayConfigured
+    _loopDelayConfigured
   }
-  def getLoopDelay(): Double = {
-    loopDelay
+  def loopDelay: Double = {
+    _loopDelay
   }
 
   /**
    * Get the order of boards from which to return timing data
    * @return
    */
-  def getTimingOrder(): Seq[String] = {
-    getTimingChannels.map(_.toString)
+  def timingOrder: Seq[String] = {
+    timingChannels.map(_.toString)
   }
 
-  def getTimingChannels(): Seq[TimingOrderItem] = {
+  def timingChannels: Seq[TimingOrderItem] = {
     // if we have an existing timing order, use it
-    if (timingOrder != null) {
-      timingOrder
+    if (_timingOrder != null) {
+      _timingOrder
     // if not, use everything--all DACs, all ADCs/active ADC channels
     } else {
-      getChannels[TimingChannel].map {
+      channels[TimingChannel].map {
         case t: AdcChannel => new TimingOrderItem(t, t.demodChannel)
         case t => new TimingOrderItem(t)
       }
@@ -230,13 +196,13 @@ class Experiment(val devices: Seq[Device]) {
   }
 
   def adcTimingOrderIndices(): Seq[Int] = {
-    getTimingChannels.zipWithIndex.collect {
+    timingChannels.zipWithIndex.collect {
       case (toi, i) if toi.isAdc => i
     }
   }
 
   def dacTimingOrderIndices(): Seq[Int] = {
-    getTimingChannels.zipWithIndex.collect {
+    timingChannels.zipWithIndex.collect {
       case (toi, i) if !toi.isAdc => i
     }
   }
@@ -246,8 +212,8 @@ class Experiment(val devices: Seq[Device]) {
   //
 
   def addJumpTableEntry(commandName: String, commandData: Data): Unit = {
-    for (fpga <- getDacFpgas) {
-      fpga.getJumpTableController().addJumpTableEntry(commandName, commandData)
+    for (fpga <- dacFpgas) {
+      fpga.jumpTableController.addJumpTableEntry(commandName, commandData)
     }
   }
 
@@ -268,17 +234,17 @@ class Experiment(val devices: Seq[Device]) {
     }
 
     // add commands for each board, including noop padding and final delay
-    for (fpga <- getDacFpgas) {
+    for (fpga <- dacFpgas) {
       allCmds.get(fpga) match {
         case Some(cmds) =>
-          fpga.getMemoryController.addMemoryCommands(cmds)
-          fpga.getMemoryController.addMemoryNoops(maxCmds - cmds.size)
+          fpga.memoryController.addMemoryCommands(cmds)
+          fpga.memoryController.addMemoryNoops(maxCmds - cmds.size)
 
         case None =>
-          fpga.getMemoryController.addMemoryNoops(maxCmds)
+          fpga.memoryController.addMemoryNoops(maxCmds)
       }
       if (delay > 0) {
-        fpga.getMemoryController.addMemoryDelay(delay)
+        fpga.memoryController.addMemoryDelay(delay)
       }
     }
   }
@@ -288,7 +254,7 @@ class Experiment(val devices: Seq[Device]) {
    *
    */
   def addSingleMemoryDelay(fpga: FpgaModelDac, delay_us: Double): Unit = {
-    fpga.getMemoryController.addMemoryDelay(delay_us)
+    fpga.memoryController.addMemoryDelay(delay_us)
   }
 
   /**
@@ -296,34 +262,34 @@ class Experiment(val devices: Seq[Device]) {
    * Only applies to DACs.
    */
   def addMemoryDelay(microseconds: Double): Unit = {
-    for (fpga <- getDacFpgas) {
-      fpga.getMemoryController.addMemoryDelay(microseconds)
+    for (fpga <- dacFpgas) {
+      fpga.memoryController.addMemoryDelay(microseconds)
     }
   }
 
   def addMemSyncDelay(): Unit = {
     //Find maximum sequence length on all fpgas
     var maxT_us = 0.0
-    for (fpga <- getFpgas) {
+    for (fpga <- fpgas) {
       try {
-        val t_us = fpga.getSequenceLengthPostSRAM_us()
+        val t_us = fpga.sequenceLengthPostSRAM_us
         maxT_us = Math.max(maxT_us, t_us)
       } catch {
         case ex: java.lang.IllegalArgumentException =>
       }
     }
 
-    for (fpga <- getDacFpgas) {
+    for (fpga <- dacFpgas) {
       var t = 0.0
       try {
-        t = fpga.getSequenceLength_us()
+        t = fpga.sequenceLength_us
       } catch {
         case ex: java.lang.IllegalArgumentException =>
       }
       if (t < maxT_us) {
-        fpga.getMemoryController.addMemoryDelay(maxT_us - t)
+        fpga.memoryController.addMemoryDelay(maxT_us - t)
       } else {
-        fpga.getMemoryController.addMemoryNoop()
+        fpga.memoryController.addMemoryNoop()
       }
     }
   }
@@ -332,20 +298,20 @@ class Experiment(val devices: Seq[Device]) {
    * Call SRAM. Only applies to DACs.
    */
   def callSramBlock(block: String): Unit = {
-    for (fpga <- getDacFpgas) {
-      fpga.getMemoryController.callSramBlock(block)
+    for (fpga <- dacFpgas) {
+      fpga.memoryController.callSramBlock(block)
     }
   }
 
   def callSramDualBlock(block1: String, block2: String): Unit = {
-    for (fpga <- getDacFpgas) {
-      fpga.getMemoryController.callSramDualBlock(block1, block2)
+    for (fpga <- dacFpgas) {
+      fpga.memoryController.callSramDualBlock(block1, block2)
     }
   }
 
   def setSramDualBlockDelay(delay_ns: Double): Unit = {
-    for (fpga <- getDacFpgas) {
-      fpga.getMemoryController.setSramDualBlockDelay(delay_ns)
+    for (fpga <- dacFpgas) {
+      fpga.memoryController.setSramDualBlockDelay(delay_ns)
     }
   }
 
@@ -353,11 +319,11 @@ class Experiment(val devices: Seq[Device]) {
    * Get the length of the shortest SRAM block across all fpgas.
    * @return
    */
-  def getShortestSram(): Int = {
+  def shortestSram: Int = {
     val lens = for {
-      fpga <- getDacFpgas()
-      block <- fpga.getBlockNames()
-    } yield fpga.getBlockLength(block)
+      fpga <- dacFpgas
+      block <- fpga.blockNames
+    } yield fpga.blockLength(block)
 
     if (lens.isEmpty) 0 else lens.min
   }
@@ -367,22 +333,22 @@ class Experiment(val devices: Seq[Device]) {
    * This only applies to DAC fpgas.
    */
   def startTimer(channels: Seq[PreampChannel]): Unit = {
-    val boards = channels.map(_.getFpgaModel).toSet
+    val boards = channels.map(_.fpgaModel).toSet
 
     // start requested timers
     val timerStarts = boards
-    val timerNoops = getTimerFpgas -- boards
+    val timerNoops = timerFpgas -- boards
 
     // start non timer boards that have never been started
-    val (nonTimerNoops, nonTimerStarts) = getNonTimerFpgas.partition(_.getMemoryController.isTimerStarted)
+    val (nonTimerNoops, nonTimerStarts) = nonTimerFpgas.partition(_.memoryController.isTimerStarted)
 
     // start the timer on requested boards
     for (fpga <- timerStarts ++ nonTimerStarts) {
-      fpga.getMemoryController.startTimer()
+      fpga.memoryController.startTimer()
     }
     // insert a no-op on all other boards
     for (fpga <- timerNoops ++ nonTimerNoops) {
-      fpga.getMemoryController.addMemoryNoop()
+      fpga.memoryController.addMemoryNoop()
     }
   }
 
@@ -390,29 +356,29 @@ class Experiment(val devices: Seq[Device]) {
    * Stop timer on a set of boards.
    */
   def stopTimer(channels: Seq[PreampChannel]): Unit = {
-    val boards = channels.map(_.getFpgaModel).toSet
+    val boards = channels.map(_.fpgaModel).toSet
 
     // stop requested timers
     val timerStops = boards
-    val timerNoops = getTimerFpgas -- boards
+    val timerNoops = timerFpgas -- boards
 
     // stop non-timer boards if they are currently running
-    val (nonTimerStops, nonTimerNoops) = getNonTimerFpgas.partition(_.getMemoryController.isTimerRunning)
+    val (nonTimerStops, nonTimerNoops) = nonTimerFpgas.partition(_.memoryController.isTimerRunning)
 
     // stop the timer on requested boards and non-timer boards
     for (fpga <- timerStops ++ nonTimerStops) {
-      fpga.getMemoryController.stopTimer()
+      fpga.memoryController.stopTimer()
     }
     // insert a no-op on all other boards
     for (fpga <- timerNoops ++ nonTimerNoops) {
-      fpga.getMemoryController.addMemoryNoop()
+      fpga.memoryController.addMemoryNoop()
     }
   }
 
 }
 
 // stupid handler class to implement a timing order item
-class TimingOrderItem(channel: TimingChannel, subChannel: Int = -1) {
+class TimingOrderItem(val channel: TimingChannel, subChannel: Int = -1) {
 
   override def toString(): String = {
     if (subChannel == -1)
@@ -442,9 +408,5 @@ class TimingOrderItem(channel: TimingChannel, subChannel: Int = -1) {
             s"interpretData called with data type ${data.t} on a DAC channel. Qubit Sequencer mixup.")
         preamp.interpretSwitches(data.get[Array[Long]])
     }
-  }
-
-  def getChannel(): TimingChannel = {
-    channel
   }
 }

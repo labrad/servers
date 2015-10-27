@@ -18,7 +18,7 @@ case object MicrowaveSourceOffConfig extends MicrowaveSourceConfig {
     false
   }
 
-  override def getSetupPacket(src: MicrowaveSource): SetupPacket = {
+  override def setupPacket(src: MicrowaveSource): SetupPacket = {
     val data = Seq(
       "Select Device" -> Str(src.name),
       "Output" -> Bool(false)

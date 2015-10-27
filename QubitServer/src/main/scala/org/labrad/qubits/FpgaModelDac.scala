@@ -36,7 +36,7 @@ object FpgaModelDac {
  * the actual packets to send to the FPGA server.
  * Control of the DAC (by memory commands or the jump table) is delegated to the controller member variable.
  */
-abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaModel {
+abstract class FpgaModelDac(val dacBoard: DacBoard, expt: Experiment) extends FpgaModel {
 
   import FpgaModelDac._
 
@@ -53,12 +53,8 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
 
   def name: String = dacBoard.name
 
-  def getDacBoard(): DacBoard = {
-    dacBoard
-  }
-
   // This method is needed by the memory SRAM commands to compute their own length.
-  def getExperiment(): Experiment = {
+  def experiment: Experiment = {
     expt
   }
 
@@ -66,32 +62,32 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
     val builder = Seq.newBuilder[(String, Data)]
 
     builder += "Select Device" -> Str(name)
-    builder += "Start Delay" -> UInt(getStartDelay())
+    builder += "Start Delay" -> UInt(startDelay)
     builder ++= controller.packets
 
     // TODO: having the dual block stuff here is a bit ugly
     if (controller.hasDualBlockSram()) {
-      val memController = getMemoryController()
+      val memController = this.memoryController
       builder += "SRAM dual block" -> Cluster(
-          Arr(getSramDualBlock1()),
-          Arr(getSramDualBlock2()),
-          UInt(memController.getSramDualBlockDelay())
+          Arr(sramDualBlock1Bits),
+          Arr(sramDualBlock2Bits),
+          UInt(memController.sramDualBlockDelay)
       )
     } else {
-      builder += "SRAM" -> Arr(getSram())
+      builder += "SRAM" -> Arr(sramBits)
     }
     builder.result
   }
 
   // Controller stuff
-  def getMemoryController(): MemoryController = {
+  def memoryController: MemoryController = {
     controller match {
       case mc: MemoryController => mc
       case _ => sys.error(s"Cannot assign memory commands to jump table board $name")
     }
   }
 
-  def getJumpTableController(): JumpTableController = {
+  def jumpTableController: JumpTableController = {
     controller match {
       case jtc: JumpTableController => jtc
       case _ => sys.error(s"Cannot assign jump table commands to memory board $name")
@@ -101,19 +97,19 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
   def clearController(): Unit = {
     controller.clear()
   }
-  def getSequenceLength_us(): Double = {
-    controller.getSequenceLength_us()
+  def sequenceLength_us: Double = {
+    controller.sequenceLength_us
   }
-  def getSequenceLengthPostSRAM_us(): Double = {
-    controller.getSequenceLengthPostSRAM_us()
+  def sequenceLengthPostSRAM_us: Double = {
+    controller.sequenceLengthPostSRAM_us
   }
 
-  private var startDelay = 0
+  private var _startDelay = 0
   def setStartDelay(startDelay: Int): Unit = {
-    this.startDelay = startDelay
+    _startDelay = startDelay
   }
-  def getStartDelay(): Int = {
-    this.startDelay
+  def startDelay: Int = {
+    _startDelay
   }
 
   //
@@ -145,18 +141,18 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
    * See comment on hasSramChannel.
    * @return
    */
-  def getSram(): Array[Long] = {
+  def sramBits: Array[Long] = {
     val sram = if (hasSramChannel()) {
       // concatenate bits for all SRAM blocks into one array
-      getBlockNames.toArray.flatMap { blockName =>
-        val block = getSramBlock(blockName)
-        padArrayFront(block, this.getPaddedBlockLength(blockName))
+      blockNames.toArray.flatMap { blockName =>
+        val block = sramBlockBits(blockName)
+        padArrayFront(block, paddedBlockLength(blockName))
         block
       }
     } else {
       var len = dacBoard.buildProperties("SRAM_LEN").toInt
-      if (expt.getShortestSram() < len) {
-        len = expt.getShortestSram()
+      if (expt.shortestSram < len) {
+        len = expt.shortestSram
       }
       Array.fill[Long](len) { 0 }
     }
@@ -172,15 +168,15 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
    * Get bits for the first block of a dual-block SRAM call
    * @return
    */
-  def getSramDualBlock1(): Array[Long] = {
-    val memoryController = getMemoryController
+  def sramDualBlock1Bits: Array[Long] = {
+    val memoryController = this.memoryController
     require(memoryController.hasDualBlockSram, "Sequence does not have a dual-block SRAM call")
     if (!hasSramChannel()) {
       // return zeros in this case
-      val len = Math.min(dacBoard.buildProperties("SRAM_LEN").toInt, expt.getShortestSram())
+      val len = Math.min(dacBoard.buildProperties("SRAM_LEN").toInt, expt.shortestSram)
       Array.fill[Long](len) { 0 }
     } else {
-      getSramBlock(memoryController.getDualBlockName1())
+      sramBlockBits(memoryController.dualBlockName1)
     }
   }
 
@@ -188,15 +184,15 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
    * Get bits for the second block of a dual-block SRAM call
    * @return
    */
-  def getSramDualBlock2(): Array[Long] = {
-    val memoryController = getMemoryController
+  def sramDualBlock2Bits: Array[Long] = {
+    val memoryController = this.memoryController
     require(memoryController.hasDualBlockSram, "Sequence does not have a dual-block SRAM call")
     if (!hasSramChannel()) {
       // return zeros in this case
-      val len = Math.min(dacBoard.buildProperties("SRAM_LEN").toInt, expt.getShortestSram())
+      val len = Math.min(dacBoard.buildProperties("SRAM_LEN").toInt, expt.shortestSram)
       Array.fill[Long](len) { 0 }
     } else {
-      getSramBlock(memoryController.getDualBlockName2(), addAutoTrigger = false)
+      sramBlockBits(memoryController.dualBlockName2, addAutoTrigger = false)
     }
   }
 
@@ -205,8 +201,8 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
    * @param block
    * @return
    */
-  private def getSramBlock(block: String, addAutoTrigger: Boolean = true): Array[Long] = {
-    val sram = getSramDacBits(block)
+  private def sramBlockBits(block: String, addAutoTrigger: Boolean = true): Array[Long] = {
+    val sram = sramDacBits(block)
     setTriggerBits(sram, block, addAutoTrigger)
     sram
   }
@@ -218,7 +214,7 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
    * @param block
    * @return
    */
-  protected def getSramDacBits(block: String): Array[Long]
+  protected def sramDacBits(block: String): Array[Long]
 
   /**
    * pomalley 4/22/14
@@ -237,18 +233,18 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
    * @param block
    */
   private def setTriggerBits(s: Array[Long], block: String, addAutoTrigger: Boolean): Unit = {
-    val autoTriggerId = expt.getAutoTriggerId()
+    val autoTriggerId = expt.autoTriggerId
     var foundAutoTrigger = false
 
     for (ch <- triggers.values) {
-      val trigs = ch.getSramData(block)
-      if (addAutoTrigger && (expt.getAutoTriggerId() == ch.getTriggerId())) {
+      val trigs = ch.sramData(block)
+      if (addAutoTrigger && (expt.autoTriggerId == ch.triggerId)) {
         foundAutoTrigger = true
-        for (i <- 4 until 4 + expt.getAutoTriggerLen()) {
+        for (i <- 4 until 4 + expt.autoTriggerLen) {
           if (i < trigs.length - 1) trigs(i) = true
         }
       }
-      val bit = 1L << ch.getShift()
+      val bit = 1L << ch.shift
       for (i <- s.indices) {
         s(i) |= (if (trigs(i)) bit else 0)
       }
@@ -258,7 +254,7 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
     // TODO define dummy trigger channels, just like we do with Microwave and analog channels
     if (!foundAutoTrigger && autoTriggerId != null) {
       val bit = 1L << autoTriggerId.getShift()
-      for (i <- 4 until 4 + expt.getAutoTriggerLen()) {
+      for (i <- 4 until 4 + expt.autoTriggerLen) {
         if (i < s.length - 1) s(i) |= bit
       }
     }
@@ -309,11 +305,11 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
     }
   }
 
-  def getBlockNames(): Seq[String] = {
-    blocks.toSeq
+  def blockNames: Seq[String] = {
+    blocks.toVector
   }
 
-  def getBlockLength(name: String): Int = {
+  def blockLength(name: String): Int = {
     blockLengths.getOrElse(name, sys.error(s"SRAM block $name is undefined for board ${this.name}"))
   }
 
@@ -323,8 +319,8 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
    * @param name
    * @return
    */
-  def getPaddedBlockLength(name: String): Int = {
-    val len = getBlockLength(name)
+  def paddedBlockLength(name: String): Int = {
+    val len = blockLength(name)
     if (len % 4 == 0 && len >= 20) {
       len
     } else {
@@ -333,21 +329,21 @@ abstract class FpgaModelDac(dacBoard: DacBoard, expt: Experiment) extends FpgaMo
     }
   }
 
-  def getBlockStartAddress(name: String): Int = {
+  def blockStartAddress(name: String): Int = {
     var start = 0
     for (block <- blocks) {
       if (block == name) {
         return start
       }
-      start += getPaddedBlockLength(block)
+      start += paddedBlockLength(block)
     }
     sys.error(s"Block $name not found")
   }
 
-  def getBlockEndAddress(name: String): Int = {
+  def blockEndAddress(name: String): Int = {
     var end = 0
     for (block <- blocks) {
-      end += getPaddedBlockLength(block)
+      end += paddedBlockLength(block)
       if (block == name) {
         return end - 1 //Zero indexing ;)
       }

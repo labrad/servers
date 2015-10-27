@@ -77,7 +77,7 @@ class AdcDemodConfig(name: String, buildProperties: Map[String, Long]) extends A
   /**
    * @return array of booleans telling use state of each channel.
    */
-  def getChannelUsage(): Array[Boolean] = {
+  def channelUsage: Array[Boolean] = {
     inUse
   }
 

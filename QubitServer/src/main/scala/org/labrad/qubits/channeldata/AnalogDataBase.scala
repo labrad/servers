@@ -4,16 +4,16 @@ import org.labrad.qubits.channels.AnalogChannel
 
 abstract class AnalogDataBase extends AnalogData {
 
-  private var channel: AnalogChannel = null
+  private var _channel: AnalogChannel = null
 
   @volatile private var _isDeconvolved = false
 
   override def setChannel(channel: AnalogChannel): Unit = {
-    this.channel = channel
+    this._channel = channel
   }
 
   protected def getChannel(): AnalogChannel = {
-    channel
+    _channel
   }
 
   /**

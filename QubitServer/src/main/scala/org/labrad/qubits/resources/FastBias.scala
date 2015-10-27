@@ -24,15 +24,15 @@ class FastBias(val name: String) extends BiasBoard {
     dacFibers.put(channel, fiber)
   }
 
-  def getDacBoard(channel: DcRackFiberId): DacBoard = {
+  def dacBoard(channel: DcRackFiberId): DacBoard = {
     dacBoards.getOrElse(channel, sys.error(s"No DAC board wired to channel $channel on board $name"))
   }
 
-  def getFiber(channel: DcRackFiberId): DacFiberId = {
+  def dacFiber(channel: DcRackFiberId): DacFiberId = {
     dacFibers.getOrElse(channel, sys.error(s"No DAC board wired to channel $channel on board $name"))
   }
 
-  def getGain(channel: DcRackFiberId): Double = {
+  def gain(channel: DcRackFiberId): Double = {
     gains.getOrElse(channel, 1.0)
   }
 

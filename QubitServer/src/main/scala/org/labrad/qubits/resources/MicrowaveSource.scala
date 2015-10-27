@@ -15,7 +15,7 @@ class MicrowaveSource(val name: String) extends Resource {
     boards += board
   }
 
-  def getMicrowaveBoards(): Set[MicrowaveBoard] = {
+  def microwaveBoards: Set[MicrowaveBoard] = {
     boards.toSet
   }
 }

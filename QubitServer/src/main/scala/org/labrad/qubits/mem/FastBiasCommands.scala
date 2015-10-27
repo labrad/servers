@@ -5,8 +5,8 @@ import org.labrad.qubits.enums.BiasCommandType
 import org.labrad.qubits.enums.BiasCommandType._
 
 object FastBiasCommands {
-  def get(cmdType: BiasCommandType, fb: FastBiasChannel, v: Double): SendFiberCommand = {
-    val gain = fb.getFastBias().getGain(fb.getDcFiberId())
+  def apply(cmdType: BiasCommandType, fb: FastBiasChannel, v: Double): SendFiberCommand = {
+    val gain = fb.fastBias.gain(fb.dcRackFiberId)
     val vSend = v / gain
     cmdType match {
       case DAC0 => setDac0(fb, vSend)
@@ -41,6 +41,6 @@ object FastBiasCommands {
   }
 
   private def makeCommand(fb: FastBiasChannel, bits: Int): SendFiberCommand = {
-    SendFiberCommand(fb.getFiberId(), bits)
+    SendFiberCommand(fb.dacFiberId, bits)
   }
 }

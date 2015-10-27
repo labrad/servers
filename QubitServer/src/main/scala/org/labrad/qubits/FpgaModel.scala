@@ -5,7 +5,7 @@ import org.labrad.qubits.resources.DacBoard
 trait FpgaModel {
 
   def name: String
-  def getDacBoard(): DacBoard
-  def getSequenceLength_us(): Double
-  def getSequenceLengthPostSRAM_us(): Double
+  def dacBoard: DacBoard
+  def sequenceLength_us: Double
+  def sequenceLengthPostSRAM_us: Double
 }

@@ -23,11 +23,11 @@ class FpgaModelAdc(board: AdcBoard, expt: Experiment) extends FpgaModel {
       channels += c
   }
 
-  def getChannel(): AdcChannel = {
-    sys.error("getChannel() called for FpgaModelAdc! Bad!")
+  def channel: AdcChannel = {
+    sys.error("channel called for FpgaModelAdc! Bad!")
   }
 
-  override def getDacBoard(): DacBoard = {
+  override def dacBoard: DacBoard = {
     board
   }
 
@@ -36,24 +36,24 @@ class FpgaModelAdc(board: AdcBoard, expt: Experiment) extends FpgaModel {
   //
   // Start Delay - pomalley 5/4/2011
   //
-  private var startDelay = -1
+  private var _startDelay = -1
 
   def setStartDelay(startDelay: Int): Unit = {
-    this.startDelay = startDelay
+    _startDelay = startDelay
   }
 
-  def getStartDelay(): Int = {
-    this.startDelay
+  def startDelay: Int = {
+    _startDelay
   }
 
-  override def getSequenceLength_us(): Double = {
+  override def sequenceLength_us: Double = {
     var t_us = this.startDelay * START_DELAY_UNIT_NS / 1000.0
     t_us += ACQUISITION_TIME_US
     t_us
   }
 
-  override def getSequenceLengthPostSRAM_us(): Double = {
-    getSequenceLength_us()
+  override def sequenceLengthPostSRAM_us: Double = {
+    sequenceLength_us
   }
 
   def packets: Seq[(String, Data)] = {

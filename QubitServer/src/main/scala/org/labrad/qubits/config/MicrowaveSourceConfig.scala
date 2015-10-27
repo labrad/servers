@@ -7,5 +7,5 @@ trait MicrowaveSourceConfig {
   def frequency: Double
   def power: Double
 
-  def getSetupPacket(src: MicrowaveSource): SetupPacket
+  def setupPacket(src: MicrowaveSource): SetupPacket
 }

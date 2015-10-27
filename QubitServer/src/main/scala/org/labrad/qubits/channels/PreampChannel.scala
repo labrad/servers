@@ -8,35 +8,14 @@ import org.labrad.qubits.enums.DcRackFiberId
 import org.labrad.qubits.resources.DacBoard
 import org.labrad.qubits.resources.PreampBoard
 
-class PreampChannel(val name: String, preampBoard: PreampBoard, val fiberId: DcRackFiberId) extends FiberChannel with TimingChannel {
+class PreampChannel(val name: String, val preampBoard: PreampBoard, val dcRackFiberId: DcRackFiberId) extends FiberChannel with TimingChannel {
 
-  val dacBoard = preampBoard.getDacBoard(fiberId)
-  private var expt: Experiment = null
   private var fpga: FpgaModelDac = null
   private var config: PreampConfig = null
   private var switchIntervals: Array[(Long, Long)] = null
 
-  clearConfig()
-
-  def getPreampBoard(): PreampBoard = {
-    preampBoard
-  }
-
-  def getPreampChannel(): DcRackFiberId = {
-    fiberId
-  }
-
-  def setExperiment(expt: Experiment): Unit = {
-    this.expt = expt
-  }
-
-  def getExperiment(): Experiment = {
-    expt
-  }
-
-  def getDacBoard(): DacBoard = {
-    dacBoard
-  }
+  def dacBoard: DacBoard = preampBoard.dacBoard(dcRackFiberId)
+  def preampChannel: DcRackFiberId = dcRackFiberId
 
   def setFpgaModel(fpga: FpgaModel): Unit = {
     fpga match {
@@ -45,16 +24,16 @@ class PreampChannel(val name: String, preampBoard: PreampBoard, val fiberId: DcR
     }
   }
 
-  override def getFpgaModel(): FpgaModelDac = {
+  override def fpgaModel: FpgaModelDac = {
     fpga
   }
 
   def startTimer(): Unit = {
-    fpga.getMemoryController.startTimer()
+    fpga.memoryController.startTimer()
   }
 
   def stopTimer(): Unit = {
-    fpga.getMemoryController.stopTimer()
+    fpga.memoryController.stopTimer()
   }
 
   // configuration
@@ -67,11 +46,11 @@ class PreampChannel(val name: String, preampBoard: PreampBoard, val fiberId: DcR
     config = new PreampConfig(offset, polarity, highPass, lowPass)
   }
 
-  def hasPreampConfig(): Boolean = {
+  def hasPreampConfig: Boolean = {
     config != null
   }
 
-  def getPreampConfig(): PreampConfig = {
+  def preampConfig: PreampConfig = {
     config
   }
 
@@ -108,7 +87,4 @@ class PreampChannel(val name: String, preampBoard: PreampBoard, val fiberId: DcR
     -1
   }
 
-  def getDcFiberId(): DcRackFiberId = {
-    this.getPreampChannel()
-  }
 }

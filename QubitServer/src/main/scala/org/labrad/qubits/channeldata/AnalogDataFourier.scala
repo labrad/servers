@@ -17,13 +17,13 @@ class AnalogDataFourier(data: ComplexArray, t0: Double, averageEnds: Boolean, di
     val ch = getChannel()
     val req = deconvolver.deconvolveAnalogFourier(
         ch.dacBoard,
-        ch.getDacId(),
+        ch.dacId,
         data,
         t0,
-        ch.getSettlingRates(),
-        ch.getSettlingTimes(),
-        ch.getReflectionRates(),
-        ch.getReflectionAmplitudes(),
+        ch.settlingRates,
+        ch.settlingTimes,
+        ch.reflectionRates,
+        ch.reflectionAmplitudes,
         averageEnds,
         dither
     )

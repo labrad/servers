@@ -8,15 +8,15 @@ class DelayCommand(var cycles: Int) extends MemoryCommand {
     this.cycles = cycles
   }
 
-  def getDelay(): Int = {
+  def delay: Int = {
     this.cycles
   }
 
-  def getTime_us(dac: FpgaModelDac): Double = {
+  def time_us(dac: FpgaModelDac): Double = {
     FpgaModelDac.clocksToMicroseconds(this.cycles)
   }
 
-  def getBits(): Array[Long] = {
+  def cmdBits: Array[Long] = {
     var left = cycles
     val arr = Array.newBuilder[Long]
     while (left > 0x0FFFFF) {

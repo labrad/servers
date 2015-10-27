@@ -13,7 +13,7 @@ class MicrowaveBoard(name: String, buildNumber: String, buildProperties: Map[Str
     this.uwaveSrc = uwaves
   }
 
-  def getMicrowaveSource(): MicrowaveSource = {
+  def microwaveSource: MicrowaveSource = {
     uwaveSrc
   }
 }

@@ -7,18 +7,9 @@ import scala.collection.mutable
 
 abstract class SramChannelBase[T](val name: String, val dacBoard: DacBoard) extends SramChannel {
 
-  private var expt: Experiment = null
   protected var fpga: FpgaModelDac = null
 
-  override def getExperiment(): Experiment = {
-    expt
-  }
-
-  override def setExperiment(expt: Experiment): Unit = {
-    this.expt = expt
-  }
-
-  override def getFpgaModel(): FpgaModelDac = {
+  override def fpgaModel: FpgaModelDac = {
     fpga
   }
 
@@ -26,22 +17,22 @@ abstract class SramChannelBase[T](val name: String, val dacBoard: DacBoard) exte
   //
   // Blocks
   //
-  protected var currentBlock: String = null
-  def getCurrentBlock(): String = {
-    currentBlock
+  protected var _currentBlock: String = null
+  def currentBlock: String = {
+    _currentBlock
   }
   def setCurrentBlock(block: String): Unit = {
-    currentBlock = block
+    _currentBlock = block
   }
 
   protected val blocks = mutable.Map.empty[String, T]
 
   // Start delay
   override def startDelay: Int = {
-    this.getFpgaModel().getStartDelay()
+    fpgaModel.startDelay
   }
 
   override def setStartDelay(startDelay: Int): Unit = {
-    this.getFpgaModel().setStartDelay(startDelay)
+    fpgaModel.setStartDelay(startDelay)
   }
 }
