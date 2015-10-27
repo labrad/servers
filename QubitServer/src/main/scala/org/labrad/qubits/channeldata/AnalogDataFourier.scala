@@ -16,7 +16,7 @@ class AnalogDataFourier(data: ComplexArray, t0: Double, averageEnds: Boolean, di
   def deconvolve(deconvolver: DeconvolutionProxy)(implicit ec: ExecutionContext): Future[Unit] = {
     val ch = getChannel()
     val req = deconvolver.deconvolveAnalogFourier(
-        ch.getDacBoard(),
+        ch.dacBoard,
         ch.getDacId(),
         data,
         t0,

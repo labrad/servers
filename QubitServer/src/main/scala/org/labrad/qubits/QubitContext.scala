@@ -14,7 +14,6 @@ import org.labrad.qubits.mem.MemoryCommand
 import org.labrad.qubits.proxies.DeconvolutionProxy
 import org.labrad.qubits.resources.MicrowaveSource
 import org.labrad.qubits.resources.Resources
-import org.labrad.qubits.templates.ExperimentBuilder
 import org.labrad.qubits.util.ComplexArray
 import org.labrad.qubits.util.Grouping._
 import org.labrad.types._
@@ -27,8 +26,12 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
 
   private implicit def executionContext = cxn.executionContext
 
+  // The context in which we will create setup packets.
+  // We make it different from our own context to avoid potential lockups due
+  // to making recursive calls in a context.
+  private val setupContext: Context = new Context(cxn.id, 1)
+
   private var expt: Experiment = null
-  private var setupContext: Context = null
 
   private var nextRequest: (Seq[(String, Data)], Array[Data], Array[String]) = null
   private var lastData: Data = null
@@ -40,12 +43,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
   /**
    * Initialize this context when it is first created.
    */
-  override def init(): Unit = {
-    // this is the context in which we will create setup packets
-    // we make it different from our own context to avoid potential
-    // lockups due to making recursive calls in a context.
-    setupContext = new Context(cxn.id, 1)
-  }
+  override def init(): Unit = {}
 
   override def expire(): Unit = {}
 
@@ -150,6 +148,9 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
   // Experiment
   //
 
+  type ChannelDef = (String, (String, Seq[String]))
+  type DeviceDef = (String, Seq[ChannelDef])
+
   @Setting(id = 100,
       name = "Initialize",
       doc = """Initialize a new sequence with the given device and channel setup.
@@ -157,9 +158,18 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
               |Setup is given by a list of devices, where each device is a cluster
               |of name and channel list, and where each channel is a cluster of name
               |and cluster of type and parameter list.""")
-  def initialize(@Accept("*(s{dev} *(s{chan} (s{type} *s{params})))") template: Data): Unit = {
-    // build experiment directly from a template
-    val expt = ExperimentBuilder.fromData(template, resources()).build()
+  def initialize(@Accept("*(s{dev} *(s{chan} (s{type} *s{params})))") deviceDefs: Seq[DeviceDef]): Unit = {
+    // get resources defined by wiring config
+    val res = resources()
+
+    // build experiment using the given device definitions
+    val devs = deviceDefs.map { case (devName, channelDefs) =>
+      val channels = channelDefs.map { case (chanName, (chanType, params)) =>
+        Channel(chanName, chanType, params, res)
+      }
+      new Device(devName, channels)
+    }
+    val expt = new Experiment(devs)
     setExperiment(expt)
     expt.clearControllers()
   }
@@ -499,8 +509,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
   ): Unit = {
     // TODO: create a mem_bias call if the channel is a FastBiasFpga channel.
     val ch = getChannel[FastBiasSerialChannel](id)
-    ch.setDac(dac)
-    ch.setBias(voltage)
+    ch.configBias(dac, voltage)
   }
 
   @Setting(id = 366,
@@ -1051,7 +1060,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
       Cluster(setupPackets: _*),
       Arr(setupState)
     ))
-    val f = cxn.send(Constants.GHZ_DAC_SERVER, allRecords: _*)
+    val f = cxn.send(Constants.GHZ_FPGA_SERVER, allRecords: _*)
     lastData = Await.result(f, 10.minutes).last
   }
 
@@ -1072,7 +1081,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
     // change the run request to dac_run_sram request
     val (records, setupPackets, setupState) = nextRequest
     val allRecords = records :+ ("DAC Run SRAM" -> Cluster(data, Bool(loop)))
-    val f = cxn.send(Constants.GHZ_DAC_SERVER, allRecords: _*)
+    val f = cxn.send(Constants.GHZ_FPGA_SERVER, allRecords: _*)
     Await.result(f, 10.minutes)
   }
 
@@ -1086,7 +1095,7 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
     }
     val (records, setupPackets, setupState) = nextRequest
     val allRecords = records :+ ("ADC Run Demod" -> Str(mode))
-    val f = cxn.send(Constants.GHZ_DAC_SERVER, allRecords: _*)
+    val f = cxn.send(Constants.GHZ_FPGA_SERVER, allRecords: _*)
     Await.result(f, 10.minutes).last
   }
 

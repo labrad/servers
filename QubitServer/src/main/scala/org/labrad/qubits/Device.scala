@@ -11,26 +11,16 @@ import scala.reflect.ClassTag
  *
  * @author maffoo
  */
-class Device(val name: String) {
+class Device(val name: String, val channels: Seq[Channel]) {
 
-  private val channels = mutable.Buffer.empty[Channel]
-  private val channelsByName = mutable.Map.empty[String, Channel]
-
-  /**
-   * Add a channel to this device.
-   * @param ch
-   */
-  def addChannel(ch: Channel): Unit = {
-    channels += ch
-    channelsByName(ch.name) = ch
-  }
+  private val channelsByName = channels.map(ch => ch.name -> ch).toMap
 
   /**
    * Get all defined channels.
    * @return
    */
   def getChannels(): Seq[Channel] = {
-    channels.toSeq
+    channels
   }
 
   /**
@@ -40,7 +30,7 @@ class Device(val name: String) {
    * @return
    */
   def getChannels[T <: Channel : ClassTag]: Seq[T] = {
-    channels.collect { case ch: T => ch }.toSeq
+    channels.collect { case ch: T => ch }
   }
 
   /**

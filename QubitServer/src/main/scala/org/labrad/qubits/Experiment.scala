@@ -31,7 +31,7 @@ class Experiment(val devices: Seq[Device]) {
 
   // build models for all required resources
   for (ch <- getChannels[FpgaChannel]) {
-    val board = ch.getDacBoard()
+    val board = ch.dacBoard
     val fpga = boards.getOrElseUpdate(board, {
       board match {
         case board: AnalogBoard => new FpgaModelAnalog(board, this)
@@ -223,7 +223,7 @@ class Experiment(val devices: Seq[Device]) {
     // if not, use everything--all DACs, all ADCs/active ADC channels
     } else {
       getChannels[TimingChannel].map {
-        case t: AdcChannel => new TimingOrderItem(t, t.getDemodChannel())
+        case t: AdcChannel => new TimingOrderItem(t, t.demodChannel)
         case t => new TimingOrderItem(t)
       }
     }
@@ -416,9 +416,9 @@ class TimingOrderItem(channel: TimingChannel, subChannel: Int = -1) {
 
   override def toString(): String = {
     if (subChannel == -1)
-      channel.getDacBoard.name
+      channel.dacBoard.name
     else
-      channel.getDacBoard.name + "::" + subChannel
+      channel.dacBoard.name + "::" + subChannel
   }
 
   def isAdc(): Boolean = {

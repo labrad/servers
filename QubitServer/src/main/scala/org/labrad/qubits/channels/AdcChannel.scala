@@ -13,9 +13,9 @@ import org.labrad.qubits.resources.AdcBoard
  * @author pomalley
  *
  */
-class AdcChannel(val name: String, protected val board: AdcBoard) extends Channel with TimingChannel with StartDelayChannel {
+class AdcChannel(val name: String, val dacBoard: AdcBoard) extends Channel with TimingChannel with StartDelayChannel {
 
-  private val props = board.buildProperties
+  private val props = dacBoard.buildProperties
   val MAX_CHANNELS = props("DEMOD_CHANNELS").toInt
   val DEMOD_CHANNELS_PER_PACKET = props("DEMOD_CHANNELS_PER_PACKET").toInt
   val TRIG_AMP = props("TRIG_AMP").toInt
@@ -34,7 +34,7 @@ class AdcChannel(val name: String, protected val board: AdcBoard) extends Channe
   private var stretchAt: Int = _
 
   private var criticalPhase: Double = _ // used to interpret phases (into T/F switches)
-  private var demodChannel: Int = _ // which demod channel are we (demod mode only)
+  private var _demodChannel: Int = _ // which demod channel are we (demod mode only)
 
   // passed to "ADC Demod Phase" setting of FPGA server (demod mode only)
   private var dPhi: Int = _
@@ -53,10 +53,6 @@ class AdcChannel(val name: String, protected val board: AdcBoard) extends Channe
   private var offsetQ: Int = _
 
   clearConfig()
-
-  override def getDacBoard(): AdcBoard = {
-    board
-  }
 
   override def getExperiment(): Experiment = {
     expt
@@ -83,32 +79,32 @@ class AdcChannel(val name: String, protected val board: AdcBoard) extends Channe
 
   // reconcile this ADC configuration with another one for the same ADC.
   def reconcile(other: AdcChannel): Boolean = {
-    if (this.board != other.board)
+    if (this.dacBoard != other.dacBoard)
       return false
     if (this == other)
       return true
     require(this.mode == other.mode,
-        s"Conflicting modes for ADC board ${this.board.name}")
-    require(this.getStartDelay() == other.getStartDelay(),
-        s"Conflicting start delays for ADC board ${this.board.name}")
+        s"Conflicting modes for ADC board ${dacBoard.name}")
+    require(this.startDelay == other.startDelay,
+        s"Conflicting start delays for ADC board ${dacBoard.name}")
     require(this.triggerTable == other.triggerTable,
-        s"Conflicting trigger tables for ADC board ${this.board.name}: (this: ${this.triggerTable}, other: ${other.triggerTable})")
+        s"Conflicting trigger tables for ADC board ${dacBoard.name}: (this: ${this.triggerTable}, other: ${other.triggerTable})")
     mode match {
       case AdcMode.DEMODULATE =>
         require(this.filterFunction == other.filterFunction,
-            s"Conflicting filter functions for ADC board ${this.board.name}")
+            s"Conflicting filter functions for ADC board ${dacBoard.name}")
         require(this.stretchAt == other.stretchAt,
-            s"Conflicting stretchAt parameters for ADC board ${this.board.name}")
+            s"Conflicting stretchAt parameters for ADC board ${dacBoard.name}")
         require(this.stretchLen == other.stretchLen,
-            s"Conflicting stretchLen parameters for ADC board ${this.board.name}")
+            s"Conflicting stretchLen parameters for ADC board ${dacBoard.name}")
         require(this.demodChannel != other.demodChannel,
-            s"Two ADC Demod channels with same channel number for ADC board ${this.board.name}")
+            s"Two ADC Demod channels with same channel number for ADC board ${dacBoard.name}")
 
       case AdcMode.AVERAGE =>
         // nothing?
 
       case AdcMode.UNSET =>
-        sys.error(s"ADC board ${this.board.name} has no mode (avg/demod) set!")
+        sys.error(s"ADC board ${dacBoard.name} has no mode (avg/demod) set!")
     }
     true
   }
@@ -118,17 +114,17 @@ class AdcChannel(val name: String, protected val board: AdcBoard) extends Channe
     val packets = Seq.newBuilder[(String, Data)]
     mode match {
       case AdcMode.AVERAGE =>
-        require(getStartDelay() > -1, s"ADC Start Delay not set for channel '${this.name}'")
+        require(startDelay > -1, s"ADC Start Delay not set for channel '$name'")
         packets += "ADC Run Mode" -> Str("average")
-        packets += "Start Delay" -> UInt(getStartDelay())
+        packets += "Start Delay" -> UInt(startDelay)
 
       case AdcMode.DEMODULATE =>
-        require(getStartDelay() > -1, s"ADC Start Delay not set for channel $name")
+        require(startDelay > -1, s"ADC Start Delay not set for channel $name")
         packets += "ADC Run Mode" -> Str("demodulate")
-        packets += "Start Delay" -> UInt(getStartDelay())
+        packets += "Start Delay" -> UInt(startDelay)
 
       case AdcMode.UNSET =>
-        sys.error(s"ADC channel ${this.name} has no mode (avg/demod) set!")
+        sys.error(s"ADC channel $name has no mode (avg/demod) set!")
     }
     if (triggerTable != null) {
       packets += "ADC Trigger Table" -> triggerTable
@@ -180,13 +176,13 @@ class AdcChannel(val name: String, protected val board: AdcBoard) extends Channe
   def setToDemodulate(channel: Int): Unit = {
     require(channel <= MAX_CHANNELS, s"ADC demod channel must be <= $MAX_CHANNELS")
     this.mode = AdcMode.DEMODULATE
-    this.demodChannel = channel
+    this._demodChannel = channel
   }
   def setToAverage(): Unit = {
     this.mode = AdcMode.AVERAGE
   }
 
-  override def getStartDelay(): Int = {
+  override def startDelay(): Int = {
     this.getFpgaModel().getStartDelay()
   }
 
@@ -205,7 +201,7 @@ class AdcChannel(val name: String, protected val board: AdcBoard) extends Channe
   def setTrigMagnitude(ampSin: Int, ampCos: Int): Unit = {
     require(mode == AdcMode.DEMODULATE, "Channel must be in demodulate mode for setTrigMagnitude to be valid.")
     require(ampSin > -1 && ampSin <= TRIG_AMP && ampCos > -1 && ampCos <= TRIG_AMP,
-        s"Trig Amplitudes must be 0-255 for channel '${this.name}'")
+        s"Trig Amplitudes must be 0-255 for channel '$name'")
     this.ampSin = ampSin
     this.ampCos = ampCos
   }
@@ -250,8 +246,8 @@ class AdcChannel(val name: String, protected val board: AdcBoard) extends Channe
     this.mixerTable = null
   }
 
-  override def getDemodChannel(): Int = {
-    this.demodChannel
+  override def demodChannel: Int = {
+    this._demodChannel
   }
 
   def reverseCriticalPhase(reverse: Boolean): Unit = {

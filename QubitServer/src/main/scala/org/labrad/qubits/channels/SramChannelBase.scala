@@ -5,10 +5,9 @@ import org.labrad.qubits.FpgaModelDac
 import org.labrad.qubits.resources.DacBoard
 import scala.collection.mutable
 
-abstract class SramChannelBase[T](val name: String) extends SramChannel {
+abstract class SramChannelBase[T](val name: String, val dacBoard: DacBoard) extends SramChannel {
 
   private var expt: Experiment = null
-  private var board: DacBoard = null
   protected var fpga: FpgaModelDac = null
 
   override def getExperiment(): Experiment = {
@@ -17,14 +16,6 @@ abstract class SramChannelBase[T](val name: String) extends SramChannel {
 
   override def setExperiment(expt: Experiment): Unit = {
     this.expt = expt
-  }
-
-  override def getDacBoard(): DacBoard = {
-    board
-  }
-
-  def setDacBoard(board: DacBoard): Unit = {
-    this.board = board
   }
 
   override def getFpgaModel(): FpgaModelDac = {
@@ -46,7 +37,7 @@ abstract class SramChannelBase[T](val name: String) extends SramChannel {
   protected val blocks = mutable.Map.empty[String, T]
 
   // Start delay
-  override def getStartDelay(): Int = {
+  override def startDelay: Int = {
     this.getFpgaModel().getStartDelay()
   }
 

@@ -2,17 +2,16 @@ package org.labrad.qubits.channels
 
 import org.labrad.qubits.FpgaModel
 import org.labrad.qubits.FpgaModelDac
+import org.labrad.qubits.enums.DcRackFiberId
 import org.labrad.qubits.resources.DacBoard
 
 /**
  * Created by pomalley on 3/10/2015.
  * FastBias control via FPGA.
  */
-
-class FastBiasFpgaChannel(name: String) extends FastBiasChannel(name) with FpgaChannel {
+class FastBiasFpgaChannel(name: String, val dacBoard: DacBoard, fiberId: DcRackFiberId) extends FastBiasChannel(name, fiberId) with FpgaChannel {
 
   private var fpga: FpgaModelDac = _
-  private var board: DacBoard = _
 
   def setFpgaModel(fpga: FpgaModel): Unit = {
     fpga match {
@@ -23,13 +22,5 @@ class FastBiasFpgaChannel(name: String) extends FastBiasChannel(name) with FpgaC
 
   def getFpgaModel(): FpgaModelDac = {
     fpga
-  }
-
-  def setDacBoard(board: DacBoard): Unit = {
-    this.board = board
-  }
-
-  def getDacBoard(): DacBoard = {
-    board
   }
 }

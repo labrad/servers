@@ -13,7 +13,7 @@ import org.labrad.qubits.resources.DacBoard
  *
  */
 trait TimingChannel extends FpgaChannel {
-  def getDacBoard(): DacBoard
+  def dacBoard: DacBoard
 
-  def getDemodChannel(): Int
+  def demodChannel: Int
 }

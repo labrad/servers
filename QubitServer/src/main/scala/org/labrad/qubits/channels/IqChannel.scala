@@ -7,12 +7,13 @@ import org.labrad.qubits.channeldata.IqDataFourier
 import org.labrad.qubits.config.MicrowaveSourceConfig
 import org.labrad.qubits.config.MicrowaveSourceOffConfig
 import org.labrad.qubits.config.MicrowaveSourceOnConfig
+import org.labrad.qubits.resources.MicrowaveBoard
 import org.labrad.qubits.resources.MicrowaveSource
 import org.labrad.qubits.util.ComplexArray
 
-class IqChannel(name: String) extends SramChannelBase[IqData](name) {
+class IqChannel(name: String, board: MicrowaveBoard) extends SramChannelBase[IqData](name, board) {
 
-  private var uwaveSrc: MicrowaveSource = null
+  private val uwaveSrc: MicrowaveSource = board.getMicrowaveSource()
   private var uwaveConfig: MicrowaveSourceConfig = null
 
   clearConfig()
@@ -30,10 +31,6 @@ class IqChannel(name: String) extends SramChannelBase[IqData](name) {
 
   def getMicrowaveSource(): MicrowaveSource = {
     uwaveSrc
-  }
-
-  def setMicrowaveSource(src: MicrowaveSource): Unit = {
-    uwaveSrc = src
   }
 
   /**

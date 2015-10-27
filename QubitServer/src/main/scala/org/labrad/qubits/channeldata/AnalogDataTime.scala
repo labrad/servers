@@ -21,7 +21,7 @@ class AnalogDataTime(data: Array[Double], isDeconvolved: Boolean, averageEnds: B
   override def deconvolve(deconvolver: DeconvolutionProxy)(implicit ec: ExecutionContext): Future[Unit] = {
     val ch = getChannel()
     val req = deconvolver.deconvolveAnalog(
-        ch.getDacBoard(),
+        ch.dacBoard,
         ch.getDacId(),
         data,
         ch.getSettlingRates(),

@@ -2,23 +2,20 @@ package org.labrad.qubits.channels
 
 import org.labrad.data._
 import org.labrad.qubits.config.SetupPacket
+import org.labrad.qubits.enums.DcRackFiberId
 
 /**
  * Created by pomalley on 3/10/2015.
  * FastBias control via serial
  */
-class FastBiasSerialChannel(name: String) extends FastBiasChannel(name) {
+class FastBiasSerialChannel(name: String, dcRackCard: Int, fiberId: DcRackFiberId) extends FastBiasChannel(name, fiberId) {
 
-  private var dcRackCard: Int = _
   private var voltage: Double = _
   private var configured = false
   private var dac: String = _
 
-  def setDCRackCard(dcRackCard: Int): Unit = {
-    this.dcRackCard = dcRackCard
-  }
-
-  def setBias(voltage: Double): Unit = {
+  def configBias(dac: String, voltage: Double): Unit = {
+    this.dac = dac
     this.voltage = voltage
     configured = true
   }
@@ -49,9 +46,5 @@ class FastBiasSerialChannel(name: String) extends FastBiasChannel(name) {
     val state = s"$dcRackCard$getDcFiberId: voltage=$voltage dac=$dac"
 
     SetupPacket(state, records)
-  }
-
-  def setDac(dac: String): Unit = {
-    this.dac = dac
   }
 }

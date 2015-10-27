@@ -74,7 +74,7 @@ class QubitServer extends Server[QubitServer, QubitContext] {
 
       // Server Connect
       case Message(src, ctx, `serverConnectMsg`, Cluster(id, serverName)) =>
-        if (serverName == Constants.GHZ_DAC_SERVER) {
+        if (serverName == Constants.GHZ_FPGA_SERVER) {
           println(s"Server connected: $serverName -- reloading config.")
           try {
             // wait to allow fpga autodetection

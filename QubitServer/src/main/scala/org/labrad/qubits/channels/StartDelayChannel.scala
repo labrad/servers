@@ -7,5 +7,5 @@ package org.labrad.qubits.channels
  */
 trait StartDelayChannel extends FpgaChannel {
   def setStartDelay(startDelay: Int): Unit
-  def getStartDelay(): Int
+  def startDelay: Int
 }

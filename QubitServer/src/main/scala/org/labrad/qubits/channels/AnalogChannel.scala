@@ -5,17 +5,12 @@ import org.labrad.qubits.FpgaModelAnalog
 import org.labrad.qubits.channeldata.AnalogData
 import org.labrad.qubits.channeldata.AnalogDataFourier
 import org.labrad.qubits.enums.DacAnalogId
+import org.labrad.qubits.resources.DacBoard
 import org.labrad.qubits.util.ComplexArray
 
-class AnalogChannel(name: String) extends SramChannelBase[AnalogData](name) {
-
-  private var dacId: DacAnalogId = null
+class AnalogChannel(name: String, board: DacBoard, dacId: DacAnalogId) extends SramChannelBase[AnalogData](name, board) {
 
   clearConfig()
-
-  def setDacId(id: DacAnalogId): Unit = {
-    dacId = id
-  }
 
   def getDacId(): DacAnalogId = {
     dacId

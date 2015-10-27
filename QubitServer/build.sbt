@@ -10,7 +10,7 @@ resolvers += "bintray" at "http://jcenter.bintray.com/"
 
 libraryDependencies ++= Seq(
   "com.google.guava" % "guava" % "18.0",
-  "org.labrad" %% "scalabrad" % "0.5.1",
+  "org.labrad" %% "scalabrad" % "0.5.2",
   "org.scalatest" %% "scalatest" % "2.2.4" % "test"
 )
 

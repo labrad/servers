@@ -25,7 +25,7 @@ object Constants {
   val HITTITE_SERVER = "Hittite T2100 Server"
   val ANRITSU_SERVER = "Anritsu Server"
   val DC_RACK_SERVER = "DC Rack Server"
-  val GHZ_DAC_SERVER = "GHz FPGAs"
+  val GHZ_FPGA_SERVER = "GHz FPGAs"
 
   /*
    * Registry information

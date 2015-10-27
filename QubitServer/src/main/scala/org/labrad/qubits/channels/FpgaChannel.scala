@@ -9,7 +9,7 @@ import org.labrad.qubits.resources.DacBoard
  */
 trait FpgaChannel extends Channel {
 
-  def getDacBoard(): DacBoard
+  def dacBoard: DacBoard
 
   def setFpgaModel(fpga: FpgaModel): Unit
   def getFpgaModel(): FpgaModel

@@ -5,11 +5,10 @@ import org.labrad.qubits.enums.DacFiberId
 import org.labrad.qubits.enums.DcRackFiberId
 import org.labrad.qubits.resources.FastBias
 
-class FastBiasChannel(val name: String) extends FiberChannel {
+class FastBiasChannel(val name: String, val fiberId: DcRackFiberId) extends FiberChannel {
 
   protected var expt: Experiment = null
   protected var fb: FastBias = null
-  protected var fbChannel: DcRackFiberId = null
 
   def setFastBias(fb: FastBias): Unit = {
     this.fb = fb
@@ -17,10 +16,6 @@ class FastBiasChannel(val name: String) extends FiberChannel {
 
   def getFastBias(): FastBias = {
     fb
-  }
-
-  def setBiasChannel(channel: DcRackFiberId): Unit = {
-    this.fbChannel = channel
   }
 
   def setExperiment(expt: Experiment): Unit = {
@@ -32,11 +27,11 @@ class FastBiasChannel(val name: String) extends FiberChannel {
   }
 
   def getDcFiberId(): DcRackFiberId = {
-    fbChannel
+    fiberId
   }
 
   def getFiberId(): DacFiberId = {
-    fb.getFiber(fbChannel)
+    fb.getFiber(fiberId)
   }
 
   def clearConfig(): Unit = {

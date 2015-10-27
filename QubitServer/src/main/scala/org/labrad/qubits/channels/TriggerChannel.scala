@@ -5,10 +5,9 @@ import org.labrad.qubits.FpgaModelDac
 import org.labrad.qubits.channeldata.TriggerData
 import org.labrad.qubits.channeldata.TriggerDataTime
 import org.labrad.qubits.enums.DacTriggerId
+import org.labrad.qubits.resources.DacBoard
 
-class TriggerChannel(name: String) extends SramChannelBase[TriggerData](name) {
-
-  private var triggerId: DacTriggerId = null
+class TriggerChannel(name: String, board: DacBoard, triggerId: DacTriggerId) extends SramChannelBase[TriggerData](name, board) {
 
   override def setFpgaModel(fpga: FpgaModel): Unit = {
     fpga match {
@@ -19,10 +18,6 @@ class TriggerChannel(name: String) extends SramChannelBase[TriggerData](name) {
       case _ =>
         sys.error(s"TriggerChannel '$name' requires FpgaModelDac.")
     }
-  }
-
-  def setTriggerId(id: DacTriggerId): Unit = {
-    triggerId = id
   }
 
   def getShift(): Int = {

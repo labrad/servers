@@ -8,32 +8,22 @@ import org.labrad.qubits.enums.DcRackFiberId
 import org.labrad.qubits.resources.DacBoard
 import org.labrad.qubits.resources.PreampBoard
 
-class PreampChannel(val name: String) extends FiberChannel with TimingChannel {
+class PreampChannel(val name: String, preampBoard: PreampBoard, val fiberId: DcRackFiberId) extends FiberChannel with TimingChannel {
 
+  val dacBoard = preampBoard.getDacBoard(fiberId)
   private var expt: Experiment = null
-  private var board: DacBoard = null
   private var fpga: FpgaModelDac = null
-  private var preampBoard: PreampBoard = null
-  private var preampChannel: DcRackFiberId = null
   private var config: PreampConfig = null
   private var switchIntervals: Array[(Long, Long)] = null
 
   clearConfig()
 
-  def setPreampBoard(preampBoard: PreampBoard): Unit = {
-    this.preampBoard = preampBoard
-  }
-
   def getPreampBoard(): PreampBoard = {
     preampBoard
   }
 
-  def setPreampChannel(preampChannel: DcRackFiberId): Unit = {
-    this.preampChannel = preampChannel
-  }
-
   def getPreampChannel(): DcRackFiberId = {
-    preampChannel
+    fiberId
   }
 
   def setExperiment(expt: Experiment): Unit = {
@@ -44,12 +34,8 @@ class PreampChannel(val name: String) extends FiberChannel with TimingChannel {
     expt
   }
 
-  def setDacBoard(board: DacBoard): Unit = {
-    this.board = board
-  }
-
   def getDacBoard(): DacBoard = {
-    board
+    dacBoard
   }
 
   def setFpgaModel(fpga: FpgaModel): Unit = {
@@ -117,16 +103,12 @@ class PreampChannel(val name: String) extends FiberChannel with TimingChannel {
     }
   }
 
-  override def getDemodChannel(): Int = {
+  override def demodChannel: Int = {
     // this is a bit of a kludge, only applies to ADCs.
     -1
   }
 
-  override def getDcFiberId(): DcRackFiberId = {
+  def getDcFiberId(): DcRackFiberId = {
     this.getPreampChannel()
-  }
-
-  override def setBiasChannel(channel: DcRackFiberId): Unit = {
-    this.setPreampChannel(channel)
   }
 }
