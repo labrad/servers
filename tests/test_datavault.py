@@ -46,9 +46,9 @@ def test_create_dataset(dv):
     assert np.equal(data, stored).all()
 
 def test_string_type(dv):
+    """Create dataset with "string" elements"""
     _path, _name = dv.new_ex('test', [('label', [1], 's', '')],
                              [('data', 'data', [1], 's', '')])
-    print "string dataset created with path: %s, name: %s" % (_path, _name)
     dv.add_ex([('label', 'data')])
     stored = dv.get_ex()
     assert stored[0][0] == 'label'
@@ -106,6 +106,34 @@ def test_create_extended_dataset(dv):
     for j in range(4):
         for j in range(4):
             assert np.all(stored[j][k] == row[j])
+
+def test_open_number(dv):
+    """Create simple and extended datasets, test opening them by number."""
+
+    _path, std_name = dv.new('test dataset: with symbols', ['x', 'y'], ['z'])
+    data = []
+    for x in xrange(10):
+        for y in xrange(10):
+            data.append([x/10., y/10., x*y])
+    for row in data:
+        dv.add(row)
+    std_num = int(std_name[:5])
+    dv.open(std_num)
+    assert dv.get_version() == "2.0.0"
+    data_read = dv.get()
+    assert data_read.shape == (100,3)
+    _path, ext_name = dv.new_ex('test dataset 100%', [('t', [1], 'v', 'ns')],
+                             [('clicks', 'I', [1], 'v', ''),
+                              ('clicks', 'Q', [1], 'v', '')])
+
+    t_data = 3.3
+    I = 3.0
+    Q = 7.0
+    row  = (t_data, I, Q)
+    dv.add_ex([row, row, row, row])
+    ext_num = int(ext_name[:5])
+    dv.open(ext_num)
+    assert dv.get_version() == "3.0.0"
 
 def test_create_std_read_ex(dv):
     """Create a simple dataset and read it back as an extended dataset"""
