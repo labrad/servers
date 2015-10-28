@@ -172,8 +172,8 @@ def zeroFixedCarrier(cxn, boardname):
     fpga = cxn[FPGA_SERVER_NAME]
     yield fpga.select_device(boardname)
 
-    switch = cxn.microwave_switch
-    yield switch.switch(boardname)
+    # switch = cxn.microwave_switch
+    # yield switch.switch(boardname)
     
     spec = cxn.spectrum_analyzer_server
     spectID = yield reg.get(keys.SPECTID)
@@ -195,7 +195,7 @@ def zeroFixedCarrier(cxn, boardname):
 
     yield uwaveSource.output(False)
     yield spectDeInit(spec)
-    yield switch.switch(0)
+    # yield switch.switch(0)
     returnValue(daczeros)
 
 
@@ -208,8 +208,8 @@ def zeroScanCarrier(cxn, scanparams, boardname):
     fpga = cxn[FPGA_SERVER_NAME]
     yield fpga.select_device(boardname)
     
-    switch = cxn.microwave_switch
-    yield switch.switch(boardname)
+    # switch = cxn.microwave_switch
+    # yield switch.switch(boardname)
     
     spec = cxn.spectrum_analyzer_server
     spectID = yield reg.get(keys.SPECTID)
@@ -239,7 +239,7 @@ def zeroScanCarrier(cxn, scanparams, boardname):
         freq += scanparams['carrierStep']
     yield uwaveSource.output(False)
     yield spectDeInit(spec)
-    yield cxn.microwave_switch.switch(0)
+    # yield cxn.microwave_switch.switch(0)
     returnValue(int(dataset[1][:5]))
                 
 ####################################################################
@@ -281,7 +281,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     reg = cxn.registry
     yield reg.cd(['', keys.SESSIONNAME, boardname])
 
-    switch = cxn.microwave_switch
+    # switch = cxn.microwave_switch
 
     uwaveSourceID = yield reg.get(keys.ANRITSUID)    
     uwaveSource = yield microwaveSourceServer(cxn,uwaveSourceID)
@@ -292,8 +292,8 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
     except:
         offs=Value(0.,'mV')
         print "this is a new registry key to correct for SS DC offset, please add 'Sampling Scope DC offset' key at 0.0 mV if you don't have it"
-    yield switch.switch(boardname) #Hack to select the correct microwave switch
-    yield switch.switch(0)
+    # yield switch.switch(boardname) #Hack to select the correct microwave switch
+    # yield switch.switch(0)
     yield uwaveSource.select_device(uwaveSourceID)
     yield uwaveSource.frequency(carrierFreq)
     yield uwaveSource.amplitude(uwaveSourcePower)
@@ -342,7 +342,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB):
         Did you change settings on the scope during the measurement?"""
         exit
     #set output to zero    
-    yield fpga.dac_run_sram([baseline]*4)
+    yield fpga.dac_run_sram([baseline]*40)
     yield uwaveSource.output(False)
     
     ds = cxn.data_vault
@@ -510,7 +510,7 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
     yield assertSpecAnalLock(spec, spectID)
     
     uwaveSourcePower = yield reg.get(keys.ANRITSUPOWER)
-    yield cxn.microwave_switch.switch(boardname)
+    # yield cxn.microwave_switch.switch(boardname)
     yield uwaveSource.select_device(uwaveSourceID)
     yield uwaveSource.amplitude(uwaveSourcePower)
     yield uwaveSource.output(True)
@@ -548,5 +548,5 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector):
         freq += scanparams['sidebandCarrierStep']
     yield uwaveSource.output(False)
     yield spectDeInit(spec)
-    yield cxn.microwave_switch.switch(0)
+    # yield cxn.microwave_switch.switch(0)
     returnValue(datasetNumber(dataset))
