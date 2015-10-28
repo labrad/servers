@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Data Vault
-version = 2.3.4
+version = 2.4.0
 description = Store and retrieve numeric data
 
 [startup]
