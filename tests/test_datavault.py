@@ -122,9 +122,9 @@ def test_open_number(dv):
     assert dv.get_version() == "2.0.0"
     data_read = dv.get()
     assert data_read.shape == (100,3)
-    _path, ext_name = dv.new_ex('test dataset 100%', [('t', [1], 'v', 'ns')],
-                             [('clicks', 'I', [1], 'v', ''),
-                              ('clicks', 'Q', [1], 'v', '')])
+    _path, ext_name = dv.new_ex('test dataset 100%',
+            [('t', [1], 'v', 'ns')],
+            [('clicks', 'I', [1], 'v', ''), ('clicks', 'Q', [1], 'v', '')])
 
     t_data = 3.3
     I = 3.0
