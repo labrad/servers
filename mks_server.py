@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = MKS Gauge Server
-version = 2.0
+version = 2.0.1
 description = 
 
 [startup]
@@ -32,6 +32,12 @@ timeout = 20
 
 import labrad 
 import math
+import logging
+# The logging level is set at the bottom of the file where the server starts.
+# To get additional info about what the server is doing (i.e. to see any failed
+# readings and what led to failures), change the logging level to logging.DEBUG
+# and run in separate command prompt.
+
 from labrad import types as T, util
 from labrad.server import LabradServer, setting
 
@@ -154,7 +160,7 @@ class MKSServer(LabradServer):
                 G['ready'] = False
 
             # create a packet to read the pressure
-            pause_len = T.Value(0.02, 's')
+            pause_len = T.Value(0.05, 's')
             p = ser.packet(context=ctx)\
                    .write_line('p').pause(pause_len)\
                    .read_line(key='pressure').pause(pause_len)\
@@ -185,16 +191,22 @@ class MKSServer(LabradServer):
             try:
                 result = yield G['packet'].send()
             except Exception:
+                logging.debug('Serial return error:', exc_info=True)
                 continue
             if result:
+                error = False
                 try:
                     (rdg1, rdg2) = result.pressure.split()
                 except Exception:
+                    logging.debug('Serial split error:', exc_info=True)
+                    error = True
                     (rdg1, rdg2) = ('NaN', 'NaN')
                 try:
                     fs1, fs2 = result.full_scale.split()
                     fs1, fs2 = float(fs1), float(fs2)
                 except Exception:
+                    logging.debug('Serial FS split error:', exc_info=True)
+                    error = True
                     fs1, fs2 = float('NaN'), float('NaN')
                 try:
                     if rdg1.upper() == 'OFF':
@@ -204,6 +216,8 @@ class MKSServer(LabradServer):
                     else:
                         data1 = float(rdg1)
                 except ValueError:
+                    logging.debug('Serial reading 1 error:', exc_info=True)
+                    error = True
                     data1 = float('NaN')
                 try:
                     if rdg2.upper() == 'OFF':
@@ -213,11 +227,19 @@ class MKSServer(LabradServer):
                     else:
                         data2 = float(rdg2)
                 except ValueError:
+                    logging.debug('Serial reading 2 error:', exc_info=True)
+                    error = True
                     data2 = float('NaN')
+                if error:
+                    logging.debug('Error occured. Values:\n' +
+                                  '    Pressure: {}\n'.format(result.pressure) +
+                                  '    Full Scale: {}'.format(result.full_scale))
                 if G['ch1'] and math.isnan(data1):
-                    print 'gauge %s returns NaN (%s:ch1)' % (G['ch1'], G['port'])
+                    logging.debug('gauge {} returns NaN ({}:ch1)'.format(
+                                  G['ch1'], G['port']))
                 if G['ch2'] and math.isnan(data2):
-                    print 'gauge %s returns NaN (%s:ch2)' % (G['ch2'], G['port'])
+                    logging.debug('gauge {} returns NaN ({}:ch2)'.format(
+                                  G['ch2'], G['port']))
                 G['reading'] = T.Value(data1, 'Torr'), T.Value(data2, 'Torr')
                 
     @setting(1, 'Get Readings', returns=['*v[Torr]: Readings'])
@@ -242,4 +264,5 @@ class MKSServer(LabradServer):
 __server__ = MKSServer()
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.WARN)
     util.runServer(__server__)
