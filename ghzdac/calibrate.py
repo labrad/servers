@@ -20,6 +20,7 @@
 
 import time
 import numpy as np
+import labrad
 from labrad.types import Value
 import keys
 
@@ -36,7 +37,6 @@ FPGA_SERVER_NAME = 'ghz_fpgas'
 DACMAX= 1 << 13 - 1
 DACMIN= 1 << 13
 PERIOD = 2000
-SCOPECHANNEL = 2
 SCOPECHANNEL_infiniium = 1
 TRIGGERCHANNEL_infiniium = 2
 
@@ -346,7 +346,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB, use_switch=True):
     scope.select_device(scopeID)
     p = scope.packet().\
     reset().\
-    channel(SCOPECHANNEL).\
+    channel(reg.get(keys.SSCOPECHANNEL, True, 2)).\
     trace(1).\
     record_length(5120L).\
     average(128).\
@@ -444,11 +444,11 @@ def calibrateDCPulse(cxn,boardname,channel):
     p = scope.packet().\
     select_device(scopeID).\
     reset().\
-    channel(SCOPECHANNEL).\
+    channel(reg.get(keys.SSCOPECHANNEL, True, 2)).\
     trace(1).\
     record_length(5120).\
     average(128).\
-    sensitivity(Value(100.0,'mV')).\
+    sensitivity(reg.get(keys.SSCOPESENSITIVITYDC, True, 200*labrad.units.mV)).\
     offset(Value(0,'mV')).\
     time_step(Value(5,'ns')).\
     trigger_level(Value(0.18,'V')).\
@@ -465,7 +465,7 @@ def calibrateDCPulse(cxn,boardname,channel):
     trace = trace[trace.unit]  # strip units
     # set the output to zero so that the fridge does not warm up when the
     # cable is plugged back in
-    fpga.dac_run_sram([makeSample(dac_neutral, dac_neutral)]*4,False)
+    fpga.dac_run_sram([makeSample(dac_neutral, dac_neutral)]*20, False)
     ds = cxn.data_vault
     ds.cd(['', keys.SESSIONNAME, boardname],True)
     dataset = ds.new(keys.CHANNELNAMES[channel], [('Time','ns')],
