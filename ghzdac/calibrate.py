@@ -383,7 +383,7 @@ def calibrateACPulse(cxn, boardname, baselineA, baselineB, use_switch=True):
         Did you change settings on the scope during the measurement?"""
         exit
     #set output to zero
-    fpga.dac_run_sram([baseline]*4)
+    fpga.dac_run_sram([baseline]*20)
     uwaveSource.output(False)
     ds = cxn.data_vault
     ds.cd(['',keys.SESSIONNAME,boardname],True)

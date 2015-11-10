@@ -76,25 +76,28 @@ def calibrate_dc_pulse(fpga_name, channel, dc_scope):
             raise Exception("invalid scope: {}".format(dc_scope))
 
 
-def zero_fixed_carrier(fpga_name):
+def zero_fixed_carrier(fpga_name, use_switch=True):
     """ Calls ghzdac.calibrate.zeroFixedCarrier, synchronously.
     :param str fpga_name: e.g. "Vince DAC 11"
+    :param bool use_switch: Whether to use microwave switch
     :return list[int]: zeros for A and B
     """
     with labrad.connect() as cxn:
-        return calibrate.zeroFixedCarrier(cxn, fpga_name)
+        return calibrate.zeroFixedCarrier(cxn, fpga_name, use_switch=use_switch)
 
 
-def calibrate_ac_pulse(fpga_name, zero_a, zero_b):
+def calibrate_ac_pulse(fpga_name, zero_a, zero_b, use_switch=True):
     """ Calls ghzdac.calibrate.calibrateACPulse, synchronously.
 
     :param str fpga_name:
     :param int zero_a: Zero for channel A, in DAC units (i.e. 0 < x < 0x1FFF)
     :param int zero_b: channel B
+    :param bool use_switch: Whether to use microwave switch
     :return int: dataset number
     """
     with labrad.connect() as cxn:
-        return calibrate.calibrateACPulse(cxn, fpga_name, zero_a, zero_b)
+        return calibrate.calibrateACPulse(cxn, fpga_name, zero_a, zero_b,
+                                          use_switch=use_switch)
 
 
 def calibrate_pulse(cxn, fpga_name, dc_scope = 'infiniium'):
@@ -120,8 +123,10 @@ def calibrate_pulse(cxn, fpga_name, dc_scope = 'infiniium'):
         board_type = 'dc'
     
     if board_type == 'ac':
-        zero_a, zero_b = zero_fixed_carrier(fpga_name)
-        dataset = calibrate_ac_pulse(fpga_name, zero_a, zero_b)
+        use_switch = reg.get(keys.SWITCHUSE, 'b', True, True)
+        zero_a, zero_b = zero_fixed_carrier(fpga_name, use_switch=use_switch)
+        dataset = calibrate_ac_pulse(fpga_name, zero_a, zero_b,
+                                     use_switch=use_switch)
         reg.set(keys.PULSENAME, [dataset])
     elif board_type == 'dc':
         channel = int(raw_input('Select channel: 0 (DAC A) or 1 (DAC B): '))

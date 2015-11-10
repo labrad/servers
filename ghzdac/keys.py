@@ -23,6 +23,7 @@ SCOPEOFFSET = 'Sampling Scope DC offset'
 SCOPESENSITIVITY = 'Sampling Scope sensitivity'
 SWITCHPOSITION = 'Microwave switch position'
 SWITCHNAME = 'Microwave switch name'
+SWITCHUSE = 'Microwave switch use'
 TIMEOFFSET = 'DAC delay for pulse calibration'
 SETUPTYPES = ['no IQ mixer',
               'DAC A -> mixer I, DAC B -> mixer Q',
