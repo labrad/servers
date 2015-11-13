@@ -1117,7 +1117,17 @@ class QubitContext extends AbstractServerContext {
 
   @Setting(id = 1100,
       name = "Get Data Raw",
-      doc = "Gets the raw timing data from the previous run. Given a deinterlace argument, only DAC data are returned")
+      doc = """Get the raw timing data from the previous run.
+              |
+              |The returned data is a 4 index array. The meanings of the indices
+              |are (channel, stat, demod, IQ):
+              |  channel: Which ADC channel. Usually this corresponds to a
+              |    single qubit.
+              |  stat: Which repetition of the pulse sequence.
+              |  demod: Which ADC demod (a.k.a. retrigger).
+              |  IQ : Index over I and Q. This axis is always length 2.
+              |
+              |Given a deinterlace argument, only DAC data are returned.""")
   @Returns(Array("*4i"))
   def get_data_raw(): Data = {
     lastData
