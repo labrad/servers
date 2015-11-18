@@ -297,7 +297,7 @@ class BoardGroup(object):
         cxn = self.directEthernetServer._cxn
         servers = yield cxn.manager.servers()
         server_ids = set(id for id, name in servers)
-        if self.directEthernetServer.ID in ids:
+        if self.directEthernetServer.ID in server_ids:
             yield cxn.manager.expire_context(
                     self.directEthernetServer.ID, context=self.ctx)
 
