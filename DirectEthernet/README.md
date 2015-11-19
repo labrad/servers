@@ -19,3 +19,12 @@ To "install" the server, just unpack the archive file on the machine where it
 is to be run. The archive includes a node .ini files, so if you unpack into a
 directory that is searched by the node, it will find the server. Otherwise,
 the bin directory in the archive contains start scripts for windows and *nix.
+
+The server uses the [pcap4j](https://github.com/kaitoy/pcap4j) library to access
+libpcap for packet capture. When the server starts you may see warnings in the
+logs from `org.pcap4j.util.PropertiesLoader` indicating that it could not load
+some values and is using a default value of null. The properties mechanism can
+be used to override platform-dependent values for certain integer constants,
+but in practice the defaults work fine on windows, mac and linux. These warnings
+can be ignored unless you need to override the defaults on your platform. See
+the pcap4j source for more details.
