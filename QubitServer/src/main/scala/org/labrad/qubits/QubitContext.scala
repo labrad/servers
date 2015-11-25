@@ -16,6 +16,7 @@ import org.labrad.qubits.resources.MicrowaveSource
 import org.labrad.qubits.resources.Resources
 import org.labrad.qubits.templates.ExperimentBuilder
 import org.labrad.qubits.util.ComplexArray
+import org.labrad.qubits.util.Grouping._
 import org.labrad.types._
 import scala.collection.mutable
 import scala.concurrent.{Await, Future}
@@ -878,24 +879,38 @@ class QubitContext(cxn: ServerConnection, resources: () => Resources) extends Se
       fpga.checkTimerStatus();
     }*/
 
-    // check microwave source configuration
-    val uwaveConfigs = mutable.Map.empty[MicrowaveSource, MicrowaveSourceConfig]
-    for (ch <- expt.getChannels[IqChannel]) {
-      val src = ch.getMicrowaveSource()
-      val config = ch.getMicrowaveConfig()
-      require(config != null, s"No microwaves configured for channel '${ch.name}'")
-      uwaveConfigs.get(src) match {
-        case None =>
-          // keep track of which microwave sources we have seen
-          uwaveConfigs(src) = config
+    // Check microwave source configuration.
+    //
+    // We group the IQ channels by the microwave source they use and check that
+    // all channels sharing a particular source agree on its configuration. For
+    // any microwave boards which are not being used by IQ channels, we
+    // configure their sources to be off.
 
-        case Some(existing) =>
-          // check that microwave configurations are compatible
-          require(config == existing,
-              s"Conflicting microwave configurations for source '${src.name}'")
-      }
+    val uwaveConfigs = mutable.Map.empty[MicrowaveSource, MicrowaveSourceConfig]
+
+    val configsBySrc = (for {
+      dev <- expt.devices
+      chan <- dev.getChannels[IqChannel]
+    } yield {
+      val src = chan.getMicrowaveSource()
+      val config = chan.getMicrowaveConfig()
+      require(config != null, s"No microwaves configured: dev=${dev.name}, channel=${chan.name}")
+      src -> (dev, chan, config)
+    }).groupByKeyValue
+
+    for ((src, chansAndConfigs) <- configsBySrc) {
+      val configs = chansAndConfigs.map { case (dev, chan, config) => config }.toSet.toSeq
+      require(configs.size == 1, {
+        val lines = Seq.newBuilder[String]
+        lines += s"Conflicting microwave configurations for source '${src.name}'"
+        for ((dev, chan, config) <- chansAndConfigs) {
+          lines += s"  dev=${dev.name}, channel=${chan.name}: $config"
+        }
+        lines.result.mkString("\n")
+      })
+      uwaveConfigs(src) = configs(0)
     }
-    // turn off the microwave source for any boards whose source is not configured
+
     for (fpga <- getExperiment().getMicrowaveFpgas()) {
       val src = fpga.getMicrowaveSource()
       if (!uwaveConfigs.contains(src)) {

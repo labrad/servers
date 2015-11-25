@@ -21,7 +21,7 @@ import scala.reflect.ClassTag
  * @author maffoo
  * @author pomalley
  */
-class Experiment(devices: Seq[Device]) {
+class Experiment(val devices: Seq[Device]) {
 
   private val devicesByName = devices.map { dev =>
     dev.name -> dev
