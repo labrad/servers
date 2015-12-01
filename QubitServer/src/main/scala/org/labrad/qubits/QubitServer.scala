@@ -40,7 +40,7 @@ class QubitServer extends Server[QubitServer, QubitContext] {
             |(<device name>, <channel name>), or a single string <device name>
             |if the device has only one channel of the type needed for the command.
             |
-            |Version 0.6.1.""".stripMargin
+            |Version 0.7.1.""".stripMargin
 
   implicit def executionContext = cxn.executionContext
 
