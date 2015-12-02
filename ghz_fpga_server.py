@@ -177,7 +177,7 @@ cmdTime_cycles does not properly estimate sram length
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 5.1.0
+version = 5.2.0
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -835,61 +835,51 @@ class BoardGroup(object):
     def recoverFromTimeout(self, runners, results):
         """Recover from a timeout error so that pipelining can proceed.
 
-        We clear the packet buffer for all boards, whether or not they
-        succeeded. We then check how many time each board executed its SRAM
-        sequence (or demod sequence for ADC boards), and store this value
-        in the respective runner object. Finally, for failed boards we
-        send a trigger to the master context.
+        The recovery proceeds as follows:
+
+        (1) Get execution counts. For each board we clear the packet buffer and
+        ping the board to see how many times it executed its SRAM sequence (or
+        demod sequence for ADC boards). This count is stored in the runner
+        object for the board for later reporting to the user.
+
+        (2) Send triggers. After all boards have been pinged, we again clear
+        the packet buffers for all boards and then send a trigger to the board
+        group run context from each failed board. We must do this to unlock the
+        run context since the trigger would not have been sent yet if packet
+        collection failed.
         """
         print 'RECOVERING FROM TIMEOUT'
-        # TODO: add a timeout to the read. Possibly use _sendRegister from
-        #       dac.py
+
+        # Get execution counts.
         for runner, (success, result) in zip(runners, results):
-            ctx = None if success else self.ctx
-            # 1. Clear packet buffer for this board
             yield runner.dev.clear().send()
-            # 2. Ping the board to read its execution counter
             try:
+                # NOTE: in the current implementation of regPing for DAC boards
+                # (build 15) the start field is set to master, which means when
+                # we ping these boards they will emit daisy chain signals.
                 p = runner.dev.regPingPacket()
-                p.timeout(U.Value(1.0, 's')).collect(1).read(1)
+                p.timeout(U.Value(1.0, 's')).read(1)
                 resp = yield p.send()
-                ans = resp.read
-                # This if construction exists only because right now I have
-                # processReadback as a module level function in dac.py,
-                # whereas in adc.py it's a staticmethod of the ADC class.
-                if isinstance(runner, dac.DacRunner):
-                    count = runner.dev.processReadback(ans[0][3]).get(
-                        'executionCounter',
-                        None
-                    )
-                elif isinstance(runner, adc.AdcRunner):
-                    count = runner.dev.processReadback(ans[0][3]).get(
-                        'executionCounter',
-                        None
-                    )
-                runner.executionCount = count
-            except Exception as e:
-                logging.error(
-                        'Exception in recoverFromTimeout: {}'.format(e))
-            # Finally, clear the packet buffer and send trigger if this was a
-            # failed board
-            finally:
-                yield runner.dev.clear().send()
-                if ctx is not None:
-                    yield runner.dev.trigger(ctx).send()
+                regs = runner.dev.processReadback(resp.read[0][3])
+                runner.executionCount = regs.get('executionCounter', None)
+            except Exception:
+                logging.error('Exception in recoverFromTimeout', exc_info=True)
+
+        # Send triggers.
+        for runner, (success, result) in zip(runners, results):
+            yield runner.dev.clear().send()
+            if not success:
+                yield runner.dev.trigger(self.ctx).send()
 
     def timeoutReport(self, runners, results):
         """Create a nice error message explaining which boards timed out."""
         lines = ['Some boards failed:']
         for runner, (success, result) in zip(runners, results):
-            if getattr(runner, 'executionCount', None) is None:
-                executionCount = 'not available'
-            else:
-                executionCount = runner.executionCount
-            line = runner.dev.devName + ': ' + ('OK' if success else 'timeout!')
-            line += ' Expected executions: {}  Actual: {}'.format(
-                runner.reps,
-                executionCount
+            line = '{name}: {state}. Executions: expected={expected}, actual={actual}'.format(
+                name=runner.dev.devName,
+                state='OK' if success else 'timeout!',
+                expected=runner.reps,
+                actual=getattr(runner, 'executionCount', 'unknown')
             )
             lines.append(line)
         return '\n'.join(lines)
