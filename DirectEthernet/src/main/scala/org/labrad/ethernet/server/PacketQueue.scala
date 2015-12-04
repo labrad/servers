@@ -126,6 +126,21 @@ class PacketQueue[A] {
   }
 
   /**
+   * Take all existing packets from the buffer.
+   */
+  def takeAll(): Seq[A] = {
+    awaitable.sync {
+      packets.size match {
+        case 0 => Seq.empty
+        case n =>
+          val result = packets.take(n).toSeq
+          packets.remove(0, n)
+          result
+      }
+    }
+  }
+
+  /**
    * Drop the specified number of packets from the buffer.
    * Raises an exception if there are not enough packets buffered.
    */
