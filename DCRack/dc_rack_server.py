@@ -175,7 +175,6 @@ class DcRackWrapper(DeviceWrapper):
     def write(self, code):
         """Write a data value to the dc rack."""
         yield self.packet().write(code).send()
-        print code
 
     @inlineCallbacks
     def initDACs(self):
@@ -273,7 +272,6 @@ class DcRackWrapper(DeviceWrapper):
             data = 4*data[0] + 2*data[1] + 1*data[2]
         else:
             data &= 0x7
-        self.write([1L])
         yield self.write([OP_LEDS | data])
         returnValue(data)
 
@@ -518,7 +516,7 @@ class DcRackServer(DeviceServer):
         """List cards configured in the registry (does not query cards directly)."""
         dev = self.selectedDevice(c)
         cards = dev.returnCardList()
-        returnValue(cards)
+        return cards
 
     @setting(455, 'get_preamp_state')
     def getPreampState(self, c, cardNumber, channel):
@@ -607,7 +605,7 @@ class Channel:
 
     def strState(self):
         """Returns the channel state as a list of strings"""
-        s = list(self.state)
+        s = list(self.state()) # self.state is a method, not an attribute... 
         s[-1] = str(s[-1])
         return s
 
