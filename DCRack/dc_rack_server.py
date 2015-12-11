@@ -1,4 +1,4 @@
-# Copyright (C) 2011  Ted White
+# Copyright (C) 2011  Ted White 
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,11 +19,9 @@
 name = DC Rack Server
 version = 2.2
 description = Control Fastbias and Preamp boards.
-
 [startup]
 cmdline = %PYTHON% %FILE%
 timeout = 20
-
 [shutdown]
 message = 987654321
 timeout = 20
@@ -175,7 +173,6 @@ class DcRackWrapper(DeviceWrapper):
     def write(self, code):
         """Write a data value to the dc rack."""
         yield self.packet().write(code).send()
-        print code
 
     @inlineCallbacks
     def initDACs(self):
@@ -273,7 +270,6 @@ class DcRackWrapper(DeviceWrapper):
             data = 4*data[0] + 2*data[1] + 1*data[2]
         else:
             data &= 0x7
-        self.write([1L])
         yield self.write([OP_LEDS | data])
         returnValue(data)
 
@@ -307,6 +303,7 @@ class DcRackWrapper(DeviceWrapper):
         state = self.rackCards[str(cardNumber)].channels[channel].strState()
         return state
 
+
     def getMonitorState(self):
         return self.rackMonitor.monitorState()
 
@@ -326,20 +323,89 @@ class DcRackWrapper(DeviceWrapper):
             print 'card is not a preamp'
 
     @inlineCallbacks
+    def commitLedStateToRegistry(self, reg, ledState):
+        card = self.rackCards[self.activeCard]
+        if isinstance(card, Preamp):
+            yield reg.cd(['', 'Servers', 'DC Racks', 'LEDs'], True)
+            cardName = 'Preamp {}'.format(self.activeCard)
+            p = reg.packet()
+            #def state(chan):
+                #"""Return a tuple of channel state, to be stored in the registry"""
+                #return (chan.highPass, chan.lowPass, chan.polarity, chan.offset)
+            p.set(cardName, ledState)
+            yield p.send()
+        else:
+            print 'card is not a preamp'        
+        
+
+    @inlineCallbacks
+    def commitMonitorStateToRegistry(self, reg):
+        monitorKeyName = self.server.name.split(" ")[0]
+        yield reg.cd(['', 'Servers', 'DC Racks', 'Monitor'], True)
+        p = reg.packet()
+        def monState(mon):
+                """Return a tuple of monitor state, to be stored in the registry"""
+                return ((mon.dBus0[0],mon.dBus0[1]), (mon.dBus1[0],mon.dBus1[1]), (mon.aBus0[0],mon.aBus0[1]), (mon.aBus1[0],mon.aBus1[1]))
+        p.set(monitorKeyName, monState(self.rackMonitor))
+        yield p.send()
+
+
+    @inlineCallbacks
+    def loadMonitorStateFromRegistry(self, reg):
+        monitorKeyName = self.server.name.split(" ")[0]
+        yield reg.cd(['', 'Servers', 'DC Racks', 'Monitor'], True)
+        content = yield reg.dir()
+        if monitorKeyName in content[1]:
+            p = reg.packet()
+            p.get(monitorKeyName, key=monitorKeyName)
+            result =yield p.send()
+            ans = result[monitorKeyName]
+            self.rackMonitor.updateBus('Dbus0', ans[0][0], ans[0][1])
+            self.rackMonitor.updateBus('Dbus1', ans[1][0], ans[1][1])
+            self.rackMonitor.updateBus('Abus0', ans[2][0], ans[2][1])
+            self.rackMonitor.updateBus('Abus1', ans[3][0], ans[3][1]) 
+        else:
+            print "Registry settings for the monitor state of this DC Rack have not been saved yet."
+
+    @inlineCallbacks
+    def getLedStateFromRegistry(self, reg):
+        card = self.rackCards[self.activeCard]
+        if isinstance(card, Preamp):
+            yield reg.cd(['', 'Servers', 'DC Racks', 'LEDs'], True)
+            content = yield reg.dir()
+            cardName = 'Preamp {}'.format(self.activeCard)
+            if cardName in content[1]:
+                p = reg.packet()
+                p.get(cardName, key=cardName)
+                result = yield p.send()
+                ans = result[cardName]
+                returnValue(ans)
+            else:
+               #print "Registry settings for the LED state of card =",self.activeCard ," have not been saved yet."
+               returnValue(-1)
+        else:
+            print 'card is not a preamp'
+        
+
+    @inlineCallbacks
     def loadFromRegistry(self, reg):
         card = self.rackCards[self.activeCard]
         if isinstance(card, Preamp):
             yield reg.cd(['', 'Servers', 'DC Racks', 'Preamps'], True)
+            content = yield reg.dir()
             cardName = 'Preamp {}'.format(self.activeCard)
-            p = reg.packet()
-            p.get(cardName, key=cardName)
-            result = yield p.send()
-            ans = result[cardName]
-            def update(chan, state):
-                """Update channel state from a tuple stored in the registry"""
-                chan.highPass, chan.lowPass, chan.polarity, chan.offset = state[0]
-            for i, chan in enumerate([card.A, card.B, card.C, card.D]):
-                update(chan, ans[i])
+            if cardName in content[1]:  #make sure card key exists before trying to get it
+                p = reg.packet()
+                p.get(cardName, key=cardName)
+                result = yield p.send()
+                ans = result[cardName]
+                def update(chan, state):
+                    """Update channel state from a tuple stored in the registry"""
+                    chan.highPass, chan.lowPass, chan.polarity, chan.offset = state
+                for i, chan in enumerate([card.A, card.B, card.C, card.D]):
+                    update(chan, ans[i])
+            else:
+                returnValue(-1)
         else:
             print 'card is not a preamp'
 
@@ -354,7 +420,6 @@ class DcRackWrapper(DeviceWrapper):
     @inlineCallbacks
     def pushRegisterValue(self, dac, slow, voltage):
         """Pushes 18 bits of data into 18 bit shift register.
-
         High bit is fine(0) or coarse(1) DAC, low bit is fast(0) or slow(1)
         slew rate, and middle 16 bits are voltage value.
         """
@@ -518,7 +583,7 @@ class DcRackServer(DeviceServer):
         """List cards configured in the registry (does not query cards directly)."""
         dev = self.selectedDevice(c)
         cards = dev.returnCardList()
-        returnValue(cards)
+        return cards
 
     @setting(455, 'get_preamp_state')
     def getPreampState(self, c, cardNumber, channel):
@@ -526,11 +591,36 @@ class DcRackServer(DeviceServer):
         state = yield dev.preampState(cardNumber, channel)
         returnValue(state)
 
+    @setting(421, 'get_led_state_from_registry',returns=['(bbb)', 'i'])
+    def get_led_state_from_registry(self, c):
+        dev = self.selectedDevice(c)
+        reg = self.client.registry()
+        ledState = yield dev.getLedStateFromRegistry(reg)
+        returnValue(ledState)
+
+    @setting(422, 'commit_led_state_to_registry',ledState='(bbb)')
+    def commit_led_state_to_registry(self, c, ledState):
+        dev = self.selectedDevice(c)
+        reg = self.client.registry()
+        yield dev.commitLedStateToRegistry(reg,ledState )
+
     @setting(423, 'get_monitor_state')
     def getMonitorState(self, c):
         dev = self.selectedDevice(c)
         state = yield dev.getMonitorState()
         returnValue(state)
+
+    @setting(424, 'commit_monitor_state_to_registry')
+    def commit_monitor_state_to_registry(self, c):
+        dev = self.selectedDevice(c)
+        reg = self.client.registry()
+        yield dev.commitMonitorStateToRegistry(reg)
+
+    @setting(425, 'load_monitor_state_from_registry')
+    def load_monitor_state_from_registry(self, c):
+        dev = self.selectedDevice(c)
+        reg = self.client.registry()
+        yield dev.loadMonitorStateFromRegistry(reg)
 
     @setting(867, 'commit_to_registry')
     def commit_to_registry(self, c):
@@ -581,7 +671,6 @@ class Channel:
 
     def update(self, highPass=None, lowPass=None, polarity=None, offset=None):
         """Update channel parameter(s) to the given values.
-
         Before updating a given parameter, we check that it is valid by
         looking it up in the appropriate map from name to code (for highPass,
         lowPass, and polarity) or converting to an int (for offset).
@@ -607,7 +696,7 @@ class Channel:
 
     def strState(self):
         """Returns the channel state as a list of strings"""
-        s = list(self.state)
+        s = list(self.state()) # self.state is a method, not an attribute... 
         s[-1] = str(s[-1])
         return s
 
@@ -630,6 +719,7 @@ class Monitor:
 
     def monitorState(self):
         return [self.dBus0, self.dBus1, self.aBus0, self.aBus1]
+
 
 
 TIMEOUT = 1 * labrad.units.s
