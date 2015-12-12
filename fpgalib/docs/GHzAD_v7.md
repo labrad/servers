@@ -56,8 +56,8 @@ and a multiplier table for demodulation of the incoming signal for each demodula
 
 The retrigger table defines multiple AD triggers per master start.
 The table starts at address 0, then increments up (to a maximum 127) after performing the functions of each table entry,
-until it reaches a table entry with `rdelay[15..8]=0`, at which time the retriggering stops. 
-Note that an empty table with `rdelay[15..9]=0` at the address 0 will not ever trigger the AD.
+until it reaches a table entry with `rdelay[15..0]=0`, at which time the retriggering stops. 
+Note that an empty table with `rdelay[15..0]=0` at the address 0 will not ever trigger the AD.
 In the table entry, `rdelay[15..0] + 3` is the number of 4 ns cycles between the AD start (or last end of ADon) and the AD trigger.
 After this delay, the AD is turned on for `rlength[7..0] + 1` cycles, during which ADon demultiplexer (don) is high.
 The value `rcount[15..0] + 1` is the number of AD triggers per table entry.
