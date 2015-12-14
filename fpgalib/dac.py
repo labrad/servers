@@ -1111,7 +1111,6 @@ class DacRunner_Build15(DacRunner_Build7):
                                blockDelay=None, sync=sync, loop_delay=self.loop_delay)
         return regs
 
-
 class DAC_Build15(DAC_Build8):
     """ DAC Build 15 is the first (working) jump table build.
 
@@ -1201,8 +1200,8 @@ class DAC_Build15(DAC_Build8):
     JT_MAX_END_ADDR = SRAM_LEN // 4 + JT_END_ADDR_OFFSET
     JT_MAX_TO_ADDR = SRAM_LEN // 4
     JT_IDX_OFFSET = 1  # compensate for first entry always NOP
-
-    MONITOR_0 = 5
+ 
+    MONITOR_0 = 4
     MONITOR_1 = 10
 
     @classmethod
@@ -1616,8 +1615,12 @@ class DAC_Build15(DAC_Build8):
         self.makeJumpTable(jtObj, p)
         p.send()
 
+class DAC_Build16(DAC_Build15):
+    
+    pass
 
 fpga.REGISTRY[('DAC', 15)] = DAC_Build15
+fpga.REGISTRY[('DAC', 16)] = DAC_Build16
 
 
 #Utility functions
