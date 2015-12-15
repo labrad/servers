@@ -235,7 +235,7 @@ extends ServerContext with Logging {
     name = "Read until timeout",
     doc = """Collect and return all packets that arrive until the timeout expires
             |
-            |Unlike Collect, Read and Discard, this is useful in cases where we
+            |Unlike Collect, Read, and Discard, this is useful in cases where we
             |do not know how many packets are expected, but just wish to capture
             |all traffic in a given interval.
             |
