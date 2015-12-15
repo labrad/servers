@@ -272,6 +272,7 @@ class DcRackWrapper(DeviceWrapper):
             data = 4*data[0] + 2*data[1] + 1*data[2]
         else:
             data &= 0x7
+        yield self.write([1L])
         yield self.write([OP_LEDS | data])
         returnValue(data)
 
@@ -605,7 +606,7 @@ class Channel:
 
     def strState(self):
         """Returns the channel state as a list of strings"""
-        s = list(self.state()) # self.state is a method, not an attribute... 
+        s = list(self.state())
         s[-1] = str(s[-1])
         return s
 
