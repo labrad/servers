@@ -74,6 +74,16 @@ extends ServerContext with Logging {
     }
   }
 
+  /**
+   * Safely convert the given Long value to an Int.
+   * If the value cannot be represented as an Int, raise an Exception.
+   */
+  private def safeInt(value: Long): Int = {
+    require(value >= Int.MinValue && value <= Int.MaxValue,
+        s"cannot convert $value to int")
+    value.toInt
+  }
+
   // A queue to receive packets that pass filters.
   private val queue = new PacketQueue[EthernetPacket]
 
@@ -97,7 +107,6 @@ extends ServerContext with Logging {
         MacAddress.getByAddress(Array(a, b, c, d, e, f).map(_.toByte))
     }
   }
-
 
   // life-cycle callbacks
 
@@ -130,7 +139,7 @@ extends ServerContext with Logging {
             |adapter, we will stop listening and drop any enqueued packets.""")
   def connect(idxOrName: Either[Long, String]): String = {
     val bus = idxOrName match {
-      case Left(index) => server.busses(index.toInt)
+      case Left(index) => server.busses(safeInt(index))
       case Right(name) => server.busses.find(_.name == name).get
     }
     // if connected to a different adapter previously, stop listening
@@ -201,7 +210,7 @@ extends ServerContext with Logging {
             |received packet as a byte string""")
   def read(numPackets: Long = 1): Seq[(String, String, Int, Array[Byte])] = {
     collect(numPackets)
-    processPackets(queue.take(numPackets.toInt))
+    processPackets(queue.take(safeInt(numPackets)))
   }
 
   @Setting(
@@ -227,7 +236,7 @@ extends ServerContext with Logging {
             |the content of the recieved packets""")
   def discard(numPackets: Long = 1): Unit = {
     collect(numPackets)
-    queue.drop(numPackets.toInt)
+    queue.drop(safeInt(numPackets))
   }
 
   @Setting(
@@ -364,7 +373,7 @@ extends ServerContext with Logging {
     name = "Require Length",
     doc = "Only packets of this length will be accepted")
   def requireLength(len: Long): Unit = {
-    readFilters += RequireLength(len.toInt)
+    readFilters += RequireLength(safeInt(len))
   }
 
   @Setting(
@@ -372,7 +381,7 @@ extends ServerContext with Logging {
     name = "Reject Length",
     doc = "Packets of this length will be rejected")
   def rejectLength(len: Long): Unit = {
-    readFilters += RejectLength(len.toInt)
+    readFilters += RejectLength(safeInt(len))
   }
 
   @Setting(
@@ -406,7 +415,7 @@ extends ServerContext with Logging {
       case Left(bytes) => bytes
       case Right(words) => words.map(_.toByte)
     }
-    readFilters += RequireContent(offset.toInt, pattern)
+    readFilters += RequireContent(safeInt(offset), pattern)
   }
 
   @Setting(
@@ -418,7 +427,7 @@ extends ServerContext with Logging {
       case Left(bytes) => bytes
       case Right(words) => words.map(_.toByte)
     }
-    readFilters += RejectContent(offset.toInt, pattern)
+    readFilters += RejectContent(safeInt(offset), pattern)
   }
 
 
