@@ -180,6 +180,17 @@ extends ServerContext with Logging {
     }
   }
 
+  private def processPackets(packets: Seq[EthernetPacket]): Seq[(String, String, Int, Array[Byte])] = {
+    packets.map { pkt =>
+      val src = pkt.getHeader.getSrcAddr
+      val dst = pkt.getHeader.getDstAddr
+      val typ = pkt.getHeader.getType.value.toInt
+      val data = pkt.getPayload.getRawData
+
+      (src.toString.toUpperCase, dst.toString.toUpperCase, typ, data)
+    }
+  }
+
   @Setting(
     id = 50,
     name = "Read",
@@ -190,15 +201,7 @@ extends ServerContext with Logging {
             |received packet as a byte string""")
   def read(numPackets: Long = 1): Seq[(String, String, Int, Array[Byte])] = {
     collect(numPackets)
-    val results = queue.take(numPackets.toInt)
-    results.map { pkt =>
-      val src = pkt.getHeader.getSrcAddr
-      val dst = pkt.getHeader.getDstAddr
-      val typ = pkt.getHeader.getType.value.toInt
-      val data = pkt.getPayload.getRawData
-
-      (src.toString.toUpperCase, dst.toString.toUpperCase, typ, data)
-    }
+    processPackets(queue.take(numPackets.toInt))
   }
 
   @Setting(
@@ -225,6 +228,24 @@ extends ServerContext with Logging {
   def discard(numPackets: Long = 1): Unit = {
     collect(numPackets)
     queue.drop(numPackets.toInt)
+  }
+
+  @Setting(
+    id = 53,
+    name = "Read until timeout",
+    doc = """Collect and return all packets that arrive until the timeout expires
+            |
+            |Unlike Collect, Read, and Discard, this is useful in cases where we
+            |do not know how many packets are expected, but just wish to capture
+            |all traffic in a given interval.
+            |
+            |New in version 1.3.0; not present in Delphi direct ethernet server.""")
+  def readUntilTimeout(): Seq[(String, String, Int, Array[Byte])] = {
+    val timeout = readTimeout.getOrElse { fail(11, "Read Timeout not set") }
+    val millis = timeout.toMillis
+    val nanos = (timeout - millis.milliseconds).toNanos.toInt
+    Thread.sleep(millis, nanos)
+    processPackets(queue.takeAll())
   }
 
   @Setting(
