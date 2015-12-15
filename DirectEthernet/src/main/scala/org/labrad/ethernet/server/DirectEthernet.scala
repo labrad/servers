@@ -237,7 +237,9 @@ extends ServerContext with Logging {
             |
             |Unlike Collect, Read and Discard, this is useful in cases where we
             |do not know how many packets are expected, but just wish to capture
-            |all traffic in a given interval.""")
+            |all traffic in a given interval.
+            |
+            |New in version 1.3.0; not present in Delphi direct ethernet server.""")
   def readUntilTimeout(): Seq[(String, String, Int, Array[Byte])] = {
     val timeout = readTimeout.getOrElse { fail(11, "Read Timeout not set") }
     val millis = timeout.toMillis
