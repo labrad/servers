@@ -2,7 +2,7 @@ organization := "org.labrad"
 
 name := "DirectEthernet"
 
-version := "1.2.2"
+version := "1.2.3"
 
 scalaVersion := "2.11.7"
 javacOptions ++= Seq("-source", "1.7", "-target", "1.7")
@@ -11,7 +11,7 @@ resolvers += "bintray" at "https://jcenter.bintray.com/"
 
 libraryDependencies ++= Seq(
   "org.labrad" %% "scalabrad" % "0.4.1",
-  "org.pcap4j" % "pcap4j-core" % "1.5.0"
+  "org.pcap4j" % "pcap4j-core" % "1.6.2"
 )
 
 // testing
