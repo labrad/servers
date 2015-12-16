@@ -177,7 +177,7 @@ cmdTime_cycles does not properly estimate sram length
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 5.2.0
+version = 5.3.0
 description = Talks to DAC and ADC boards
 
 [startup]
@@ -405,18 +405,12 @@ class BoardGroup(object):
                 p.write(packet.tostring())
             yield p.send(context=ctx)
             # Listen for responses.
-            start = time.time()
+            packets = yield self.directEthernetServer.read_until_timeout(context=ctx)
             found = []
-            while (len(found) < len(macs)) and (time.time() - start < timeout):
-                try:
-                    ans = yield self.directEthernetServer.read(1, context=ctx)
-                    src, dst, eth, data = ans[0]
-                    if src in macs:
-                        devInfo = callback(src, data)
-                        found.append(devInfo)
-                except T.Error as e:
-                    logging.error('timeout exception: {}'.format(e))
-                    break  # Read timeout.
+            for src, dst, eth, data in packets:
+                if src in macs:
+                    devInfo = callback(src, data)
+                    found.append(devInfo)
             returnValue(found)
         finally:
             # Expire the detection context.
