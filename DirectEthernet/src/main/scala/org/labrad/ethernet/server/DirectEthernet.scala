@@ -182,7 +182,7 @@ extends ServerContext with Logging {
   def collect(numPackets: Long = 1): Unit = {
     val timeout = readTimeout.getOrElse { fail(11, "Read Timeout not set") }
     try {
-      queue.await(numPackets, timeout)
+      queue.await(numPackets.toInt, timeout)
     } catch {
       case e: java.util.concurrent.TimeoutException =>
         fail(12, s"Timeout! Failed to collect $numPackets packets after $timeout")
@@ -246,15 +246,29 @@ extends ServerContext with Logging {
             |
             |Unlike Collect, Read, and Discard, this is useful in cases where we
             |do not know how many packets are expected, but just wish to capture
-            |all traffic in a given interval.
+            |all traffic in a given interval. If the optional maxPackets is
+            |given, will return either when the timeout expires, or we have
+            |collected maxPackets packets, whichever comes first.
             |
             |New in version 1.3.0; not present in Delphi direct ethernet server.""")
-  def readUntilTimeout(): Seq[(String, String, Int, Array[Byte])] = {
+  def readUntilTimeout(maxPackets: Option[Long] = None): Seq[(String, String, Int, Array[Byte])] = {
     val timeout = readTimeout.getOrElse { fail(11, "Read Timeout not set") }
-    val millis = timeout.toMillis
-    val nanos = (timeout - millis.milliseconds).toNanos.toInt
-    Thread.sleep(millis, nanos)
-    processPackets(queue.takeAll())
+    val packets = maxPackets match {
+      case Some(numPackets) =>
+        try {
+          queue.await(numPackets.toInt, timeout)
+        } catch {
+          case e: java.util.concurrent.TimeoutException =>
+        }
+        queue.takeAtMost(numPackets.toInt)
+
+      case None =>
+        val millis = timeout.toMillis
+        val nanos = (timeout - millis.milliseconds).toNanos.toInt
+        Thread.sleep(millis, nanos)
+        queue.takeAll()
+    }
+    processPackets(packets)
   }
 
   @Setting(

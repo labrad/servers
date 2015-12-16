@@ -94,7 +94,7 @@ class PacketQueue[A] {
   /**
    * Wait for the specified number of packets to accumulate in the queue.
    */
-  def await(n: Long, timeout: Duration): Unit = {
+  def await(n: Int, timeout: Duration): Unit = {
     require(n >= 0, s"number of packets to await must be non-negative. got $n")
     awaitable.await(timeout) {
       packets.size >= n
@@ -122,6 +122,22 @@ class PacketQueue[A] {
       val result = packets.take(n).toSeq
       packets.remove(0, n)
       result
+    }
+  }
+
+  /**
+   * Take buffered packets, up to the specified limit.
+   */
+  def takeAtMost(limit: Int): Seq[A] = {
+    awaitable.sync {
+      packets.size match {
+        case 0 => Seq.empty
+        case buffered =>
+          val n = Math.min(limit, buffered)
+          val result = packets.take(n).toSeq
+          packets.remove(0, n)
+          result
+      }
     }
   }
 

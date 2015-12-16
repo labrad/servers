@@ -405,7 +405,8 @@ class BoardGroup(object):
                 p.write(packet.tostring())
             yield p.send(context=ctx)
             # Listen for responses.
-            packets = yield self.directEthernetServer.read_until_timeout(context=ctx)
+            packets = yield self.directEthernetServer.read_until_timeout(
+                    len(macs), context=ctx)
             found = []
             for src, dst, eth, data in packets:
                 if src in macs:
