@@ -802,6 +802,8 @@ class BoardGroup(object):
                                   results[idx]['read']]
                         # Array of all timing results (DAC)
                         extracted = runner.extract(result)
+                        # Wrap the DAC timing results in a tuple for
+                        # the data format consistency.
                         if isinstance(runner, dac.DacRunner_Build8):
                             extracted = (extracted,)
                         extractedData[boardName] = extracted
