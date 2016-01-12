@@ -39,6 +39,9 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 import labrad.units as U
 from struct import unpack, calcsize
 
+import string
+import struct
+import time
 import numpy, re
 
 COUPLINGS = ['AC', 'DC', 'GND']
@@ -231,19 +234,20 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         Channel must be one of 0 (AUX), 1, 2, 3, 4.
         """
         dev = self.selectedDevice(c)
-        if channel==0:
-            channel = 'AUX'
-        elif isinstance(channel, int):
-            #channel = 'CHAN%d' %channel
-            pass
         if channel not in [0,1,2,3,4]:
             raise Exception('Select valid trigger channel')
-        if level is None:
-            resp = yield dev.query('TRIG:LEV? CHAN%s' %channel)
+            
+        if channel==0:
+            channel = 'AUX'
         else:
-            yield dev.write('TRIG:EDGE:SOUR CHAN%s' %channel) #set channel up for edge triggering  
-            yield dev.write('TRIG:LEV CHAN%s,%f' %(channel,level)) #set trigger level
-            resp = yield dev.query('TRIG:LEV? CHAN%s' %channel)
+            channel = 'CHAN%d' %channel
+            
+        if level is None:
+            resp = yield dev.query('TRIG:LEV? %s' %channel)
+        else:
+            yield dev.write('TRIG:EDGE:SOUR %s' %channel) #set channel up for edge triggering  
+            yield dev.write('TRIG:LEV %s,%f' %(channel,level)) #set trigger level
+            resp = yield dev.query('TRIG:LEV? %s' %channel)
         level = float(resp)
         returnValue(level)
 
@@ -343,7 +347,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
     
     #Data acquisition settings
     @setting(201, channel = 'i', start = 'i', stop = 'i', returns='*v[ns] {time axis} *v[mV] {scope trace}')
-    def get_trace(self, c, channel, start=1, stop=10000):
+    def get_trace(self, c, channel, start=1, stop=10000, points=100000):
         """Get a trace from the scope.
         OUTPUT - (array voltage in volts, array time in seconds)
         """
@@ -353,124 +357,198 @@ class AgilentDSO91304AServer(GPIBManagedServer):
 ##        RPB - unsigned, MSB first
 ##        SRI - signed, LSB first
 ##        SRP - unsigned, LSB first
-        wordLength = 2 #Hardcoding to set data transer word length to 2 bytes
+        wordLength = 2 #Hardcoding to set data tranfser word length to 2 bytes
         
         dev = self.selectedDevice(c)
         yield dev.write('WAV:SOUR CHAN%d' %channel)
-
         #Read data MSB first
         yield dev.write('WAV:BYT MSBF')
         #Set 2 bytes per point
-        yield dev.write('WAV:FORM WORD')
+        yield dev.write('WAV:FORM BYTE')
+        yield dev.write('ACQUIRE:POINTS %s'%points)
         #Starting and stopping point
         #Transfer waveform preamble
-        preamble = yield dev.query('WAV:PRE?')
+        # Display the waveform settings from preamble:
+        wav_form_dict = {
+        0 : "ASCii",
+        1 : "BYTE",
+        2 : "WORD",
+        3 : "LONG",
+        4 : "LONGLONG",
+        }
+        acq_type_dict = {
+        1 : "RAW",
+        2 : "AVERage",
+        3 : "VHIStogram",
+        4 : "HHIStogram",
+        6 : "INTerpolate",
+        10 : "PDETect",
+        }
+        acq_mode_dict = {
+        0 : "RTIMe",
+        1 : "ETIMe",
+        3 : "PDETect",
+        }
+        coupling_dict = {
+        0 : "AC",
+        1 : "DC",
+        2 : "DCFIFTY",
+        3 : "LFREJECT",
+        }
+        units_dict = {
+        0 : "UNKNOWN",
+        1 : "VOLT",
+        2 : "SECOND",
+        3 : "CONSTANT",
+        4 : "AMP",
+        5 : "DECIBEL",
+        }
+        #Transfer waveform preamble
+        preamble_string = yield dev.query('WAV:PRE?',timeout=10.0*U.s)
+        (
+        wav_form, acq_type, wfmpts, avgcnt, x_increment, x_origin,
+        x_reference, y_increment, y_origin, y_reference, coupling,
+        x_display_range, x_display_origin, y_display_range,
+        y_display_origin, date, time, frame_model, acq_mode,
+        completion, x_units, y_units, max_bw_limit, min_bw_limit
+        ) = string.split(preamble_string, ",")
+        
+        # Get numeric values for later calculations.
+        x_increment = yield dev.query(':WAVeform:XINCrement?')
+        x_origin = yield dev.query(':WAVeform:XORigin?')
+        y_increment = yield dev.query(':WAVeform:YINCrement?')
+        y_origin = yield dev.query(':WAVeform:YORigin?')
+        # Get the waveform data.
+        dev.write(':WAVeform:STReaming OFF')
         #Transfer waveform data
-        binary = yield dev.query('WAV:DATA?')
-        #Parse waveform preamble
-        preambleDict = _parsePreamble(preamble)
-        print preambleDict
+        sData = yield dev.query(':WAVeform:DATA?')
         #Parse binary
-        trace = _parseBinaryData(binary, wordLength = wordLength) * 1.0e3
-        #Convert from binary to volts
-        traceVolts = ((trace*float(preambleDict['yStep'])+float(preambleDict['yOrigin'])))
-        numPoints = int(preambleDict['numPoints'])
-        time = numpy.linspace(float(preambleDict['xFirst']),
-                              (numPoints-1) * float(preambleDict['xStep'])+float(preambleDict['xFirst']),
-                              numPoints)
+        sBlock = sData
+        # First character should be "#".
+        pound = sBlock[0:1]
+        if pound != "#":
+            print "PROBLEM: Invalid binary block format, pound char is '%s'." % pound
+            print "Exited because of problem."
+            sys.exit(1)
+        # Second character is number of following digits for length value.
+        digits = sBlock[1:2]
+        # Get the data out of the block and return it.
+        sData = sBlock[int(digits) + 2:]
 
+        # Unpack signed byte data.
+        values = struct.unpack("%db" % len(sData), sData)
+
+        time = []
+        traceVolts = []
+
+        x_increment = float(x_increment)
+        x_origin = float(x_origin)
+        y_increment = float(y_increment)
+        y_origin = float(y_origin)
+
+        for i in xrange(0, len(values) - 1):
+            time_val = x_origin + (i * x_increment)
+            voltage = (values[i] * y_increment) + y_origin
+            time.append(time_val)
+            traceVolts.append(voltage)
+        
         returnValue((time*U.ns*1e9, traceVolts*U.V))
+        
+        
 
-def _parsePreamble(preamble):
-    preambleVals = preamble.split(',')
-    '''
-    preambleKeys = [('byteFormat',True),
-                    ('dataType',False),
-                    ('numPoints',True),
-                    ('count',False),
-                    ('xStep',True),
-                    ('xFirst',True),
-                    ('xRef',False),
-                    ('yStep',True),
-                    ('yOrigin',True),
-                    ('yRef',False),
-                    ('coupling',False),
-                    ('xRange',True),
-                    ('xLeftDisplay',True),
-                    ('yRange',True),
-                    ('yCenterDisplay',True),
-                    ('date',False),
-                    ('time',False),
-                    ('model',False),
-                    ('acquisitionMode',False),
-                    ('percentTimeBucketsComplete',False),
-                    ('xUnits',True),
-                    ('yUnits',True),
-                    ('maxBW',False),
-                    ('minBW',False)]
-    '''
-    preambleKeys = [('byteFormat',True),
-                ('dataType',True),
-                ('numPoints',True),
-                ('count',True),
-                ('xStep',True),
-                ('xFirst',True),
-                ('xRef',True),
-                ('yStep',True),
-                ('yOrigin',True),
-                ('yRef',True),
-                ('coupling',True),
-                ('xRange',True),
-                ('xLeftDisplay',True),
-                ('yRange',True),
-                ('yCenterDisplay',True),
-                ('date',True),
-                ('time',True),
-                ('model',True),
-                ('acquisitionMode',True),
-                ('percentTimeBucketsComplete',True),
-                ('xUnits',True),
-                ('yUnits',True),
-                ('maxBW',True),
-                ('minBW',True)]
-    preambleDict = {}
-    for key,val in zip(preambleKeys,preambleVals):
-        if key[1]:
-            preambleDict[key[0]] = val
-    def unitType(num):
-        if num=='1':
-            return 'V'
-        elif num=='2':
-            return 'ns'
-        else:
-            raise Exception('Units not time or voltage')
-    preambleDict['xUnit'] = unitType(preambleDict['xUnits'])
-    preambleDict['yUnit'] = unitType(preambleDict['yUnits'])
-    return (preambleDict)
+        
+        
+# def _parsePreamble(preamble):
+    # preambleVals = preamble.split(',')
+    # '''
+    # preambleKeys = [('byteFormat',True),
+                    # ('dataType',False),
+                    # ('numPoints',True),
+                    # ('count',False),
+                    # ('xStep',True),
+                    # ('xFirst',True),
+                    # ('xRef',False),
+                    # ('yStep',True),
+                    # ('yOrigin',True),
+                    # ('yRef',False),
+                    # ('coupling',False),
+                    # ('xRange',True),
+                    # ('xLeftDisplay',True),
+                    # ('yRange',True),
+                    # ('yCenterDisplay',True),
+                    # ('date',False),
+                    # ('time',False),
+                    # ('model',False),
+                    # ('acquisitionMode',False),
+                    # ('percentTimeBucketsComplete',False),
+                    # ('xUnits',True),
+                    # ('yUnits',True),
+                    # ('maxBW',False),
+                    # ('minBW',False)]
+    # '''
+    # preambleKeys = [('byteFormat',True),
+                # ('dataType',True),
+                # ('numPoints',True),
+                # ('count',True),
+                # ('xStep',True),
+                # ('xFirst',True),
+                # ('xRef',True),
+                # ('yStep',True),
+                # ('yOrigin',True),
+                # ('yRef',True),
+                # ('coupling',True),
+                # ('xRange',True),
+                # ('xLeftDisplay',True),
+                # ('yRange',True),
+                # ('yCenterDisplay',True),
+                # ('date',True),
+                # ('time',True),
+                # ('model',True),
+                # ('acquisitionMode',True),
+                # ('percentTimeBucketsComplete',True),
+                # ('xUnits',True),
+                # ('yUnits',True),
+                # ('maxBW',True),
+                # ('minBW',True)]
+    # preambleDict = {}
+    # for key,val in zip(preambleKeys,preambleVals):
+        # print 'key:  ', key,'  val:  ', val
+        # if key[1]:
+            # preambleDict[key[0]] = val
+    # def unitType(num):
+        # if num=='1':
+            # return 'V'
+        # elif num=='2':
+            # return 'ns'
+        # else:
+            # raise Exception('Units not time or voltage')
+    # preambleDict['xUnit'] = unitType(preambleDict['xUnits'])
+    # preambleDict['yUnit'] = unitType(preambleDict['yUnits'])
+    # return (preambleDict)
 
-def _parseBinaryData(data, wordLength):
-    """Parse binary data packed as string of RIBinary
-    """
-    formatChars = {'1':'b','2':'h', '4':'f'}
-    formatChar = formatChars[str(wordLength)]
+# def _parseBinaryData(data, wordLength):
+    # """Parse binary data packed as string of RIBinary
+    # """
+    # formatChars = {'1':'b','2':'h', '4':'f'}
+    # formatChar = formatChars[str(wordLength)]
 
-    #Get rid of header crap
-    #unpack binary data
-    if wordLength == 1:
-        lenHeader = int(data[1])
-        dat = data[(2+lenHeader):]
-        dat = numpy.array(unpack(formatChar*(len(dat)/wordLength),dat))
-    elif wordLength == 2:
-        lenHeader = int(data[1])
-        dat = data[(2+lenHeader):]
-        dat = dat[-calcsize('>' + formatChar*(len(dat)/wordLength)):]
-        dat = numpy.array(unpack('>' + formatChar*(len(dat)/wordLength),dat))
-    elif wordLength == 4:
-        lenHeader = int(data[1])
-        dat = data[(2+lenHeader):]
-        dat = dat[-calcsize('>' + formatChar*(len(dat)/wordLength)):]
-        dat = numpy.array(unpack('>' + formatChar*(len(dat)/wordLength),dat))      
-    return dat
+    # Get rid of header crap
+    # unpack binary data
+    # if wordLength == 1:
+        # lenHeader = int(data[1])
+        # dat = data[(2+lenHeader):]
+        # dat = numpy.array(unpack(formatChar*(len(dat)/wordLength),dat))
+    # elif wordLength == 2:
+        # lenHeader = int(data[1])
+        # dat = data[(2+lenHeader):]
+        # dat = dat[-calcsize('>' + formatChar*(len(dat)/wordLength)):]
+        # dat = numpy.array(unpack('>' + formatChar*(len(dat)/wordLength),dat))
+    # elif wordLength == 4:
+        # lenHeader = int(data[1])
+        # dat = data[(2+lenHeader):]
+        # dat = dat[-calcsize('>' + formatChar*(len(dat)/wordLength)):]
+        # dat = numpy.array(unpack('>' + formatChar*(len(dat)/wordLength),dat))      
+    # return dat
 
 __server__ = AgilentDSO91304AServer()
 
