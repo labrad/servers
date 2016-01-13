@@ -55,7 +55,7 @@ class ADC(fpga.FPGA):
     def connect(self, name, group, de, port, board, build):
         """Establish a connection to the board."""
         print('connecting to ADC board: {} (build #{})'.format(
-            (self.macFor(board), build))
+            self.macFor(board), build)
 
         self.boardGroup = group
         self.server = de
