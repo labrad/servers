@@ -55,6 +55,7 @@ In the following instructions we assume `~/src`.
   1. `$ python configure-ng.py -q /usr/bin/qmake-qt4 --sip-incdir=~/.virtualenvs/myenv/include/python2.7-pyqt`. Again, if you didn't need the step where you made the `python2.7-pyqt` directory, leave off the `--sip-incdir` flag.
   1. `$ make -j4` # This step might take a while.
   1. `$ sudo make install`
+  1. Go to `~/.virtualenvs/myenv/lib/python2.7/site-packages` and do `sudo chown -R yourname:yourgroup ./PyQt4` if that directory and its contents don't already belong to you.
 
 1. Compile and install PyQwt
   1. `$ cd ~/src/PyQwt-5.2.0/configure`
