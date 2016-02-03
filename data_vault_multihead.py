@@ -100,6 +100,7 @@ class DataVaultConnector(Service):
         self.password = password
         self.hub = hub
         self.session_store = session_store
+        self.connected = False
 
     def report(self, message):
         print '{}:{} - {}'.format(self.host, self.port, message)
@@ -115,6 +116,7 @@ class DataVaultConnector(Service):
                                         self.hub, self.session_store)
                 self.stop_func = yield self.start(dv)
                 self.report('Connected')
+                self.connected = True
             except Exception:
                 self.report('Data Vault failed to start')
                 traceback.print_exc()
@@ -127,6 +129,7 @@ class DataVaultConnector(Service):
                 else:
                     self.report('Disconnected')
                 self.hub.disconnect(dv)
+                self.connected = False
 
             if self.running:
                 self.report('Will reconnect in {} seconds...'.format(
@@ -159,7 +162,7 @@ class DataVaultConnector(Service):
         if hasattr(dv, 'startup'):
             # pylabrad 0.95+
             p = yield protocol.connect(self.host, self.port)
-            yield p.authenticate(self.password)
+            yield p.authenticate(password=self.password)
             yield dv.startup(p)
 
             @inlineCallbacks
