@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Telecomm Server
-version = 1.1
+version = 1.2
 description = 
 
 [startup]
