@@ -439,7 +439,7 @@ class ADC_Build1(ADC_Branch1):
         @inlineCallbacks
         def func():
             # build registry packet
-            regs = self.regRun(self, mode=self.RUN_MODE_AVERAGE_AUTO, 
+            regs = self.regRun(mode=self.RUN_MODE_AVERAGE_AUTO, 
                     reps=1, filterFunc=filterFunc,
                     filterStretchAt=filterStretchAt,
                     filterStretchLen=filterStretchLen, demods=demods)
