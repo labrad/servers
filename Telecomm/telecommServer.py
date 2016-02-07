@@ -32,6 +32,27 @@ timeout = 20
 
 #TODO
 #Document input/output values
+#Instructions for usage:
+#   1) In the registry, create the directory /Servers/Telecomm
+#   2) Create a key named smsUsers with value
+#       [("USERNAME_1","TENDIGITPHONENUMBER@txt.att.net"),...
+#       ,("USERNAME_M","TENDIGITPHONENUMBER@vtext.com")]
+#      Note that the domain name depends on the user's
+#      mobile phone provider. "USERNAME_" should be all caps.
+#   3) Create a key named domain with a value that
+#      matches the domain name of the email address
+#      from which you wish to send messages.
+#      e.g. domain = "physics.someschool.edu"
+#   4) Create a key named smtpServer whose value is
+#      the smtp server you wish to use.
+#   5) (Optional) Create a key named password which
+#      is determined by the login credentials of
+#      the account you plan to send messages from.
+#      Note that some smtp servers require you to
+#      authenticate before you can send messages
+#      to email addresses with different domains.
+#   6) Call the send_mail (send_sms) setting as
+#      desired.
 
 from labrad import types as T, util
 from labrad.server import LabradServer, setting, Signal
@@ -47,10 +68,11 @@ REGISTRY_PATH = ['','Servers','Telecomm']
 SMS_KEY = 'smsUsers'
 DOMAIN_KEY = 'domain'
 SERVER_KEY = 'smtpServer'
+PASSWORD_KEY = 'password'
 
-def textMessage(recipients, subject, msg, domain, server, username='LabRAD',attempts=2):
+
+def textMessage(recipients, subject, msg, domain, server, username='LabRAD', password=None, attempts=2):
     """Send a text message to one or more recipients
-
     INPUTS:
     recipients - str or [str,str...]: List of names of labmembers
     to whom you want to send the message. These names must be in the
@@ -61,11 +83,10 @@ def textMessage(recipients, subject, msg, domain, server, username='LabRAD',atte
     """
     if not isinstance(recipients,list):
         recipients = [recipients]
-    return email(recipients, subject, msg, domain, server, username, attempts=attempts)
+    return email(recipients, subject, msg, domain, server, username, password, attempts=attempts)
 
-def email(toAddrs, subject, msg, domain, server, username='LabRAD', attempts=2, noisy=False):
+def email(toAddrs, subject, msg, domain, server, username='LabRAD', password=None, attempts=2, noisy=False):
     """Send an email to one or more recipients
-
     INPUTS:
     toAddrs - str or [str...]: target address or list of target addresses
     subject - str: Subject of the message
@@ -88,6 +109,9 @@ def email(toAddrs, subject, msg, domain, server, username='LabRAD', attempts=2, 
             message = header+msg
             #Get connection to smtp server and send message
             server = smtplib.SMTP(server)
+            if password is not None:
+                server.starttls()
+                server.login(fromAddr, password)
             result = server.sendmail(fromAddr, toAddrs, message)
             #Update the toAddrs list to include only recipients for which mail sending failed
             toAddrs = result.keys()
@@ -127,6 +151,7 @@ class TelecommServer(LabradServer):
         reg = cxn.registry
         p = reg.packet()
         p.cd(REGISTRY_PATH)
+        p.dir(key = 'regcontent')
         p.get(SMS_KEY, key='userlist')
         p.get(DOMAIN_KEY, key='domain')
         p.get(SERVER_KEY, key='server')
@@ -134,20 +159,27 @@ class TelecommServer(LabradServer):
         self.smsUsers=dict(resp['userlist'])
         self.domain = resp['domain']
         self.smtpServer = resp['server']
+        regContent = resp['regcontent'][1]
+        if 'password' in regContent:
+            p.get(PASSWORD_KEY, key='password')
+            resp = yield p.send()
+            self.password = resp['password']
+        else:
+            self.password = None
         print 'Refresh complete.'
         
     @setting(10, toAddrs=['s{email address of recipient}','*s{array of recipient email addresses}'],
                  subject='s', msg='s', username='s', returns='b{success}*s{failures}')
     def send_mail(self, c, toAddrs, subject, msg, username='LabRAD'):
-        success, failures = email(toAddrs, subject, msg, self.domain, self.smtpServer, username)
+        success, failures = email(toAddrs, subject, msg, self.domain, self.smtpServer, username, self.password)
         return (success, failures)
             
-    @setting(11, subject='s', msg='s', recipients=['*s','s'], returns='b{success}*s{failures}')
-    def send_sms(self, c, subject, msg, recipients):
+    @setting(11, subject='s', msg='s', recipients=['*s','s'], username='s', returns='b{success}*s{failures}')
+    def send_sms(self, c, subject, msg, recipients, username='LabRAD'):
         if not isinstance(recipients,list):
             recipients = [recipients]
         recipients = [self.smsUsers[name.upper()] for name in recipients if name.upper() in self.smsUsers]
-        success, failures = textMessage(recipients, subject, msg, self.domain, self.smtpServer)
+        success, failures = textMessage(recipients, subject, msg, self.domain, self.smtpServer, username, self.password)
         return (success, failures)
 
 
