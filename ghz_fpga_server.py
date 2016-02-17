@@ -177,7 +177,7 @@ cmdTime_cycles does not properly estimate sram length
 ### BEGIN NODE INFO
 [info]
 name = GHz FPGAs
-version = 5.2.0
+version = 5.2.1
 description = Talks to DAC and ADC boards
 
 [startup]
