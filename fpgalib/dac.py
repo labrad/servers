@@ -1342,14 +1342,28 @@ class DAC_Build15(DAC_Build8):
     @classmethod
     def regRun(cls, reps, page, slave, delay, blockDelay=None, sync=249,
                loop_delay=0, readback=True, monitor_0=None, monitor_1=None):
+        """Get register bytes for running the board.
+
+        Args:
+            reps (int): Number of runs to execute.
+            page (int): Which SRAM page to use.
+            slave (bool, int): What run mode to use for this run:
+                0 = idle
+                1 = master
+                2 = test
+                3 = slave
+        """
         # TODO: probably get rid of page, blockDelay
         if blockDelay is not None:
             raise ValueError("JT board got a non-None blockDelay: ", blockDelay)
         if page:
             raise ValueError("JT board got a non-zero page: ", page)
         regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
-        # old version of slave: 0 = master, 1 = slave, 3 = idle (bit 43)
-        # new version: 0 = idle, 1 = master, 2 = test, 3 = slave (bit 0)
+        # In builds prior to the jump table, i.e. before 15, the slave byte
+        # meant:
+        # 0 = master, 1 = slave, 3 = idle (bit 43).
+        # We do some shuffling here so that code expectig that interface still
+        # works when invoking this function.
         if slave == 0:
             start = 1
         elif slave == 1:
@@ -1371,12 +1385,12 @@ class DAC_Build15(DAC_Build8):
         return regs
 
     @classmethod
-    def regRunSimple(cls, readback=True):
+    def regRunSimple(cls, readback=True, slave=False):
         """
         just run the thing
         :return: register packet data
         """
-        return cls.regRun(1, 0, 0, 0, readback=readback)
+        return cls.regRun(1, 0, slave, 0, readback=readback)
 
     @classmethod
     def regRunSram(cls, startAddr, endAddr, loop=True, blockDelay=0, sync=249):
@@ -1541,7 +1555,7 @@ class DAC_Build15(DAC_Build8):
 
         return self.testMode(func)
 
-    def runSram(self, dataIn, loop, blockDelay):
+    def runSram(self, dataIn, loop, blockDelay, slave=False):
         @inlineCallbacks
         def func():
             # yield self._sendRegisters(self.regPing())  # Why is this here? DTS/PJJO
@@ -1552,7 +1566,7 @@ class DAC_Build15(DAC_Build8):
             p = self.makePacket()
             p.write(jt.toString())
             yield p.send()
-            yield self._sendRegisters(self.regRunSimple(), readback=True)
+            yield self._sendRegisters(self.regRunSimple(slave=slave), readback=True)
 
         return self.testMode(func)
 

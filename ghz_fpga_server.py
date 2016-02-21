@@ -1680,6 +1680,17 @@ class FPGAServer(DeviceServer):
         dev = self.selectedDAC(c)
         yield dev.runSram(data, loop, blockDelay)
 
+    @setting(1082, 'DAC Run sram slave',
+             data='*w', loop='b', blockDelay='w', returns'')
+    def dac_run_sram_slave(self, c, data, loop=False, blockDelay=0):
+        """Load data into SRAM and execute as slave (DAC only)."""
+        if len(data) < 20:
+            raise ValueError('Data length {} too short. '
+                             'Cannot play less than 20 ns of data'.format(
+                                    len(data)))
+        dev = self.selectedDAC(c)
+        yield dev.runSram(data, loop, blockDelay, slave=True)
+
     @setting(2081, 'DAC Write SRAM', data='*w')
     def dac_write_sram(self, c, data):
         """Write data to SRAM.
