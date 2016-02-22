@@ -56,8 +56,8 @@ and a multiplier table for demodulation of the incoming signal for each demodula
 
 The retrigger table defines multiple AD triggers per master start.
 The table starts at address 0, then increments up (to a maximum 127) after performing the functions of each table entry,
-until it reaches a table entry with `rdelay[15..8]=0`, at which time the retriggering stops. 
-Note that an empty table with `rdelay[15..9]=0` at the address 0 will not ever trigger the AD.
+until it reaches a table entry with `rdelay[15..0]=0`, at which time the retriggering stops. 
+Note that an empty table with `rdelay[15..0]=0` at the address 0 will not ever trigger the AD.
 In the table entry, `rdelay[15..0] + 3` is the number of 4 ns cycles between the AD start (or last end of ADon) and the AD trigger.
 After this delay, the AD is turned on for `rlength[7..0] + 1` cycles, during which ADon demultiplexer (don) is high.
 The value `rcount[15..0] + 1` is the number of AD triggers per table entry.
@@ -122,7 +122,7 @@ The retrigger table is stored in SRAM memory with adrstart[20..8] = 0.  The Ethe
     d(3)    sram(+1)[7..0]    rcount[15..8](0)
     d(4)    sram(+2)[7..0]    rdelay[7..0](0)    +4= clock delay before Multiplier on
     d(5)    sram(+3)[7..0]    rdelay[15..8](0)       (units of 4 ns)
-    d(6)    sram(+4)[7..0]    rlength(7..0](0)   +1 = clock length of Multiplier on
+    d(6)    sram(+4)[7..0]    rlength[7..0](0)   +1 = clock length of Multiplier on
     d(7)    sram(+5)[7..0]    rchan[3..0](0)     Number channels saved, 0=bit mode
     d(8)    sram(+6)[7..0]    spare
     d(9)    sram(+7)[7..0]    spare
