@@ -1172,6 +1172,23 @@ class DAC_Build15(DAC_Build8):
     19  d[1]
     ...
     33  d[15]
+
+    Table documenting how each op code can move the sram, jump table index
+
+    OP    | BEHAVIOR
+    ------------------------------------------------------------------------
+    IDLE  | increment sram_idx and increment jt_idx
+    NOP   | increment sram_idx and increment jt_idx
+    CHECK | move sram_idx and jt_idx OR increment sram_idx and jt_idx
+    JUMP  | move sram_idx and jt_idx
+    CYCLE | move sram_idx and jt_idx OR increment sram_idx and jt_idx
+    END   | no next entry
+
+    Attributes:
+        increment_ops (list[jump_table.Operation]): Jump table op codes that can
+            increment the sram index, jump table index
+        jump_ops (list[jump_table.Operation]): Jump table op codes that can
+            jump the sram index, jump table index
     """
 
     HAS_JUMP_TABLE = True
@@ -1181,21 +1198,20 @@ class DAC_Build15(DAC_Build8):
     SRAM_WRITE_PKT_LEN = 256
     SRAM_WRITE_DERPS = SRAM_LEN // SRAM_WRITE_PKT_LEN
 
-    JUMP_TABLE_LEN = 528
+    JUMP_TABLE_PACKET_LEN = 528
     NUM_COUNTERS = 4
     COUNTER_BYTES = 4
     IDLE_BITS = 15
     JUMP_TABLE_ENTRY_BYTES = 8
-    JUMP_TABLE_COUNT = (JUMP_TABLE_LEN - (NUM_COUNTERS * COUNTER_BYTES)
-                        ) / JUMP_TABLE_ENTRY_BYTES
+    JUMP_TABLE_COUNT = 64
     JT_FROM_ADDR_OFFSET = -2
     JT_END_ADDR_OFFSET = JT_FROM_ADDR_OFFSET - 1
     JT_IDLE_OFFSET = -0
     JT_IDLE_MIN = 0 - JT_IDLE_OFFSET
     JT_IDLE_MAX = 2**IDLE_BITS - 1 - JT_IDLE_OFFSET
-    JT_MIN_FROM_ADDR_SPACING = 2
-    JT_MIN_FROM_ADDR = JT_MIN_FROM_ADDR_SPACING - JT_FROM_ADDR_OFFSET
-    JT_MIN_END_ADDR = JT_MIN_FROM_ADDR_SPACING - JT_END_ADDR_OFFSET
+    JT_MIN_CLK_CYCLES_BETWEEN_OPCODES = 4
+    JT_MIN_FROM_ADDR = JT_MIN_CLK_CYCLES_BETWEEN_OPCODES
+    JT_MIN_END_ADDR = JT_MIN_CLK_CYCLES_BETWEEN_OPCODES
     JT_MIN_TO_ADDR = 0
     JT_MAX_FROM_ADDR = SRAM_LEN // 4 + JT_FROM_ADDR_OFFSET
     JT_MAX_END_ADDR = SRAM_LEN // 4 + JT_END_ADDR_OFFSET
@@ -1204,6 +1220,15 @@ class DAC_Build15(DAC_Build8):
 
     MONITOR_0 = 5
     MONITOR_1 = 10
+
+    increment_ops = (
+        jump_table.IDLE, jump_table.NOP, jump_table.CHECK,
+        jump_table.CYCLE
+    )
+
+    jump_ops = (
+        jump_table.CHECK, jump_table.JUMP, jump_table.CYCLE
+    )
 
     @classmethod
     def convert_from_address(cls, x_ns):
@@ -1430,7 +1455,7 @@ class DAC_Build15(DAC_Build8):
         :param str name: one of: END, NOP, IDLE, CYCLE, JUMP, CHECK, RAMP
         :param list[int] arg: arguments for the op.
         :return: list of jump table entries
-        :rtype: list[jump_table.JumpEntry]
+        :rtype: jump_table.JumpEntry
         """
         if name == 'CHECK':
             raise NotImplementedError("Check not implemented yet")
@@ -1477,23 +1502,52 @@ class DAC_Build15(DAC_Build8):
     def make_jump_table(cls, jt_entries, counters=None, start_address_ns=0):
         """Make a jump table out of the given entries and counters.
 
+        We verify that jump table commands are not executed too frequently. We
+        check when our current command executes, and compare to execution of
+        the next command. The next command depends on the specifics of the
+        current command, arguments and conditions. See attributes increment_ops,
+        jump_ops.
+
         :param list[jump_table.JumpEntry] jt_entries: JT entries
         :param list[int] counters: counter values, or None for all 0s
         :param int start_address_ns: SRAM start address, in ns
         :return: jump table object
         :rtype: jump_table.JumpTable
         """
-        for i, a in enumerate(jt_entries):
-            for j, b in enumerate(jt_entries[i+1:]):
-                if abs(a.from_addr - b.from_addr) < cls.JT_MIN_FROM_ADDR_SPACING:
-                    raise ValueError(
-                        "Entries {}({}) and {}({}) have from addrstoo close together.".format(
-                            i, a.operation, i+j+1, b.operation)
-                    )
+
+        # jt_entries does not include initial NOP; see #325
+        if len(jt_entries) + 1 > cls.JUMP_TABLE_COUNT:
+            raise ValueError("Jump table too long: {} + starting NOP > {}"
+                             .format(len(jt_entries), cls.JUMP_TABLE_COUNT))
+
+        # no two opcodes executed within JT_MIN_CLK_CYCLES_BETWEEN_OPCODES
+        for k, jt_entry in enumerate(jt_entries):
+            # first pass we check all increment cases
+            if isinstance(jt_entry.operation, cls.increment_ops):
+                sram_idx = jt_entry.from_addr
+                next_jt_idx = k + 1
+                next_from_addr = jt_entries[next_jt_idx].from_addr
+                if ((next_from_addr - sram_idx) <
+                        cls.JT_MIN_CLK_CYCLES_BETWEEN_OPCODES):
+                    raise ValueError("Entry {} and entry it increments to "
+                                     "executed too closely in time"
+                                     .format(jt_entry))
+            # second pass we check all jump cases
+            if isinstance(jt_entry.operation, cls.jump_ops):
+                sram_idx = jt_entry.to_addr
+                # take off 1 as first entry is always NOP (self.toString)
+                next_jt_idx = jt_entry.operation.jump_index - 1
+                next_from_addr = jt_entries[next_jt_idx].from_addr
+                if ((next_from_addr - sram_idx) <
+                        cls.JT_MIN_CLK_CYCLES_BETWEEN_OPCODES):
+                    raise ValueError("Entry {} and entry it jumps to executed "
+                                     "too closely in time".format(jt_entry))
+
         return jump_table.JumpTable(
             start_addr=cls.convert_to_address(start_address_ns),
             jumps=jt_entries,
-            counters=counters
+            counters=counters,
+            packet_len=cls.JUMP_TABLE_PACKET_LEN,
         )
 
     @classmethod

@@ -27,6 +27,8 @@ class JumpEntry(object):
         :param int to_addr: the to address (should be 0 if not used)
         :param Operation operation: the operation
         """
+
+        # TODO: Why is this -1 hard coded?
         if abs(from_addr - to_addr) - 1 == 0:
             raise ValueError(
                 "from_addr: {} and to_addr: {} are too close".format(
@@ -114,6 +116,8 @@ class CHECK(Operation):
         which_daisy_bit (int): Which daisy bit to check.
             Need to explain how the numbering works.
         jump_index (int): Index of jump entry to activte after the check.
+             Note: jump_table gets an extra NOP start entry at run time in
+            self.toString, so first user entry is index 1.
         bit_state (bool): Selects whether to fire on 0 or 1.
         Need to explain more.
 
@@ -153,7 +157,8 @@ class JUMP(Operation):
 
     Attributes:
         jump_index (int): Index of jump table entry to activate after
-        this one.
+            this one. Note: jump_table gets an extra NOP start entry at run time
+            in self.toString, so first user entry is index 1.
     """
     NAME = "JUMP"
 
@@ -195,8 +200,9 @@ class CYCLE(Operation):
     """Cycle back to another SRAM address.
 
     Attributes:
-    jump_index (int): Index of jump table entry to activate after firing
-        this one.
+        jump_index (int): Index of jump table entry to activate after firing
+            this one. Note: jump_table gets an extra NOP start entry at run time
+            in self.toString, so first user entry is index 1.
     counter (int): Which counter to increment at each cycle.
     """
     NAME = "CYCLE"
@@ -262,22 +268,26 @@ class JumpTable(object):
     TODO: make self.jumps a property with some checking on type and
         number.
     """
-    PACKET_LEN = 528
+
+    # TODO: Move these hardcoded FPGA values
     COUNTER_BITS = 32  # 32 bit register for counters
     COUNT_MAX = 2**COUNTER_BITS - 1
     NUM_COUNTERS = 4
 
-    def __init__(self, start_addr=None, jumps=None, counters=None):
+    def __init__(self, start_addr=None, jumps=None, counters=None,
+                 packet_len=528):
         """
 
         :param start_addr: start address
         :param list[JumpEntry] jumps: the jump table entries
         :param list[int] counters: the counter values
+        :param int packet_len: Number of byes in jump table write packet
         """
         self._startAddr = 0
         self.counters = self._initialize_counters(counters=counters)
         self.start_addr = start_addr
         self.jumps = jumps
+        self.packet_len = packet_len
 
     @classmethod
     def _initialize_counters(cls, counters=None):
@@ -313,7 +323,7 @@ class JumpTable(object):
 
     def toString(self):
         """Serialize jump table to a byte string for the FPGA"""
-        data = np.zeros(self.PACKET_LEN, dtype='<u1')
+        data = np.zeros(self.packet_len, dtype='<u1')
         # Set counter values. Each one is 4 bytes
         for i, c in enumerate(self.counters):
             data[i * 4:(i + 1) * 4] = littleEndian(c, 4)
