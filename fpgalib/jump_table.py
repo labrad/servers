@@ -277,6 +277,9 @@ class JumpTable(object):
         self._startAddr = 0
         self.counters = self._initialize_counters(counters=counters)
         self.start_addr = start_addr
+        if not isinstance(jumps[-1].operation, END):
+            raise ValueError("Last entry in jump table must be END. Input {}"
+                             .format(type(jumps[-1])))
         self.jumps = jumps
 
     @classmethod
