@@ -219,7 +219,7 @@ class Session(object):
                 filter = include
             dirs = filter(dirs, tag, self.session_tags)
             datasets = filter(datasets, tag, self.dataset_tags)
-        return dirs, datasets
+        return sorted(dirs), sorted(datasets)
 
     def listDatasets(self):
         """Get a list of dataset names in this directory."""

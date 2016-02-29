@@ -19,7 +19,7 @@
 [info]
 name = Data Vault Multihead
 instancename = Data Vault
-version = 3.0.0
+version = 3.0.1
 description = Store and retrieve numeric data
 
 [startup]
