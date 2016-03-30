@@ -83,6 +83,46 @@ import fpgalib.jump_table as jump_table
 # TODO
 # Think of better variable names than self.params and self.boardParams
 
+# TODO: Integrate this with DAC class
+# TODO: Have dac_calibration_server not DACify SRAM data
+def dacify(wave_a, wave_b, trigger_idx=(16, 17)):
+    """Construct SRAM sequence for a list of waveforms.
+
+    Warning: Lots of hardware details exposed here.
+
+    Args:
+        wave_a (np.ndarray): Waveform for DAC A normalized to ???
+        wave_b (np.ndarray): Waveform for DAC B normalized to ???
+
+    Returns (np.ndarray): Array of SRAM data with shape ???
+    """
+
+    if not len(wave_a) == len(wave_b):
+        raise Exception('Lengths of DAC A and DAC B waveforms must be equal.')
+    for q in np.hstack((wave_a, wave_b)):
+        if q > 1.0:
+            raise Exception('Wave amplitude cannot exceed 1')
+    # Multiply wave by full scale of DAC. DAC is 14 bit 2's compliment
+    # so full scale is 13 bits, ie. 1 1111 1111 1111 = 1FFF
+    data_a = [long(np.floor(0x1FFF*y)) for y in wave_a]
+    data_b = [long(np.floor(0x1FFF*y)) for y in wave_b]
+    # Chop off everything except lowest 14 bits.
+    trunc_a = [y & 0x3FFF for y in data_a]
+    trunc_b = [y & 0x3FFF for y in data_b]
+    dac_a_dat = trunc_a
+    # Shift DAC B data by 14 bits.
+    dac_b_dat = [y << 14 for y in trunc_b]
+    # Combine DAC A and DAC B
+    sram = [dac_a_dat[i] | dac_b_dat[i] for i in range(len(dac_a_dat))]
+    # Add trigger pulse near beginning of sequence.
+    for t_idx in trigger_idx:
+        sram[t_idx] |= 0xF0000000
+    # Make sure trigger idles off
+    for idx in range(4):
+        sram[idx] &= 0x0FFFFFFF
+    return sram
+
+
 class InvalidBoardVersion(Exception):
     pass
 
