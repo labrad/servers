@@ -5,6 +5,21 @@ import numpy as np
 import fpgalib.dac as dac
 
 
+def test_dacify():
+    wave_a = [1.0, 0.5]
+    wave_b = [-0.5, -1.0]
+
+    SRAM_MAX = dac.SRAM_MAX
+
+    expected_a = [x & 0x3FFF for x in [SRAM_MAX, SRAM_MAX/2]]
+    expected_b = [x & 0x3FFF for x in [-SRAM_MAX/2, -SRAM_MAX]]
+    expected = [a | b <<14 for a,b in zip(expected_a, expected_b)]
+
+    actual = dac.dacify(wave_a, wave_b, trigger_idx=[])
+
+    assert actual == expected
+
+
 class TestDAC15(object):
     @classmethod
     def setup_class(cls):

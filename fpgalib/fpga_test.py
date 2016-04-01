@@ -118,7 +118,10 @@ class FPGATester(object):
         slave_names = [name_board(dac_num)
                        for dac_num in self.other_dac_nums]
         waveform, jump_args, counters = waveform_jtargs_counters
-        sram = np.array(dac.dacify(waveform, waveform), dtype='<u4')
+        sram = np.array(dac.dacify(
+                waveform,
+                waveform,
+                trigger_idx=[16,17]), dtype='<u4')
 
         for board in [master_name] + slave_names:
             self.fpga.select_device(board)
