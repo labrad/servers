@@ -78,7 +78,7 @@ class AgilentDCSource(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         if not dev.psMode and curr is not None:
-            yield dev.write('CURR %g' % float(curr))
+            yield dev.write('CURR {}'.format(curr)
         ans = yield dev.query('MEAS:CURR?')
         returnValue(float(ans) * U.A)
 
@@ -100,7 +100,7 @@ class AgilentDCSource(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         if not dev.psMode and volt is not None:
-            yield dev.write('VOLT %g' % float(volt))
+            yield dev.write('VOLT {}'.format(volt)
         ans = yield dev.query('MEAS:VOLT?')
         returnValue(float(ans) * U.V)
 
@@ -121,8 +121,8 @@ class AgilentDCSource(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if mode is not None:
             if mode:
-                yield dev.write('CURR %g' % CURRENT)
-                yield dev.write('VOLT %g' % VOLT_LIMIT)
+                yield dev.write('CURR {}'.format(CURRENT))
+                yield dev.write('VOLT {}'.format(VOLT_LIMIT))
                 if not dev.psMode:
                     dev.psChangeTime = time.time()
             dev.psMode = mode

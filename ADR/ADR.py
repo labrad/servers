@@ -493,8 +493,11 @@ class ADRWrapper(DeviceWrapper):
                     self.state('PIDout', self.state('magVoltage') + P + I + D, False)
                     if self.state('PIDout') < 0:
                         self.state('PIDout', 0, False)
-                    self.log('PID: T: %.4f  V: %.4f  P: %.4f  I: %.4f  D: %.4f  PID: %.4f' % (
-                        self.ruox_status()[0], self.state('PIDout'), P, I, D, P + I + D))
+                    self.log('PID: T: %.4f K, V: %.4f V, P: %.4f V, I: %.4f V, D: %.4f V, PID: %.4f V' % (
+                                self.ruox_status()[0]['K'], 
+                                self.state('PIDout')['V'], 
+                                P['V'], I['V'], D['V'], 
+                                (P + I + D)['V']))
                     self.state('PIDloopCount', self.state('PIDloopCount') + 1, False)
                     # now step to it
                     yield self.PIDstep(self.state('PIDout'))
