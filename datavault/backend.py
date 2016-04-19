@@ -40,9 +40,15 @@ def time_from_str(s):
     return datetime.datetime.strptime(s, TIME_FORMAT)
 
 def labrad_urlencode(data):
-    data_bytes, t = T.flatten(data)
-    all_bytes, _ = T.flatten((str(t), data_bytes), 'ss')
-    data_url = DATA_URL_PREFIX + base64.urlsafe_b64encode(all_bytes)
+    if hasattr(T, 'FlatData'):
+        # pylabrad 0.95+
+        flat_data = T.flatten(data)
+        flat_bytes = T.flatten((str(flat_data.tag), flat_data.bytes), 'sy')
+        bytes = flat_bytes.bytes
+    else:
+        data_bytes, t = T.flatten(data)
+        bytes, _ = T.flatten((str(t), data_bytes), 'ss')
+    data_url = DATA_URL_PREFIX + base64.urlsafe_b64encode(bytes)
     return data_url
 
 def labrad_urldecode(data_url):
