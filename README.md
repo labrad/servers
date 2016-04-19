@@ -1,7 +1,7 @@
 # servers
 
-A collection of LabRAD servers.  Many of these are for specific pieces of hardware.  Many only
-have the most basic functionality, or whatever the person who wrote them needed for their experiment.
+A collection of LabRAD servers.  Many of these are for specific pieces of hardware.  Many have only
+the most basic functionality, or whatever the person who wrote them needed for their experiment.
 
 Some servers that may be of general interest:
 
