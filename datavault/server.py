@@ -13,20 +13,19 @@ from . import errors
 class DataVault(LabradServer):
     name = 'Data Vault'
 
+    # session signals
+    onNewDir = Signal(543617, 'signal: new dir', 's')
+    onNewDataset = Signal(543618, 'signal: new dataset', 's')
+    onTagsUpdated = Signal(543622, 'signal: tags updated', '*(s*s)*(s*s)')
+
+    # dataset signals
+    onDataAvailable = Signal(543619, 'signal: data available', '')
+    onNewParameter = Signal(543620, 'signal: new parameter', '')
+    onCommentsAvailable = Signal(543621, 'signal: comments available', '')
+
     def __init__(self, session_store):
         LabradServer.__init__(self)
-
         self.session_store = session_store
-
-        # session signals
-        self.onNewDir = Signal(543617, 'signal: new dir', 's')
-        self.onNewDataset = Signal(543618, 'signal: new dataset', 's')
-        self.onTagsUpdated = Signal(543622, 'signal: tags updated', '*(s*s)*(s*s)')
-
-        # dataset signals
-        self.onDataAvailable = Signal(543619, 'signal: data available', '')
-        self.onNewParameter = Signal(543620, 'signal: new parameter', '')
-        self.onCommentsAvailable = Signal(543621, 'signal: comments available', '')
 
     def initServer(self):
         # create root session
