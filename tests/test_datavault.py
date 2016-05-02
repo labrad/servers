@@ -239,10 +239,9 @@ def test_parameters(dv):
         name = 'param{}'.format(i)
         dv.add_parameter(name, a)
         b = dv.get_parameter(name)
-        sa, ta = T.flatten(a)
-        sb, tb = T.flatten(b)
-        assert ta == tb
-        assert sa == sb
+        flat_a = T.flatten(a)
+        flat_b = T.flatten(b)
+        assert flat_a == flat_b
 
 
 # Test asynchronous notification signals.
