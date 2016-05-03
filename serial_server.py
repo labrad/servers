@@ -18,7 +18,7 @@
 [info]
 name = Serial Server
 version = 1.1
-description = 
+description =
 instancename = %LABRADNODE% Serial Server
 
 [startup]
@@ -48,6 +48,7 @@ from serial import Serial
 from serial.serialutil import SerialException
 import serial.tools.list_ports
 
+
 class NoPortSelectedError(Error):
     """Please open a port first."""
     code = 1
@@ -70,7 +71,7 @@ class SerialServer(LabradServer):
             self.enumerate_serial_windows()
         else:
             self.enumerate_serial_pyserial()
-            
+
     def enumerate_serial_windows(self):
         """Manually Enumerate the first 20 COM ports.
 
@@ -166,7 +167,8 @@ class SerialServer(LabradServer):
         if not port:
             for i in range(len(self.SerialPorts)):
                 try:
-                    c['PortObject'] = Serial(self.SerialPorts[i].devicepath, timeout=0)
+                    c['PortObject'] = Serial(self.SerialPorts[i].devicepath,
+                                             timeout=0)
                     break
                 except SerialException:
                     pass
@@ -184,7 +186,6 @@ class SerialServer(LabradServer):
                         else:
                             raise Error(code=2, msg=e.message)
         raise Error(code=1, msg='Unknown port %s' % (port,))
-
 
     @setting(11, 'Close', returns=[''])
     def close(self, c):
@@ -341,7 +342,8 @@ class SerialServer(LabradServer):
         killit = True
 
         if r == timeout_object:
-            print "deferredRead timed out after %f seconds" % (time.time() - start_time,)
+            defer_read_msg = "deferredRead timed out after %f seconds"
+            print defer_read_msg % (time.time() - start_time,)
             r = ''
         if r == '':
             r = ser.read(count)
@@ -379,7 +381,7 @@ class SerialServer(LabradServer):
 
         Args:
             count:   bytes to read.
-         
+
         If count=0, reads the contents of the buffer (non-blocking).  Otherwise
         reads for up to <count> characters or the timeout, whichever is first
         """
@@ -399,7 +401,8 @@ class SerialServer(LabradServer):
                    's: Other delimiter to use'],
              returns=['s: Received data'])
     def read_line(self, c, data=''):
-        """Read data from the port, up to but not including the specified delimiter."""
+        """Read data from the port, up to but not including the specified
+        delimiter."""
         ser = self.getPort(c)
         timeout = c['Timeout']
 
