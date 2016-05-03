@@ -12,13 +12,15 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Requires: pyserial >= 2.6:
 
 """
 ### BEGIN NODE INFO
 [info]
 name = Serial Server
-version = 1.1
-description = 
+version = 1.2
+description =
 instancename = %LABRADNODE% Serial Server
 
 [startup]
@@ -48,6 +50,7 @@ from serial import Serial
 from serial.serialutil import SerialException
 import serial.tools.list_ports
 
+
 class NoPortSelectedError(Error):
     """Please open a port first."""
     code = 1
@@ -70,7 +73,7 @@ class SerialServer(LabradServer):
             self.enumerate_serial_windows()
         else:
             self.enumerate_serial_pyserial()
-            
+
     def enumerate_serial_windows(self):
         """Manually Enumerate the first 20 COM ports.
 
@@ -166,7 +169,8 @@ class SerialServer(LabradServer):
         if not port:
             for i in range(len(self.SerialPorts)):
                 try:
-                    c['PortObject'] = Serial(self.SerialPorts[i].devicepath, timeout=0)
+                    c['PortObject'] = Serial(self.SerialPorts[i].devicepath,
+                                             timeout=0)
                     break
                 except SerialException:
                     pass
@@ -185,7 +189,6 @@ class SerialServer(LabradServer):
                             raise Error(code=2, msg=e.message)
         raise Error(code=1, msg='Unknown port %s' % (port,))
 
-
     @setting(11, 'Close', returns=[''])
     def close(self, c):
         """Closes the current serial port."""
@@ -200,13 +203,13 @@ class SerialServer(LabradServer):
     def baudrate(self, c, data=None):
         """Sets the baudrate."""
         ser = self.getPort(c)
-        brates = [long(x[1]) for x in ser.getSupportedBaudrates()]
+        baudrates = ser.BAUDRATES
         if data is None:
-            return brates
+            return baudrates
         else:
-            if data in brates:
-                ser.setBaudrate(data)
-            return long(ser.getBaudrate())
+            if data in baudrates:
+                ser.baudrate = data
+            return long(ser.baudrate)
 
     @setting(21, 'Bytesize',
              data=[': List bytesizes',
@@ -216,13 +219,13 @@ class SerialServer(LabradServer):
     def bytesize(self, c, data=None):
         """Sets the bytesize."""
         ser = self.getPort(c)
-        bsizes = [long(x[1]) for x in ser.getSupportedByteSizes()]
+        bytesizes = ser.BYTESIZES
         if data is None:
-            return bsizes
+            return bytesizes
         else:
-            if data in bsizes:
-                ser.setByteSize(data)
-            return long(ser.getByteSize())
+            if data in bytesizes:
+                ser.bytesize = data
+            return long(ser.bytesize)
 
     @setting(22, 'Parity',
              data=[': List parities',
@@ -232,14 +235,14 @@ class SerialServer(LabradServer):
     def parity(self, c, data=None):
         """Sets the parity."""
         ser = self.getPort(c)
-        bsizes = [x[1] for x in ser.getSupportedParities()]
+        parities = ser.PARITIES
         if data is None:
-            return bsizes
+            return parities
         else:
             data = data.upper()
-            if data in bsizes:
-                ser.setParity(data)
-            return ser.getParity()
+            if data in parities:
+                ser.parity = data
+            return ser.parity
 
     @setting(23, 'Stopbits',
              data=[': List stopbits',
@@ -249,13 +252,13 @@ class SerialServer(LabradServer):
     def stopbits(self, c, data=None):
         """Sets the number of stop bits."""
         ser = self.getPort(c)
-        bsizes = [long(x[1]) for x in ser.getSupportedStopbits()]
+        stopbits = ser.STOPBITS
         if data is None:
-            return bsizes
+            return stopbits
         else:
-            if data in bsizes:
-                ser.setStopbits(data)
-            return long(ser.getStopbits())
+            if data in stopbits:
+                ser.stopbits = data
+            return long(ser.stopbits)
 
     @setting(25, 'Timeout',
              data=[': Return immediately',
@@ -270,14 +273,14 @@ class SerialServer(LabradServer):
     def RTS(self, c, data):
         """Sets the state of the RTS line."""
         ser = self.getPort(c)
-        ser.setRTS(int(data))
+        ser.rts = int(data)
         return data
 
     @setting(31, 'DTR', data=['b'], returns=['b'])
     def DTR(self, c, data):
         """Sets the state of the DTR line."""
         ser = self.getPort(c)
-        ser.setDTR(int(data))
+        ser.dtr = int(data)
         return data
 
     @setting(40, 'Write',
@@ -341,7 +344,8 @@ class SerialServer(LabradServer):
         killit = True
 
         if r == timeout_object:
-            print "deferredRead timed out after %f seconds" % (time.time() - start_time,)
+            elapsed = time.time() - start_time
+            print "deferredRead timed out after {} seconds".format(elapsed)
             r = ''
         if r == '':
             r = ser.read(count)
@@ -379,7 +383,7 @@ class SerialServer(LabradServer):
 
         Args:
             count:   bytes to read.
-         
+
         If count=0, reads the contents of the buffer (non-blocking).  Otherwise
         reads for up to <count> characters or the timeout, whichever is first
         """
@@ -399,7 +403,8 @@ class SerialServer(LabradServer):
                    's: Other delimiter to use'],
              returns=['s: Received data'])
     def read_line(self, c, data=''):
-        """Read data from the port, up to but not including the specified delimiter."""
+        """Read data from the port, up to but not including the specified
+        delimiter."""
         ser = self.getPort(c)
         timeout = c['Timeout']
 
