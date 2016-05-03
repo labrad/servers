@@ -217,11 +217,11 @@ class SerialServer(LabradServer):
     def bytesize(self, c, data=None):
         """Sets the bytesize."""
         ser = self.getPort(c)
-        bsizes = [long(x[1]) for x in ser.BYTESIZES]
+        bytesizes = ser.BYTESIZES
         if data is None:
-            return bsizes
+            return bytesizes
         else:
-            if data in bsizes:
+            if data in bytesizes:
                 ser.bytesize = data
             return long(ser.bytesize)
 
@@ -233,12 +233,12 @@ class SerialServer(LabradServer):
     def parity(self, c, data=None):
         """Sets the parity."""
         ser = self.getPort(c)
-        bsizes = [x[1] for x in ser.PARITIES]
+        parities = ser.PARITIES
         if data is None:
-            return bsizes
+            return parities
         else:
             data = data.upper()
-            if data in bsizes:
+            if data in parities:
                 ser.parity = data
             return ser.parity
 
@@ -250,11 +250,11 @@ class SerialServer(LabradServer):
     def stopbits(self, c, data=None):
         """Sets the number of stop bits."""
         ser = self.getPort(c)
-        bsizes = [long(x[1]) for x in ser.STOPBITS]
+        stopbits = ser.STOPBITS
         if data is None:
-            return bsizes
+            return stopbits
         else:
-            if data in bsizes:
+            if data in stopbits:
                 ser.stopbits = data
             return long(ser.stopbits)
 
