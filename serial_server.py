@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Serial Server
-version = 1.1
+version = 1.2
 description =
 instancename = %LABRADNODE% Serial Server
 
