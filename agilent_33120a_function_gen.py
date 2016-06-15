@@ -29,7 +29,7 @@ timeout = 20
 [shutdown]
 message = 987654321
 timeout = 20
-### END NODE INFO:b
+### END NODE INFO
 """
 
 from labrad import types as T, errors
