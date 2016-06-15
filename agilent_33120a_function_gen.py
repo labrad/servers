@@ -44,7 +44,7 @@ class AgilentFunctionGenerator(GPIBManagedServer):
     name = 'Agilent 33120a generator'
     deviceName = 'HEWLETT-PACKARD 33120A'
     
-    @setting(11, 'clear')
+    @setting(11)
     def clear(self, c):
         """Clears status byte summary and event registers
 
@@ -52,7 +52,7 @@ class AgilentFunctionGenerator(GPIBManagedServer):
         dev = self.selectedDevice(c)
         dev.write('*CLS')
       
-    @setting(12, 'set impedance', val='s', returns='')
+    @setting(12, val='s', returns='')
     def set_impedance(self, c, val='50'):
         """Sets the loading impedance
         
@@ -65,7 +65,7 @@ class AgilentFunctionGenerator(GPIBManagedServer):
         dev = self.selectedDevice(c)
         dev.write('OUTP:LOAD {}'.format(val))
 
-    @setting(13,'Set DC voltage', val='v[V]', returns='')
+    @setting(13, val='v[V]', returns='')
     def set_dc_voltage(self, c, val=0*V):
         """Puts generator into DC mode with given voltage.
         
@@ -79,7 +79,7 @@ class AgilentFunctionGenerator(GPIBManagedServer):
         dev.write('APPL:DC')
         dev.write('VOLT:OFFS {}'.format(val['V']))
     
-    @setting(14, 'set AC voltage', val='v[V]', returns='')
+    @setting(14, val='v[V]', returns='')
     def set_ac_voltage(self, c, val='1*U.V'):
         """Puts generator into AC mode with given peak to peak voltage.
         
@@ -90,7 +90,7 @@ class AgilentFunctionGenerator(GPIBManagedServer):
         dev.write('APPL:SIN')
         dev.write('SOUR:VOLT {}'.format(val['V']))
     
-    @setting(15, 'set frequency', val='v[Hz]', returns='')
+    @setting(15, val='v[Hz]', returns='')
     def set_frequency(self, c, val='100*U.Hz'):
         """Puts generator into AC mode with given frequency
         
