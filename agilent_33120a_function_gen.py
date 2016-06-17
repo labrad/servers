@@ -38,33 +38,71 @@ from labrad.gpib import GPIBManagedServer
 from struct import unpack
 from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad.units import Unit, Value, V
+import labrad.units as U
 
 class AgilentFunctionGenerator(GPIBManagedServer):
     name = 'Agilent 33120a generator'
     deviceName = 'HEWLETT-PACKARD 33120A'
-    @setting(11,'Set DC', val='v[V]', returns='')
-    def set_dc_waveform(self, c,val=0*V):
-        if val< -5 or val > 5:
-            raise Exception('Signal Gnerator only puts out -5 to 5 volts in DC Voltage')
-        """Puts generator into DC mode with given voltage."""
+    
+    @setting(11)
+    def clear(self, c):
+        """Clears status byte summary and event registers
+
+        """
         dev = self.selectedDevice(c)
-        dev.write(':APPL:DC DEF, DEF, %f' % float(val))
+        dev.write('*CLS')
       
-    @setting(12, 'set impedance', setting='s', returns='')      
-    def set_impedance(self, c, setting = '50'):
+    @setting(12, val='s', returns='')
+    def set_impedance(self, c, val='50'):
+        """Sets the loading impedance
+        
+        Args: 
+           val (str): The loading impedance.  Allowed values are '50' or 'INF'
+        """
         allowed = ['50', 'INF']
         if setting not in allowed:
             raise Exception('allowed settings are: %s' % allowed)
         dev = self.selectedDevice(c)
-        dev.write('OUTP:LOAD %s' % setting)
+        dev.write('OUTP:LOAD {}'.format(val))
 
-
+    @setting(13, val='v[V]', returns='')
+    def set_dc_voltage(self, c, val=0*V):
+        """Puts generator into DC mode with given voltage.
+        
+        Args: 
+            val (value[V]): The DC Voltage to be set
+        """
+        if val < -5*U.V or val > 5*U.V:
+            raise Exception(
+                    'Signal Generator only puts out -5 to 5 volts in DC Voltage')
+        dev = self.selectedDevice(c)
+        dev.write('APPL:DC')
+        dev.write('VOLT:OFFS {}'.format(val['V']))
+    
+    @setting(14, val='v[V]', returns='')
+    def set_ac_voltage(self, c, val='1*U.V'):
+        """Puts generator into AC mode with given peak to peak voltage.
+        
+        Args: 
+            val (value[V]): The AC Voltage to be set
+        """
+        dev = self.selectedDevice(c)
+        dev.write('APPL:SIN')
+        dev.write('SOUR:VOLT {}'.format(val['V']))
+    
+    @setting(15, val='v[Hz]', returns='')
+    def set_frequency(self, c, val='100*U.Hz'):
+        """Puts generator into AC mode with given frequency
+        
+        Args: 
+            val (value[Hz]): The frequency to be set
+        """
+        dev = self.selectedDevice(c)
+        dev.write('APPL:SIN')
+        dev.write('SOUR:FREQ {}'.format(val['Hz']))
 
 __server__ = AgilentFunctionGenerator()
 
 if __name__ == '__main__':
     from labrad import util
     util.runServer(__server__)
-
-
-
