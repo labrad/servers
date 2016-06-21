@@ -71,7 +71,7 @@ class SR830(GPIBManagedServer):
         dev = self.selectedDevice(c)
         mode = yield dev.query('ISRC?')
         returnValue(int(mode))
-    
+
     @inlineCallbacks
     def outputUnit(self, c):
         ''' returns a labrad unit, V or A, for what the main output type is. (R, X, Y) '''
@@ -122,15 +122,19 @@ class SR830(GPIBManagedServer):
 
     @setting(14, 'Frequency', f=[': query frequency', 'v[Hz]: set frequency'], returns='v[Hz]')
     def frequency(self, c, f = None):
-        """ Sets/gets the frequency of the internal reference. """
+        """Sets or get the excitation frequency (when source is internal)
+
+        Args:
+            f (value[Hz]): Frequency to set.  If none, then we query the
+                existing frequency
+
+        Returns:
+        """
         dev = self.selectedDevice(c)
-        if f is None:
-            resp = yield dev.query('FREQ?')
-            returnValue(float(resp)*Hz)
-        else:
+        if f is not None:
             yield dev.write('FREQ ' + str(f['Hz']))
-            resp = yield dev.query('FREQ?')
-            returnValue(float(resp)*Hz)
+        resp = yield dev.query('FREQ?')
+        returnValue(float(resp)*Hz)
 
     @setting(15, 'External Reference Slope', ers=[': query', 'i: set'], returns='i')
     def external_reference_slope(self, c, ers = None):
@@ -144,7 +148,7 @@ class SR830(GPIBManagedServer):
             returnValue(int(resp))
         else:
             yield dev.write('RSLP ' + str(ers))
-            returnValue(ers)			
+            returnValue(ers)
 
     @setting(16, 'Harmonic', h=[': query harmonic', 'i: set harmonic'], returns='i')
     def harmonic(self, c, h = None):
@@ -197,7 +201,7 @@ class SR830(GPIBManagedServer):
             returnValue(float(resp))
         else:
             yield dev.write('AUXV ' + str(n) + ', ' + str(v));
-            returnValue(v)	
+            returnValue(v)
 
     @setting(21, 'x', returns='v')
     def x(self, c):
@@ -260,7 +264,7 @@ class SR830(GPIBManagedServer):
         ''' Kicks the sensitivity up a notch. '''
         dev = self.selectedDevice(c)
         returnValue((yield self.sensitivity(c, int((yield dev.query('SENS?'))) + 1)))
-        
+
     @setting(42, 'Sensitivity Down', returns='v')
     def sensitivity_down(self, c):
         ''' Turns the sensitivity down a notch. '''
@@ -285,8 +289,8 @@ class SR830(GPIBManagedServer):
             yield util.wakeupCall(waittime)
             r = yield self.r(c)
             sens = yield self.sensitivity(c)
-        
-        
+
+
     @setting(32, 'Auto Gain')
     def auto_gain(self, c):
         """ Runs the auto gain function. Does nothing if time constant >= 1s. """
@@ -297,7 +301,7 @@ class SR830(GPIBManagedServer):
         while resp != '0':
             resp = yield dev.query("*STB? 1")
             print "Waiting for auto gain to finish..."
-            
+
     @setting(33, 'Filter Slope', i='i', returns='i')
     def filter_slope(self, c, i=None):
         ''' Sets/gets the low pass filter slope. 0=>6, 1=>12, 2=>18, 3=>24 dB/oct '''
@@ -308,7 +312,7 @@ class SR830(GPIBManagedServer):
         else:
             yield dev.write('OFSL ' + str(i))
             returnValue(i)
-            
+
     @setting(34, 'Wait Time', returns='v[s]')
     def wait_time(self, c):
         ''' Returns the recommended wait time given current time constant and low-pass filter slope. '''
