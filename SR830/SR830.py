@@ -122,7 +122,7 @@ class SR830(GPIBManagedServer):
 
     @setting(14, 'Frequency', f=[': query frequency', 'v[Hz]: set frequency'], returns='v[Hz]')
     def frequency(self, c, f = None):
-        """Sets or get the excitation frequency (when source is internal)
+        """Set or get the excitation frequency (when source is internal)
 
         Args:
             f (value[Hz]): Frequency to set.  If none, then we query the
@@ -138,17 +138,21 @@ class SR830(GPIBManagedServer):
 
     @setting(15, 'External Reference Slope', ers=[': query', 'i: set'], returns='i')
     def external_reference_slope(self, c, ers = None):
-        """
-        Get/set the external reference slope.
-        0 = Sine, 1 = TTL Rising, 2 = TTL Falling
+        """Set or get the external reference slope..\
+
+        Args:
+            ers (i): Specifies the external reference source..
+                0 = Sine, 1 = TTL Rising, 2 = TTL Falling
+
+        Returns:
+            (i):  The external reference source.
+                0 = Sine, 1 = TTL Rising, 2 = TTL Falling
         """
         dev = self.selectedDevice(c)
-        if ers is None:
-            resp = yield dev.query('RSLP?')
-            returnValue(int(resp))
-        else:
+        if ers is not None:
             yield dev.write('RSLP ' + str(ers))
-            returnValue(ers)
+        resp = yield dev.query('RSLP?')
+        returnValue(int(resp))
 
     @setting(16, 'Harmonic', h=[': query harmonic', 'i: set harmonic'], returns='i')
     def harmonic(self, c, h = None):
