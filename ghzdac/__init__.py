@@ -38,10 +38,18 @@ import logging
 
 
 def aequal(a, b):
+    """
+    Test if two arrays have same shape and have equal elements.
+    Args:
+        a (np.ndarray): array
+        b (np.ndarray): array
+
+    Returns (bool):
+    """
     return (shape(a) == shape(b)) and (all(a == b))
 
 
-def getDataSets(cxn, boardname, caltype, errorClass=None):
+def get_data_sets(cxn, boardname, caltype, errorClass=None):
     reg = cxn.registry
     ds = cxn.data_vault
     reg.cd(['', keys.SESSIONNAME, boardname], True)
@@ -80,7 +88,7 @@ def IQcorrector(fpganame, connection,
     corrector = IQcorrection(fpganame, lowpass, bandwidth)
     # Load Zero Calibration
     if zerocor:
-        datasets = getDataSets(cxn, fpganame, keys.ZERONAME, errorClass)
+        datasets = get_data_sets(cxn, fpganame, keys.ZERONAME, errorClass)
         logging.debug('datasets: {}'.format(datasets))
         for dataset in datasets:
             filename = ds.open(long(dataset))
@@ -90,7 +98,7 @@ def IQcorrector(fpganame, connection,
             corrector.loadZeroCal(datapoints, dataset)
     # Load pulse response
     if pulsecor:
-        dataset = getDataSets(cxn, fpganame, keys.PULSENAME, errorClass)
+        dataset = get_data_sets(cxn, fpganame, keys.PULSENAME, errorClass)
         if dataset != []:
             dataset = dataset[0]
             filename = ds.open(long(dataset))
@@ -104,7 +112,7 @@ def IQcorrector(fpganame, connection,
             corrector.loadPulseCal(datapoints, carrierfreq, dataset, IisB)
     # Load Sideband Calibration
     if iqcor:
-        datasets = getDataSets(cxn, fpganame, keys.IQNAME, errorClass)
+        datasets = get_data_sets(cxn, fpganame, keys.IQNAME, errorClass)
         for dataset in datasets:
             filename = ds.open(long(dataset))
             logging.debug('Loading sideband calibration from: {}'.format(filename[1]))
@@ -141,7 +149,7 @@ def DACcorrector(fpganame, channel, connection=None,
     if not isinstance(channel, str):
         channel = keys.CHANNELNAMES[channel]
 
-    dataset = getDataSets(cxn, fpganame, channel, errorClass)
+    dataset = get_data_sets(cxn, fpganame, channel, errorClass)
     if dataset != []:
         logging.debug("Dataset - fpganame: {} channel: {}".format(fpganame, channel))
         dataset = dataset[0]
@@ -176,7 +184,7 @@ def recalibrate(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
         # check if a corrector has been provided and if it is up to date
         # or if we have to load a new one.
         if not aequal(corrector.zeroCalFiles,
-                      (getDataSets(cxn, boardname, keys.ZERONAME, 'quiet'))):
+                      (get_data_sets(cxn, boardname, keys.ZERONAME, 'quiet'))):
             logging.info('Provided corrector is outdated.')
             logging.info('Loading new corrector. Provided corrector will not be updated.')
             corrector = IQcorrector(boardname, cxn)
@@ -200,9 +208,9 @@ def recalibrate(boardname, carrierMin, carrierMax, zeroCarrierStep=0.025,
         # check if a corrector has been provided and if it is up to date
         # or if we have to load a new one.
         if not (aequal(corrector.sidebandCalFiles,
-                       (getDataSets(cxn, boardname, keys.IQNAME, 'quiet'))) and \
+                       (get_data_sets(cxn, boardname, keys.IQNAME, 'quiet'))) and \
                         aequal(array([corrector.pulseCalFile]),
-                               (getDataSets(cxn, boardname, keys.PULSENAME, 'quiet')))):
+                               (get_data_sets(cxn, boardname, keys.PULSENAME, 'quiet')))):
             logging.info('Provided correcetor is outdated.')
             logging.info('Loading new corrector. Provided corrector will not be updated.')
             corrector = IQcorrector(boardname, cxn)
