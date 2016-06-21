@@ -52,7 +52,7 @@ import labrad
 from labrad.types import Error
 from labrad.server import LabradServer, setting
 
-from ghzdac import IQcorrector, DACcorrector, keys
+from ghzdac import iq_corrector, DAC_corrector, keys
 from ghzdac.correction import fastfftlen
 
 
@@ -138,10 +138,10 @@ class CalibrationServer(LabradServer):
         board = c['Board']
 
         if board not in self.IQcalsets:
-            calset = yield self.call_sync(IQcorrector, board,
-                                                       None,
-                                                       errorClass=CalibrationNotFoundError,
-                                                       bandwidth=self.serverSettings['bandwidthIQ'])
+            calset = yield self.call_sync(iq_corrector, board,
+                                          None,
+                                          errorClass=CalibrationNotFoundError,
+                                          bandwidth=self.serverSettings['bandwidthIQ'])
             self.IQcalsets[board] = calset
         returnValue(self.IQcalsets[board])
 
@@ -159,12 +159,12 @@ class CalibrationServer(LabradServer):
         if board not in self.DACcalsets:
             self.DACcalsets[board] = {}
         if dac not in self.DACcalsets[board]:
-            calset = yield self.call_sync(DACcorrector, board,
-                                                        dac,
-                                                        None,
-                                                        errorClass=CalibrationNotFoundError,
-                                                        bandwidth=self.serverSettings['bandwidthZ'],
-                                                        maxfreqZ=self.serverSettings['maxfreqZ'])
+            calset = yield self.call_sync(DAC_corrector, board,
+                                          dac,
+                                          None,
+                                          errorClass=CalibrationNotFoundError,
+                                          bandwidth=self.serverSettings['bandwidthZ'],
+                                          maxfreqZ=self.serverSettings['maxfreqZ'])
             self.DACcalsets[board][dac] = calset
         returnValue(self.DACcalsets[board][dac])
 

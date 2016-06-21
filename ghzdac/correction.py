@@ -64,11 +64,16 @@ import numpy as np
 #
 # Removed a tab
 
-def cosinefilter(n, width=0.4):
+
+def cosine_filter(n, width=0.4):
     """cosinefilter(n,width) cosine lowpass filter
-    n samples from 0 to 1 GHz
-    1 from 0 GHz to width GHz
-    rolls of from width GHz to 0.5 GHz like a quater cosine wave"""
+    Args:
+        n (int): number of samples from 0 to 1 GHz
+        width (float): 1 from 0 GHz to width GHz
+        rolls of from width GHz to 0.5 GHz like a quater cosine wave
+    Return:
+    """
+
     nr = n/2 + 1
     result = np.ones(nr,dtype=float)
     start = int(np.ceil(width*n))
@@ -93,16 +98,16 @@ def gaussfilter(n, width=0.13):
     gauss -= x
     gauss /= (1.0 - x)
     return gauss
-    
-    
+
+
 def flatfilter(n, width=0):
     nr = n/2 + 1
     return 1.0
     #return np.ones(nr)
 
-    
-savedfftlens = np.zeros(8193,dtype=int)
-    
+
+savedfftlens = np.zeros(8193, dtype=int)
+
 
 def fastfftlen(n):
     """
@@ -129,8 +134,9 @@ def fastfftlen(n):
         return nfft
     else:
         return _fastfftlen(n)
-    
-def moving_average(x,m):
+
+
+def moving_average(x, m):
     """Moving average on x, with length m. Expects a numpy array for x. Elements are given by
     y[i] = Sum_{k=0..m-1}   y[l] / m
     with l=i-fix(m/2)+k between 0 and length(x)-1. Try to keep m odd. RB."""
@@ -150,7 +156,7 @@ def moving_average(x,m):
     return np.array(y)
 
 
-def derivative(x,y):
+def derivative(x, y):
     """Taking derivative, uses both adjacent points for estimate of derivative. 
     Returns array with the same number of points (different than np.diff). RB."""
     n=np.alen(x)
@@ -165,7 +171,7 @@ def derivative(x,y):
     return deriv
 
 
-def interpol_cubic(h,x2,fill_value=None):
+def interpol_cubic(h, x2, fill_value=None):
     """Fast cubic interpolator (slightly faster than linear version of scipy interp1d; 
     much faster than cubic version of scipy interp1d).
     Returns the values in in the same way interpol. Can deal with complex input.
@@ -266,7 +272,7 @@ def findRelevant(starts, ends):
 
 class IQcorrection:
 
-    def __init__(self, board, lowpass=cosinefilter, bandwidth=0.4,
+    def __init__(self, board, lowpass=cosine_filter, bandwidth=0.4,
                  exceedCalLimits=0.001):
 
         """
@@ -301,10 +307,10 @@ class IQcorrection:
         self.pulseCalFile = None
 
         # empty zero calibration
-        self.zeroTableStart = np.zeros(0,dtype=float)
-        self.zeroTableEnd = np.zeros(0,dtype=float)
-        self.zeroTableStep = np.zeros(0,dtype=float)
-        self.zeroCalFiles = np.zeros(0,dtype=int)
+        self.zeroTableStart = np.zeros(0, dtype=float)
+        self.zeroTableEnd = np.zeros(0, dtype=float)
+        self.zeroTableStep = np.zeros(0, dtype=float)
+        self.zeroCalFiles = np.zeros(0, dtype=int)
         self.zeroTableI = []
         self.zeroTableQ = []
 
@@ -823,7 +829,6 @@ class IQcorrection:
         return self.recalibrationRoutine(self.board, carrierMin, carrierMax,
                                          zeroCarrierStep, sidebandCarrierStep,
                                          sidebandMax, sidebandStep, self)
- 
 
 
 #############################################
@@ -831,7 +836,6 @@ class IQcorrection:
 # Correction class for a single DAC channel #
 #                                           #
 #############################################
-
 
 
 class DACcorrection:

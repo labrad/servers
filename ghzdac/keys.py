@@ -34,7 +34,7 @@ SESSIONNAME = 'GHzDAC Calibration'
 ZERONAME = 'zero'
 PULSENAME = 'pulse'
 IQNAME = 'IQ'
-CHANNELNAMES = ['DAC A','DAC B']
+CHANNELNAMES = ['DAC A', 'DAC B']
 VERTICALSCALE = 'vertical scale'
 HORIZONTALSCALE = 'horizontal scale'
 HORIZONTALPOSITION = 'horizontal position'
@@ -46,12 +46,11 @@ PULSELENGTH = 'pulse length'
 DACDCPULSE = 'dac dc pulse'
 DACACPULSE = 'dac ac pulse'
 HARMONIC = 'Carrier frequency harmonic'
-SERVERSETTINGVALUES = [
-    'deconvIQ',
-    'deconvZ',
-    'bandwidthIQ',
-    'bandwidthZ',
-    'maxfreqZ',
-    'maxvalueZ',
-    'dither'
-]
+SERVERSETTINGVALUES = ['deconvIQ',
+                       'deconvZ',
+                       'bandwidthIQ',
+                       'bandwidthZ',
+                       'maxfreqZ',
+                       'maxvalueZ',
+                       'dither'
+                        ]
