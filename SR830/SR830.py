@@ -29,7 +29,9 @@ message = 987654321
 timeout = 20
 ### END NODE INFO
 """
-
+from labrad.units import Unit
+V, mV, us, ns, GHz, MHz, Hz, dBm, dB, K, deg = [Unit(s) for s in (
+    'V', 'mV', 'us', 'ns', 'GHz', 'MHz', 'Hz', 'dBm', 'dB', 'K', 'deg')]
 from labrad import types as T, gpib, units
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer
@@ -79,31 +81,44 @@ class SR830(GPIBManagedServer):
         else:
             returnValue(units.A)
 
-    @setting(12, 'Phase', ph=[': query phase offset',  'v[deg]: set phase offset'], returns='v[deg]: phase')
-    def phase(self, c, ph = None):
-        ''' sets/gets the phase offset '''
+    @setting(12, 'Phase',
+             ph=['', 'v[deg]'],
+             returns='v[deg]: phase')
+    def phase(self, c, ph=None):
+        """Set or get the excitation phase offset.
+
+        Args:
+            ph (Value[deg]): Phase offset to set. If not included, then we
+                query the existing phase instead.
+
+        Returns:
+            (Value[deg]): The phase offset.
+        """
         dev = self.selectedDevice(c)
-        if ph is None:
-            resp = yield dev.query('PHAS?')
-            returnValue(float(resp))    	
-        else:
-            yield dev.write('PHAS ' + str(ph))
-            resp = yield dev.query('PHAS?')
-            returnValue(float(resp))
-            
-    @setting(13, 'Reference', ref=[': query reference source', 'b: set external (false) or internal (true) reference source'], returns='b')
-    def reference(self, c, ref = None):
-        """ sets/gets the reference source. false => external source. true => internal source. """
+        if ph is not None:
+            yield dev.write('PHAS ' + str(ph['deg']))
+        resp = yield dev.query('PHAS?')
+        returnValue(float(resp)*deg)
+
+    @setting(13, 'Reference',
+             ref=[': query reference source', 'b: set external (false) or internal (true) reference source'],
+             returns='b')
+    def reference(self, c, ref=None):
+        """Set or get the reference source.
+
+        Args:
+            ref (bool): False sets external source, True sets internal source.
+                If the argument is omitted we query the existing source.
+
+        Returns:
+            (bool):  The excitation source.
+        """
         dev = self.selectedDevice(c)
-        if ref == '':
-            resp = yield dev.query('FMOD?')
-            returnValue(bool(int(resp)))
-        else:
-            s = '0'
-            if ref:
-                s = '1'
-            yield dev.write('FMOD ' + s)
-            returnValue(ref)   
+        if ref is not None:
+            source = str(int(ref))
+            yield dev.write('FMOD ' + source)
+        resp = yield dev.query('FMOD?')
+        returnValue(bool(int(resp)))
 
     @setting(14, 'Frequency', f=[': query frequency', 'v[Hz]: set frequency'], returns='v[Hz]')
     def frequency(self, c, f = None):
@@ -111,11 +126,11 @@ class SR830(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if f is None:
             resp = yield dev.query('FREQ?')
-            returnValue(float(resp))
+            returnValue(float(resp)*Hz)
         else:
-            yield dev.write('FREQ ' + str(f))
+            yield dev.write('FREQ ' + str(f['Hz']))
             resp = yield dev.query('FREQ?')
-            returnValue(float(resp))
+            returnValue(float(resp)*Hz)
 
     @setting(15, 'External Reference Slope', ers=[': query', 'i: set'], returns='i')
     def external_reference_slope(self, c, ers = None):
@@ -147,18 +162,20 @@ class SR830(GPIBManagedServer):
 
     @setting(17, 'Sine Out Amplitude', amp=[': query', 'v[V]: set'], returns='v[V]')
     def sine_out_amplitude(self, c, amp = None):
-        """ 
-        Set/get the amplitude of the sine out.
-        Accepts values between .004 and 5.0 V.
+        """ Set or get the amplitude of the excitation sine waveform.
+
+        Args:
+            amp (Value[V]): RMS excitation amplitude
+        Accepts values between .004 and 5.0 Vrms.
         """
         dev = self.selectedDevice(c)
         if amp is None:
             resp = yield dev.query('SLVL?')
-            returnValue(float(resp))
+            returnValue(float(resp)*V)
         else:
-            yield dev.write('SLVL ' + str(amp))
+            yield dev.write('SLVL ' + str(amp['V']))
             resp = yield dev.query('SLVL?')
-            returnValue(float(resp))
+            returnValue(float(resp)*V)
 
     @setting(18, 'Aux Input', n='i', returns='v[V]')
     def aux_input(self, c, n):
@@ -208,7 +225,7 @@ class SR830(GPIBManagedServer):
         """Query the value of theta """
         dev = self.selectedDevice(c)
         resp = yield dev.query('OUTP? 4')
-        returnValue(float(resp))
+        returnValue(float(resp)*deg)
 
     @setting(30, 'Time Constant', i='i', returns='v[s]')
     def time_constant(self, c, i=None):
@@ -237,7 +254,7 @@ class SR830(GPIBManagedServer):
             yield dev.write('SENS ' + str(i))
             s = getSensitivity(i)
             returnValue(getSensitivity(i)*u)
-            
+
     @setting(41, 'Sensitivity Up', returns='v')
     def sensitivity_up(self, c):
         ''' Kicks the sensitivity up a notch. '''
