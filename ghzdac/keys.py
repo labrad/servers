@@ -1,5 +1,6 @@
-# Copyright (C) 2007, 2008  Max Hofheinz
-#
+"""
+Copyright (C) 2007, 2008  Max Hofheinz
+
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 2 of the License, or
@@ -12,6 +13,10 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+These are variables that are called from __init__.py if they are not explicitly
+specified in their proper locations.
+"""
 
 IQWIRING = 'IQ mixer wiring'
 ANRITSUPOWER = 'Anritsu power level'
@@ -27,8 +32,7 @@ SWITCHPOSITION = 'Microwave switch position'
 SWITCHNAME = 'Microwave switch name'
 SWITCHUSE = 'Microwave switch use'
 TIMEOFFSET = 'DAC delay for pulse calibration'
-SETUPTYPES = ['no IQ mixer',
-              'DAC A -> mixer I, DAC B -> mixer Q',
+SETUPTYPES = ['no IQ mixer', 'DAC A -> mixer I, DAC B -> mixer Q',
               'DAC A -> mixer Q, DAC B -> mixer I']
 SESSIONNAME = 'GHzDAC Calibration'
 ZERONAME = 'zero'
@@ -46,11 +50,5 @@ PULSELENGTH = 'pulse length'
 DACDCPULSE = 'dac dc pulse'
 DACACPULSE = 'dac ac pulse'
 HARMONIC = 'Carrier frequency harmonic'
-SERVERSETTINGVALUES = ['deconvIQ',
-                       'deconvZ',
-                       'bandwidthIQ',
-                       'bandwidthZ',
-                       'maxfreqZ',
-                       'maxvalueZ',
-                       'dither'
-                        ]
+SERVERSETTINGVALUES = ['deconvIQ', 'deconvZ', 'bandwidthIQ', 'bandwidthZ',
+                       'maxfreqZ', 'maxvalueZ', 'dither']
