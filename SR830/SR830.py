@@ -138,7 +138,7 @@ class SR830(GPIBManagedServer):
         returnValue(float(resp)*Hz)
 
     @setting(15, 'External Reference Slope', ers=[': query', 'i: set'], returns='i')
-    def external_reference_slope(self, c, ers = None):
+    def external_reference_slope(self, c, ers=None):
         """Set or get the external reference slope.
 
         Args:
