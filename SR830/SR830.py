@@ -44,9 +44,9 @@ def getTC(i):
     elif i > 19:
         return getTC(19)
     elif i % 2 == 0:
-        return 10**(-5 + i/2) * s
+        return 10**(-5 + i/2) * unit.s
     else:
-        return 3*10**(-5 + i/2) * s
+        return 3*10**(-5 + i/2) * unit.s
 
 def getSensitivity(i):
     ''' converts form the integer label used by the SR830 to a sensitivity '''
@@ -121,7 +121,7 @@ class SR830(GPIBManagedServer):
         returnValue(bool(int(resp)))
 
     @setting(14, 'Frequency', f=[': query frequency', 'v[Hz]: set frequency'], returns='v[Hz]')
-    def frequency(self, c, f = None):
+    def frequency(self, c, f=None):
         """Set or get the excitation frequency (when source is internal)
 
         Args:
@@ -133,48 +133,48 @@ class SR830(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         if f is not None:
-            yield dev.write('FREQ ' + str(f['Hz']))
+            yield dev.write('FREQ {}'.format(f['Hz']))
         resp = yield dev.query('FREQ?')
         returnValue(float(resp)*Hz)
 
     @setting(15, 'External Reference Slope', ers=[': query', 'i: set'], returns='i')
     def external_reference_slope(self, c, ers = None):
-        """Set or get the external reference slope..\
+        """Set or get the external reference slope.
 
         Args:
-            ers (i): Specifies the external reference source..
+            ers (int): Specifies the external reference source.
                 0 = Sine, 1 = TTL Rising, 2 = TTL Falling
 
         Returns:
-            (i):  The external reference source.
+            (int):  The external reference source.
                 0 = Sine, 1 = TTL Rising, 2 = TTL Falling
         """
         dev = self.selectedDevice(c)
         if ers is not None:
-            yield dev.write('RSLP ' + str(ers))
+            yield dev.write('RSLP {}'.format(ers))
         resp = yield dev.query('RSLP?')
         returnValue(int(resp))
 
     @setting(16, 'Harmonic', h=[': query harmonic', 'i: set harmonic'], returns='i')
-    def harmonic(self, c, h = None):
-        """Set or get the harmonic.  Harmonic can be set as high as 19999
-            but is capped at a frequency of 102kHz.
+    def harmonic(self, c, h=None):
+        """Set or get the harmonic.  
+        Harmonic can be set as high as 19999 but is capped at a frequency of 102kHz.
 
         Args:
-            h (i): The harmonic to set.  Integer from 1 to 19999, but frequency
+            h (int): The harmonic to set.  Integer from 1 to 19999, but frequency
                 must be less than 102kHz (that is, harmonic * f0).
 
         Returns:
-            (i): The harmonic being measured.
+            (int): The harmonic being measured.
         """
         dev = self.selectedDevice(c)
         if h is not None:
-            yield dev.write('HARM ' + str(h))
+            yield dev.write('HARM {}'.format(h))
         resp = yield dev.query('HARM?')
         returnValue(int(resp))
 
     @setting(17, 'Sine Out Amplitude', amp=[': query', 'v[V]: set'], returns='v[V]')
-    def sine_out_amplitude(self, c, amp = None):
+    def sine_out_amplitude(self, c, amp=None):
         """ Set or get the amplitude of the excitation sine waveform.
 
         Args:
@@ -186,7 +186,7 @@ class SR830(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         if amp is not None:
-            yield dev.write('SLVL ' + str(amp['V']))
+            yield dev.write('SLVL '.format(amp['V']))
         resp = yield dev.query('SLVL?')
         returnValue(float(resp)*V)
 
@@ -203,11 +203,11 @@ class SR830(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if int(n) < 1 or int(n) > 4:
             raise ValueError("n must be 1,2,3, or 4!")
-        resp = yield dev.query('OAUX? ' + str(n))
+        resp = yield dev.query('OAUX? {}'.format(n))
         returnValue(float(resp)*V)
 
     @setting(19, 'Aux Output', n='i', v=['v[V]'], returns='v[V]')
-    def aux_output(self, c, n, v = None):
+    def aux_output(self, c, n, v=None):
         """Get or set the value of an Aux Output.
 
         Args:
@@ -222,8 +222,8 @@ class SR830(GPIBManagedServer):
         if int(n) < 1 or int(n) > 4:
             raise ValueError("n must be 1,2,3, or 4!")
         if v is not None:
-            yield dev.write('AUXV ' + str(n) + ', ' + str(v))
-        resp = yield dev.query('AUXV? ' + str(n))
+            yield dev.write('AUXV {}, {}'.format(n, v))
+        resp = yield dev.query('AUXV? {}'.format(n))
         returnValue(float(resp)*V)
 
     @setting(21, 'x', returns='v')
@@ -236,7 +236,8 @@ class SR830(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         resp = yield dev.query('OUTP? 1')
-        returnValue(float(resp) * (yield self.outputUnit(c)))
+        unit = yield self.outputUnit(c)
+        returnValue(float(resp) * unit)
 
     @setting(22, 'y', returns='v')
     def y(self, c):
@@ -248,7 +249,8 @@ class SR830(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         resp = yield dev.query('OUTP? 2')
-        returnValue(float(resp) * (yield self.outputUnit(c)))
+        unit = yield self.outputUnit(c)
+        returnValue(float(resp) * unit)
 
     @setting(23, 'r', returns='v')
     def r(self, c):
@@ -260,7 +262,8 @@ class SR830(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         resp = yield dev.query('OUTP? 3')
-        returnValue(float(resp) * (yield self.outputUnit(c)))
+        unit = yield self.outputUnit(c)
+        returnValue(float(resp) * unit)
 
     @setting(24, 'theta', returns='v[deg]')
     def theta(self, c):
@@ -344,7 +347,6 @@ class SR830(GPIBManagedServer):
             yield util.wakeupCall(waittime)
             r = yield self.r(c)
             sens = yield self.sensitivity(c)
-
 
     @setting(32, 'Auto Gain')
     def auto_gain(self, c):
