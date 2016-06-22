@@ -71,7 +71,7 @@ class SR830(GPIBManagedServer):
         dev = self.selectedDevice(c)
         mode = yield dev.query('ISRC?')
         returnValue(int(mode))
-    
+
     @inlineCallbacks
     def outputUnit(self, c):
         ''' returns a labrad unit, V or A, for what the main output type is. (R, X, Y) '''
@@ -96,7 +96,7 @@ class SR830(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         if ph is not None:
-            yield dev.write('PHAS ' + str(ph['deg']))
+            yield dev.write('PHAS {}'.format(ph['deg']))
         resp = yield dev.query('PHAS?')
         returnValue(float(resp)*deg)
 
@@ -115,152 +115,214 @@ class SR830(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         if ref is not None:
-            source = str(int(ref))
-            yield dev.write('FMOD ' + source)
+            yield dev.write('FMOD {}'.format(int(ref)))
         resp = yield dev.query('FMOD?')
         returnValue(bool(int(resp)))
 
     @setting(14, 'Frequency', f=[': query frequency', 'v[Hz]: set frequency'], returns='v[Hz]')
-    def frequency(self, c, f = None):
-        """ Sets/gets the frequency of the internal reference. """
+    def frequency(self, c, f=None):
+        """Set or get the excitation frequency (when source is internal)
+
+        Args:
+            f (value[Hz]): Frequency to set.  If none, then we query the
+                existing frequency
+
+        Returns:
+            (value[Hz]): The internal excitation frequency.
+        """
         dev = self.selectedDevice(c)
-        if f is None:
-            resp = yield dev.query('FREQ?')
-            returnValue(float(resp)*Hz)
-        else:
-            yield dev.write('FREQ ' + str(f['Hz']))
-            resp = yield dev.query('FREQ?')
-            returnValue(float(resp)*Hz)
+        if f is not None:
+            yield dev.write('FREQ {}'.format(f['Hz']))
+        resp = yield dev.query('FREQ?')
+        returnValue(float(resp)*Hz)
 
     @setting(15, 'External Reference Slope', ers=[': query', 'i: set'], returns='i')
-    def external_reference_slope(self, c, ers = None):
-        """
-        Get/set the external reference slope.
-        0 = Sine, 1 = TTL Rising, 2 = TTL Falling
+    def external_reference_slope(self, c, ers=None):
+        """Set or get the external reference slope.
+
+        Args:
+            ers (int): Specifies the external reference source.
+                0 = Sine, 1 = TTL Rising, 2 = TTL Falling
+
+        Returns:
+            (int):  The external reference source.
+                0 = Sine, 1 = TTL Rising, 2 = TTL Falling
         """
         dev = self.selectedDevice(c)
-        if ers is None:
-            resp = yield dev.query('RSLP?')
-            returnValue(int(resp))
-        else:
-            yield dev.write('RSLP ' + str(ers))
-            returnValue(ers)			
+        if ers is not None:
+            yield dev.write('RSLP {}'.format(ers))
+        resp = yield dev.query('RSLP?')
+        returnValue(int(resp))
 
     @setting(16, 'Harmonic', h=[': query harmonic', 'i: set harmonic'], returns='i')
-    def harmonic(self, c, h = None):
-        """
-        Get/set the harmonic.
+    def harmonic(self, c, h=None):
+        """Set or get the harmonic.  
+        
         Harmonic can be set as high as 19999 but is capped at a frequency of 102kHz.
+
+        Args:
+            h (int): The harmonic to set.  Integer from 1 to 19999, but frequency
+                must be less than 102kHz (that is, harmonic * f0).
+
+        Returns:
+            (int): The harmonic being measured.
         """
         dev = self.selectedDevice(c)
-        if h is None:
-            resp = yield dev.query('HARM?')
-            returnValue(int(resp))
-        else:
-            yield dev.write('HARM ' + str(h))
-            returnValue(h)
+        if h is not None:
+            yield dev.write('HARM {}'.format(h))
+        resp = yield dev.query('HARM?')
+        returnValue(int(resp))
 
     @setting(17, 'Sine Out Amplitude', amp=[': query', 'v[V]: set'], returns='v[V]')
-    def sine_out_amplitude(self, c, amp = None):
+    def sine_out_amplitude(self, c, amp=None):
         """ Set or get the amplitude of the excitation sine waveform.
 
         Args:
             amp (Value[V]): RMS excitation amplitude
-        Accepts values between .004 and 5.0 Vrms.
+                Accepts values between .004 and 5.0 Vrms.
+
+        Returns:
+            (Value[V]): The RMS excitation amplitude.
         """
         dev = self.selectedDevice(c)
-        if amp is None:
-            resp = yield dev.query('SLVL?')
-            returnValue(float(resp)*V)
-        else:
-            yield dev.write('SLVL ' + str(amp['V']))
-            resp = yield dev.query('SLVL?')
-            returnValue(float(resp)*V)
+        if amp is not None:
+            yield dev.write('SLVL {}'.format(amp['V']))
+        resp = yield dev.query('SLVL?')
+        returnValue(float(resp)*V)
 
     @setting(18, 'Aux Input', n='i', returns='v[V]')
     def aux_input(self, c, n):
-        """Query the value of Aux Input n (1,2,3,4)"""
+        """Get the value of the Aux Input channel n (1,2,3,4)
+
+        Args:
+            n (i): Aux input channel to query.
+
+        Returns:
+            (Value[V]): the value of the specified Aux input.
+        """
         dev = self.selectedDevice(c)
         if int(n) < 1 or int(n) > 4:
             raise ValueError("n must be 1,2,3, or 4!")
-        resp = yield dev.query('OAUX? ' + str(n))
-        returnValue(float(resp))
+        resp = yield dev.query('OAUX? {}'.format(n))
+        returnValue(float(resp)*V)
 
     @setting(19, 'Aux Output', n='i', v=['v[V]'], returns='v[V]')
-    def aux_output(self, c, n, v = None):
-        """Get/set the value of Aux Output n (1,2,3,4). v can be from -10.5 to 10.5 V."""
+    def aux_output(self, c, n, v=None):
+        """Get or set the value of an Aux Output.
+
+        Args:
+            n (i): The aux input channel to set or query. n (1,2,3,4).
+            v (Value[V]):  The value to set the specified Aux channel to.
+                v can be from -10.5 to 10.5 V.
+
+        Returns:
+            (Value[V]): The voltage of Aux channel n.
+        """
         dev = self.selectedDevice(c)
         if int(n) < 1 or int(n) > 4:
             raise ValueError("n must be 1,2,3, or 4!")
-        if v is None:
-            resp = yield dev.query('AUXV? ' + str(n))
-            returnValue(float(resp))
-        else:
-            yield dev.write('AUXV ' + str(n) + ', ' + str(v));
-            returnValue(v)	
+        if v is not None:
+            yield dev.write('AUXV {}, {}'.format(n, v))
+        resp = yield dev.query('AUXV? {}'.format(n))
+        returnValue(float(resp)*V)
 
     @setting(21, 'x', returns='v')
     def x(self, c):
-        """Query the value of X"""
+        """Query the value of X, the in phase signal.
+
+        Returns:
+            (Value[V] or [A]): The X reading in units dependent on the input
+                mode.
+        """
         dev = self.selectedDevice(c)
         resp = yield dev.query('OUTP? 1')
-        returnValue(float(resp) * (yield self.outputUnit(c)))
+        unit = yield self.outputUnit(c)
+        returnValue(float(resp) * unit)
 
     @setting(22, 'y', returns='v')
     def y(self, c):
-        """Query the value of Y"""
+        """Query the value of Y, the quadrature signal.
+
+        Returns:
+            (Value[V] or [A]): The Y reading in units dependent on the input
+                mode.
+        """
         dev = self.selectedDevice(c)
         resp = yield dev.query('OUTP? 2')
-        returnValue(float(resp) * (yield self.outputUnit(c)))
+        unit = yield self.outputUnit(c)
+        returnValue(float(resp) * unit)
 
     @setting(23, 'r', returns='v')
     def r(self, c):
-        """Query the value of R"""
+        """Query the value of R, the magnitude of the signal.
+
+        Returns:
+            (Value[V] or [A]): The R reading in units dependent on the input
+                mode.
+        """
         dev = self.selectedDevice(c)
         resp = yield dev.query('OUTP? 3')
-        returnValue(float(resp) * (yield self.outputUnit(c)))
+        unit = yield self.outputUnit(c)
+        returnValue(float(resp) * unit)
 
     @setting(24, 'theta', returns='v[deg]')
     def theta(self, c):
-        """Query the value of theta """
+        """Query the value of theta: arctan(quadrature-signal/in-phase-signal).
+
+        Returns:
+            (Value[deg]): The value of theta.
+        """
         dev = self.selectedDevice(c)
         resp = yield dev.query('OUTP? 4')
         returnValue(float(resp)*deg)
 
     @setting(30, 'Time Constant', i='i', returns='v[s]')
     def time_constant(self, c, i=None):
-        """ Set/get the time constant. i=0 --> 10 us; 1-->30us, 2-->100us, 3-->300us, ..., 19 --> 30ks """
+        """Set or get the time constant.
+
+        Args:
+            i (i): The time constant to set.
+                i=0 --> 10 us; 1-->30us, 2-->100us, 3-->300us, ..., 19 --> 30ks
+
+        Returns:
+            (Value[s]): The time constant.
+
+        """
         dev = self.selectedDevice(c)
-        if i is None:
-            resp = yield dev.query("OFLT?")
-            returnValue(getTC(int(resp)))
-        else:
-            yield dev.write('OFLT ' + str(i))
-            returnValue(getTC(i))
+        if i is not None:
+            yield dev.write('OFLT {}'.format(i))
+        resp = yield dev.query("OFLT?")
+        returnValue(getTC(int(resp)))
 
     @setting(31, 'Sensitivity', i='i', returns='v')
     def sensitivity(self, c, i=None):
-        """ Set/get the sensitivity. i=0 --> 2 nV/fA; 1-->5nV/fA, 2-->10nV/fA, 3-->20nV/fA, ..., 26 --> 1V/uA """
+        """Set or get the sensitivity.
+
+        Args:
+            i (i):  The sensitivity to set.
+                i=0 --> 2 nV/fA; 1-->5nV/fA, 2-->10nV/fA,
+                3-->20nV/fA, ..., 26 --> 1V/uA.
+
+        Returns:
+            (Value[V] or [uA]):  The input range (sensitivity).
+        """
         dev = self.selectedDevice(c)
         mode = yield self.inputMode(c)
         if mode < 2:
             u = units.V
         else:
             u = units.uA
-        if i is None:
-            resp = yield dev.query("SENS?")
-            returnValue(getSensitivity(int(resp)) * u)
-        else:
-            yield dev.write('SENS ' + str(i))
-            s = getSensitivity(i)
-            returnValue(getSensitivity(i)*u)
+        if i is not None:
+            yield dev.write('SENS {}'.format(i))
+        resp = yield dev.query("SENS?")
+        returnValue(getSensitivity(int(resp)) * u)
 
     @setting(41, 'Sensitivity Up', returns='v')
     def sensitivity_up(self, c):
         ''' Kicks the sensitivity up a notch. '''
         dev = self.selectedDevice(c)
         returnValue((yield self.sensitivity(c, int((yield dev.query('SENS?'))) + 1)))
-        
+
     @setting(42, 'Sensitivity Down', returns='v')
     def sensitivity_down(self, c):
         ''' Turns the sensitivity down a notch. '''
@@ -285,8 +347,7 @@ class SR830(GPIBManagedServer):
             yield util.wakeupCall(waittime)
             r = yield self.r(c)
             sens = yield self.sensitivity(c)
-        
-        
+
     @setting(32, 'Auto Gain')
     def auto_gain(self, c):
         """ Runs the auto gain function. Does nothing if time constant >= 1s. """
@@ -297,7 +358,7 @@ class SR830(GPIBManagedServer):
         while resp != '0':
             resp = yield dev.query("*STB? 1")
             print "Waiting for auto gain to finish..."
-            
+
     @setting(33, 'Filter Slope', i='i', returns='i')
     def filter_slope(self, c, i=None):
         ''' Sets/gets the low pass filter slope. 0=>6, 1=>12, 2=>18, 3=>24 dB/oct '''
@@ -306,9 +367,9 @@ class SR830(GPIBManagedServer):
             resp = yield dev.query("OFSL?")
             returnValue(int(resp))
         else:
-            yield dev.write('OFSL ' + str(i))
+            yield dev.write('OFSL {}'.format(i))
             returnValue(i)
-            
+
     @setting(34, 'Wait Time', returns='v[s]')
     def wait_time(self, c):
         ''' Returns the recommended wait time given current time constant and low-pass filter slope. '''
