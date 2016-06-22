@@ -44,9 +44,9 @@ def getTC(i):
     elif i > 19:
         return getTC(19)
     elif i % 2 == 0:
-        return 10**(-5 + i/2) * units.s
+        return 10**(-5 + i/2) * s
     else:
-        return 3*10**(-5 + i/2) * units.s
+        return 3*10**(-5 + i/2) * s
 
 def getSensitivity(i):
     ''' converts form the integer label used by the SR830 to a sensitivity '''
@@ -179,94 +179,140 @@ class SR830(GPIBManagedServer):
 
         Args:
             amp (Value[V]): RMS excitation amplitude
-        Accepts values between .004 and 5.0 Vrms.
+                Accepts values between .004 and 5.0 Vrms.
+
+        Returns:
+            (Value[V]): The RMS excitation amplitude.
         """
         dev = self.selectedDevice(c)
-        if amp is None:
-            resp = yield dev.query('SLVL?')
-            returnValue(float(resp)*V)
-        else:
+        if amp is not None:
             yield dev.write('SLVL ' + str(amp['V']))
-            resp = yield dev.query('SLVL?')
-            returnValue(float(resp)*V)
+        resp = yield dev.query('SLVL?')
+        returnValue(float(resp)*V)
 
     @setting(18, 'Aux Input', n='i', returns='v[V]')
     def aux_input(self, c, n):
-        """Query the value of Aux Input n (1,2,3,4)"""
+        """Get the value of the Aux Input channel n (1,2,3,4)
+
+        Args:
+            n (i): Aux input channel to query.
+
+        Returns:
+            (Value[V]): the value of the specified Aux input.
+        """
         dev = self.selectedDevice(c)
         if int(n) < 1 or int(n) > 4:
             raise ValueError("n must be 1,2,3, or 4!")
         resp = yield dev.query('OAUX? ' + str(n))
-        returnValue(float(resp))
+        returnValue(float(resp)*V)
 
     @setting(19, 'Aux Output', n='i', v=['v[V]'], returns='v[V]')
     def aux_output(self, c, n, v = None):
-        """Get/set the value of Aux Output n (1,2,3,4). v can be from -10.5 to 10.5 V."""
+        """Get or set the value of an Aux Output.
+
+        Args:
+            n (i): The aux input channel to set or query. n (1,2,3,4).
+            v (Value[V]):  The value to set the specified Aux channel to.
+                v can be from -10.5 to 10.5 V.
+
+        Returns:
+            (Value[V]): The voltage of Aux channel n.
+        """
         dev = self.selectedDevice(c)
         if int(n) < 1 or int(n) > 4:
             raise ValueError("n must be 1,2,3, or 4!")
-        if v is None:
-            resp = yield dev.query('AUXV? ' + str(n))
-            returnValue(float(resp))
-        else:
-            yield dev.write('AUXV ' + str(n) + ', ' + str(v));
-            returnValue(v)
+        if v is not None:
+            yield dev.write('AUXV ' + str(n) + ', ' + str(v))
+        resp = yield dev.query('AUXV? ' + str(n))
+        returnValue(float(resp)*V)
 
     @setting(21, 'x', returns='v')
     def x(self, c):
-        """Query the value of X"""
+        """Query the value of X
+
+        Returns:
+            (Value[V] or [A]): The X reading in units dependent on the input
+                mode.
+        """
         dev = self.selectedDevice(c)
         resp = yield dev.query('OUTP? 1')
         returnValue(float(resp) * (yield self.outputUnit(c)))
 
     @setting(22, 'y', returns='v')
     def y(self, c):
-        """Query the value of Y"""
+        """Query the value of Y
+
+        Returns:
+            (Value[V] or [A]): The Y reading in units dependent on the input
+                mode.
+        """
         dev = self.selectedDevice(c)
         resp = yield dev.query('OUTP? 2')
         returnValue(float(resp) * (yield self.outputUnit(c)))
 
     @setting(23, 'r', returns='v')
     def r(self, c):
-        """Query the value of R"""
+        """Query the value of R
+
+        Returns:
+            (Value[V] or [A]): The R reading in units dependent on the input
+                mode.
+        """
         dev = self.selectedDevice(c)
         resp = yield dev.query('OUTP? 3')
         returnValue(float(resp) * (yield self.outputUnit(c)))
 
     @setting(24, 'theta', returns='v[deg]')
     def theta(self, c):
-        """Query the value of theta """
+        """Query the value of theta
+
+        Returns:
+            (Value[deg]): The value of theta.
+        """
         dev = self.selectedDevice(c)
         resp = yield dev.query('OUTP? 4')
         returnValue(float(resp)*deg)
 
     @setting(30, 'Time Constant', i='i', returns='v[s]')
     def time_constant(self, c, i=None):
-        """ Set/get the time constant. i=0 --> 10 us; 1-->30us, 2-->100us, 3-->300us, ..., 19 --> 30ks """
+        """Set or get the time constant.
+
+        Args:
+            i (i): The time constant to set.
+                i=0 --> 10 us; 1-->30us, 2-->100us, 3-->300us, ..., 19 --> 30ks
+
+        Returns:
+            (Value[s]): The time constant.
+
+        """
         dev = self.selectedDevice(c)
-        if i is None:
-            resp = yield dev.query("OFLT?")
-            returnValue(getTC(int(resp)))
-        else:
+        if i is not None:
             yield dev.write('OFLT ' + str(i))
-            returnValue(getTC(i))
+        resp = yield dev.query("OFLT?")
+        returnValue(getTC(int(resp)))
 
     @setting(31, 'Sensitivity', i='i', returns='v')
     def sensitivity(self, c, i=None):
-        """ Set/get the sensitivity. i=0 --> 2 nV/fA; 1-->5nV/fA, 2-->10nV/fA, 3-->20nV/fA, ..., 26 --> 1V/uA """
+        """Set or get the sensitivity.
+
+        Args:
+            i (i):  The sensitivity to set.
+                i=0 --> 2 nV/fA; 1-->5nV/fA, 2-->10nV/fA,
+                3-->20nV/fA, ..., 26 --> 1V/uA.
+
+        Returns:
+            (Value[V] or [uA]):  The input range (sensitivity).
+        """
         dev = self.selectedDevice(c)
         mode = yield self.inputMode(c)
         if mode < 2:
             u = units.V
         else:
             u = units.uA
-        if i is None:
-            resp = yield dev.query("SENS?")
-            returnValue(getSensitivity(int(resp)) * u)
-        else:
+        if i is not None:
             yield dev.write('SENS ' + str(i))
-            s = getSensitivity(i)
-            returnValue(getSensitivity(i)*u)
+        resp = yield dev.query("SENS?")
+        returnValue(getSensitivity(int(resp)) * u)
 
     @setting(41, 'Sensitivity Up', returns='v')
     def sensitivity_up(self, c):
