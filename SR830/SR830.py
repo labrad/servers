@@ -228,7 +228,7 @@ class SR830(GPIBManagedServer):
 
     @setting(21, 'x', returns='v')
     def x(self, c):
-        """Query the value of X
+        """Query the value of X, the in phase signal.
 
         Returns:
             (Value[V] or [A]): The X reading in units dependent on the input
@@ -240,7 +240,7 @@ class SR830(GPIBManagedServer):
 
     @setting(22, 'y', returns='v')
     def y(self, c):
-        """Query the value of Y
+        """Query the value of Y, the quadrature signal.
 
         Returns:
             (Value[V] or [A]): The Y reading in units dependent on the input
@@ -252,7 +252,7 @@ class SR830(GPIBManagedServer):
 
     @setting(23, 'r', returns='v')
     def r(self, c):
-        """Query the value of R
+        """Query the value of R, the magnitude of the signal.
 
         Returns:
             (Value[V] or [A]): The R reading in units dependent on the input
@@ -264,7 +264,7 @@ class SR830(GPIBManagedServer):
 
     @setting(24, 'theta', returns='v[deg]')
     def theta(self, c):
-        """Query the value of theta
+        """Query the value of theta: arctan(quadrature-signal/in-phase-signal).
 
         Returns:
             (Value[deg]): The value of theta.
