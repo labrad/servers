@@ -44,9 +44,9 @@ def getTC(i):
     elif i > 19:
         return getTC(19)
     elif i % 2 == 0:
-        return 10**(-5 + i/2) * unit.s
+        return 10**(-5 + i/2) * units.s
     else:
-        return 3*10**(-5 + i/2) * unit.s
+        return 3*10**(-5 + i/2) * units.s
 
 def getSensitivity(i):
     ''' converts form the integer label used by the SR830 to a sensitivity '''
@@ -96,7 +96,7 @@ class SR830(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         if ph is not None:
-            yield dev.write('PHAS ' + str(ph['deg']))
+            yield dev.write('PHAS {}'.format(ph['deg']))
         resp = yield dev.query('PHAS?')
         returnValue(float(resp)*deg)
 
@@ -115,8 +115,7 @@ class SR830(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         if ref is not None:
-            source = str(int(ref))
-            yield dev.write('FMOD ' + source)
+            yield dev.write('FMOD {}'.format(int(ref)))
         resp = yield dev.query('FMOD?')
         returnValue(bool(int(resp)))
 
@@ -158,6 +157,7 @@ class SR830(GPIBManagedServer):
     @setting(16, 'Harmonic', h=[': query harmonic', 'i: set harmonic'], returns='i')
     def harmonic(self, c, h=None):
         """Set or get the harmonic.  
+        
         Harmonic can be set as high as 19999 but is capped at a frequency of 102kHz.
 
         Args:
@@ -186,7 +186,7 @@ class SR830(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         if amp is not None:
-            yield dev.write('SLVL '.format(amp['V']))
+            yield dev.write('SLVL {}'.format(amp['V']))
         resp = yield dev.query('SLVL?')
         returnValue(float(resp)*V)
 
@@ -290,7 +290,7 @@ class SR830(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         if i is not None:
-            yield dev.write('OFLT ' + str(i))
+            yield dev.write('OFLT {}'.format(i))
         resp = yield dev.query("OFLT?")
         returnValue(getTC(int(resp)))
 
@@ -313,7 +313,7 @@ class SR830(GPIBManagedServer):
         else:
             u = units.uA
         if i is not None:
-            yield dev.write('SENS ' + str(i))
+            yield dev.write('SENS {}'.format(i))
         resp = yield dev.query("SENS?")
         returnValue(getSensitivity(int(resp)) * u)
 
@@ -367,7 +367,7 @@ class SR830(GPIBManagedServer):
             resp = yield dev.query("OFSL?")
             returnValue(int(resp))
         else:
-            yield dev.write('OFSL ' + str(i))
+            yield dev.write('OFSL {}'.format(i))
             returnValue(i)
 
     @setting(34, 'Wait Time', returns='v[s]')
