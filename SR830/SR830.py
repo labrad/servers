@@ -129,6 +129,7 @@ class SR830(GPIBManagedServer):
                 existing frequency
 
         Returns:
+            (value[Hz]): The internal excitation frequency.
         """
         dev = self.selectedDevice(c)
         if f is not None:
@@ -156,17 +157,21 @@ class SR830(GPIBManagedServer):
 
     @setting(16, 'Harmonic', h=[': query harmonic', 'i: set harmonic'], returns='i')
     def harmonic(self, c, h = None):
-        """
-        Get/set the harmonic.
-        Harmonic can be set as high as 19999 but is capped at a frequency of 102kHz.
+        """Set or get the harmonic.  Harmonic can be set as high as 19999
+            but is capped at a frequency of 102kHz.
+
+        Args:
+            h (i): The harmonic to set.  Integer from 1 to 19999, but frequency
+                must be less than 102kHz (that is, harmonic * f0).
+
+        Returns:
+            (i): The harmonic being measured.
         """
         dev = self.selectedDevice(c)
-        if h is None:
-            resp = yield dev.query('HARM?')
-            returnValue(int(resp))
-        else:
+        if h is not None:
             yield dev.write('HARM ' + str(h))
-            returnValue(h)
+        resp = yield dev.query('HARM?')
+        returnValue(int(resp))
 
     @setting(17, 'Sine Out Amplitude', amp=[': query', 'v[V]: set'], returns='v[V]')
     def sine_out_amplitude(self, c, amp = None):
