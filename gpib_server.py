@@ -112,7 +112,7 @@ class GPIBBusServer(LabradServer):
                     elif addr.startswith('TCPIP'):
                         instName = addr
                     elif addr.startswith('USB'):
-                        instName = addr + '::INSTR'
+                        instName = addr
                     else:
                         continue
                     instr = rm.get_instrument(instName)
@@ -193,14 +193,6 @@ class GPIBBusServer(LabradServer):
         instr.write(data)
         ans = instr.read_raw()
         return str(ans).strip()
-        
-    @setting(150, data='s', returns='*v[]')
-    def query_binary_values(self, c, data, format = 'h', big_endian = False):
-        instr = self.getDevice(c)
-        instr.timeout = c['timeout']['ms']
-        ans = instr.query_binary_values(data, format, big_endian)
-
-        return np.array(ans)
         
     @setting(20, returns='*s')
     def list_devices(self, c):
