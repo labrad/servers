@@ -41,6 +41,7 @@ from twisted.internet.defer import inlineCallbacks
 from twisted.internet.reactor import callLater
 from labrad.errors import DeviceNotSelectedError
 import labrad.units as units
+import numpy as np
 import visa
 
 
@@ -195,11 +196,11 @@ class GPIBBusServer(LabradServer):
         return str(ans).strip()
         
     @setting(10, data='s', returns='*v[]')
-    def query_binary_values(self, c, data, format = 'h', big_endian = False):
+    def query_binary_values(self, c, data, format='h', big_endian=False):
         instr = self.getDevice(c)
         instr.timeout = c['timeout']['ms']
         ans = instr.query_binary_values(data, format, big_endian)
-        return np.array(ans)
+        return ans
         
     @setting(20, returns='*s')
     def list_devices(self, c):
