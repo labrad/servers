@@ -194,6 +194,13 @@ class GPIBBusServer(LabradServer):
         ans = instr.read_raw()
         return str(ans).strip()
         
+    @setting(6, data='s', returns='*v[]')
+    def query_binary_values(self, c, data, format = 'h', big_endian = False):
+        instr = self.getDevice(c)
+        instr.timeout = c['timeout']['ms']
+        ans = instr.query_binary_values(data, format, big_endian)
+        return np.array(ans)
+        
     @setting(20, returns='*s')
     def list_devices(self, c):
         """Get a list of devices on this bus."""
