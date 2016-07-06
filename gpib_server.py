@@ -194,14 +194,21 @@ class GPIBBusServer(LabradServer):
         instr.write(data)
         ans = instr.read_raw()
         return str(ans).strip()
-        
-    @setting(10, data='s', returns='*v[]')
-    def query_binary_values(self, c, data, format='h', big_endian=False):
+
+    @setting(7, n_bytes='w', returns='s')
+    def read_raw(self, c, n_bytes=None):
+        """Read from the GPIB bus.  No .strip()
+
+        If specified, reads only the given number of bytes.
+        Otherwise, reads until the device stops sending.
+        """
         instr = self.getDevice(c)
-        instr.timeout = c['timeout']['ms']
-        ans = instr.query_binary_values(data, format, big_endian)
-        return ans
-        
+        if n_bytes is None:
+            ans = instr.read_raw()
+        else:
+            ans = instr.read_raw(n_bytes)
+        return str(ans)
+
     @setting(20, returns='*s')
     def list_devices(self, c):
         """Get a list of devices on this bus."""

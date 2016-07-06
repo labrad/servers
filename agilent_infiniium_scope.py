@@ -38,7 +38,6 @@ from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 import labrad.units as U
 from struct import unpack, calcsize
-
 import numpy as np
 
 COUPLINGS = ['AC', 'DC', 'GND']
@@ -46,6 +45,7 @@ TRIG_CHANNELS = ['AUX','CH1','CH2','CH3','CH4','LINE']
 VERT_DIVISIONS = 8.0
 HORZ_DIVISIONS = 10.0
 SCALES = []
+
 
 class AgilentDSO91304AServer(GPIBManagedServer):
     name = 'Agilent Infiniium Oscilloscope'
@@ -353,11 +353,11 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         OUTPUT - (array voltage in volts, array time in seconds)
         """
         #raise Exception('Doesnt work yet. Please fix lines defining traceVolts and time.')
-##        DATA ENCODINGS
-##        RIB - signed, MSB first
-##        RPB - unsigned, MSB first
-##        SRI - signed, LSB first
-##        SRP - unsigned, LSB first
+        ##        DATA ENCODINGS
+        ##        RIB - signed, MSB first
+        ##        RPB - unsigned, MSB first
+        ##        SRI - signed, LSB first
+        ##        SRP - unsigned, LSB first
         wordLength = 2 #Hardcoding to set data transer word length to 2 bytes
 
         dev = self.selectedDevice(c)
@@ -371,18 +371,28 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         #Transfer waveform preamble
         preamble = yield dev.query('WAV:PRE?')
         #Transfer waveform data
-        trace = dev.query_binary_values(
-            ':WAVeform:SOURce CHANnel4;DATA?', "h", False)
+        p = dev._packet(). \
+            write('WAV:DATA?'). \
+            read_raw()
+
+        result = yield p.send()
+        binary = result['read_raw']
+        binary = binary[:-1]
+        print len(binary)
         #Parse waveform preamble
         preambleDict = _parsePreamble(preamble)
         print preambleDict
         #Parse binary
+        trace = _parseBinaryData(binary, wordLength = wordLength)
         #Convert from binary to volts
         traceVolts = ((trace*float(preambleDict['yStep'])+float(preambleDict['yOrigin'])))
         numPoints = int(preambleDict['numPoints'])
+
+        print 'Expected {} points, got {} point'.format(numPoints, len(traceVolts))
+
         time = np.linspace(float(preambleDict['xFirst']),
-                              (numPoints-1) * float(preambleDict['xStep'])+float(preambleDict['xFirst']),
-                              numPoints)
+                           (numPoints-1) * float(preambleDict['xStep'])+float(preambleDict['xFirst']),
+                           numPoints)
 
         returnValue((time*U.ns*1e9, traceVolts*U.V))
 
@@ -452,6 +462,31 @@ def _parsePreamble(preamble):
     preambleDict['xUnit'] = unitType(preambleDict['xUnits'])
     preambleDict['yUnit'] = unitType(preambleDict['yUnits'])
     return (preambleDict)
+
+
+def _parseBinaryData(data, wordLength):
+    """Parse binary data packed as string of RIBinary
+    """
+    formatChars = {'1':'b','2':'h', '4':'f'}
+    formatChar = formatChars[str(wordLength)]
+
+    #Get rid of header crap
+    #unpack binary data
+    if wordLength == 1:
+        lenHeader = int(data[1])
+        dat = data[(2+lenHeader):]
+        dat = np.array(unpack(formatChar*(len(dat)/wordLength),dat))
+    elif wordLength == 2:
+        lenHeader = int(data[1])
+        dat = data[(2+lenHeader):]
+        dat = dat[-calcsize('>' + formatChar*(len(dat)/wordLength)):]
+        dat = np.array(unpack('>' + formatChar*(len(dat)/wordLength),dat))
+    elif wordLength == 4:
+        lenHeader = int(data[1])
+        dat = data[(2+lenHeader):]
+        dat = dat[-calcsize('>' + formatChar*(len(dat)/wordLength)):]
+        dat = np.array(unpack('>' + formatChar*(len(dat)/wordLength),dat))
+    return dat
 
 __server__ = AgilentDSO91304AServer()
 
