@@ -194,7 +194,7 @@ class GPIBBusServer(LabradServer):
         ans = instr.read_raw()
         return str(ans).strip()
         
-    @setting(6, data='s', returns='*v[]')
+    @setting(10, data='s', returns='*v[]')
     def query_binary_values(self, c, data, format = 'h', big_endian = False):
         instr = self.getDevice(c)
         instr.timeout = c['timeout']['ms']
