@@ -60,7 +60,7 @@ class AgilentFunctionGenerator(GPIBManagedServer):
            val (str): The loading impedance.  Allowed values are '50' or 'INF'
         """
         allowed = ['50', 'INF']
-        if setting not in allowed:
+        if val not in allowed:
             raise Exception('allowed settings are: %s' % allowed)
         dev = self.selectedDevice(c)
         dev.write('OUTP:LOAD {}'.format(val))
