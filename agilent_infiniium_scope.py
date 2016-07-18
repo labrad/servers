@@ -378,7 +378,6 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         result = yield p.send()
         binary = result['read_raw']
         binary = binary[:-1]
-        print len(binary)
         #Parse waveform preamble
         preambleDict = _parsePreamble(preamble)
         print preambleDict
