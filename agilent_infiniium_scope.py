@@ -227,20 +227,22 @@ class AgilentDSO91304AServer(GPIBManagedServer):
 
     @setting(131, channel = 'i', level = 'v', returns = 'v{level}')
     def trigger_at(self, c, channel, level=None):
-        """Get or set the trigger source and the trigger voltage for edge mode
-         triggering.
-        Channel must be one of 0 (AUX), 1, 2, 3, 4, 5(LINE).
+        """Get or set the trigger source and voltage for edge triggering.
+
+        Channel must be one of 0 (AUX), 1, 2, 3, 4, or 5 (LINE).
+        If trigger source is 5 (LINE) the level will be ignored.
         """
         dev = self.selectedDevice(c)
         if channel not in [0, 1, 2, 3, 4, 5]:
-            raise Exception('Select valid trigger channel')
+            raise ValueError('Invalid trigger channel: {}'
+                             'Valid channels are [0, 1, 2, 3, 4, 5]'
+                             '0 for AUX, 5 for LINE'.format(channel))
         if channel == 0:
             channel = 'AUX'
         elif channel == 5:
             channel = 'LINE'
         elif isinstance(channel, int):
             channel = 'CHAN{}'.format(channel)
-            pass
 
         yield dev.write('TRIG:EDGE:SOUR {}'.format(channel))
         if channel != 'LINE':
@@ -248,7 +250,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
             #set trigger level
             resp = yield dev.query('TRIG:LEV? {}'.format(channel))
         else:
-            resp=0.0
+            resp=  0.0
         level = float(resp)
         returnValue(level)
 
@@ -371,27 +373,26 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         #Transfer waveform preamble
         preamble = yield dev.query('WAV:PRE?')
         #Transfer waveform data
-        p = dev._packet(). \
-            write('WAV:DATA?'). \
-            read_raw()
+        p = dev._packet().write('WAV:DATA?').read_raw()
 
         result = yield p.send()
         binary = result['read_raw']
         binary = binary[:-1]
         #Parse waveform preamble
         preambleDict = _parsePreamble(preamble)
-        print preambleDict
+
         #Parse binary
-        trace = _parseBinaryData(binary, wordLength = wordLength)
+        trace = _parseBinaryData(binary, wordLength=wordLength)
+
         #Convert from binary to volts
-        traceVolts = ((trace*float(preambleDict['yStep'])+float(preambleDict['yOrigin'])))
+        step, origin = (float(preambleDict['yStep']),
+                        float(preambleDict['yOrigin']))
+        traceVolts = (trace * step) + origin
         numPoints = int(preambleDict['numPoints'])
 
-        print 'Expected {} points, got {} point'.format(numPoints, len(traceVolts))
-
-        time = np.linspace(float(preambleDict['xFirst']),
-                           (numPoints-1) * float(preambleDict['xStep'])+float(preambleDict['xFirst']),
-                           numPoints)
+        first, step = (float(preambleDict['xFirst']),
+                       float(preambleDict['xStep']))
+        time = np.linspace(first, first + (numPoints-1) * step, numPoints)
 
         returnValue((time*U.ns*1e9, traceVolts*U.V))
 
@@ -474,17 +475,17 @@ def _parseBinaryData(data, wordLength):
     if wordLength == 1:
         lenHeader = int(data[1])
         dat = data[(2+lenHeader):]
-        dat = np.array(unpack(formatChar*(len(dat)/wordLength),dat))
+        dat = np.array(unpack(formatChar * (len(dat)/wordLength), dat))
     elif wordLength == 2:
         lenHeader = int(data[1])
         dat = data[(2+lenHeader):]
-        dat = dat[-calcsize('>' + formatChar*(len(dat)/wordLength)):]
-        dat = np.array(unpack('>' + formatChar*(len(dat)/wordLength),dat))
+        dat = dat[-calcsize('>' + formatChar * (len(dat)/wordLength)):]
+        dat = np.array(unpack('>' + formatChar * (len(dat)/wordLength), dat))
     elif wordLength == 4:
         lenHeader = int(data[1])
         dat = data[(2+lenHeader):]
-        dat = dat[-calcsize('>' + formatChar*(len(dat)/wordLength)):]
-        dat = np.array(unpack('>' + formatChar*(len(dat)/wordLength),dat))
+        dat = dat[-calcsize('>' + formatChar * (len(dat)/wordLength)):]
+        dat = np.array(unpack('>' + formatChar * (len(dat)/wordLength), dat))
     return dat
 
 __server__ = AgilentDSO91304AServer()
