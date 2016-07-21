@@ -76,7 +76,6 @@ class AgilentFunctionGenerator(GPIBManagedServer):
             raise Exception(
                     'Signal Generator only puts out -5 to 5 volts in DC Voltage')
         dev = self.selectedDevice(c)
-        dev.write('APPL:DC')
         dev.write('VOLT:OFFS {}'.format(val['V']))
     
     @setting(14, val='v[V]', returns='')
@@ -87,7 +86,6 @@ class AgilentFunctionGenerator(GPIBManagedServer):
             val (value[V]): The AC Voltage to be set
         """
         dev = self.selectedDevice(c)
-        dev.write('APPL:SIN')
         dev.write('SOUR:VOLT {}'.format(val['V']))
     
     @setting(15, val='v[Hz]', returns='')
@@ -98,8 +96,18 @@ class AgilentFunctionGenerator(GPIBManagedServer):
             val (value[Hz]): The frequency to be set
         """
         dev = self.selectedDevice(c)
-        dev.write('APPL:SIN')
         dev.write('SOUR:FREQ {}'.format(val['Hz']))
+
+    @setting(16, val='s', returns='')
+    def set_waveform(self, c, val='DC'):
+        """Puts generator into AC mode with given frequency
+
+        Args:
+            val (str): The output waveform type
+        """
+        dev = self.selectedDevice(c)
+        dev.write('APPL:{}'.format(val))
+
 
 __server__ = AgilentFunctionGenerator()
 
