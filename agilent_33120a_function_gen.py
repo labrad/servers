@@ -51,55 +51,147 @@ class AgilentFunctionGenerator(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         dev.write('*CLS')
-      
-    @setting(12, val='s', returns='')
-    def set_impedance(self, c, val='50'):
-        """Sets the loading impedance
-        
-        Args: 
-           val (str): The loading impedance.  Allowed values are '50' or 'INF'
-        """
-        allowed = ['50', 'INF']
-        if val not in allowed:
-            raise Exception('allowed settings are: %s' % allowed)
-        dev = self.selectedDevice(c)
-        dev.write('OUTP:LOAD {}'.format(val))
 
-    @setting(13, val='v[V]', returns='')
-    def set_dc_voltage(self, c, val=0*V):
-        """Puts generator into DC mode with given voltage.
+      
+    @setting(12, val='s', returns='v[Ohm]')
+    def load_impedance(self, c, val='50'):
+        """Gets and sets the loading impedance
         
         Args: 
-            val (value[V]): The DC Voltage to be set
+           val (str): The loading impedance.
+                Allowed values are '50' or 'INF'
         """
-        if val < -5*U.V or val > 5*U.V:
-            raise Exception(
-                    'Signal Generator only puts out -5 to 5 volts in DC Voltage')
+
         dev = self.selectedDevice(c)
-        dev.write('APPL:DC')
-        dev.write('VOLT:OFFS {}'.format(val['V']))
+        if val is not None:
+            allowed = ['50', 'INF']
+            if val not in allowed:
+                raise Exception('allowed settings are: %s' % allowed)
+            dev.write('OUTP:LOAD {}'.format(val))
+        status = yield dev.query('OUTP:LOAD?')
+        returnValue(float(status)*U.Ohm)
+
+
+    @setting(13, val='v[V]', returns='v[V]')
+    def dc_voltage(self, c, val=None):
+        """Gets or sets DC offset voltage.
+        
+        Args: 
+            val (value[V]): The DC Voltage to be set if None
+                queries the DC Voltage
+        Returns:
+            (val): The DC offset
+        """
+
+        dev = self.selectedDevice(c)
+        if val is not None:
+            if val < -5*U.V or val > 5*U.V:
+                raise Exception(
+                        'Signal Generator only puts ' +
+                        'out -5 to 5 volts in DC Voltage')
+
+            dev.write('VOLT:OFFS {}'.format(val['V']))
+
+        status = yield dev.query('APPL?')
+        returnValue(self.parse_status_string(status)['offset'])
+
+
+    @setting(14, val='v[V]', returns='v[V]')
+    def ac_voltage(self, c, val=None):
+        """Gets or sets AC mode peak to peak voltage.
+        
+        Args: 
+            val (value[V]): The AC Voltage to be set,
+            If None query the AC-Voltage.
+
+        Returns:
+            (val): The AC Voltage Amplitude
+        """
+
+        dev = self.selectedDevice(c)
+        if val is not None:
+            dev.write('SOUR:VOLT {}'.format(val['V']))
+        status = yield dev.query('APPL?')
+        returnValue (self.parse_status_string(status)['amplitude'])
+
     
-    @setting(14, val='v[V]', returns='')
-    def set_ac_voltage(self, c, val='1*U.V'):
-        """Puts generator into AC mode with given peak to peak voltage.
+    @setting(15, val='v[Hz]', returns='v[Hz]')
+    def frequency(self, c, val=None):
+        """Gets or sets AC mode frequency
         
         Args: 
-            val (value[V]): The AC Voltage to be set
+            val (value[Hz]): The frequency to be set,
+             if None query the frequency.
+
+        Returns:
+            (val):  The waveform frequency
         """
+
         dev = self.selectedDevice(c)
-        dev.write('APPL:SIN')
-        dev.write('SOUR:VOLT {}'.format(val['V']))
-    
-    @setting(15, val='v[Hz]', returns='')
-    def set_frequency(self, c, val='100*U.Hz'):
-        """Puts generator into AC mode with given frequency
-        
-        Args: 
-            val (value[Hz]): The frequency to be set
+        if val is not None:
+            dev.write('SOUR:FREQ {}'.format(val['Hz']))
+        status = yield dev.query('APPL?')
+        returnValue(self.parse_status_string(status)['frequency'])
+
+
+    @setting(16, val='s', returns='s')
+    def waveform(self, c, val=None):
+        """Gets or sets waveform type.
+
+        Args:
+            val (str): The output waveform type allowed values are:
+                'SINusoid','SQUare','TRIangle' (Max frequency .1 MHz),
+                'RAMP','NOISe'
+        Returns:
+            (str):  The output waveform type
         """
+
         dev = self.selectedDevice(c)
-        dev.write('APPL:SIN')
-        dev.write('SOUR:FREQ {}'.format(val['Hz']))
+        if val is not None:
+            dev.write('FUNC:SHAP {}'.format(val))
+        status = yield dev.query('APPL?')
+
+        returnValue(self.parse_status_string(status)['waveform'])
+
+
+    @setting(17)
+    def output_off(self, c):
+        """Sets output to be 'Off' by changing to DC mode and setting
+            DC voltage to 0 V.
+
+        Args:
+            val (str): The output.
+        Returns:
+            (str):  The output.
+        """
+
+        dev = self.selectedDevice(c)
+        dev.write('FUNC:SHAP DC')
+        dev.write('VOLT:OFFS 0')
+
+
+    def parse_status_string(self, status_string):
+        """Parses the status string from Agilent33120A
+
+        Args:
+            val(str):  The string resulting from APPL? command
+
+        Returns:
+            (str):  The current waveform type
+            (val):  The frequency of that waveform
+            (val):  The amplitude of that waveform
+            (val):  The dc offset for that waveform.
+        """
+
+        status_string = status_string[1:-1]
+        waveform = status_string[:4].strip(' ')
+        [frequency, amplitude, offset] = status_string[4:].split(',')
+        status = {'waveform': waveform,
+                  'frequency': float(frequency)*U.Hz,
+                  'amplitude': float(amplitude)*U.V,
+                  'offset': float(offset)*U.V}
+
+        return status
 
 __server__ = AgilentFunctionGenerator()
 
