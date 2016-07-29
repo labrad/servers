@@ -371,13 +371,13 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         OUTPUT - (array voltage in volts, array time in seconds)
         """
         # raise Exception('Doesnt work yet. Please fix lines defining
-        # traceVolts and time.')
+        # trace_volts and time.')
         # DATA ENCODINGS
         # RIB - signed, MSB first
         # RPB - unsigned, MSB first
         # SRI - signed, LSB first
         # SRP - unsigned, LSB first
-        wordLength = 2  # Hardcoding to set data transer word length to 2 bytes
+        word_length = 2  # Hardcoding to set data transer word length to 2 bytes
         
         dev = self.selectedDevice(c)
         yield dev.write('WAV:SOUR CHAN{}'.format(channel))
@@ -395,27 +395,27 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         binary = result['read_raw']
         binary = binary[:-1]
         # Parse waveform preamble
-        preambleDict = _parsePreamble(preamble)
+        preample_dict = _parsePreamble(preamble)
         # Parse binary
-        trace = _parseBinaryData(binary, wordLength=wordLength)
+        trace = _parseBinaryData(binary, word_length=word_length)
         # Convert from binary to volts
 
-        y_step = float(preambleDict['yStep'])
-        origin = float(preambleDict['yOrigin'])
-        traceVolts = (trace * y_step) + origin
+        y_step = float(preample_dict['yStep'])
+        origin = float(preample_dict['yOrigin'])
+        trace_volts = (trace * y_step) + origin
 
-        numPoints = int(preambleDict['numPoints'])
-        x_step = float(preambleDict['xStep'])
-        first = float(preambleDict['xFirst'])
-        time = numpy.linspace(first, first + (numPoints-1) * x_step, numPoints)
+        num_points = int(preample_dict['numPoints'])
+        x_step = float(preample_dict['xStep'])
+        first = float(preample_dict['xFirst'])
+        time = numpy.linspace(first, first + (num_points-1) * x_step, num_points)
 
-        returnValue((time*U.ns*1e9, traceVolts*U.V))
+        returnValue((time*U.ns*1e9, trace_volts*U.V))
 
 
 def _parsePreamble(preamble):
-    preambleVals = preamble.split(',')
+    preamble_vals = preamble.split(',')
     '''
-    preambleKeys = [('byteFormat',True),
+    preamble_keys = [('byteFormat',True),
                     ('dataType',False),
                     ('numPoints',True),
                     ('count',False),
@@ -440,7 +440,7 @@ def _parsePreamble(preamble):
                     ('maxBW',False),
                     ('minBW',False)]
     '''
-    preambleKeys = [('byteFormat', True),
+    preamble_keys = [('byteFormat', True),
                 ('dataType', True),
                 ('numPoints', True),
                 ('count', True),
@@ -464,44 +464,45 @@ def _parsePreamble(preamble):
                 ('yUnits', True),
                 ('maxBW', True),
                 ('minBW', True)]
-    preambleDict = {}
-    for key, val in zip(preambleKeys, preambleVals):
+    preample_dict = {}
+    for key, val in zip(preamble_keys, preamble_vals):
         if key[1]:
-            preambleDict[key[0]] = val
+            preample_dict[key[0]] = val
 
-    def unitType(num):
+    def unit_type(num):
         if num == '1':
             return 'V'
         elif num == '2':
             return 'ns'
         else:
             raise Exception('Units not time or voltage')
-    preambleDict['xUnit'] = unitType(preambleDict['xUnits'])
-    preambleDict['yUnit'] = unitType(preambleDict['yUnits'])
-    return (preambleDict)
+    preample_dict['xUnit'] = unit_type(preample_dict['xUnits'])
+    preample_dict['yUnit'] = unit_type(preample_dict['yUnits'])
+    return (preample_dict)
 
-def _parseBinaryData(data, wordLength):
+
+def _parseBinaryData(data, word_length):
     """Parse binary data packed as string of RIBinary
     """
-    formatChars = {'1': 'b', '2': 'h', '4': 'f'}
-    formatChar = formatChars[str(wordLength)]
+    format_chars = {'1': 'b', '2': 'h', '4': 'f'}
+    format_char = format_chars[str(word_length)]
 
     # Get rid of header
     # unpack binary data
-    if wordLength == 1:
-        lenHeader = int(data[1])
-        dat = data[(2+lenHeader):]
-        dat = np.array(unpack(formatChar*(len(dat)/wordLength), dat))
-    elif wordLength == 2:
-        lenHeader = int(data[1])
-        dat = data[(2+lenHeader):]
-        dat = dat[-calcsize('>' + formatChar*(len(dat)/wordLength)):]
-        dat = np.array(unpack('>' + formatChar*(len(dat)/wordLength), dat))
-    elif wordLength == 4:
-        lenHeader = int(data[1])
-        dat = data[(2+lenHeader):]
-        dat = dat[-calcsize('>' + formatChar*(len(dat)/wordLength)):]
-        dat = np.array(unpack('>' + formatChar*(len(dat)/wordLength), dat))
+    if word_length == 1:
+        len_header = int(data[1])
+        dat = data[(2+len_header):]
+        dat = np.array(unpack(format_char*(len(dat)/word_length), dat))
+    elif word_length == 2:
+        len_header = int(data[1])
+        dat = data[(2+len_header):]
+        dat = dat[-calcsize('>' + format_char*(len(dat)/word_length)):]
+        dat = np.array(unpack('>' + format_char*(len(dat)/word_length), dat))
+    elif word_length == 4:
+        len_header = int(data[1])
+        dat = data[(2+len_header):]
+        dat = dat[-calcsize('>' + format_char*(len(dat)/word_length)):]
+        dat = np.array(unpack('>' + format_char*(len(dat)/word_length), dat))
     return dat
 
 __server__ = AgilentDSO91304AServer()
