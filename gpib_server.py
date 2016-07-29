@@ -62,7 +62,9 @@ timeout = 20
 ### END NODE INFO
 """
 
+
 KNOWN_DEVICE_TYPES = ('GPIB', 'TCPIP', 'USB')
+
 
 class GPIBBusServer(LabradServer):
     """Provides direct access to GPIB-enabled devices."""
