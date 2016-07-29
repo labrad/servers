@@ -205,13 +205,12 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         if mode is not None:
-            if mode is not None:
-                if isinstance(mode, str):
-                    mode = {'ON': 1, 'OFF': 0}[mode]
-                elif isinstance(mode, bool):
-                    mode = int(mode)
-                elif isinstance(mode, int):
-                    pass       
+            if isinstance(mode, str):
+                mode = {'ON': 1, 'OFF': 0}[mode]
+            elif isinstance(mode, bool):
+                mode = int(mode)
+            elif isinstance(mode, int):
+                pass
             yield dev.write('ACQ:AVER {}'.format(mode))
         resp = yield dev.query('ACQ:AVER?')
         returnValue(resp) 
