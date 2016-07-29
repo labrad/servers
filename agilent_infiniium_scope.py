@@ -62,63 +62,6 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         yield dev.query('*CLS;*OPC?')
 
-    #Channel settings
-    @setting(100, channel='i', returns='(vvvvsvss)')
-    def channel_infoNONEXISTANT(self, c, channel):
-        """channel(int channel)
-        Get information on one of the scope channels.
-
-        OUTPUT
-        Tuple of (probeAtten, termination, scale, position, coupling, bwLimit,
-        invert, units)
-        """
-        raise Exception('Not yet implemented')
-
-        # NOTES
-        # The scope's response to 'CH<x>?' is a string of format
-        # '1.0E1;1.0E1;2.5E1;0.0E0;DC;OFF;OFF;"V"'
-        # These strings represent respectively,
-        # probeAttenuation;termination;vertScale;vertPosition;coupling;
-        # bandwidthLimit;invert;vertUnit
-
-        dev = self.selectedDevice(c)
-        resp = yield dev.query('CH{}?'.format(channel))
-        (bwLimit, coupling, deskew, offset, invert, position, scale,
-         termination, probeCal, probeAtten, resistance, unit, textID,
-         textSN, extAtten, extUnits, textLabel, xPos, yPos) = resp.split(';')
-
-        # Convert strings to numerical data when appropriate
-        probeAtten = float(probeAtten)
-        termination = float(termination)
-        scale = float(scale)
-        position = float(position)
-        coupling = coupling
-        bwLimit = float(bwLimit)
-        invert = invert
-        unit = unit[1:-1]  # Gets rid of an extra set of quotation marks
-
-        returnValue((probeAtten, termination, scale, position, coupling,
-                     bwLimit, invert, unit))
-
-    @setting(111, channel='i', coupling='s', returns=['s'])
-    def couplingNONEXISTANT(self, c, channel, coupling = None):
-        """Get or set the coupling of a specified channel
-
-        Coupling can be "AC", "DC", or "GND"
-        """
-        raise Exception('Not yet implemented')
-        dev = self.selectedDevice(c)
-        if coupling is None:
-            resp = yield dev.query('CH{}:COUP?'.format(channel))
-        else:
-            coupling = coupling.upper()
-            if coupling not in COUPLINGS:
-                raise Exception('Coupling must be "AC", "DC", or "GND"')
-            else:
-                yield dev.write('CH{}:COUP {}'.format(channel, coupling))
-                resp = yield dev.query('CH{}:COUP?'.format(channel))
-        returnValue(resp)
-
     @setting(112, channel='i', scale='v', returns=['v'])
     def scale(self, c, channel, scale=None):
         """Get or set the vertical scale of a channel in voltage per division.
@@ -129,24 +72,6 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         resp = yield dev.query('CHAN{}:SCAL?'.format(channel))
         scale = float(resp)
         returnValue(scale)
-
-    @setting(113, channel='i', factor='i', returns=['s'])
-    def probeNONEXISTANT(self, c, channel, factor=None):
-        """Get or set the probe attenuation factor.
-        """
-        raise Exception('Not yet implemented')
-        probe_factors = [1, 10, 20, 50, 100, 500, 1000]
-        dev = self.selectedDevice(c)
-        ch_string = 'CH{}:'.format(channel)
-        if factor is None:
-            resp = yield dev.query('{}PRO?'.format(ch_string))
-        elif factor in probe_factors:
-            yield dev.write('{}PRO {}'.format(ch_string, factor))
-            resp = yield dev.query('{}PRO?'.format(ch_string))
-        else:
-            raise Exception('Probe attenuation factor '
-                            'not in {}'.format(probe_factors))
-        returnValue(resp)
 
     @setting(114, channel='i', state='?', returns='s')
     def channelOnOff(self, c, channel, state=None):
@@ -171,20 +96,6 @@ class AgilentDSO91304AServer(GPIBManagedServer):
             yield dev.write('CHAN{}:DISP {}'.format(channel, state))
             resp = yield dev.query('CHAN{}:DISP?'.format(channel))
         returnValue(resp)
-
-    @setting(115, channel='i', invert='i', returns=['i'])
-    def invertNONEXISTANT(self, c, channel, invert=None):
-        """Get or set the inversion status of a channel
-        """
-        raise Exception('Not yet implemented')
-        dev = self.selectedDevice(c)
-        if invert is None:
-            resp = yield dev.query('CH{}:INV?'.format(channel))
-        else:
-            yield dev.write('CH{}:INV {}'.format(channel, invert))
-            resp = yield dev.query('CH{}:INV?'.format(channel))
-        invert = int(resp)
-        returnValue(invert)
 
     @setting(117, channel='i', position='v', returns=['v'])
     def position(self, c, channel, position=None):
