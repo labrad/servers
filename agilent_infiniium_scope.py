@@ -158,13 +158,15 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         elif isinstance(channel, int):
             channel = 'CHAN{}'.format(channel)
         yield dev.write('TRIG:EDGE:SOUR {}'.format(channel))
-        if channel != 'LINE':
-            # set trigger level
+        if channel == 'LINE':
+            # Cannot set trigger level when triggering off line input.
+            # See http://www.keysight.com/upload/cmc_upload/All/9000_series_prog_ref.pdf#page=914
+            level = 0.0
+        else:
+            # Set trigger level.
             yield dev.write('TRIG:LEV {}, {}'.format(channel, level))
             resp = yield dev.query('TRIG:LEV? {}'.format(channel))
-        else:
-            resp = 0.0
-        level = float(resp)
+            level = float(resp)
         returnValue(level)
 
     @setting(132, slope='s', returns=['s'])
