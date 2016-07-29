@@ -386,7 +386,20 @@ class SR830(GPIBManagedServer):
             returnValue(9*tc)
         else:# slope == 3:
             returnValue(10*tc)
-    
+
+    @setting(35, 'Output Overload', returns='b')
+    def output_overload(self, c):
+        ''' Gets the output overload status bit
+
+        The output overload status bit will return True if the input voltages
+        has exceeded the 'sensitivity' setting since the last time the status
+        bits were read or cleared.  Reading this status bit or sending a *CLS
+        command will reset the value of this status bit to False until another
+        overload event occurs.
+        '''
+        dev = self.selectedDevice(c)
+        resp = yield dev.query("LIAS? 2")
+        returnValue(bool(int(resp)))
 
 __server__ = SR830()
 
