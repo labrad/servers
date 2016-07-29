@@ -83,9 +83,9 @@ class AgilentDSO91304AServer(GPIBManagedServer):
 
         dev = self.selectedDevice(c)
         resp = yield dev.query('CH{}?'.format(channel))
-        bwLimit, coupling, deskew, offset, invert, position, scale,\
-        termination, probeCal, probeAtten, resistance, unit, textID,\
-        textSN, extAtten, extUnits, textLabel, xPos, yPos = resp.split(';')
+        (bwLimit, coupling, deskew, offset, invert, position, scale,
+         termination, probeCal, probeAtten, resistance, unit, textID,
+         textSN, extAtten, extUnits, textLabel, xPos, yPos) = resp.split(';')
 
         # Convert strings to numerical data when appropriate
         probeAtten = T.Value(float(probeAtten), '')
@@ -409,7 +409,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         first = float(preample_dict['xFirst'])
         time = numpy.linspace(first, first + (num_points-1) * x_step, num_points)
 
-        returnValue((time*U.ns*1e9, trace_volts*U.V))
+        returnValue((time * U.ns * 1e9, trace_volts * U.V))
 
 
 def _parsePreamble(preamble):
@@ -492,17 +492,17 @@ def _parseBinaryData(data, word_length):
     if word_length == 1:
         len_header = int(data[1])
         dat = data[(2+len_header):]
-        dat = np.array(unpack(format_char*(len(dat)/word_length), dat))
+        dat = np.array(unpack(format_char * (len(dat)/word_length), dat))
     elif word_length == 2:
         len_header = int(data[1])
         dat = data[(2+len_header):]
-        dat = dat[-calcsize('>' + format_char*(len(dat)/word_length)):]
-        dat = np.array(unpack('>' + format_char*(len(dat)/word_length), dat))
+        dat = dat[-calcsize('>' + format_char * (len(dat)/word_length)):]
+        dat = np.array(unpack('>' + format_char * (len(dat)/word_length), dat))
     elif word_length == 4:
         len_header = int(data[1])
         dat = data[(2+len_header):]
-        dat = dat[-calcsize('>' + format_char*(len(dat)/word_length)):]
-        dat = np.array(unpack('>' + format_char*(len(dat)/word_length), dat))
+        dat = dat[-calcsize('>' + format_char * (len(dat)/word_length)):]
+        dat = np.array(unpack('>' + format_char * (len(dat)/word_length), dat))
     return dat
 
 __server__ = AgilentDSO91304AServer()
