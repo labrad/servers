@@ -303,7 +303,8 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         # Transfer waveform preamble
         preamble = yield dev.query('WAV:PRE?')
         # Transfer waveform data
-        result = yield dev._packet().write('WAV:DATA?').read_raw()
+        p = dev._packet().write('WAV:DATA?').read_raw()
+        result = yield p.send()
         binary = result['read_raw'][:-1]  # drop termination character
         # Parse waveform preamble
         preamble_dict = _parsePreamble(preamble)
