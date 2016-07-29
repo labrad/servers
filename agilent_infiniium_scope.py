@@ -88,12 +88,12 @@ class AgilentDSO91304AServer(GPIBManagedServer):
          textSN, extAtten, extUnits, textLabel, xPos, yPos) = resp.split(';')
 
         # Convert strings to numerical data when appropriate
-        probeAtten = T.Value(float(probeAtten), '')
-        termination = T.Value(float(termination), '')
-        scale = T.Value(float(scale), '')
-        position = T.Value(float(position), '')
+        probeAtten = float(probeAtten)
+        termination = float(termination)
+        scale = float(scale)
+        position = float(position)
         coupling = coupling
-        bwLimit = T.Value(float(bwLimit), '')
+        bwLimit = float(bwLimit)
         invert = invert
         unit = unit[1:-1]  # Get's rid of an extra set of quotation marks
 
