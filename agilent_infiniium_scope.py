@@ -31,14 +31,13 @@ timeout = 20
 """
 
 
-
 from labrad import types as T, util
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 import labrad.units as U
 from struct import unpack, calcsize
-import numpy, re
+import numpy
 
 COUPLINGS = ['AC', 'DC', 'GND']
 TRIG_CHANNELS = ['AUX','CH1','CH2','CH3','CH4','LINE']
