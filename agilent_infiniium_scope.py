@@ -114,6 +114,9 @@ class AgilentDSO91304AServer(GPIBManagedServer):
             if state not in [0, 1, 'ON', 'OFF']:
                 raise Exception('state must be 0, 1, "ON", or "OFF". '
                                 'Got {}'.format(state))
+            if channel not in [1, 2, 3, 4]:
+                raise Exception('channel must be [1, 2, 3, 4], '
+                                'requested {}'.format(channel))
             yield dev.write('CHAN{}:DISP {}'.format(channel, state))
         resp = yield dev.query('CHAN{}:DISP?'.format(channel))
         returnValue(resp)
