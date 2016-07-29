@@ -102,11 +102,9 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         """Get or set the voltage at the center of the screen
         """
         dev = self.selectedDevice(c)
-        if position is None:
-            resp = yield dev.query('CHAN{}:OFFS?'.format(channel))
-        else:
+        if position is not None:
             yield dev.write('CHAN{}:OFFS {}'.format(channel, position))
-            resp = yield dev.query('CHAN{}:OFFS?'.format(channel))
+        resp = yield dev.query('CHAN{}:OFFS?'.format(channel))
         position = float(resp)
         returnValue(position)
         
@@ -131,11 +129,9 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         """Get or set number of averages
         """
         dev = self.selectedDevice(c)
-        if navg is None:
-            resp = yield dev.query('ACQ:COUN?')
-        else:
+        if navg is not None:
             yield dev.write('ACQ:COUN {}'.format(navg))
-            resp = yield dev.query('ACQ:COUN?')
+        resp = yield dev.query('ACQ:COUN?')
         navg_out = int(resp)
         returnValue(navg_out)
 
@@ -234,7 +230,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         Must be 'LEFT', 'CENT'er, or 'RIGH't.
         """
         dev = self.selectedDevice(c)
-        if side is None:
+        if side is not None:
             resp = yield dev.query('TIM:REF?')
         else:
             side = side.upper()
@@ -252,11 +248,9 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         With respect to value from horiz_refpoint, in seconds.
         """
         dev = self.selectedDevice(c)
-        if position is None:
-            resp = yield dev.query('TIM:POS?')
-        else:
+        if position is not None:
             yield dev.write('TIM:POS {}'.format(position))
-            resp = yield dev.query('TIM:POS?')
+        resp = yield dev.query('TIM:POS?')
         position = float(resp)
         returnValue(position)
 
@@ -265,12 +259,9 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         """Get or set the horizontal scale
         """
         dev = self.selectedDevice(c)
-        if scale is None:
-            resp = yield dev.query('TIM:SCAL?')
-        else:
-            scale = format(scale, 'E')
-            yield dev.write('TIM:SCAL {}'.format(scale))
-            resp = yield dev.query('TIM:SCAL?')
+        if scale is not None:
+            yield dev.write('TIM:SCAL {:E}'.format(scale))
+        resp = yield dev.query('TIM:SCAL?')
         scale = float(resp)
         returnValue(scale)
     
@@ -279,10 +270,9 @@ class AgilentDSO91304AServer(GPIBManagedServer):
              returns='*v[ns] {time axis} *v[mV] {scope trace}')
     def get_trace(self, c, channel, start=1, stop=10000):
         """Get a trace from the scope.
+
         OUTPUT - (array voltage in volts, array time in seconds)
         """
-        # raise Exception('Doesnt work yet. Please fix lines defining
-        # trace_volts and time.')
         # DATA ENCODINGS
         # RIB - signed, MSB first
         # RPB - unsigned, MSB first
@@ -301,10 +291,8 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         # Transfer waveform preamble
         preamble = yield dev.query('WAV:PRE?')
         # Transfer waveform data
-        p = dev._packet().write('WAV:DATA?').read_raw()
-        result = yield p.send()
-        binary = result['read_raw']
-        binary = binary[:-1]
+        result = yield dev._packet().write('WAV:DATA?').read_raw()
+        binary = result['read_raw'][:-1]  # drop termination character
         # Parse waveform preamble
         preample_dict = _parsePreamble(preamble)
         # Parse binary
@@ -318,9 +306,10 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         num_points = int(preample_dict['numPoints'])
         x_step = float(preample_dict['xStep'])
         first = float(preample_dict['xFirst'])
-        time = numpy.linspace(first, first + (num_points-1) * x_step, num_points)
+        time_s = numpy.linspace(first, first + (num_points-1) * x_step, num_points)
 
-        returnValue((time * U.ns * 1e9, trace_volts * U.V))
+        time_ns = time_s * 1e9
+        returnValue((time_ns * U.ns, trace_volts * U.V))
 
 
 def _parsePreamble(preamble):
