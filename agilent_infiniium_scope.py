@@ -136,17 +136,17 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         """Get or set the probe attenuation factor.
         """
         raise Exception('Not yet implemented')
-        probeFactors = [1, 10, 20, 50, 100, 500, 1000]
+        probe_factors = [1, 10, 20, 50, 100, 500, 1000]
         dev = self.selectedDevice(c)
-        chString = 'CH{}:'.format(channel)
+        ch_string = 'CH{}:'.format(channel)
         if factor is None:
-            resp = yield dev.query('{}PRO?'.format(chString))
+            resp = yield dev.query('{}PRO?'.format(ch_string))
         elif factor in probeFactors:
-            yield dev.write('{}PRO {}'.format(chString, factor))
+            yield dev.write('{}PRO {}'.format(ch_string, factor))
             resp = yield dev.query('{}PRO?'.format(chString))
         else:
             raise Exception('Probe attenuation factor '
-                            'not in {}'.format(probeFactors))
+                            'not in {}'.format(probe_factors))
         returnValue(resp)
 
     @setting(114, channel='i', state='?', returns='s')
@@ -205,9 +205,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         """Get or set acquisition mode
         """
         dev = self.selectedDevice(c)
-        if mode is None:
-            resp = yield dev.query('ACQ:AVER?')
-        else:
+        if mode is not None:
             if mode is not None:
                 if isinstance(mode, str):
                     mode = {'ON': 1, 'OFF': 0}[mode]
@@ -216,7 +214,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
                 elif isinstance(mode, int):
                     pass       
             yield dev.write('ACQ:AVER {}'.format(mode))
-            resp = yield dev.query('ACQ:AVER?')
+        resp = yield dev.query('ACQ:AVER?')
         returnValue(resp) 
         
     @setting(119, navg='i', returns=['i'])
