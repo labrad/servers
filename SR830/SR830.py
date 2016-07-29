@@ -386,7 +386,14 @@ class SR830(GPIBManagedServer):
             returnValue(9*tc)
         else:# slope == 3:
             returnValue(10*tc)
-    
+
+    @setting(35, 'Output Overload', returns='b')
+    def output_overload(self, c):
+        ''' Gets the output overload status bit'''
+        dev = self.selectedDevice(c)
+        resp = yield dev.query("LIAS? 2")
+        returnValue(bool(int(resp)))
+
 
 __server__ = SR830()
 
