@@ -69,17 +69,17 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         Get information on one of the scope channels.
 
         OUTPUT
-        Tuple of (probeAtten, termination, scale, position, coupling, bwLimit, invert, units)
+        Tuple of (probeAtten, termination, scale, position, coupling, bwLimit,
+        invert, units)
         """
         raise Exception('Not yet implemented')
-        """
-        NOTES
-        The scope's response to 'CH<x>?' is a string of format
-        '1.0E1;1.0E1;2.5E1;0.0E0;DC;OFF;OFF;"V"'
-        These strings represent respectively,
-        probeAttenuation;termination;vertScale;vertPosition;coupling;
-        bandwidthLimit;invert;vertUnit
-        """
+
+        # NOTES
+        # The scope's response to 'CH<x>?' is a string of format
+        # '1.0E1;1.0E1;2.5E1;0.0E0;DC;OFF;OFF;"V"'
+        # These strings represent respectively,
+        # probeAttenuation;termination;vertScale;vertPosition;coupling;
+        # bandwidthLimit;invert;vertUnit
 
         dev = self.selectedDevice(c)
         resp = yield dev.query('CH{}?'.format(channel))
