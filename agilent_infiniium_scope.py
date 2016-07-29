@@ -224,34 +224,37 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if navg is None:
             resp = yield dev.query('ACQ:COUN?')
-        else:    
+        else:
             yield dev.write('ACQ:COUN {}'.format(navg))
             resp = yield dev.query('ACQ:COUN?')
         navg_out = int(resp)
-        returnValue(navg_out)         
+        returnValue(navg_out)
 
     @setting(131, channel='i', level='v', returns='v{level}')
     def trigger_at(self, c, channel, level=None):
         """Get or set the trigger source and voltage for edge mode triggering.
 
-        Channel must be one of 0 (AUX), 1, 2, 3, 4.
+        Channel must be one of 0 (AUX), 1, 2, 3, 4, or 5 (LINE).
+        If trigger source is 5 (LINE) the level will be ignored
         """
         dev = self.selectedDevice(c)
-        if channel==0:
+        if channel not in [0, 1, 2, 3, 4, 5]:
+            raise ValueError('Invalid trigger channel: {}'
+                             'Valid channels are [0, 1, 2, 3, 4, 5]'
+                             '0 for AUX, 5 for LINE'.format(channel))
+        if channel == 0:
             channel = 'AUX'
+        elif channel == 5:
+            channel = 'LINE'
         elif isinstance(channel, int):
-            #channel = 'CHAN%d' %channel
-            pass
-        if channel not in [0, 1, 2, 3, 4]:
-            raise Exception('Select valid trigger channel')
-        if level is None:
-            resp = yield dev.query('TRIG:LEV? CHAN{}'.format(channel))
-        else:
-            # set channel up for edge triggering
-            yield dev.write('TRIG:EDGE:SOUR CHAN{}'.format(channel))
+            channel = 'CHAN{}'.format(channel)
+        yield dev.write('TRIG:EDGE:SOUR {}'.format(channel))
+        if channel != 'LINE':
+            yield dev.write('TRIG:LEV {}, {}'.format(channel, level))
             # set trigger level
-            yield dev.write('TRIG:LEV CHAN{},{}'.format(channel, level))
-            resp = yield dev.query('TRIG:LEV? CHAN{}'.format(channel))
+            resp = yield dev.query('TRIG:LEV? {}'.format(channel))
+        else:
+            resp = 0.0
         level = float(resp)
         returnValue(level)
 
