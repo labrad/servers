@@ -48,7 +48,7 @@ import visa
 ### BEGIN NODE INFO
 [info]
 name = GPIB Bus
-version = 1.3.2-no-refresh
+version = 1.4.0-no-refresh
 description = Gives access to GPIB devices via pyvisa.
 instancename = %LABRADNODE% GPIB Bus
 
@@ -172,8 +172,10 @@ class GPIBBusServer(LabradServer):
     def read(self, c, n_bytes=None):
         """Read from the GPIB bus.
 
-        If specified, reads only the given number of bytes.
-        Otherwise, reads until the device stops sending.
+        Termination characters, if any, will be stripped.
+        This includes any bytes corresponding to termination in
+        binary data. If specified, reads only the given number
+        of bytes. Otherwise, reads until the device stops sending.
         """
         instr = self.getDevice(c)
         if n_bytes is None:
@@ -193,6 +195,21 @@ class GPIBBusServer(LabradServer):
         instr.write(data)
         ans = instr.read_raw()
         return str(ans).strip()
+
+    @setting(7, n_bytes='w', returns='y')
+    def read_raw(self, c, n_bytes=None):
+        """Read raw bytes from the GPIB bus.
+
+        Termination characters, if any, will not be stripped.
+        If n_bytes is specified, reads only that many bytes.
+        Otherwise, reads until the device stops sending.
+        """
+        instr = self.getDevice(c)
+        if n_bytes is None:
+            ans = instr.read_raw()
+        else:
+            ans = instr.read_raw(n_bytes)
+        return bytes(ans)
 
     @setting(20, returns='*s')
     def list_devices(self, c):
