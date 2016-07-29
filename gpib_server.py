@@ -63,6 +63,9 @@ timeout = 20
 """
 
 
+KNOWN_DEVICE_TYPES = ('GPIB', 'TCPIP', 'USB')
+
+
 class GPIBBusServer(LabradServer):
     """Provides direct access to GPIB-enabled devices."""
     name = '%LABRADNODE% GPIB Bus'
@@ -107,15 +110,9 @@ class GPIBBusServer(LabradServer):
             deletions = set(self.devices.keys()) - set(addresses)
             for addr in additions:
                 try:
-                    if addr.startswith('GPIB'):
-                        instName = addr
-                    elif addr.startswith('TCPIP'):
-                        instName = addr
-                    elif addr.startswith('USB'):
-                        instName = addr + '::INSTR'
-                    else:
+                    if not addr.startswith(KNOWN_DEVICE_TYPES):
                         continue
-                    instr = rm.get_instrument(instName)
+                    instr = rm.get_instrument(addr)
                     instr.write_termination = ''
                     instr.clear()
                     if addr.endswith('SOCKET'):
