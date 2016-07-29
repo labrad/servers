@@ -37,7 +37,9 @@
 # connections work, and should be improved.
 
 from labrad.server import LabradServer, setting
+from labrad import util
 from twisted.internet.defer import inlineCallbacks
+from twisted.internet import defer
 from twisted.internet.reactor import callLater
 from labrad.errors import DeviceNotSelectedError
 import labrad.units as units
@@ -107,15 +109,10 @@ class GPIBBusServer(LabradServer):
             deletions = set(self.devices.keys()) - set(addresses)
             for addr in additions:
                 try:
-                    if addr.startswith('GPIB'):
-                        instName = addr
-                    elif addr.startswith('TCPIP'):
-                        instName = addr
-                    elif addr.startswith('USB'):
-                        instName = addr + '::INSTR'
-                    else:
+                    device_prefixes = ('GPIB', 'USB', 'TCPIP')
+                    if not (addr.startswith(device_prefixes)):
                         continue
-                    instr = rm.get_instrument(instName)
+                    instr = rm.get_instrument(addr)
                     instr.write_termination = ''
                     instr.clear()
                     if addr.endswith('SOCKET'):
@@ -176,10 +173,27 @@ class GPIBBusServer(LabradServer):
         Otherwise, reads until the device stops sending.
         """
         instr = self.getDevice(c)
-        if n_bytes is None:
-            ans = instr.read_raw()
+        if instr.resource_name.startswith('USB'):
+            try:
+                if n_bytes is None:
+                    ans = instr.read()
+                else:
+                    ans = instr.read(n_bytes)
+            except Exception, e:
+                util.wakeupCall(.3)
+                if n_bytes is None:
+                    ans = instr.read()
+                else:
+                    ans = instr.read(n_bytes)
+            # Handles a special use case for a device (Rigol DG1022) that
+            # returns an address with ,, instead of ,.
+            if ",," in ans:
+                ans = ans.replace(",,", ",")  # rigol specific stupidity
         else:
-            ans = instr.read_raw(n_bytes)
+            if n_bytes is None:
+                ans = instr.read_raw()
+            else:
+                ans = instr.read_raw(n_bytes)
         return str(ans).strip()
 
     @setting(5, data='s', returns='s')
