@@ -142,7 +142,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
             resp = yield dev.query('{}PRO?'.format(ch_string))
         elif factor in probeFactors:
             yield dev.write('{}PRO {}'.format(ch_string, factor))
-            resp = yield dev.query('{}PRO?'.format(chString))
+            resp = yield dev.query('{}PRO?'.format(ch_string))
         else:
             raise Exception('Probe attenuation factor '
                             'not in {}'.format(probe_factors))
