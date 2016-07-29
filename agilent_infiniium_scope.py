@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Agilent Infiniium Oscilloscope
-version = 0.2
+version = 0.2.1
 description = Talks to the Agilent DSO91304A 13GHz oscilloscope
 
 [startup]
