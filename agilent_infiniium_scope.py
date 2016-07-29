@@ -140,7 +140,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         ch_string = 'CH{}:'.format(channel)
         if factor is None:
             resp = yield dev.query('{}PRO?'.format(ch_string))
-        elif factor in probeFactors:
+        elif factor in probe_factors:
             yield dev.write('{}PRO {}'.format(ch_string, factor))
             resp = yield dev.query('{}PRO?'.format(ch_string))
         else:
