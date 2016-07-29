@@ -108,9 +108,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         If state is not specified, will return state of channel.
         """
         dev = self.selectedDevice(c)
-        if state is None:
-            resp = yield dev.query('CHAN{}:DISP?'.format(channel))
-        else:
+        if state is not None:
             if isinstance(state, int):
                 state = str(state)
             elif isinstance(state, str):
@@ -120,7 +118,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
             if state not in ['0', '1', 'ON', 'OFF']:
                 raise Exception('state must be 0, 1, "ON", or "OFF"')
             yield dev.write('CHAN{}:DISP {}'.format(channel, state))
-            resp = yield dev.query('CHAN{}:DISP?'.format(channel))
+        resp = yield dev.query('CHAN{}:DISP?'.format(channel))
         returnValue(resp)
 
     @setting(117, channel='i', position='v', returns=['v'])
@@ -200,17 +198,14 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         'SBUS3', 'SBUS4'.
         """
         dev = self.selectedDevice(c)
-        if slope is None:
-            resp = yield dev.query('TRIG:MODE?')
-        else:
+        if slope is not None:
             slope = slope.upper()
             if slope not in ['COMM', 'DEL', 'EDGE', 'GLIT', 'PATT', 'PWID',
                              'RUNT', 'SEQ', 'SHOL', 'STAT', 'TIM', 'TRAN',
                              'TV', 'WIND', 'SBUS1', 'SBUS2', 'SBUS3', 'SBUS4']:
                 raise Exception('Slope must be valid type.')
-            else:
-                yield dev.write('TRIG:MODE {}'.format(slope))
-                resp = yield dev.query('TRIG:MODE?')
+            yield dev.write('TRIG:MODE {}'.format(slope))
+        resp = yield dev.query('TRIG:MODE?')
         returnValue(resp)
 
     @setting(133, slope='s', returns=['s'])
@@ -220,15 +215,12 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         Must be 'POS,' 'NEG', or 'EITH'er
         """
         dev = self.selectedDevice(c)
-        if slope is None:
-            resp = yield dev.query('TRIG:EDGE:SLOP?')
-        else:
+        if slope is not None:
             slope = slope.upper()
             if slope not in ['POS', 'NEG', 'EITH']:
                 raise Exception('Slope must be "RISE" or "FALL"')
-            else:
-                yield dev.write('TRIG:EDGE:SLOP {}'.format(slope))
-                resp = yield dev.query('TRIG:EDGE:SLOP?')
+            yield dev.write('TRIG:EDGE:SLOP {}'.format(slope))
+        resp = yield dev.query('TRIG:EDGE:SLOP?')
         returnValue(resp)
 
     @setting(134, mode='s', returns=['s'])
@@ -238,15 +230,12 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         Must be "AUTO", "TRIG" (normal), or "SING" (single)
         """
         dev = self.selectedDevice(c)
-        if mode is None:
-            resp = yield dev.query('TRIG:SWE?')
-        else:
+        if mode is not None:
             mode = mode.upper()
             if mode not in ['AUTO', 'TRIG', 'SING']:
                 raise Exception('Mode must be "AUTO", "TRIG", or "SING".')
-            else:
-                yield dev.write('TRIG:SWE {}'.format(mode))
-                resp = yield dev.query('TRIG:SWE?')
+            yield dev.write('TRIG:SWE {}'.format(mode))
+        resp = yield dev.query('TRIG:SWE?')
         returnValue(resp)
 
     @setting(150, side='s', returns=['s'])
@@ -257,14 +246,11 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         if side is not None:
-            resp = yield dev.query('TIM:REF?')
-        else:
             side = side.upper()
             if side not in ['LEFT', 'CENT', 'RIGH']:
                 raise Exception('Mode must be "LEFT", "CENT", or "RIGH".')
-            else:
-                yield dev.write('TIM:REF {}'.format(side))
-                resp = yield dev.query('TIM:REF?')
+            yield dev.write('TIM:REF {}'.format(side))
+        resp = yield dev.query('TIM:REF?')
         returnValue(resp)
 
     @setting(151, position='v', returns=['v'])
