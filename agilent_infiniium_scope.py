@@ -95,7 +95,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         coupling = coupling
         bwLimit = float(bwLimit)
         invert = invert
-        unit = unit[1:-1]  # Get's rid of an extra set of quotation marks
+        unit = unit[1:-1]  # Gets rid of an extra set of quotation marks
 
         returnValue((probeAtten, termination, scale, position, coupling,
                      bwLimit, invert, unit))
@@ -125,8 +125,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         if scale is not None:
-            scale = format(scale, 'E')
-            yield dev.write('CHAN{}:SCAL {}'.format(channel, scale))
+            yield dev.write('CHAN{}:SCAL {:E}'.format(channel, scale))
         resp = yield dev.query('CHAN{}:SCAL?'.format(channel))
         scale = float(resp)
         returnValue(scale)
