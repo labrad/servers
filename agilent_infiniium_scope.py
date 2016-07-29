@@ -124,12 +124,10 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         """Get or set the vertical scale of a channel in voltage per division.
         """
         dev = self.selectedDevice(c)
-        if scale is None:
-            resp = yield dev.query('CHAN{}:SCAL?'.format(channel))
-        else:
+        if scale is not None:
             scale = format(scale, 'E')
             yield dev.write('CHAN{}:SCAL {}'.format(channel, scale))
-            resp = yield dev.query('CHAN{}:SCAL?'.format(channel))
+        resp = yield dev.query('CHAN{}:SCAL?'.format(channel))
         scale = float(resp)
         returnValue(scale)
 
@@ -461,7 +459,7 @@ def _parsePreamble(preamble):
                 ('maxBW', True),
                 ('minBW', True)]
     preambleDict = {}
-    for key,val in zip(preambleKeys, preambleVals):
+    for key, val in zip(preambleKeys, preambleVals):
         if key[1]:
             preambleDict[key[0]] = val
 
