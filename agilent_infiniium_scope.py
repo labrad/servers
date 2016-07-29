@@ -348,6 +348,22 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         scale = float(resp)
         returnValue(scale)
 
+    @setting(153, returns=['y'])
+    def system_setup(self, c, setup_binary=None):
+        """Get or set the scope setup (binary format)
+        """
+        dev = self.selectedDevice(c)
+
+        if setup_binary is not None:
+            yield dev.write(':SYSTem:SETup ')
+            p1 = dev._packet().write_raw(setup_binary)
+            yield p1.send()
+
+        p = dev._packet().write('SYSTem:HEADer OFF').write('SYSTem:SETup?').read_raw()
+        result = yield p.send()
+        binary = result['read_raw']
+        returnValue(binary)
+
     #Data acquisition settings
     @setting(201, channel = 'i', start = 'i', stop = 'i', returns='*v[ns] {time axis} *v[mV] {scope trace}')
     def get_trace(self, c, channel, start=1, stop=10000):

@@ -198,7 +198,7 @@ class GPIBBusServer(LabradServer):
 
     @setting(7, n_bytes='w', returns='y')
     def read_raw(self, c, n_bytes=None):
-       """Read raw bytes from the GPIB bus.
+        """Read raw bytes from the GPIB bus.
 
         Termination characters, if any, will not be stripped.
         If n_bytes is specified, reads only that many bytes.
@@ -210,6 +210,12 @@ class GPIBBusServer(LabradServer):
         else:
             ans = instr.read_raw(n_bytes)
         return bytes(ans)
+
+    @setting(8, data='y', returns='')
+    def write_raw(self, c, data):
+        """Write a byte message to the GPIB bus."""
+        instr = self.getDevice(c)
+        instr.write_raw(data)
 
     @setting(20, returns='*s')
     def list_devices(self, c):
