@@ -112,7 +112,7 @@ class GPIBBusServer(LabradServer):
                     elif addr.startswith('TCPIP'):
                         instName = addr
                     elif addr.startswith('USB'):
-                        instName = addr + '::INSTR'
+                        instName = addr
                     else:
                         continue
                     instr = rm.get_instrument(instName)
