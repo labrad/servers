@@ -346,6 +346,9 @@ def _parsePreamble(preamble):
 
 def _parseBinaryData(data, word_length):
     """Parse binary data packed as string of RIBinary
+
+    Data format discussed here:
+    http://www.keysight.com/upload/cmc_upload/All/9000_series_prog_ref.pdf?&cc=US&lc=eng#page=1091
     """
     format_chars = {1: 'b', 2: 'h', 4: 'f'}
     format_char = format_chars[word_length]
