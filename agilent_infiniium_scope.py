@@ -36,7 +36,7 @@ from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 import labrad.units as U
-from struct import unpack, calcsize
+import struct
 import numpy as np
 
 COUPLINGS = ['AC', 'DC', 'GND']
@@ -355,21 +355,19 @@ def _parseBinaryData(data, word_length):
 
     # Get rid of header
     # unpack binary data
-    if word_length == 1:
-        len_header = int(data[1])
-        dat = data[(2+len_header):]
-        dat = np.array(unpack(format_char * (len(dat)/word_length), dat))
-    elif word_length == 2:
-        len_header = int(data[1])
-        dat = data[(2+len_header):]
-        dat = dat[-calcsize('>' + format_char * (len(dat)/word_length)):]
-        dat = np.array(unpack('>' + format_char * (len(dat)/word_length), dat))
-    elif word_length == 4:
-        len_header = int(data[1])
-        dat = data[(2+len_header):]
-        dat = dat[-calcsize('>' + format_char * (len(dat)/word_length)):]
-        dat = np.array(unpack('>' + format_char * (len(dat)/word_length), dat))
-    return dat
+    if data[0] != '#':
+        raise Exception("Invalid wave data. Expected '#' at start. {}".format(data))
+    len_header = int(data[1])
+    wave_offset = 2 + len_header
+    len_wave = int(data[2:wave_offset])
+    expected_len = 1 + 1 + len_header + len_wave + 1
+    if len(data) != expected_len:
+        raise Exception("Invalid wave data. Expected {} bytes "
+                        "but got {}. {}".format(expected_len, len(data)))
+    wave_data = data[wave_offset:wave_offset + len_wave]
+    num_words = len_wave // word_length
+    words = struct.unpack('>' + format_char * num_words, wave_data)
+    return np.array(words)
 
 __server__ = AgilentDSO91304AServer()
 
