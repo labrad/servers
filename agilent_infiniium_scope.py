@@ -44,6 +44,32 @@ TRIG_CHANNELS = ['AUX', 'CH1', 'CH2', 'CH3', 'CH4', 'LINE']
 VERT_DIVISIONS = 8.0
 HORZ_DIVISIONS = 10.0
 SCALES = []
+PREAMBLE_KEYS = [
+    ('byteFormat', True),
+    ('dataType', True),
+    ('numPoints', True),
+    ('count', True),
+    ('xStep', True),
+    ('xFirst', True),
+    ('xRef', True),
+    ('yStep', True),
+    ('yOrigin', True),
+    ('yRef', True),
+    ('coupling', True),
+    ('xRange', True),
+    ('xLeftDisplay', True),
+    ('yRange', True),
+    ('yCenterDisplay', True),
+    ('date', True),
+    ('time', True),
+    ('model', True),
+    ('acquisitionMode', True),
+    ('percentTimeBucketsComplete', True),
+    ('xUnits', True),
+    ('yUnits', True),
+    ('maxBW', True),
+    ('minBW', True)
+]
 
 
 class AgilentDSO91304AServer(GPIBManagedServer):
@@ -294,18 +320,18 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         result = yield dev._packet().write('WAV:DATA?').read_raw()
         binary = result['read_raw'][:-1]  # drop termination character
         # Parse waveform preamble
-        preample_dict = _parsePreamble(preamble)
+        preamble_dict = _parsePreamble(preamble)
         # Parse binary
         trace = _parseBinaryData(binary, word_length=word_length)
         # Convert from binary to volts
 
-        y_step = float(preample_dict['yStep'])
-        origin = float(preample_dict['yOrigin'])
+        y_step = float(preamble_dict['yStep'])
+        origin = float(preamble_dict['yOrigin'])
         trace_volts = (trace * y_step) + origin
 
-        num_points = int(preample_dict['numPoints'])
-        x_step = float(preample_dict['xStep'])
-        first = float(preample_dict['xFirst'])
+        num_points = int(preamble_dict['numPoints'])
+        x_step = float(preamble_dict['xStep'])
+        first = float(preamble_dict['xFirst'])
         time_s = numpy.linspace(first, first + (num_points-1) * x_step, num_points)
 
         time_ns = time_s * 1e9
@@ -314,34 +340,10 @@ class AgilentDSO91304AServer(GPIBManagedServer):
 
 def _parsePreamble(preamble):
     preamble_vals = preamble.split(',')
-    preamble_keys = [('byteFormat', True),
-                ('dataType', True),
-                ('numPoints', True),
-                ('count', True),
-                ('xStep', True),
-                ('xFirst', True),
-                ('xRef', True),
-                ('yStep', True),
-                ('yOrigin', True),
-                ('yRef', True),
-                ('coupling', True),
-                ('xRange', True),
-                ('xLeftDisplay', True),
-                ('yRange', True),
-                ('yCenterDisplay', True),
-                ('date', True),
-                ('time', True),
-                ('model', True),
-                ('acquisitionMode', True),
-                ('percentTimeBucketsComplete', True),
-                ('xUnits', True),
-                ('yUnits', True),
-                ('maxBW', True),
-                ('minBW', True)]
-    preample_dict = {}
-    for key, val in zip(preamble_keys, preamble_vals):
-        if key[1]:
-            preample_dict[key[0]] = val
+
+    for (key, included), val in zip(PREAMBLE_KEYS, preamble_vals):
+        if included:
+            preamble_dict[key] = val
 
     def unit_type(num):
         if num == '1':
@@ -350,16 +352,16 @@ def _parsePreamble(preamble):
             return 'ns'
         else:
             raise Exception('Units not time or voltage')
-    preample_dict['xUnit'] = unit_type(preample_dict['xUnits'])
-    preample_dict['yUnit'] = unit_type(preample_dict['yUnits'])
-    return (preample_dict)
+    preamble_dict['xUnit'] = unit_type(preamble_dict['xUnits'])
+    preamble_dict['yUnit'] = unit_type(preamble_dict['yUnits'])
+    return preamble_dict
 
 
 def _parseBinaryData(data, word_length):
     """Parse binary data packed as string of RIBinary
     """
-    format_chars = {'1': 'b', '2': 'h', '4': 'f'}
-    format_char = format_chars[str(word_length)]
+    format_chars = {1: 'b', 2: 'h', 4: 'f'}
+    format_char = format_chars[word_length]
 
     # Get rid of header
     # unpack binary data
