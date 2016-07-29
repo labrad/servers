@@ -109,11 +109,9 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         """
         dev = self.selectedDevice(c)
         if state is not None:
-            if isinstance(state, int):
-                state = str(state)
-            else isinstance(state, str):
+            if isinstance(state, str):
                 state = state.upper()
-            if state not in ['0', '1', 'ON', 'OFF']:
+            if state not in [0, 1, 'ON', 'OFF']:
                 raise Exception('state must be 0, 1, "ON", or "OFF". '
                                 'Got {}'.format(state))
             yield dev.write('CHAN{}:DISP {}'.format(channel, state))
