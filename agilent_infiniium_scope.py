@@ -126,6 +126,9 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         """Get or set the voltage at the center of the screen
         """
         dev = self.selectedDevice(c)
+        if channel not in [1, 2, 3, 4]:
+            raise Exception('channel must be [1, 2, 3, 4], '
+                            'requested {}'.format(channel))
         if position is not None:
             yield dev.write('CHAN{}:OFFS {}'.format(channel, position))
         resp = yield dev.query('CHAN{}:OFFS?'.format(channel))
@@ -139,11 +142,10 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if mode is not None:
             if isinstance(mode, str):
+                mode = mode.upper()
                 mode = {'ON': 1, 'OFF': 0}[mode]
             elif isinstance(mode, bool):
                 mode = int(mode)
-            elif isinstance(mode, int):
-                pass
             yield dev.write('ACQ:AVER {}'.format(mode))
         resp = yield dev.query('ACQ:AVER?')
         returnValue(resp) 
