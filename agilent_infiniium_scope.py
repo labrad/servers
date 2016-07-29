@@ -314,32 +314,6 @@ class AgilentDSO91304AServer(GPIBManagedServer):
 
 def _parsePreamble(preamble):
     preamble_vals = preamble.split(',')
-    '''
-    preamble_keys = [('byteFormat',True),
-                    ('dataType',False),
-                    ('numPoints',True),
-                    ('count',False),
-                    ('xStep',True),
-                    ('xFirst',True),
-                    ('xRef',False),
-                    ('yStep',True),
-                    ('yOrigin',True),
-                    ('yRef',False),
-                    ('coupling',False),
-                    ('xRange',True),
-                    ('xLeftDisplay',True),
-                    ('yRange',True),
-                    ('yCenterDisplay',True),
-                    ('date',False),
-                    ('time',False),
-                    ('model',False),
-                    ('acquisitionMode',False),
-                    ('percentTimeBucketsComplete',False),
-                    ('xUnits',True),
-                    ('yUnits',True),
-                    ('maxBW',False),
-                    ('minBW',False)]
-    '''
     preamble_keys = [('byteFormat', True),
                 ('dataType', True),
                 ('numPoints', True),
