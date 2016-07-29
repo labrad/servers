@@ -99,7 +99,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         scale = float(resp)
         returnValue(scale)
 
-    @setting(114, channel='i', state='?', returns='s')
+    @setting(114, channel='i', state=['s', 'i'], returns='s')
     def channelOnOff(self, c, channel, state=None):
         """Turn on or off a scope channel display.
 
@@ -111,12 +111,11 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         if state is not None:
             if isinstance(state, int):
                 state = str(state)
-            elif isinstance(state, str):
+            else isinstance(state, str):
                 state = state.upper()
-            else:
-                raise Exception('state must be int or string')
             if state not in ['0', '1', 'ON', 'OFF']:
-                raise Exception('state must be 0, 1, "ON", or "OFF"')
+                raise Exception('state must be 0, 1, "ON", or "OFF". '
+                                'Got {}'.format(state))
             yield dev.write('CHAN{}:DISP {}'.format(channel, state))
         resp = yield dev.query('CHAN{}:DISP?'.format(channel))
         returnValue(resp)
@@ -242,7 +241,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
     def horiz_refpoint(self, c, side=None):
         """Get or set the reference point for the horizontal position.
 
-        Must be 'LEFT', 'CENT'er, or 'RIGH't.
+        Must be 'LEFT', 'CENT', or 'RIGH'.
         """
         dev = self.selectedDevice(c)
         if side is not None:
