@@ -380,7 +380,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         wordLength = 2  # Hardcoding to set data transer word length to 2 bytes
         
         dev = self.selectedDevice(c)
-        yield dev.write('WAV:SOUR CHAN%d' %channel)
+        yield dev.write('WAV:SOUR CHAN{}'.format(channel))
 
         # Read data MSB first
         yield dev.write('WAV:BYT MSBF')
@@ -390,19 +390,24 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         # Transfer waveform preamble
         preamble = yield dev.query('WAV:PRE?')
         # Transfer waveform data
-        binary = yield dev.query('WAV:DATA?')
+        p = dev._packet().write('WAV:DATA?').read_raw()
+        result = yield p.send()
+        binary = result['read_raw']
+        binary = binary[:-1]
         # Parse waveform preamble
         preambleDict = _parsePreamble(preamble)
-        print preambleDict
         # Parse binary
-        trace = _parseBinaryData(binary, wordLength=wordLength) * 1.0e3
+        trace = _parseBinaryData(binary, wordLength=wordLength)
         # Convert from binary to volts
-        traceVolts = ((trace*float(preambleDict['yStep'])
-                       +float(preambleDict['yOrigin'])))
+
+        y_step = float(preambleDict['yStep'])
+        origin = float(preambleDict['yOrigin'])
+        traceVolts = (trace * y_step) + origin
+
         numPoints = int(preambleDict['numPoints'])
-        time = numpy.linspace(float(preambleDict['xFirst']),
-                              (numPoints-1) * float(preambleDict['xStep']) +
-                              float(preambleDict['xFirst']), numPoints)
+        x_step = float(preambleDict['xStep'])
+        first = float(preambleDict['xFirst'])
+        time = numpy.linspace(first, first + (numPoints-1) * x_step, numPoints)
 
         returnValue((time*U.ns*1e9, traceVolts*U.V))
 
