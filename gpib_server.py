@@ -112,7 +112,7 @@ class GPIBBusServer(LabradServer):
                     elif addr.startswith('TCPIP'):
                         instName = addr
                     elif addr.startswith('USB'):
-                        instName = addr + '::INSTR'
+                        instName = addr
                     else:
                         continue
                     instr = rm.get_instrument(instName)
@@ -172,8 +172,10 @@ class GPIBBusServer(LabradServer):
     def read(self, c, n_bytes=None):
         """Read from the GPIB bus.
 
-        If specified, reads only the given number of bytes.
-        Otherwise, reads until the device stops sending.
+        Termination characters, if any, will be stripped.
+        This includes any bytes corresponding to termination in
+        binary data. If specified, reads only the given number
+        of bytes. Otherwise, reads until the device stops sending.
         """
         instr = self.getDevice(c)
         if n_bytes is None:
@@ -193,6 +195,27 @@ class GPIBBusServer(LabradServer):
         instr.write(data)
         ans = instr.read_raw()
         return str(ans).strip()
+
+    @setting(7, n_bytes='w', returns='y')
+    def read_raw(self, c, n_bytes=None):
+        """Read raw bytes from the GPIB bus.
+
+        Termination characters, if any, will not be stripped.
+        If n_bytes is specified, reads only that many bytes.
+        Otherwise, reads until the device stops sending.
+        """
+        instr = self.getDevice(c)
+        if n_bytes is None:
+            ans = instr.read_raw()
+        else:
+            ans = instr.read_raw(n_bytes)
+        return bytes(ans)
+
+    @setting(8, data='y', returns='')
+    def write_raw(self, c, data):
+        """Write a byte message to the GPIB bus."""
+        instr = self.getDevice(c)
+        instr.write_raw(data)
 
     @setting(20, returns='*s')
     def list_devices(self, c):

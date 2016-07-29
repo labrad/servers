@@ -38,8 +38,7 @@ from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
 import labrad.units as U
 from struct import unpack, calcsize
-
-import numpy, re
+import numpy as np
 
 COUPLINGS = ['AC', 'DC', 'GND']
 TRIG_CHANNELS = ['AUX','CH1','CH2','CH3','CH4','LINE']
@@ -47,20 +46,21 @@ VERT_DIVISIONS = 8.0
 HORZ_DIVISIONS = 10.0
 SCALES = []
 
+
 class AgilentDSO91304AServer(GPIBManagedServer):
     name = 'Agilent Infiniium Oscilloscope'
     deviceName = ['Agilent Technologies DSO91304A', 'KEYSIGHT TECHNOLOGIES DSO90804A']
-        
+
     @setting(11, returns=[])
     def reset(self, c):
         dev = self.selectedDevice(c)
-        yield dev.write('*RST')
+        yield dev.query('*RST;*OPC?')
         # TODO wait for reset to complete
 
     @setting(12, returns=[])
     def clear_buffers(self, c):
         dev = self.selectedDevice(c)
-        yield dev.write('*CLS')
+        yield dev.query('*CLS;*OPC?')
 
     #Channel settings
     @setting(100, channel = 'i', returns = '(vvvvsvss)')
@@ -113,16 +113,16 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         returnValue(resp)
 
     @setting(112, channel = 'i', scale = 'v', returns = ['v'])
-    def scale(self, c, channel, scale = None):
+    def scale(self, c, channel, scale=None):
         """Get or set the vertical scale of a channel in voltage per division.
         """
         dev = self.selectedDevice(c)
         if scale is None:
-            resp = yield dev.query('CHAN%d:SCAL?' %channel)
+            resp = yield dev.query('CHAN{}:SCAL?'.format(channel))
         else:
             scale = format(scale,'E')
-            yield dev.write(('CHAN%d:SCAL '+scale) %channel)
-            resp = yield dev.query('CHAN%d:SCAL?' %channel)
+            yield dev.write('CHAN{}:SCAL {}'.format(channel, scale))
+            resp = yield dev.query('CHAN{}:SCAL?'.format(channel))
         scale = float(resp)
         returnValue(scale)
 
@@ -131,7 +131,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         """Get or set the probe attenuation factor.
         """
         raise Exception('Not yet implemented')
-        probeFactors = [1,10,20,50,100,500,1000]
+        probeFactors = [1, 10, 20, 50, 100, 500, 1000]
         dev = self.selectedDevice(c)
         chString = 'CH%d:' %channel
         if factor is None:
@@ -192,7 +192,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
             resp = yield dev.query('CHAN%d:OFFS?' %channel)
         position = float(resp)
         returnValue(position)
-        
+
     @setting(118, mode =  ['s','i','b'], returns = ['s'])
     def averagemode(self, c, mode = None):
         """Get or set acquisition mode
@@ -207,11 +207,11 @@ class AgilentDSO91304AServer(GPIBManagedServer):
                 elif isinstance(mode, bool):
                     mode = int(mode)
                 elif isinstance(mode, int):
-                    pass       
+                    pass
             yield dev.write('ACQ:AVER '+str(mode))
             resp = yield dev.query('ACQ:AVER?')
-        returnValue(resp) 
-        
+        returnValue(resp)
+
     @setting(119, navg = 'i', returns = ['i'])
     def numavg(self, c, navg = None):
         """Get or set number of averages
@@ -219,31 +219,38 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if navg is None:
             resp = yield dev.query('ACQ:COUN?')
-        else:    
+        else:
             yield dev.write('ACQ:COUN %d' %navg)
             resp = yield dev.query('ACQ:COUN?')
         navg_out = int(resp)
-        returnValue(navg_out)         
+        returnValue(navg_out)
 
     @setting(131, channel = 'i', level = 'v', returns = 'v{level}')
-    def trigger_at(self, c, channel, level = None):
-        """Get or set the trigger source and the trigger voltage for edge mode triggering.
-        Channel must be one of 0 (AUX), 1, 2, 3, 4.
+    def trigger_at(self, c, channel, level=None):
+        """Get or set the trigger source and voltage for edge triggering.
+
+        Channel must be one of 0 (AUX), 1, 2, 3, 4, or 5 (LINE).
+        If trigger source is 5 (LINE) the level will be ignored.
         """
         dev = self.selectedDevice(c)
-        if channel==0:
+        if channel not in [0, 1, 2, 3, 4, 5]:
+            raise ValueError('Invalid trigger channel: {}'
+                             'Valid channels are [0, 1, 2, 3, 4, 5]'
+                             '0 for AUX, 5 for LINE'.format(channel))
+        if channel == 0:
             channel = 'AUX'
+        elif channel == 5:
+            channel = 'LINE'
         elif isinstance(channel, int):
-            #channel = 'CHAN%d' %channel
-            pass
-        if channel not in [0,1,2,3,4]:
-            raise Exception('Select valid trigger channel')
-        if level is None:
-            resp = yield dev.query('TRIG:LEV? CHAN%s' %channel)
+            channel = 'CHAN{}'.format(channel)
+
+        yield dev.write('TRIG:EDGE:SOUR {}'.format(channel))
+        if channel != 'LINE':
+            yield dev.write('TRIG:LEV {}, {}'.format(channel, level))
+            #set trigger level
+            resp = yield dev.query('TRIG:LEV? {}'.format(channel))
         else:
-            yield dev.write('TRIG:EDGE:SOUR CHAN%s' %channel) #set channel up for edge triggering  
-            yield dev.write('TRIG:LEV CHAN%s,%f' %(channel,level)) #set trigger level
-            resp = yield dev.query('TRIG:LEV? CHAN%s' %channel)
+            resp=  0.0
         level = float(resp)
         returnValue(level)
 
@@ -340,7 +347,23 @@ class AgilentDSO91304AServer(GPIBManagedServer):
             resp = yield dev.query('TIM:SCAL?')
         scale = float(resp)
         returnValue(scale)
-    
+
+    @setting(153, returns=['y'])
+    def system_setup(self, c, setup_binary=None):
+        """Get or set the scope setup (binary format)
+        """
+        dev = self.selectedDevice(c)
+
+        if setup_binary is not None:
+            yield dev.write(':SYSTem:SETup ')
+            p1 = dev._packet().write_raw(setup_binary)
+            yield p1.send()
+
+        p = dev._packet().write('SYSTem:HEADer OFF').write('SYSTem:SETup?').read_raw()
+        result = yield p.send()
+        binary = result['read_raw']
+        returnValue(binary)
+
     #Data acquisition settings
     @setting(201, channel = 'i', start = 'i', stop = 'i', returns='*v[ns] {time axis} *v[mV] {scope trace}')
     def get_trace(self, c, channel, start=1, stop=10000):
@@ -348,13 +371,13 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         OUTPUT - (array voltage in volts, array time in seconds)
         """
         #raise Exception('Doesnt work yet. Please fix lines defining traceVolts and time.')
-##        DATA ENCODINGS
-##        RIB - signed, MSB first
-##        RPB - unsigned, MSB first
-##        SRI - signed, LSB first
-##        SRP - unsigned, LSB first
+        ##        DATA ENCODINGS
+        ##        RIB - signed, MSB first
+        ##        RPB - unsigned, MSB first
+        ##        SRI - signed, LSB first
+        ##        SRP - unsigned, LSB first
         wordLength = 2 #Hardcoding to set data transer word length to 2 bytes
-        
+
         dev = self.selectedDevice(c)
         yield dev.write('WAV:SOUR CHAN%d' %channel)
 
@@ -366,18 +389,26 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         #Transfer waveform preamble
         preamble = yield dev.query('WAV:PRE?')
         #Transfer waveform data
-        binary = yield dev.query('WAV:DATA?')
+        p = dev._packet().write('WAV:DATA?').read_raw()
+
+        result = yield p.send()
+        binary = result['read_raw']
+        binary = binary[:-1]
         #Parse waveform preamble
         preambleDict = _parsePreamble(preamble)
-        print preambleDict
+
         #Parse binary
-        trace = _parseBinaryData(binary, wordLength = wordLength) * 1.0e3
+        trace = _parseBinaryData(binary, wordLength=wordLength)
+
         #Convert from binary to volts
-        traceVolts = ((trace*float(preambleDict['yStep'])+float(preambleDict['yOrigin'])))
+        step, origin = (float(preambleDict['yStep']),
+                        float(preambleDict['yOrigin']))
+        traceVolts = (trace * step) + origin
         numPoints = int(preambleDict['numPoints'])
-        time = numpy.linspace(float(preambleDict['xFirst']),
-                              (numPoints-1) * float(preambleDict['xStep'])+float(preambleDict['xFirst']),
-                              numPoints)
+
+        first, step = (float(preambleDict['xFirst']),
+                       float(preambleDict['xStep']))
+        time = np.linspace(first, first + (numPoints-1) * step, numPoints)
 
         returnValue((time*U.ns*1e9, traceVolts*U.V))
 
@@ -448,6 +479,7 @@ def _parsePreamble(preamble):
     preambleDict['yUnit'] = unitType(preambleDict['yUnits'])
     return (preambleDict)
 
+
 def _parseBinaryData(data, wordLength):
     """Parse binary data packed as string of RIBinary
     """
@@ -459,17 +491,17 @@ def _parseBinaryData(data, wordLength):
     if wordLength == 1:
         lenHeader = int(data[1])
         dat = data[(2+lenHeader):]
-        dat = numpy.array(unpack(formatChar*(len(dat)/wordLength),dat))
+        dat = np.array(unpack(formatChar * (len(dat)/wordLength), dat))
     elif wordLength == 2:
         lenHeader = int(data[1])
         dat = data[(2+lenHeader):]
-        dat = dat[-calcsize('>' + formatChar*(len(dat)/wordLength)):]
-        dat = numpy.array(unpack('>' + formatChar*(len(dat)/wordLength),dat))
+        dat = dat[-calcsize('>' + formatChar * (len(dat)/wordLength)):]
+        dat = np.array(unpack('>' + formatChar * (len(dat)/wordLength), dat))
     elif wordLength == 4:
         lenHeader = int(data[1])
         dat = data[(2+lenHeader):]
-        dat = dat[-calcsize('>' + formatChar*(len(dat)/wordLength)):]
-        dat = numpy.array(unpack('>' + formatChar*(len(dat)/wordLength),dat))      
+        dat = dat[-calcsize('>' + formatChar * (len(dat)/wordLength)):]
+        dat = np.array(unpack('>' + formatChar * (len(dat)/wordLength), dat))
     return dat
 
 __server__ = AgilentDSO91304AServer()
