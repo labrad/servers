@@ -174,7 +174,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         """Change trigger mode. Use 'EDGE' for edge triggering.
 
         Must be one of 'COMM', 'DEL', 'EDGE', 'GLIT', 'PATT', 'PWID', 'RUNT',
-        'SEQ', ',SHOL', 'STAT', 'TIM', 'TRAN', 'TV', ',WIND', 'SBUS1', 'SBUS2',
+        'SEQ', 'SHOL', 'STAT', 'TIM', 'TRAN', 'TV', 'WIND', 'SBUS1', 'SBUS2',
         'SBUS3', 'SBUS4'.
         """
         dev = self.selectedDevice(c)
@@ -183,8 +183,8 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         else:
             slope = slope.upper()
             if slope not in ['COMM', 'DEL', 'EDGE', 'GLIT', 'PATT', 'PWID',
-                             'RUNT', 'SEQ', ',SHOL', 'STAT', 'TIM', 'TRAN',
-                             'TV', ',WIND', 'SBUS1', 'SBUS2', 'SBUS3', 'SBUS4']:
+                             'RUNT', 'SEQ', 'SHOL', 'STAT', 'TIM', 'TRAN',
+                             'TV', 'WIND', 'SBUS1', 'SBUS2', 'SBUS3', 'SBUS4']:
                 raise Exception('Slope must be valid type.')
             else:
                 yield dev.write('TRIG:MODE {}'.format(slope))
