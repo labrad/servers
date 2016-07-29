@@ -248,8 +248,8 @@ class AgilentDSO91304AServer(GPIBManagedServer):
             channel = 'CHAN{}'.format(channel)
         yield dev.write('TRIG:EDGE:SOUR {}'.format(channel))
         if channel != 'LINE':
-            yield dev.write('TRIG:LEV {}, {}'.format(channel, level))
             # set trigger level
+            yield dev.write('TRIG:LEV {}, {}'.format(channel, level))
             resp = yield dev.query('TRIG:LEV? {}'.format(channel))
         else:
             resp = 0.0
