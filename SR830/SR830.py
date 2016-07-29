@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = SR830
-version = 2.7
+version = 2.8.0
 description = 
 
 [startup]
@@ -38,7 +38,7 @@ from labrad.gpib import GPIBManagedServer
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 def getTC(i):
-    ''' converts from the integer label used by the SR830 to a time '''
+    """converts from the integer label used by the SR830 to a time"""
     if i < 0:
         return getTC(0)
     elif i > 19:
@@ -49,7 +49,7 @@ def getTC(i):
         return 3*10**(-5 + i/2) * units.s
 
 def getSensitivity(i):
-    ''' converts form the integer label used by the SR830 to a sensitivity '''
+    """converts form the integer label used by the SR830 to a sensitivity"""
     if i < 0:
         return getSensitivity(0)
     elif i > 26:
@@ -67,14 +67,14 @@ class SR830(GPIBManagedServer):
 
     @inlineCallbacks
     def inputMode(self, c):
-        ''' returns the input mode. 0=A, 1=A-B, 2=I(10**6), 3=I(10**8) '''
+        """returns the input mode. 0=A, 1=A-B, 2=I(10**6), 3=I(10**8)"""
         dev = self.selectedDevice(c)
         mode = yield dev.query('ISRC?')
         returnValue(int(mode))
 
     @inlineCallbacks
     def outputUnit(self, c):
-        ''' returns a labrad unit, V or A, for what the main output type is. (R, X, Y) '''
+        """returns a labrad unit, V or A, for what the main output type is. (R, X, Y)"""
         mode = yield self.inputMode(c)
         if mode < 2:
             returnValue(units.V)
@@ -319,30 +319,30 @@ class SR830(GPIBManagedServer):
 
     @setting(41, 'Sensitivity Up', returns='v')
     def sensitivity_up(self, c):
-        ''' Kicks the sensitivity up a notch. '''
+        """Kicks the sensitivity up a notch."""
         dev = self.selectedDevice(c)
         returnValue((yield self.sensitivity(c, int((yield dev.query('SENS?'))) + 1)))
 
     @setting(42, 'Sensitivity Down', returns='v')
     def sensitivity_down(self, c):
-        ''' Turns the sensitivity down a notch. '''
+        """Turns the sensitivity down a notch."""
         dev = self.selectedDevice(c)
         returnValue((yield self.sensitivity(c, int((yield dev.query('SENS?'))) - 1)))
 
     @setting(43, 'Auto Sensitivity')
     def auto_sensitivity(self, c):
-        ''' Automatically adjusts sensitivity until signal is between 35% and 95% of full range. '''
+        """Automatically adjusts sensitivity until signal is between 35% and 95% of full range."""
         waittime = yield self.wait_time(c)
         r = yield self.r(c)
         sens = yield self.sensitivity(c)
         while r/sens > 0.95:
-            #print "sensitivity up... ",
+            # print "sensitivity up... ",
             yield self.sensitivity_up(c)
             yield util.wakeupCall(waittime)
             r = yield self.r(c)
             sens = yield self.sensitivity(c)
         while r/sens < 0.35:
-            #print "sensitivity down... ",
+            # print "sensitivity down... ",
             yield self.sensitivity_down(c)
             yield util.wakeupCall(waittime)
             r = yield self.r(c)
@@ -350,7 +350,7 @@ class SR830(GPIBManagedServer):
 
     @setting(32, 'Auto Gain')
     def auto_gain(self, c):
-        """ Runs the auto gain function. Does nothing if time constant >= 1s. """
+        """Runs the auto gain function. Does nothing if time constant >= 1s."""
         dev = self.selectedDevice(c)
         yield dev.write("AGAN");
         done = False
@@ -361,7 +361,7 @@ class SR830(GPIBManagedServer):
 
     @setting(33, 'Filter Slope', i='i', returns='i')
     def filter_slope(self, c, i=None):
-        ''' Sets/gets the low pass filter slope. 0=>6, 1=>12, 2=>18, 3=>24 dB/oct '''
+        """Sets/gets the low pass filter slope. 0=>6, 1=>12, 2=>18, 3=>24 dB/oct"""
         dev = self.selectedDevice(c)
         if i is None:
             resp = yield dev.query("OFSL?")
@@ -372,7 +372,7 @@ class SR830(GPIBManagedServer):
 
     @setting(34, 'Wait Time', returns='v[s]')
     def wait_time(self, c):
-        ''' Returns the recommended wait time given current time constant and low-pass filter slope. '''
+        """Returns the recommended wait time given current time constant and low-pass filter slope."""
         dev = self.selectedDevice(c)
         tc = yield dev.query("OFLT?")
         tc = getTC(int(tc))
@@ -386,7 +386,20 @@ class SR830(GPIBManagedServer):
             returnValue(9*tc)
         else:# slope == 3:
             returnValue(10*tc)
-    
+
+    @setting(35, 'Output Overload', returns='b')
+    def output_overload(self, c):
+        """Gets the output overload status bit
+
+        The output overload status bit will return True if the input voltages
+        has exceeded the 'sensitivity' setting since the last time the status
+        bits were read or cleared.  Reading this status bit or sending a *CLS
+        command will reset the value of this status bit to False until another
+        overload event occurs.
+        """
+        dev = self.selectedDevice(c)
+        resp = yield dev.query("LIAS? 2")
+        returnValue(bool(int(resp)))
 
 __server__ = SR830()
 
