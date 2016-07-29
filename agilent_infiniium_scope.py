@@ -357,14 +357,14 @@ def _parseBinaryData(data, word_length):
     # unpack binary data
     if data[0] != '#':
         raise Exception("Invalid wave data. Expected '#' "
-                        "at start. {}".format(data[0]))
+                        "at start. Expected '#' but got {}".format(data[0]))
     len_header = int(data[1])
     wave_offset = 2 + len_header
     len_wave = int(data[2:wave_offset])
     expected_len = 1 + 1 + len_header + len_wave + 1
     if len(data) != expected_len:
         raise Exception("Invalid wave data. Expected {} bytes "
-                        "but got {}. {}".format(expected_len, len(data)))
+                        "but got {}.".format(expected_len, len(data)))
     wave_data = data[wave_offset:wave_offset + len_wave]
     num_words = len_wave // word_length
     words = struct.unpack('>' + format_char * num_words, wave_data)
