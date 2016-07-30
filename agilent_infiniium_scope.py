@@ -221,7 +221,8 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         if slope is not None:
             slope = slope.upper()
             if slope not in ['POS', 'NEG', 'EITH']:
-                raise Exception('Slope must be "RISE" or "FALL"')
+                raise Exception('Slope must be "POS" or "NEG" or "EITH". '
+                                'Got {}'.format(slope))
             yield dev.write('TRIG:EDGE:SLOP {}'.format(slope))
         resp = yield dev.query('TRIG:EDGE:SLOP?')
         returnValue(resp)
