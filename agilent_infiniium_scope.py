@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Agilent Infiniium Oscilloscope
-version = 0.2.1
+version = 0.3.0
 description = Talks to the Agilent DSO91304A 13GHz oscilloscope
 
 [startup]
@@ -253,7 +253,8 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         if side is not None:
             side = side.upper()
             if side not in ['LEFT', 'CENT', 'RIGH']:
-                raise Exception('Mode must be "LEFT", "CENT", or "RIGH".')
+                raise Exception('Mode must be "LEFT", "CENT", or "RIGH". '
+                                'Got {}'.format(side))
             yield dev.write('TIM:REF {}'.format(side))
         resp = yield dev.query('TIM:REF?')
         returnValue(resp)
@@ -296,6 +297,10 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         # SRI - signed, LSB first
         # SRP - unsigned, LSB first
         word_length = 2  # Hardcoding to set data transer word length to 2 bytes
+        
+        if channel not in [1, 2, 3, 4]:
+            raise Exception('channel must be [1, 2, 3, 4], '
+                            'requested {}'.format(channel))
         
         dev = self.selectedDevice(c)
         yield dev.write('WAV:SOUR CHAN{}'.format(channel))
@@ -358,8 +363,6 @@ def _parseBinaryData(data, word_length):
     format_chars = {1: 'b', 2: 'h', 4: 'f'}
     format_char = format_chars[word_length]
 
-    # Get rid of header
-    # unpack binary data
     if data[0] != '#':
         raise Exception("Invalid wave data. Expected '#' "
                         "at start but got {}".format(data[0]))
