@@ -297,14 +297,16 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         # SRI - signed, LSB first
         # SRP - unsigned, LSB first
         word_length = 2  # Hardcoding to set data transer word length to 2 bytes
-        
+
         if channel not in [1, 2, 3, 4]:
             raise Exception('channel must be [1, 2, 3, 4], '
                             'requested {}'.format(channel))
-        
         dev = self.selectedDevice(c)
-        yield dev.write('WAV:SOUR CHAN{}'.format(channel))
+        channel_on = yield dev.query(':CHAN{}:DISP?'.format(channel))
+        if not bool(int(channel_on)):
+            raise Exception('channel {} is not on.'.format(channel))
 
+        yield dev.write('WAV:SOUR CHAN{}'.format(channel))
         # Read data MSB first
         yield dev.write('WAV:BYT MSBF')
         # Set 2 bytes per point
@@ -329,7 +331,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         num_points = int(preamble_dict['numPoints'])
         x_step = float(preamble_dict['xStep'])
         first = float(preamble_dict['xFirst'])
-        time_s = numpy.linspace(first, first + (num_points-1) * x_step, num_points)
+        time_s = np.linspace(first, first + (num_points-1) * x_step, num_points)
 
         time_ns = time_s * 1e9
         returnValue((time_ns * U.ns, trace_volts * U.V))
@@ -337,7 +339,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
 
 def _parsePreamble(preamble):
     preamble_vals = preamble.split(',')
-
+    preamble_dict = {}
     for (key, included), val in zip(PREAMBLE_KEYS, preamble_vals):
         if included:
             preamble_dict[key] = val
