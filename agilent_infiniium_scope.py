@@ -237,7 +237,8 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         if mode is not None:
             mode = mode.upper()
             if mode not in ['AUTO', 'TRIG', 'SING']:
-                raise Exception('Mode must be "AUTO", "TRIG", or "SING".')
+                raise Exception('Mode must be "AUTO", "TRIG", or "SING". '
+                                'Got {}'.format(mode))
             yield dev.write('TRIG:SWE {}'.format(mode))
         resp = yield dev.query('TRIG:SWE?')
         returnValue(resp)
