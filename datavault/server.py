@@ -539,7 +539,7 @@ class DataVaultMultiHead(DataVault):
         for s in self.hub:
             host = s.host
             port = s.port
-            running = hasattr(s, 'server') and bool(s.server.alive)
+            running = s.connected
             print "host: %s port: %s running: %s" % (host, port, running)
             rv.append((host, port, running))
         return rv

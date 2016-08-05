@@ -37,15 +37,15 @@ from __future__ import with_statement
 import sys
 import os
 import re
+import traceback
 import warnings
 
-from twisted.application.service import MultiService
 from twisted.application.internet import TCPClient
+from twisted.application.service import MultiService, Service
 from twisted.internet import reactor
-from twisted.internet.reactor import callLater
 from twisted.internet.defer import inlineCallbacks, returnValue
 
-from labrad import constants, util
+from labrad import constants, protocol, util
 import labrad.wrappers
 
 from datavault import SessionStore
@@ -85,7 +85,7 @@ def unlock(fd):
 
 
 # One instance per manager, persistent (not recreated when connections are dropped)
-class DataVaultConnector(MultiService):
+class DataVaultConnector(Service):
     """Service that connects the Data Vault to a single LabRAD manager
 
     If the manager is stopped or we lose the network connection,
@@ -95,60 +95,96 @@ class DataVaultConnector(MultiService):
     reconnectDelay = 10
 
     def __init__(self, host, port, password, hub, session_store):
-        MultiService.__init__(self)
         self.host = host
         self.port = port
         self.password = password
         self.hub = hub
         self.session_store = session_store
-        self.die = False
+        self.connected = False
 
+    def report(self, message):
+        print '{}:{} - {}'.format(self.host, self.port, message)
+
+    @inlineCallbacks
     def startService(self):
-        MultiService.startService(self)
-        self.startConnection()
+        """Connect to labrad in a loop, reconnecting after connection loss."""
+        self.running = True
+        while self.running:
+            self.report('Connecting...')
+            try:
+                dv = DataVaultMultiHead(self.host, self.port, self.password,
+                                        self.hub, self.session_store)
+                self.stop_func = yield self.start(dv)
+                self.report('Connected')
+                self.connected = True
+            except Exception:
+                self.report('Data Vault failed to start')
+                traceback.print_exc()
+            else:
+                try:
+                    yield dv.onShutdown()
+                except Exception:
+                    self.report('Disconnected with error')
+                    traceback.print_exc()
+                else:
+                    self.report('Disconnected')
+                self.hub.disconnect(dv)
+                self.connected = False
 
-    def startConnection(self):
-        """Attempt to start the data vault and connect to LabRAD."""
-        print 'Connecting to %s:%d...' % (self.host, self.port)
-        self.server = DataVaultMultiHead(self.host, self.port, self.password, self.hub, self.session_store)
-        self.server.onStartup().addErrback(self._error)
-        self.server.onShutdown().addCallbacks(self._disconnected, self._error)
-        try:
-            self.server.configure_tls(self.host, "starttls")
-        except AttributeError:
-            print "pylabrad doesn't support TLS"
-        self.cxn = TCPClient(self.host, self.port, self.server)
-        self.addService(self.cxn)
+            if self.running:
+                self.report('Will reconnect in {} seconds...'.format(
+                            self.reconnectDelay))
+                yield util.wakeupCall(self.reconnectDelay)
 
-    def _disconnected(self, data):
-        print 'Disconnected from %s:%d.' % (self.host, self.port)
-        self.hub.disconnect(self.server)
-        return self._reconnect()
+    @inlineCallbacks
+    def stopService(self):
+        self.running = False
+        if hasattr(self, 'stop_func'):
+            yield self.stop_func()
 
-    def _error(self, failure):
-        print failure.getErrorMessage()
-        self.hub.disconnect(self.server)
-        return self._reconnect()
+    @inlineCallbacks
+    def start(self, dv):
+        """Start the given DataVaultMultihead server.
 
-    def _reconnect(self):
-        """Clean up from the last run and reconnect."""
-        ## hack: manually clearing the dispatcher...
-        #dispatcher.connections.clear()
-        #dispatcher.senders.clear()
-        #dispatcher._boundMethods.clear()
-        ## end hack
+        The server startup and shutdown logic changed in pylabrad 0.95, so we
+        need separate logic to handle the old and new cases.
 
-        if hasattr(self, 'cxn'):
-            self.removeService(self.cxn)
-            del self.cxn
-        if self.die:
-            print "Connecting terminating permanently"
-            self.stopService()
-            self.disownServiceParent()
-            return False
+        Args:
+            dv (DataVaultMultihead): The labrad server object that we want to
+                start.
+
+        Returns:
+            A deferred that fires after the server has successfully started.
+            This deferred contains a function that can be invoked to shutdown
+            the server. That function itself returns a deferred that will fire
+            when the shutdown is complete.
+        """
+        if hasattr(dv, 'startup'):
+            # pylabrad 0.95+
+            p = yield protocol.connect(self.host, self.port)
+            yield p.authenticate(password=self.password)
+            yield dv.startup(p)
+
+            @inlineCallbacks
+            def stop_func():
+                dv.disconnect()
+                yield dv.onShutdown()
         else:
-            reactor.callLater(self.reconnectDelay, self.startConnection)
-            print 'Will try to reconnect to %s:%d in %d seconds...' % (self.host, self.port, self.reconnectDelay)
+            # pylabrad 0.94 and earlier
+            try:
+                dv.configure_tls(self.host, "starttls")
+            except AttributeError:
+                self.report("pylabrad doesn't support TLS")
+            cxn = TCPClient(self.host, self.port, dv)
+            cxn.startService()
+            yield dv.onStartup()
+
+            @inlineCallbacks
+            def stop_func():
+                yield cxn.stopService()
+
+        returnValue(stop_func)
+
 
 # Hub object: one instance total
 class DataVaultServiceHost(MultiService):
@@ -175,11 +211,9 @@ class DataVaultServiceHost(MultiService):
             self.add_server(host, port, password)
 
     def connect(self, server):
-        print 'server connected: %s:%d' % (server.host, server.port)
         self.servers.add(server)
 
     def disconnect(self, server):
-        print 'server disconnected: %s:%d' % (server.host, server.port)
         if server in self.servers:
             self.servers.remove(server)
 
@@ -209,9 +243,8 @@ class DataVaultServiceHost(MultiService):
         '''
         for connector in self:
             if re.match(host_regexp, connector.host) and (port == 0 or port == connector.port):
-                connector.die = True
                 try:
-                    connector.server._cxn.disconnect()
+                    connector.stopService()
                 except Exception:
                     pass
 
@@ -262,8 +295,10 @@ class DataVaultServiceHost(MultiService):
                 try:
                     sig = getattr(c.server, signal)
                     sig(data, [c.context], tag)
-                except Exception as e:
-                    print 'error relaying signal %s to %s:%s: %s' % (signal, c.server.host, c.server.port, e)
+                except Exception:
+                    print '{}:{} - error relaying signal {}'.format(
+                            c.server.host, c.server.port, signal)
+                    traceback.print_exc()
         setattr(self, signal, relay)
 
 @inlineCallbacks
