@@ -513,12 +513,19 @@ class DcRackServer(DeviceServer):
         ident = yield dev.identSelf()
         returnValue(ident)
 
-    @setting(565, 'list_cards')
+    @setting(565, 'list_cards', returns='*(ss)')
     def list_cards(self, c):
-        """List cards configured in the registry (does not query cards directly)."""
+        """List cards configured in the registry.
+
+        Returns:
+            (list): Each element is a tuple
+                (str): Board id, i.e. '4', '5', etc.
+                (str): Board type, i.e. 'fastbias'
+        This function does not query cards.
+        """
         dev = self.selectedDevice(c)
         cards = dev.returnCardList()
-        returnValue(cards)
+        return cards
 
     @setting(455, 'get_preamp_state')
     def getPreampState(self, c, cardNumber, channel):
