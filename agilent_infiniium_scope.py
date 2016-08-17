@@ -108,15 +108,15 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         If state is not specified, will return state of channel.
         """
         dev = self.selectedDevice(c)
+        if channel not in [1, 2, 3, 4]:
+            raise Exception('channel must be [1, 2, 3, 4], '
+                            'requested {}'.format(channel))
         if state is not None:
             if isinstance(state, str):
                 state = state.upper()
             if state not in [0, 1, 'ON', 'OFF']:
                 raise Exception('state must be 0, 1, "ON", or "OFF". '
                                 'Got {}'.format(state))
-            if channel not in [1, 2, 3, 4]:
-                raise Exception('channel must be [1, 2, 3, 4], '
-                                'requested {}'.format(channel))
             yield dev.write('CHAN{}:DISP {}'.format(channel, state))
         resp = yield dev.query('CHAN{}:DISP?'.format(channel))
         returnValue(resp)
