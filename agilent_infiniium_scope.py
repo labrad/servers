@@ -92,6 +92,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
     def scale(self, c, channel, scale=None):
         """Get or set the vertical scale of a channel in voltage per division.
         """
+        _check_channel(channel)
         dev = self.selectedDevice(c)
         if scale is not None:
             yield dev.write('CHAN{}:SCAL {:E}'.format(channel, scale))
@@ -107,10 +108,8 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         Channel must be int.
         If state is not specified, will return state of channel.
         """
+        _check_channel(channel)
         dev = self.selectedDevice(c)
-        if channel not in [1, 2, 3, 4]:
-            raise Exception('channel must be [1, 2, 3, 4], '
-                            'requested {}'.format(channel))
         if state is not None:
             if isinstance(state, str):
                 state = state.upper()
@@ -125,10 +124,8 @@ class AgilentDSO91304AServer(GPIBManagedServer):
     def position(self, c, channel, position=None):
         """Get or set the voltage at the center of the screen
         """
+        _check_channel(channel)
         dev = self.selectedDevice(c)
-        if channel not in [1, 2, 3, 4]:
-            raise Exception('channel must be [1, 2, 3, 4], '
-                            'requested {}'.format(channel))
         if position is not None:
             yield dev.write('CHAN{}:OFFS {}'.format(channel, position))
         resp = yield dev.query('CHAN{}:OFFS?'.format(channel))
@@ -168,11 +165,8 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         Channel must be one of 0 (AUX), 1, 2, 3, 4, or 5 (LINE).
         If trigger source is 5 (LINE) the level will be ignored
         """
+        _check_channel(channel, accept_channels=[0, 1, 2, 3, 4, 5])
         dev = self.selectedDevice(c)
-        if channel not in [0, 1, 2, 3, 4, 5]:
-            raise ValueError('Invalid trigger channel: {}'
-                             'Valid channels are [0, 1, 2, 3, 4, 5]'
-                             '0 for AUX, 5 for LINE'.format(channel))
         if channel == 0:
             channel = 'AUX'
         elif channel == 5:
@@ -297,10 +291,7 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         # SRI - signed, LSB first
         # SRP - unsigned, LSB first
         word_length = 2  # Hardcoding to set data transer word length to 2 bytes
-
-        if channel not in [1, 2, 3, 4]:
-            raise Exception('channel must be [1, 2, 3, 4], '
-                            'requested {}'.format(channel))
+        _check_channel(channel)
         dev = self.selectedDevice(c)
         channel_on = yield dev.query(':CHAN{}:DISP?'.format(channel))
         if not bool(int(channel_on)):
@@ -335,6 +326,16 @@ class AgilentDSO91304AServer(GPIBManagedServer):
 
         time_ns = time_s * 1e9
         returnValue((time_ns * U.ns, trace_volts * U.V))
+
+
+def _check_channel(channel, accept_channels=[1, 2, 3, 4]):
+    if channel not in accept_channels:
+        trigger_channel_message = ''
+        if 0 in accept_channels or 5 in accept_channels:
+            trigger_channel_message = '; Note: 0 is AUX, 5 is LINE'
+        raise Exception('channel must be int({}), requested {} ({})'
+                        '{}'.format(accept_channels, channel, type(channel),
+                                    trigger_channel_message))
 
 
 def _parsePreamble(preamble):
