@@ -168,7 +168,7 @@ class GPIBBusServer(LabradServer):
     @setting(8, data='s', returns='')
     def write_raw(self, c, data):
         """Write a string to the GPIB bus."""
-        self.getDevice(c).writ_raw(data)
+        self.getDevice(c).write_raw(data)
 
     @setting(4, n_bytes='w', returns='s')
     def read(self, c, n_bytes=None):
