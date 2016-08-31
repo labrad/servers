@@ -491,8 +491,8 @@ class ADRWrapper(DeviceWrapper):
                         D = 0.0 * V
                     # target voltage
                     self.state('PIDout', self.state('magVoltage') + P + I + D, False)
-                    if self.state('PIDout') < 0:
-                        self.state('PIDout', 0, False)
+                    if self.state('PIDout') < 0.0 * V:
+                        self.state('PIDout', 0.0 * V, False)
                     self.log('PID: T: %.4f K, V: %.4f V, P: %.4f V, I: %.4f V, D: %.4f V, PID: %.4f V' % (
                                 self.ruox_status()[0]['K'], 
                                 self.state('PIDout')['V'], 
