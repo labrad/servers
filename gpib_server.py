@@ -48,7 +48,7 @@ import visa
 ### BEGIN NODE INFO
 [info]
 name = GPIB Bus
-version = 1.4.0-no-refresh
+version = 1.5.0-no-refresh
 description = Gives access to GPIB devices via pyvisa.
 instancename = %LABRADNODE% GPIB Bus
 
