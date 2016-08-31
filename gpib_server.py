@@ -48,7 +48,7 @@ import visa
 ### BEGIN NODE INFO
 [info]
 name = GPIB Bus
-version = 1.4.0-no-refresh
+version = 1.5.0-no-refresh
 description = Gives access to GPIB devices via pyvisa.
 instancename = %LABRADNODE% GPIB Bus
 
@@ -164,6 +164,11 @@ class GPIBBusServer(LabradServer):
     def write(self, c, data):
         """Write a string to the GPIB bus."""
         self.getDevice(c).write(data)
+
+    @setting(8, data='y', returns='')
+    def write_raw(self, c, data):
+        """Write a string to the GPIB bus."""
+        self.getDevice(c).write_raw(data)
 
     @setting(4, n_bytes='w', returns='s')
     def read(self, c, n_bytes=None):
