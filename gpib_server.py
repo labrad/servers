@@ -165,7 +165,7 @@ class GPIBBusServer(LabradServer):
         """Write a string to the GPIB bus."""
         self.getDevice(c).write(data)
 
-    @setting(8, data='s', returns='')
+    @setting(8, data='y', returns='')
     def write_raw(self, c, data):
         """Write a string to the GPIB bus."""
         self.getDevice(c).write_raw(data)
