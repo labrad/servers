@@ -488,7 +488,7 @@ class ADRWrapper(DeviceWrapper):
                     if self.state('PIDloopCount') > 0:
                         D = self.state('PIDcd') * (self.state('PIDterr') - terrOld) / (self.sleepTime)
                     else:
-                        D = 0
+                        D = 0.0 * V
                     # target voltage
                     self.state('PIDout', self.state('magVoltage') + P + I + D, False)
                     if self.state('PIDout') < 0:
