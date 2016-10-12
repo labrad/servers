@@ -168,7 +168,6 @@ class ADRWrapper(DeviceWrapper):
             'PIDout': 0,
 
             ## logging variables ##
-            'logfile': '%s-log.txt' % self.name,  # the log file
             'loglimit': 20,  # max # lines held in the log variable (i.e. in memory)
 
             ## state tracking variables ##
@@ -976,9 +975,6 @@ class ADRWrapper(DeviceWrapper):
 
     # noinspection PyAttributeOutsideInit
     def log(self, data):
-        # write to log file
-        with open(self.state('logfile'), 'a') as f:
-            f.write('%s -- %s\n' % (time.strftime("%Y-%m-%d %H:%M:%S"), data))
         # append to log variable
         print 'stardate %s: %s' % (time.strftime("%Y-%m-%d %H:%M:%S"), data)
         self.logData.append((time.strftime("%Y-%m-%d %H:%M:%S"), data))
@@ -988,11 +984,6 @@ class ADRWrapper(DeviceWrapper):
 
     def get_log(self):
         return self.logData
-
-    def get_entire_log(self):
-        with open(self.state('logfile')) as f:
-            log_string = f.read()
-        return log_string
 
 
 # (end of ADRWrapper)
@@ -1181,12 +1172,6 @@ class ADRServer(DeviceServer):
         """ Reverts the state variables to the defaults in the registry. """
         dev = self.selectedDevice(c)
         dev.load_defaults_from_registry()
-
-    @setting(59, "Get Entire Log")
-    def get_entire_log(self, c):
-        """ Gets the entire log. It is very large and you probably don't want to do this. """
-        dev = self.selectedDevice(c)
-        return dev.get_entire_log()
 
     # the 60's settings are for controlling the temp recording
     @setting(60, "Start Recording")
