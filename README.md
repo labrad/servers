@@ -11,9 +11,6 @@ serial_server               Serial port interface using pyserial
 data_vault.py               Store numeric data from experiments, supported by the grapher client
 data_vault_multihead.py     Data vault implementation that can connect to multiple LabRAD managers
 
-## Set up environment
-
-### Install PyQt and PyQwt in a virtualenv
-
-See [these instructions](https://docs.google.com/document/d/1f_rZinhOOSVE_wjScR3jwJagt6MIqkIfthttmF7RWtk).
+Some of the tools here require PyQt.
+To install PyQt into a virtualenv in Linux, see [these instructions](https://docs.google.com/document/d/1f_rZinhOOSVE_wjScR3jwJagt6MIqkIfthttmF7RWtk).
 If you don't have access, please simply request.
