@@ -1048,7 +1048,7 @@ class ADRServer(DeviceServer):
         yield reg.cd(CONFIG_PATH)
         dirs, keys = yield reg.dir()
         for name in dirs:  # dirs are adr names.
-            if 'defaults' in name:
+            if 'defaults' in name or 'backups' in name:
                 continue
             # all required nodes must be present to create this device
             yield reg.cd(CONFIG_PATH + [name])
