@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = ADR Server
-version = 0.34
+version = 0.35
 description =
 
 [startup]
@@ -39,16 +39,17 @@ timeout = 20
 # fix PID?
 
 
-import traceback
 import time
+import traceback
 
+from labrad import support, util
 from labrad.devices import DeviceServer, DeviceWrapper
 from labrad.server import setting
 from labrad.units import Unit
+import numpy as np
 from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 import twisted.internet.error
-import numpy as np
 
 
 # ## Globals
@@ -77,7 +78,7 @@ class ADRWrapper(DeviceWrapper):
 
     # noinspection PyAttributeOutsideInit
     @inlineCallbacks
-    def connect(self, *args, **peripheral_dict):
+    def connect(self, cxn):
         """     
         TODO: Add error checking and handling
         """
@@ -85,7 +86,7 @@ class ADRWrapper(DeviceWrapper):
         # ADR's use the same connection as the ADR server.
         # Each ADR makes LabRAD requests in its own context.
 
-        self.cxn = args[0]
+        self.cxn = cxn
         self.ctxt = self.cxn.context()
         self._refreshPeripheralLock = False
         # give us a blank log
@@ -869,14 +870,22 @@ class ADRWrapper(DeviceWrapper):
         self.peripheralOrphans = {}
         self.peripheralsConnected = {}
         for peripheralName, idTuple in self.allPeripherals.items():
-            yield self.attemptPeripheral((peripheralName, idTuple))
+            yield self.attemptPeripheral(peripheralName, idTuple)
         self._refreshPeripheralLock = False
 
     @inlineCallbacks
     def findPeripherals(self, refresh_gpib=False):
-        """Finds peripheral device definitions for a given ADR (from the registry)
-        OUTPUT
-            peripheral_dict - dictionary {peripheralName:(serverName,identifier)..}
+        """Find peripheral device definitions for this ADR (from the registry).
+
+        Args:
+            refresh_gpib (bool): Whether to ask gpib servers for the configured
+                peripheral devices to refresh their list of available devices.
+
+        Returns:
+            (dict[str, (str, str)]) A mapping from peripheral name to a tuple
+            of (server name, peripheral identifier). The peripheral identifier
+            will be a prefix of the actual device name, including at least the
+            node name.
         """
 
         reg = self.cxn.registry
@@ -893,79 +902,93 @@ class ADRWrapper(DeviceWrapper):
         # pomalley 2013-01-25 -- refresh the GPIB bus when we do this
         # pomalley 2013-02-21 -- do it conditionally
         if refresh_gpib:
-            node_list = [v[1] for v in peripheral_dict.itervalues()]
-            deferred_list = []
-            for node in set(node_list):
-                for serverName, server in self.cxn.servers.iteritems():
-                    if serverName.lower().startswith(node.lower()) and 'gpib' in serverName.lower():
-                        deferred_list.append(server.refresh_devices())
-                        print "refreshing %s" % serverName
-            for d in deferred_list:
-                yield d
+            # Peripheral info is given as a tuple (server name, peripheral id).
+            # The peripheral id part must be a prefix of the device name,
+            # including at least the name of the node. We split off just the
+            # node part and convert it to the canonical form used for python
+            # attributes in order to find the matching gpib servers.
+            py_node_prefixes = [support.mangle(v[1].split(' ')[0])
+                                for v in peripheral_dict.itervalues()]
+            refreshes = []
+            for py_node in set(py_node_prefixes):
+                for server_name, server in self.cxn.servers.iteritems():
+                    py_server_name = support.mangle(server_name)
+                    if (py_server_name.startswith(py_node) and
+                            'gpib' in py_server_name):
+                        print "refreshing {}".format(server_name)
+                        refreshes.append(server.refresh_devices())
+            # Wait for all refreshes to complete.
+            for refresh in refreshes:
+                yield refresh
         returnValue(peripheral_dict)
 
     @inlineCallbacks
     def attemptOrphans(self):
         for peripheralName, idTuple in self.peripheralOrphans.items():
-            yield self.attemptPeripheral((peripheralName, idTuple))
+            yield self.attemptPeripheral(peripheralName, idTuple)
 
     @inlineCallbacks
-    def attemptPeripheral(self, peripheralTuple):
+    def attemptPeripheral(self, peripheralName, idTuple):
+        """Attempt to connect to a specified peripheral.
+
+        If the peripheral's server exists and knows about the desired device,
+        then the peripheral device is selected in this ADR's context. Otherwise
+        the peripheral is added to the list of orphans.
+
+        Args:
+            peripheralName (str): Name of the peripheral device.
+            idTuple ((str, str)): Server name and peripheral identifier. The
+                identifier can be the full name ("Kimble GPIB Bus - GPIB0::5")
+                or just the node name ("Kimble") if the node name alone is
+                enough to unambiguously identify the device.
         """
-        Attempts to connect to a specified peripheral. If the peripheral's server exists and
-        the desired peripheral is known to that server, then the peripheral is selected in
-        this ADR's context. Otherwise the peripheral is added to the list of orphans.
-        
-        INPUTS:
-        peripheralTuple - (peripheralName,(serverName,peripheralIdentifier))
-        (Note that peripherialIdentifier can either be the full name (e.g. "Kimble GPIB Bus - GPIB0::5")
-        or just the node name (e.g. "Kimble")).
-        """
-        peripheralName = peripheralTuple[0]
-        serverName = peripheralTuple[1][0]
-        peripheralID = peripheralTuple[1][1]
-        #If the peripheral's server exists, get it,
+        serverName, peripheralID = idTuple
+
+        # If the peripheral's server exists, get it, otherwise this peripheral
+        # is an orphan.
         if serverName in self.cxn.servers:
             server = self.cxn.servers[serverName]
-        #otherwise orphan this peripheral and tell the user.
         else:
-            self._orphanPeripheral(peripheralTuple)
-            print 'Server ' + serverName + ' does not exist.',
+            self._orphanPeripheral(peripheralName, idTuple)
+            print 'Server {} does not exist.'.format(serverName),
             print 'Check that the server is running and refresh this ADR'
             return
 
-        # If the peripheral's server has this peripheral, select it in this ADR's context.
+        # If the peripheral device exists, select it in our context.
         devices = yield server.list_devices()
-        if peripheralID in [device[1] for device in devices]:
-            yield self._connectPeripheral(server, peripheralTuple)
-        # if we couldn't find the peripheral directly, check to see if the node name matches
-        # (i.e. if the beginnings of the strings match)
-        elif peripheralID in [device[1][0:len(peripheralID)] for device in devices]:
-            # find the (first) device that matches
-            for device in devices:
-                if peripheralID == device[1][0:len(peripheralID)]:
-                    # connect it
-                    #print "Connecting to %s for %s" % (device
-                    yield self._connectPeripheral(server, (peripheralName, (serverName, device[1])))
-                    # don't connect more than one!
-                    break
-        # otherwise, orphan it
+        dev_names = [dev_name for dev_id, dev_name in devices]
+        dev_prefixes = [dev_name[:len(peripheralID)] for dev_name in dev_names]
+        if peripheralID in dev_names:
+            # Found an exact match
+            yield self._connectPeripheral(server, peripheralName, peripheralID)
+        elif peripheralID in dev_prefixes:
+            # Found a prefix match (node name at the beginning of the strings).
+            if dev_prefixes.count(peripheralID) > 1:
+                print ('Server {} has multiple devices matching ID "{}" for '
+                       'peripheral {}. Must configure full device name in '
+                       'the registry.'.format(serverName, peripheralID,
+                                              peripheralName))
+                self._orphanPeripheral(peripheralName, idTuple)
+            # Use the matching device name.
+            for dev_name, dev_prefix in zip(dev_names, dev_prefixes):
+                if peripheralID == dev_prefix:
+                    yield self._connectPeripheral(server, peripheralName,
+                                                  dev_name)
         else:
-            print 'Server ' + serverName + ' does not have device ' + peripheralID
-            self._orphanPeripheral(peripheralTuple)
+            # No match found. This peripheral is an orphan.
+            print 'Server {} does not have device {}'.format(serverName,
+                                                             peripheralID)
+            self._orphanPeripheral(peripheralName, idTuple)
 
     @inlineCallbacks
-    def _connectPeripheral(self, server, peripheralTuple):
-        peripheralName = peripheralTuple[0]
-        ID = peripheralTuple[1][1]
+    def _connectPeripheral(self, server, peripheralName, ID):
         #Make the actual connection to the peripheral device!
-        self.peripheralsConnected[peripheralName] = Peripheral(peripheralName, server, ID, self.ctxt)
-        yield self.peripheralsConnected[peripheralName].connect()
+        peripheral = Peripheral(peripheralName, server, ID, self.ctxt)
+        yield peripheral.connect()
+        self.peripheralsConnected[peripheralName] = peripheral
         print "connected to %s for %s" % (ID, peripheralName)
 
-    def _orphanPeripheral(self, peripheralTuple):
-        peripheralName = peripheralTuple[0]
-        idTuple = peripheralTuple[1]
+    def _orphanPeripheral(self, peripheralName, idTuple):
         if peripheralName not in self.peripheralOrphans:
             self.peripheralOrphans[peripheralName] = idTuple
 
@@ -988,6 +1011,7 @@ class ADRWrapper(DeviceWrapper):
 
 # (end of ADRWrapper)
 
+
 # #####################################
 # ######### ADR SERVER CLASS ##########
 # #####################################
@@ -1006,34 +1030,41 @@ class ADRServer(DeviceServer):
 
     @inlineCallbacks
     def findDevices(self):
-        """
-        Finds all ADR configurations in the registry at CONFIG_PATH and returns a list of
-        (ADR_name,(),peripheralDictionary).
-        INPUTS - none
-        OUTPUT - List of (ADRName,(connectionObject,context),peripheralDict) tuples.
+        """Find all ADR configurations in the registry.
+
+        Loads configuration from the registry at CONFIG_PATH and returns a list
+        of information about ADR devices found there. The list only includes
+        ADR devices for which all required node servers are present, with the
+        node servers inferred from the names of the configured peripheral
+        devices.
+
+        Returns:
+            (list[(str, tuple, dict)]): A list of tuples, each containing then
+            name of an ADR device, along with positional and keyword args to be
+            passed to the corresponding ADRWrapper's `connect` method.
         """
         device_list = []
         reg = self.client.registry
         yield reg.cd(CONFIG_PATH)
-        resp = yield reg.dir()
-        adr_names = resp[0].aslist
-        for name in adr_names:
-            if 'defaults' not in name:
-                # all required nodes must be present to create this device
-                yield reg.cd(name)
-                devices = yield reg.dir()
-                devices = devices[1].aslist
-                missing_nodes = []
-                for dev in devices:
-                    node = yield reg.get(dev)
-                    node = node[1].split(' ')[0]
-                    if "node_" + node.lower() not in self.client.servers:
-                        missing_nodes.append(node)
-                if not missing_nodes:
-                    device_list.append((name, (self.client,)))
-                else:
-                    print "device %s missing nodes: %s" % (name, str(list(set(missing_nodes))))
-                yield reg.cd(1)
+        dirs, keys = yield reg.dir()
+        for name in dirs:  # dirs are adr names.
+            if 'defaults' in name or 'backups' in name:
+                continue
+            # all required nodes must be present to create this device
+            yield reg.cd(CONFIG_PATH + [name])
+            dirs, keys = yield reg.dir()
+            missing_nodes = []
+            for dev in keys:  # keys are peripheral devices.
+                dev_info = yield reg.get(dev)
+                node = dev_info[1].split(' ')[0]
+                py_node_server_name = support.mangle('node {}'.format(node))
+                if py_node_server_name not in self.client.servers:
+                    missing_nodes.append(node)
+            if not missing_nodes:
+                device_list.append((name, (), {'cxn': self.client}))
+            else:
+                print "device {} missing nodes: {}".format(
+                        name, sorted(missing_nodes))
 
         returnValue(device_list)
 
@@ -1202,6 +1233,4 @@ class ADRServer(DeviceServer):
 __server__ = ADRServer()
 
 if __name__ == '__main__':
-    from labrad import util
-
     util.runServer(__server__)
