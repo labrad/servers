@@ -51,8 +51,8 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
     channel_on_parse = nia('channel_on_parse')
 
     COUPLINGS = ['AC', 'DC']
-    coupling_write = ':CH{0}:COUP {1}'.format
-    coupling_query = ':CH{0}:COUP?'.format
+    coupling_write = ':CH{:d}:COUP {}'.format
+    coupling_query = ':CH{:d}:COUP?'.format
     coupling_parse = str
 
     CHANNEL_INVERSIONS = {True: '1', False: '0'}
@@ -73,8 +73,8 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
     # scale, position, etc.
 
     VERT_SCALE_UNIT = nia('VERT_SCALE_UNIT')
-    vert_scale_write = ':CH{0}:SCA {1}'.format
-    vert_scale_query = ':CH{0}:SCA?'.format
+    vert_scale_write = ':CH{:d}:SCA {}'.format
+    vert_scale_query = ':CH{:d}:SCA?'.format
     @classmethod
     def vert_scale_parse(cls, s):
         return float(s) * cls.VERT_SCALE_UNIT
@@ -111,7 +111,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
     trigger_level_parse = nia('trigger_level_parse')
 
     TRIGGER_MODES = ["AUTO", "NORM"]
-    trigger_mode_write = ':TRIG:MOD {0}'.format
+    trigger_mode_write = ':TRIG:MOD {}'.format
     trigger_mode_query = ':TIRG:MOD?'.format
     trigger_mode_parse = str  # XXX is this correct?
 

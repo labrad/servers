@@ -28,33 +28,33 @@ class AgilentDSOX4104AWrapper(wrappers.OscilloscopeWrapper):
 
     # CHANNEL
 
-    channel_on_write = ':CHAN{0}:DISP {1}'.format
-    channel_on_query = ':CHAN{0}:DISP?'.format
+    channel_on_write = ':CHAN{:d}:DISP {}'.format
+    channel_on_query = ':CHAN{:d}:DISP?'.format
     def channel_on_parse(self, s):
         d = {v: k for k, v in self.CHANNEL_STATES.items()}
         return d[s]
 
-    coupling_write = ':CHAN{0}:COUP {1}'.format
-    coupling_query = ':CHAN{0}:COUP?'.format
+    coupling_write = ':CHAN{:d}:COUP {}'.format
+    coupling_query = ':CHAN{:d}:COUP?'.format
     coupling_parse = str
 
-    channel_invert_write = ':CHAN{0}:INV {1}'.format
-    channel_invert_query = ':CHAN{0}:INV?'.format
+    channel_invert_write = ':CHAN{:d}:INV {}'.format
+    channel_invert_query = ':CHAN{:d}:INV?'.format
     def channel_invert_parse(self, s):
         d = {v: k for k, v in self.CHANNEL_INVERSIONS.items()}
         return d[s]
 
     IMPEDANCES = {50:'FIFT', 1000000:'ONEM'}
     def termination_write(self, ch, imp):
-        return ':CHAN{0}:IMP {1}'.format(ch, self.IMPEDANCES[imp])
+        return ':CHAN{:d}:IMP {}'.format(ch, self.IMPEDANCES[imp])
     def termination_query(self, ch):
-        return ':CHAN{0}:IMP?'.format(ch)
+        return ':CHAN{:d}:IMP?'.format(ch)
     def termination_parse(self, s):
         return {v: k for k, v in self.IMPEDANCES.items()}[s]
 
     VERT_SCALE_UNIT = U.Unit('V')  # Device always returns Volts.
-    vert_scale_write = ':CHAN{0}:SCAL {1}V'.format
-    vert_scale_query = ':CHAN{0}:SCAL?'.format
+    vert_scale_write = ':CHAN{:d}:SCAL {}V'.format
+    vert_scale_query = ':CHAN{:d}:SCAL?'.format
     @classmethod
     def vert_scale_parse(cls, st):
         return float(st) * cls.VERT_SCALE_UNIT
@@ -64,12 +64,12 @@ class AgilentDSOX4104AWrapper(wrappers.OscilloscopeWrapper):
         scale = yield self.vert_scale(channel)
         if position is not None:
             pos_V = -(position * scale)['V']
-            yield self.write(':CHAN{0}:OFFS {1} V'.format(channel, pos_V))
-        resp = yield self.query(':CHAN{0}:OFFS?'.format(channel))
+            yield self.write(':CHAN{:d}:OFFS {} V'.format(channel, pos_V))
+        resp = yield self.query(':CHAN{:d}:OFFS?'.format(channel))
         returnValue(-float(resp) / scale['V'])
 
     HORIZ_SCALE_UNIT = U.Unit('s')
-    horiz_scale_write = ':TIM:SCAL {0}'.format
+    horiz_scale_write = ':TIM:SCAL {}'.format
     horiz_scale_query = ':TIM:SCAL?'.format
     def horiz_scale_parse(self, x):
         return float(x) * self.HORIZ_SCALE_UNIT 
@@ -86,7 +86,7 @@ class AgilentDSOX4104AWrapper(wrappers.OscilloscopeWrapper):
     # TRIGGER
 
     TRIGGER_SOURCES = ['EXT', 'LINE', 'CHAN1', 'CHAN2', 'CHAN3', 'CHAN4']
-    trigger_source_write = ':TRIG:EDGE:SOUR {0}'.format
+    trigger_source_write = ':TRIG:EDGE:SOUR {}'.format
     trigger_source_query = ':TRIG:EDGE:SOUR?'.format
     @staticmethod
     def trigger_source_parse(x):
