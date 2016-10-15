@@ -9,7 +9,7 @@ from labrad.gpib import GPIBDeviceWrapper
 
 def require_is_in(obj, collection):
     if obj not in collection:
-        raise ValueError("%s not in %s"%(obj, collection))
+        raise ValueError("{} not in {}".format(obj, collection))
 
 
 class NotImplementedAttribute(object):
@@ -23,6 +23,9 @@ class NotImplementedAttribute(object):
         raise AttributeError("Attribute {} of class {} not implemented".format(
             self.label,
             cls))
+
+
+nia = NotImplementedAttribute
 
 
 class OscilloscopeWrapper(GPIBDeviceWrapper):
@@ -43,9 +46,9 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
     # input
 
     CHANNEL_STATES = {True: '1', False: '0'}
-    channel_on_write = NotImplementedAttribute('channel_on_write')
-    channel_on_query = NotImplementedAttribute('channel_on_query')
-    channel_on_parse = NotImplementedAttribute('channel_on_parse')
+    channel_on_write = nia('channel_on_write')
+    channel_on_query = nia('channel_on_query')
+    channel_on_parse = nia('channel_on_parse')
 
     COUPLINGS = ['AC', 'DC']
     coupling_write = ':CH{0}:COUP {1}'.format
@@ -53,59 +56,59 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
     coupling_parse = str
 
     CHANNEL_INVERSIONS = {True: '1', False: '0'}
-    channel_invert_write = NotImplementedAttribute('channel_invert_write')
-    channel_invert_query = NotImplementedAttribute('channel_invert_query')
-    channel_invert_parse = NotImplementedAttribute('channel_invert_parse')
+    channel_invert_write = nia('channel_invert_write')
+    channel_invert_query = nia('channel_invert_query')
+    channel_invert_parse = nia('channel_invert_parse')
 
-    IMPEDANCES = NotImplementedAttribute('IMPEDANCES')
-    termination_write = NotImplementedAttribute('termination_write')
-    termination_query = NotImplementedAttribute('termination_query')
-    termination_parse = NotImplementedAttribute('termination_parse') 
+    IMPEDANCES = nia('IMPEDANCES')
+    termination_write = nia('termination_write')
+    termination_query = nia('termination_query')
+    termination_parse = nia('termination_parse') 
 
-    PROBE_FACTORS = NotImplementedAttribute('PROBE_FACTORS')
-    probe_factor_write = NotImplementedAttribute('probe_factor_write')
-    probe_factor_query = NotImplementedAttribute('probe_factor_query')
-    probe_factor_parse = NotImplementedAttribute('probe_factor_parse')
+    PROBE_FACTORS = nia('PROBE_FACTORS')
+    probe_factor_write = nia('probe_factor_write')
+    probe_factor_query = nia('probe_factor_query')
+    probe_factor_parse = nia('probe_factor_parse')
 
     # scale, position, etc.
 
-    VERT_SCALE_UNIT = NotImplementedAttribute('VERT_SCALE_UNIT')
+    VERT_SCALE_UNIT = nia('VERT_SCALE_UNIT')
     vert_scale_write = ':CH{0}:SCA {1}'.format
     vert_scale_query = ':CH{0}:SCA?'.format
     @classmethod
     def vert_scale_parse(cls, s):
         return float(s) * cls.VERT_SCALE_UNIT
 
-    vert_position_write = NotImplementedAttribute('vert_position_write')
-    vert_position_query = NotImplementedAttribute('vert_position_query')
-    vert_position_parse = NotImplementedAttribute('vert_position_parse')
+    vert_position_write = nia('vert_position_write')
+    vert_position_query = nia('vert_position_query')
+    vert_position_parse = nia('vert_position_parse')
 
-    HORIZ_SCALE_UNIT = NotImplementedAttribute('HORIZ_SCALE_UNIT')
-    horiz_scale_write = NotImplementedAttribute('horiz_scale_write')
-    horiz_scale_query = NotImplementedAttribute('horiz_scale_query')
-    horiz_scale_parse = NotImplementedAttribute('horiz_scale_parse')
+    HORIZ_SCALE_UNIT = nia('HORIZ_SCALE_UNIT')
+    horiz_scale_write = nia('horiz_scale_write')
+    horiz_scale_query = nia('horiz_scale_query')
+    horiz_scale_parse = nia('horiz_scale_parse')
 
-    HORIZ_POSITION_UNIT = NotImplementedAttribute('HORIZ_POSITION_UNIT')
-    horiz_position_write = NotImplementedAttribute('horiz_position_write')
-    horiz_position_query = NotImplementedAttribute('horiz_position_query')
-    horiz_position_parse = NotImplementedAttribute('horize_position_parse') 
+    HORIZ_POSITION_UNIT = nia('HORIZ_POSITION_UNIT')
+    horiz_position_write = nia('horiz_position_write')
+    horiz_position_query = nia('horiz_position_query')
+    horiz_position_parse = nia('horize_position_parse') 
 
     # TRIGGER
 
-    TRIGGER_SOURCES = NotImplementedAttribute('TRIGGER_SOURCES')
-    trigger_source_write = NotImplementedAttribute('trigger_source_write')
-    trigger_source_query = NotImplementedAttribute('trigger_source_query')
-    trigger_source_parse = NotImplementedAttribute('trigger_source_parse')
+    TRIGGER_SOURCES = nia('TRIGGER_SOURCES')
+    trigger_source_write = nia('trigger_source_write')
+    trigger_source_query = nia('trigger_source_query')
+    trigger_source_parse = nia('trigger_source_parse')
 
-    TRIGGER_SLOPES = NotImplementedAttribute('TRIGGER_SLOPES')
-    trigger_slope_write = NotImplementedAttribute('trigger_slope_write')
-    trigger_slope_query = NotImplementedAttribute('trigger_slope_query')
-    trigger_slope_parse = NotImplementedAttribute('trigger_slope_parse')
+    TRIGGER_SLOPES = nia('TRIGGER_SLOPES')
+    trigger_slope_write = nia('trigger_slope_write')
+    trigger_slope_query = nia('trigger_slope_query')
+    trigger_slope_parse = nia('trigger_slope_parse')
 
-    TRIGGER_LEVEL_UNIT = NotImplementedAttribute('TRIGGER_LEVEL_UNIT')
-    trigger_level_write = NotImplementedAttribute('trigger_level_write')
-    trigger_level_query = NotImplementedAttribute('trigger_level_query')
-    trigger_level_parse = NotImplementedAttribute('trigger_level_parse')
+    TRIGGER_LEVEL_UNIT = nia('TRIGGER_LEVEL_UNIT')
+    trigger_level_write = nia('trigger_level_write')
+    trigger_level_query = nia('trigger_level_query')
+    trigger_level_parse = nia('trigger_level_parse')
 
     TRIGGER_MODES = ["AUTO", "NORM"]
     trigger_mode_write = ':TRIG:MOD {0}'.format
