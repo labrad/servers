@@ -52,6 +52,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
     coupling_query = ':CH{0}:COUP?'.format
     coupling_parse = str
 
+    CHANNEL_INVERSIONS = {True: '1', False: '0'}
     channel_invert_write = NotImplementedAttribute('channel_invert_write')
     channel_invert_query = NotImplementedAttribute('channel_invert_query')
     channel_invert_parse = NotImplementedAttribute('channel_invert_parse')
@@ -163,8 +164,9 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
     @inlineCallbacks
     def invert(self, channel, invert):
         if invert is not None:
-            yield self.write(self.channel_invert_write(channel, invert))
-        resp = yield self.query(self.channel_invert_query(channel, invert))
+            s = self.CHANNEL_INVERSIONS[invert]
+            yield self.write(self.channel_invert_write(channel, s))
+        resp = yield self.query(self.channel_invert_query(channel))
         returnValue(self.channel_invert_parse(resp))
 
     @inlineCallbacks

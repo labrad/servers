@@ -40,7 +40,9 @@ class AgilentDSOX4104AWrapper(wrappers.OscilloscopeWrapper):
 
     channel_invert_write = ':CHAN{0}:INV {1}'.format
     channel_invert_query = ':CHAN{0}:INV?'.format
-    channel_invert_parse = int
+    def channel_invert_parse(self, s):
+        d = {v: k for k, v in self.CHANNEL_INVERSIONS.items()}
+        return d[s]
 
     IMPEDANCES = {50:'FIFT', 1000000:'ONEM'}
     def termination_write(self, ch, imp):

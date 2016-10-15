@@ -77,14 +77,14 @@ class OscilloscopeServer(GPIBManagedServer):
         """
         return self.selectedDevice(c).coupling(channel, coup)
 
-    @setting(52, channel='i', invert='i', returns='i')
+    @setting(52, channel='i', invert='b', returns='b')
     def invert(self, c, channel, invert=None):
         """Get or set channel inversion.
 
         Args:
             channel (int):
-            invert (int): 1 -> invert channel, 0 -> do not invert channel. If
-                None (the default), then we only query the inversion.
+            invert (bool): True->invert channel, False->do not invert channel.
+                If None (the default), then we only query the inversion.
 
         Returns:
             (int): 0: not inverted, 1: inverted.
