@@ -100,7 +100,7 @@ class OscilloscopeServer(GPIBManagedServer):
             term (int): Termination in Ohms. Either 50 or 1,000,000 on every
                 scope known to mankind.
         """
-        return self.selectedDevice.termination(channel, term)
+        return self.selectedDevice(c).termination(channel, term)
 
     # VERTICAL
 
