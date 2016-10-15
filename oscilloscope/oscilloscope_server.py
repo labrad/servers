@@ -21,7 +21,6 @@ from labrad.gpib import GPIBManagedServer
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 
-import oscilloscope.tektronix as tektronix
 import oscilloscope.agilent as agilent
 
 
