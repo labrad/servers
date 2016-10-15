@@ -48,8 +48,8 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
     channel_on_off_parse = NotImplementedAttribute('channel_on_off_parse')
 
     COUPLINGS = ['AC', 'DC']
-    coupling_write = 'CH{0}:COUP {1}'.format
-    coupling_query = 'CH{0}:COUP?'.format
+    coupling_write = ':CH{0}:COUP {1}'.format
+    coupling_query = ':CH{0}:COUP?'.format
     coupling_parse = str
 
     channel_invert_write = NotImplementedAttribute('channel_invert_write')
@@ -69,8 +69,8 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
     # scale, position, etc.
 
     VERT_SCALE_UNIT = NotImplementedAttribute('VERT_SCALE_UNIT')
-    vert_scale_write = 'CH{0}:SCA {1}'.format
-    vert_scale_query = 'CH{0}:SCA?'.format
+    vert_scale_write = ':CH{0}:SCA {1}'.format
+    vert_scale_query = ':CH{0}:SCA?'.format
     @classmethod
     def vert_scale_parse(cls, s):
         return float(s) * cls.VERT_SCALE_UNIT
@@ -107,8 +107,8 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
     trigger_level_parse = NotImplementedAttribute('trigger_level_parse')
 
     TRIGGER_MODES = ["AUTO", "NORM"]
-    trigger_mode_write = 'TRIG:MOD {0}'.format
-    trigger_mode_query = 'TIRG:MOD?'.format
+    trigger_mode_write = ':TRIG:MOD {0}'.format
+    trigger_mode_query = ':TIRG:MOD?'.format
     trigger_mode_parse = str  # XXX is this correct?
 
 

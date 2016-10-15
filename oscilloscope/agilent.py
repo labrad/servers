@@ -25,14 +25,14 @@ class AgilentDSOX4104AWrapper(wrappers.OscilloscopeWrapper):
 
     # CHANNEL
 
-    channel_on_off_write = 'CHAN{0}:DISP {1}'.format
-    channel_on_off_query = 'CHAN{0}:DISP?'.format
+    channel_on_off_write = ':CHAN{0}:DISP {1}'.format
+    channel_on_off_query = ':CHAN{0}:DISP?'.format
     @staticmethod
     def channel_on_off_parse(s):
         return {'0':'OFF', '1': 'ON'}[s]
 
-    coupling_write = 'CHAN{0}:COUP {1}'.format
-    coupling_query = 'CHAN{0}:COUP?'.format
+    coupling_write = ':CHAN{0}:COUP {1}'.format
+    coupling_query = ':CHAN{0}:COUP?'.format
     coupling_parse = str
 
     channel_invert_write = ':CHAN{0}:INV {1}'.format
@@ -43,13 +43,13 @@ class AgilentDSOX4104AWrapper(wrappers.OscilloscopeWrapper):
     def termination_write(self, ch, imp):
         return ':CHAN{0}:IMP {1}'.format(ch, self.IMPEDANCES[imp])
     def termination_query(self, ch):
-        return 'CHAN{0}:IMP?'.format(ch)
+        return ':CHAN{0}:IMP?'.format(ch)
     def termination_parse(self, s):
         return {v: k for k, v in self.IMPEDANCES.items()}[s]
 
     VERT_SCALE_UNIT = U.Unit('V')  # Device always returns Volts.
-    vert_scale_write = 'CHAN{0}:SCAL {1}V'.format
-    vert_scale_query = 'CHAN{0}:SCAL?'.format
+    vert_scale_write = ':CHAN{0}:SCAL {1}V'.format
+    vert_scale_query = ':CHAN{0}:SCAL?'.format
     @classmethod
     def vert_scale_parse(cls, st):
         return float(st) * cls.VERT_SCALE_UNIT
@@ -64,8 +64,8 @@ class AgilentDSOX4104AWrapper(wrappers.OscilloscopeWrapper):
         returnValue(-float(resp) / scale['V'])
 
     HORIZ_SCALE_UNIT = U.Unit('s')
-    horiz_scale_write = 'TIM:SCAL {0}'.format
-    horiz_scale_query = 'TIM:SCAL?'.format
+    horiz_scale_write = ':TIM:SCAL {0}'.format
+    horiz_scale_query = ':TIM:SCAL?'.format
     def horiz_scale_parse(self, x):
         return float(x) * self.HORIZ_SCALE_UNIT 
 
@@ -81,8 +81,8 @@ class AgilentDSOX4104AWrapper(wrappers.OscilloscopeWrapper):
     # TRIGGER
 
     TRIGGER_SOURCES = ['EXT', 'LINE', 'CHAN1', 'CHAN2', 'CHAN3', 'CHAN4']
-    trigger_source_write = 'TRIG:EDGE:SOUR {0}'.format
-    trigger_source_query = 'TRIG:EDGE:SOUR?'.format
+    trigger_source_write = ':TRIG:EDGE:SOUR {0}'.format
+    trigger_source_query = ':TRIG:EDGE:SOUR?'.format
     @staticmethod
     def trigger_source_parse(x):
         return x
@@ -117,13 +117,13 @@ class AgilentDSOX4104AWrapper(wrappers.OscilloscopeWrapper):
             (ValueArray[V]): Voltage axis.
         """
         word_length = 2
-        yield self.write('WAV:SOUR CHAN{}'.format(channel))
-        yield self.write('WAV:MSBF')
+        yield self.write(':WAV:SOUR CHAN{}'.format(channel))
+        yield self.write(':WAV:MSBF')
         yield self.write(':SING')
         preamble_raw = yield self.query(':WAV:PRE?')
         preamble = parse_preamble(preamble_raw)
-        yield self.write('WAV:FORM WORD')
-        yield self.write('WAV:DATA?')
+        yield self.write(':WAV:FORM WORD')
+        yield self.write(':WAV:DATA?')
         wave_bin = yield self.read_raw()
         wave_raw = parse_binary_waveform(wave_bin, word_length=word_length)
 
