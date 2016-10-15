@@ -61,9 +61,7 @@ class OscilloscopeServer(GPIBManagedServer):
         Returns:
             (bool): The channel state.
         """
-        dev = self.selectedDevice(c)
-        result = yield dev.channel_on(channel, state)
-        returnValue(result)
+        return self.selectedDevice(c).channel_on(channel, state)
 
     @setting(51, channel='i', coup='s', returns='s')
     def coupling(self, c, channel, coup=None):
@@ -77,9 +75,7 @@ class OscilloscopeServer(GPIBManagedServer):
         Returns:
             string indicating the channel's coupling.
         """
-        dev = self.selectedDevice(c)
-        result = yield dev.coupling(channel, coup)
-        returnValue(result)
+        return self.selectedDevice(c).coupling(channel, coup)
 
     @setting(52, channel='i', invert='i', returns='i')
     def invert(self, c, channel, invert=None):
@@ -93,9 +89,7 @@ class OscilloscopeServer(GPIBManagedServer):
         Returns:
             (int): 0: not inverted, 1: inverted.
         """
-        dev = self.selectedDevice(c)
-        result = yield dev.invert(channel, invert)
-        returnValue(result)
+        return self.selectedDevice(c).invert(channel, invert)
 
     @setting(53, channel='i', term='i', returns='i')
     def termination(self, c, channel, term=None):
@@ -106,17 +100,13 @@ class OscilloscopeServer(GPIBManagedServer):
             term (int): Termination in Ohms. Either 50 or 1,000,000 on every
                 scope known to mankind.
         """
-        dev = self.selectedDevice(c)
-        result = yield dev.termination(channel, term)
-        returnValue(result)
+        return self.selectedDevice.termination(channel, term)
 
     # VERTICAL
 
     @setting(20, channel='i', scale='v[V]', returns='v[V]')
     def scale(self, c, channel, scale=None):
-        dev = self.selectedDevice(c)
-        result = yield dev.vert_scale(channel, scale)
-        returnValue(result)
+        return self.selectDevice(c).vert_scale(channel, scale)
 
     @setting(21, channel='i', position='v[]', returns='v[]')
     def position(self, c, channel, position=None):
@@ -130,9 +120,7 @@ class OscilloscopeServer(GPIBManagedServer):
         Returns:
             (float): Vertical position in units of divisions.
         """
-        dev = self.selectedDevice(c)
-        result = yield dev.vert_position(channel, position)
-        returnValue(result)
+        return self.selectedDevice(c).vert_position(channel, position)
 
     # HORIZONTAL
 
@@ -147,9 +135,7 @@ class OscilloscopeServer(GPIBManagedServer):
         Returns:
             (Value[s]): The horizontal scale.
         """
-        dev = self.selectedDevice(c)
-        result = yield dev.horiz_scale(scale)
-        returnValue(result)
+        return self.selectedDevice(c).horiz_scale(scale)
 
     @setting(31, position='v[]', returns='v[]')
     def horiz_position(self, c, position=None):
@@ -161,9 +147,7 @@ class OscilloscopeServer(GPIBManagedServer):
         Returns:
             (float): The horizontal position in units of divisions.
         """
-        dev = self.selectedDevice(c)
-        result = yield dev.horiz_position(position)
-        returnValue(result)
+        return self.selectedDevice(c).horiz_position(position)
 
     # TRIGGER
 
@@ -178,9 +162,7 @@ class OscilloscopeServer(GPIBManagedServer):
         Returns:
             (str): Trigger source.
         """
-        dev = self.selectedDevice(c)
-        resp = yield dev.trigger_source(source)
-        returnValue(resp)
+        return self.selectedDevice(c).trigger_source(source)
 
     @setting(72, slope='s', returns='s')
     def trigger_slope(self, c, slope=None):
@@ -193,9 +175,7 @@ class OscilloscopeServer(GPIBManagedServer):
         Returns:
             (str): The trigger slope.
         """
-        dev = self.selectedDevice(c)
-        resp = yield dev.trigger_slope(slope)
-        returnValue(resp)
+        return self.selectDevice(c).trigger_slope(slope)
 
     @setting(73, level='v[V]', returns='v[V]')
     def trigger_level(self, c, level=None):
@@ -208,9 +188,7 @@ class OscilloscopeServer(GPIBManagedServer):
         Returns:
             (Value[V]): The trigger level.
         """
-        dev = self.selectedDevice(c)
-        resp = yield dev.trigger_level(level)
-        returnValue(resp)
+        return self.selectedDevice(c).trigger_level(level)
 
     # ACQUISITION
 
@@ -225,9 +203,7 @@ class OscilloscopeServer(GPIBManagedServer):
             (ValueArray[s]): Time axis.
             (ValueArray[V]): Voltages.
         """
-        dev = self.selectedDevice(c)
-        result = yield dev.get_trace(channel)
-        returnValue(result)
+        return self.selectedDevice(c).get_trace(channel)
 
 
 __server__ = OscilloscopeServer()
