@@ -49,10 +49,20 @@ class OscilloscopeServer(GPIBManagedServer):
 
     # CHANNEL
 
-    @setting(50, channel='i', state='s', returns='s')
-    def channel_on_off(self, c, channel, state=None):
+    @setting(50, channel='i', state='b', returns='b')
+    def channel_on(self, c, channel, state=None):
+        """Set or query channel on/off state.
+
+        Args:
+            channel (int): Which channel.
+            state (bool): True->On, False->Off. If None (default), then we
+                only query the state without setting it.
+
+        Returns:
+            (bool): The channel state.
+        """
         dev = self.selectedDevice(c)
-        result = yield dev.channel_on_off(channel, state)
+        result = yield dev.channel_on(channel, state)
         returnValue(result)
 
     @setting(51, channel='i', coup='s', returns='s')

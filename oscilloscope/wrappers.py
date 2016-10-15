@@ -42,10 +42,10 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
 
     # input
 
-    CHANNEL_STATES = ['ON', 'OFF']
-    channel_on_off_write = NotImplementedAttribute('channel_on_off_write')
-    channel_on_off_query = NotImplementedAttribute('channel_on_off_query')
-    channel_on_off_parse = NotImplementedAttribute('channel_on_off_parse')
+    CHANNEL_STATES = {True: '1', False: '0'}
+    channel_on_write = NotImplementedAttribute('channel_on_write')
+    channel_on_query = NotImplementedAttribute('channel_on_query')
+    channel_on_parse = NotImplementedAttribute('channel_on_parse')
 
     COUPLINGS = ['AC', 'DC']
     coupling_write = ':CH{0}:COUP {1}'.format
@@ -127,21 +127,21 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
     # CHANNEL
 
     @inlineCallbacks
-    def channel_on_off(self, channel, state=None):
+    def channel_on(self, channel, state=None):
         """Get or set channel on/off.
 
         Args:
-            channel - int: The channel to get or set.
-            state - str: 'ON' or 'OFF'.
+            channel (int): The channel to get or set.
+            state (bool): True->On, False->Off.
 
         Returns:
-            String giving the state of the channel.
+            (bool): State of the channel.
         """
         if state is not None:
-            require_is_in(state, self.CHANNEL_STATES)
-            yield self.write(self.channel_on_off_write(channel, state))
-        resp = yield self.query(self.channel_on_off_query(channel))
-        returnValue(self.channel_on_off_parse(resp))
+            s = self.CHANNEL_STATES[state]
+            yield self.write(self.channel_on_write(channel, s))
+        resp = yield self.query(self.channel_on_query(channel))
+        returnValue(self.channel_on_parse(resp))
 
     @inlineCallbacks
     def coupling(self, channel, coupling=None):

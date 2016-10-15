@@ -28,11 +28,11 @@ class AgilentDSOX4104AWrapper(wrappers.OscilloscopeWrapper):
 
     # CHANNEL
 
-    channel_on_off_write = ':CHAN{0}:DISP {1}'.format
-    channel_on_off_query = ':CHAN{0}:DISP?'.format
-    @staticmethod
-    def channel_on_off_parse(s):
-        return {'0':'OFF', '1': 'ON'}[s]
+    channel_on_write = ':CHAN{0}:DISP {1}'.format
+    channel_on_query = ':CHAN{0}:DISP?'.format
+    def channel_on_parse(self, s):
+        d = {v: k for k, v in self.CHANNEL_STATES.items()}
+        return d[s]
 
     coupling_write = ':CHAN{0}:COUP {1}'.format
     coupling_query = ':CHAN{0}:COUP?'.format
