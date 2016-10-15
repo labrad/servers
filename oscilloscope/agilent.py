@@ -119,6 +119,7 @@ class AgilentDSOX4104AWrapper(wrappers.OscilloscopeWrapper):
         word_length = 2
         yield self.write('WAV:SOUR CHAN{}'.format(channel))
         yield self.write('WAV:MSBF')
+        yield self.write(':SING')
         preamble_raw = yield self.query(':WAV:PRE?')
         preamble = parse_preamble(preamble_raw)
         yield self.write('WAV:FORM WORD')
