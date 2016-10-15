@@ -206,8 +206,6 @@ class OscilloscopeServer(GPIBManagedServer):
         return self.selectedDevice(c).get_trace(channel)
 
 
-__server__ = OscilloscopeServer()
-
 if __name__ == '__main__':
     from labrad import util
-    util.runServer(__server__)
+    util.runServer(OscilloscopeServer())
