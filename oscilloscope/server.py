@@ -151,7 +151,7 @@ class OscilloscopeServer(GPIBManagedServer):
 
     # TRIGGER
 
-    @setting(71, source=['s'], returns='s')
+    @setting(71, source='s', returns='s')
     def trigger_source(self, c, source=None):
         """Set or query trigger source.
 
