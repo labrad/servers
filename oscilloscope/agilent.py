@@ -28,36 +28,35 @@ class AgilentDSOX4104AWrapper(wrappers.OscilloscopeWrapper):
 
     # CHANNEL
 
-    channel_on_write = ':CHAN{:d}:DISP {}'.format
-    channel_on_query = ':CHAN{:d}:DISP?'.format
-    def channel_on_parse(self, s):
-        d = {v: k for k, v in self.CHANNEL_STATES.items()}
-        return d[s]
+    channel_on = wrappers.channel_method(
+            lambda x: {True: '1', False: '0'}[x],
+            ':CHAN{:d}:DISP {}'.format,
+            ':CHAN{:d}:DISP?'.format,
+            lambda x: {'1': True, '0': False}[x])
 
-    coupling_write = ':CHAN{:d}:COUP {}'.format
-    coupling_query = ':CHAN{:d}:COUP?'.format
-    coupling_parse = str
+    coupling = wrappers.channel_method(
+            lambda x: x,
+            ':CHAN{:d}:COUP {}'.format,
+            ':CHAN{:d}:COUP?'.format,
+            lambda x: x)
 
-    channel_invert_write = ':CHAN{:d}:INV {}'.format
-    channel_invert_query = ':CHAN{:d}:INV?'.format
-    def channel_invert_parse(self, s):
-        d = {v: k for k, v in self.CHANNEL_INVERSIONS.items()}
-        return d[s]
+    invert = wrappers.channel_method(
+            lambda x: {True: '1', False: '0'}[x],
+            ':CHAN{:d}:INV {}'.format,
+            ':CHAN{:d}:INV?'.format,
+            lambda x: {'1': True, '0': False}[x])
 
-    IMPEDANCES = {50:'FIFT', 1000000:'ONEM'}
-    def termination_write(self, ch, imp):
-        return ':CHAN{:d}:IMP {}'.format(ch, self.IMPEDANCES[imp])
-    def termination_query(self, ch):
-        return ':CHAN{:d}:IMP?'.format(ch)
-    def termination_parse(self, s):
-        return {v: k for k, v in self.IMPEDANCES.items()}[s]
+    termination = wrappers.channel_method(
+            lambda x: {50:'FIFT', 1000000:'ONEM'}[x],
+            ':CHAN{:d}:IMP {}'.format,
+            ':CHAN{:d}:IMP?'.format,
+            lambda x: {'FIFT': 50, 'ONEM': 1000000}[x])
 
-    VERT_SCALE_UNIT = U.Unit('V')  # Device always returns Volts.
-    vert_scale_write = ':CHAN{:d}:SCAL {}V'.format
-    vert_scale_query = ':CHAN{:d}:SCAL?'.format
-    @classmethod
-    def vert_scale_parse(cls, st):
-        return float(st) * cls.VERT_SCALE_UNIT
+    vert_scale = wrappers.channel_method(
+            lambda x: format(x['V'], 'E'),
+            ':CHAN{:d}:SCAL {}V'.format,
+            ':CHAN{:d}:SCAL?'.format,
+            lambda x: float(x) * U.Value(1, 'V'))
 
     @inlineCallbacks
     def vert_position(self, channel, position=None):
@@ -68,11 +67,11 @@ class AgilentDSOX4104AWrapper(wrappers.OscilloscopeWrapper):
         resp = yield self.query(':CHAN{:d}:OFFS?'.format(channel))
         returnValue(-float(resp) / scale['V'])
 
-    HORIZ_SCALE_UNIT = U.Unit('s')
-    horiz_scale_write = ':TIM:SCAL {}'.format
-    horiz_scale_query = ':TIM:SCAL?'.format
-    def horiz_scale_parse(self, x):
-        return float(x) * self.HORIZ_SCALE_UNIT 
+    horiz_scale = wrappers.global_method(
+            lambda x: x['s'],
+            ':TIM:SCAL {}'.format,
+            ':TIM:SCAL?'.format,
+            lambda x: float(x) * U.Value(1, 's'))
 
     @inlineCallbacks
     def horiz_position(self, position=None):

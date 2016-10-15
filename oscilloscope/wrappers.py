@@ -28,42 +28,32 @@ class NotImplementedAttribute(object):
 nia = NotImplementedAttribute
 
 
-class OscilloscopeWrapper(GPIBDeviceWrapper):
-    """Base class for oscilloscope wrappers
+def channel_method(input_parse, write, query, output_parse):
+    @inlineCallbacks
+    def func(self, channel, arg):
+        if arg is not None:
+            yield self.write(write(channel, input_parse(arg)))
+        resp = yield self.query(query(channel))
+        returnValue(output_parse(resp))
+    return func
 
-    We provide iterpolatable strings which can be treated as functions to
-    generate VISA commands. For example, consider the string
-        'CH{0}:COUP {1}'.
-    This string has a .format method, which is a function that takes two
-    arguments. When you call that function with arguments 0 and "ON", the
-    result is
-        'CH0:COUP ON'
-    which is the VISA command that turns on channel 0.
-    """
+
+def global_method(input_parse, write, query, output_parse):
+    @inlineCallbacks
+    def func(self, arg):
+        if arg is not None:
+            yield self.write(write(input_parse(arg)))
+        resp = yield self.query(query())
+        returnValue(output_parse(resp))
+    return func
+
+
+class OscilloscopeWrapper(GPIBDeviceWrapper):
+    """Base class for oscilloscope wrappers"""
 
     # CHANNEL
 
     # input
-
-    CHANNEL_STATES = {True: '1', False: '0'}
-    channel_on_write = nia('channel_on_write')
-    channel_on_query = nia('channel_on_query')
-    channel_on_parse = nia('channel_on_parse')
-
-    COUPLINGS = ['AC', 'DC']
-    coupling_write = ':CH{:d}:COUP {}'.format
-    coupling_query = ':CH{:d}:COUP?'.format
-    coupling_parse = str
-
-    CHANNEL_INVERSIONS = {True: '1', False: '0'}
-    channel_invert_write = nia('channel_invert_write')
-    channel_invert_query = nia('channel_invert_query')
-    channel_invert_parse = nia('channel_invert_parse')
-
-    IMPEDANCES = nia('IMPEDANCES')
-    termination_write = nia('termination_write')
-    termination_query = nia('termination_query')
-    termination_parse = nia('termination_parse') 
 
     PROBE_FACTORS = nia('PROBE_FACTORS')
     probe_factor_write = nia('probe_factor_write')
@@ -141,11 +131,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
         Returns:
             (bool): State of the channel.
         """
-        if state is not None:
-            s = self.CHANNEL_STATES[state]
-            yield self.write(self.channel_on_write(channel, s))
-        resp = yield self.query(self.channel_on_query(channel))
-        returnValue(self.channel_on_parse(resp))
+        raise NotImplementedError
 
     @inlineCallbacks
     def coupling(self, channel, coupling=None):
@@ -158,19 +144,21 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
                 the current coupling is queried and returned. Otherwise the
                 coupling is set and then queried and the result is returned.
         """
-        if coupling is not None:
-            require_is_in(coupling, self.COUPLINGS)
-            yield self.write(self.coupling_write(channel, coupling))
-        resp = yield self.query(self.coupling_query(channel))
-        returnValue(self.coupling_parse(resp))
+        raise NotImplementedError
 
     @inlineCallbacks
     def invert(self, channel, invert):
-        if invert is not None:
-            s = self.CHANNEL_INVERSIONS[invert]
-            yield self.write(self.channel_invert_write(channel, s))
-        resp = yield self.query(self.channel_invert_query(channel))
-        returnValue(self.channel_invert_parse(resp))
+        """Get or set channel inversion.
+
+        Args:
+            channel (int): Which channel to get or set.
+            invert (bool): True->invert, False->no invert. If None (the
+                default), then we just query.
+
+        Returns:
+            (bool): Whether or not the channel is iverted.
+        """
+        raise NotImplementedError
 
     @inlineCallbacks
     def termination(self, channel, impedance=None):
@@ -185,11 +173,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
         Returns:
             The termination impedance of the channel.
         """
-        if impedance is not None:
-            require_is_in(impedance, self.IMPEDANCES.keys())
-            yield self.write(self.termination_write(channel, impedance))
-        resp = yield self.query(self.termination_query(channel))
-        returnValue(self.termination_parse(resp))
+        raise NotImplementedError
 
     # VERTICAL 
 
@@ -206,11 +190,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
         Returns:
             Vertical scale in Voltage units.
         """
-        if scale is not None:
-            scale_str = format(scale[self.VERT_SCALE_UNIT], 'E')
-            yield self.write(self.vert_scale_write(channel, scale_str))
-        resp = yield self.query(self.vert_scale_query(channel))
-        returnValue(self.vert_scale_parse(resp))
+        raise NotImplementedError
 
     @inlineCallbacks
     def vert_position(self, channel, position=None):
@@ -224,10 +204,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
         Returns:
             (float): The vertical position in units of divisions.
         """
-        if position is not None:
-            yield self.write(self.vert_position_write(channel, pos))
-        resp = yield dev.query(self.vert_position_query(channel))
-        returnValue(self.parse_vert_position(resp))
+        raise NotImplementedError
 
     # HORIZONTAL
 
@@ -244,11 +221,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
         Returns:
             Horizontal scale in dimensions of time.
         """
-        if scale is not None:
-            scale = scale[self.HORIZ_SCALE_UNIT]
-            yield self.write(self.horiz_scale_write(scale))
-        resp = yield self.query(self.horiz_scale_query(scale))
-        returnValue(self.horiz_scale_parse(resp))
+        raise NotImplementedError
 
     @inlineCallbacks
     def horiz_position(self, position):
@@ -260,10 +233,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
         Returns:
             The resulting position.
         """
-        if position is not None:
-            yield self.write(self.horiz_position_write())
-        resp = yield self.query(self.horiz_position_query())
-        returnValue(self.horiz_position_parse(resp))
+        raise NotImplementedError
 
     # TRIGGER
 
