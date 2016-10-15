@@ -5,11 +5,14 @@ Wrappers for Agilent oscilloscopes.
 
 
 from __future__ import absolute_import
-import oscilloscope.wrappers as wrappers
-import labrad.units as U
+
 import struct
+
 import numpy as np
 from twisted.internet.defer import inlineCallbacks, returnValue
+
+import labrad.units as U
+import oscilloscope.wrappers as wrappers
 
 
 class AgilentDSOX4104AWrapper(wrappers.OscilloscopeWrapper):

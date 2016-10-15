@@ -15,12 +15,13 @@ timeout = 20
 ### END NODE INFO
 """
 
+
 from __future__ import absolute_import
-from labrad.server import setting
-from labrad.gpib import GPIBManagedServer
+
 from twisted.internet.defer import inlineCallbacks, returnValue
 
-
+from labrad.gpib import GPIBManagedServer
+from labrad.server import setting
 import oscilloscope.agilent as agilent
 
 

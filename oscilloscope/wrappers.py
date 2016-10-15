@@ -1,10 +1,10 @@
 from __future__ import absolute_import
 
-from labrad import types as T
-from labrad.gpib import GPIBDeviceWrapper
+import numpy
 from twisted.internet.defer import inlineCallbacks, returnValue
 
-import numpy
+from labrad import types as T
+from labrad.gpib import GPIBDeviceWrapper
 
 
 def require_is_in(obj, collection):
