@@ -30,7 +30,7 @@ nia = NotImplementedAttribute
 
 def channel_method(input_parse, write, query, output_parse):
     @inlineCallbacks
-    def func(self, channel, arg):
+    def func(self, channel, arg=None):
         if arg is not None:
             yield self.write(write(channel, input_parse(arg)))
         resp = yield self.query(query(channel))
@@ -40,7 +40,7 @@ def channel_method(input_parse, write, query, output_parse):
 
 def global_method(input_parse, write, query, output_parse):
     @inlineCallbacks
-    def func(self, arg):
+    def func(self, arg=None):
         if arg is not None:
             yield self.write(write(input_parse(arg)))
         resp = yield self.query(query())
