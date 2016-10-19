@@ -28,23 +28,23 @@ class NotImplementedAttribute(object):
 nia = NotImplementedAttribute
 
 
-def channel_method(input_parse, write, query, output_parse):
+def channel_method(input_parser, write, query, output_parser):
     @inlineCallbacks
     def func(self, channel, arg=None):
         if arg is not None:
-            yield self.write(write(channel, input_parse(arg)))
+            yield self.write(write(channel, input_parser(arg)))
         resp = yield self.query(query(channel))
-        returnValue(output_parse(resp))
+        returnValue(output_parser(resp))
     return func
 
 
-def global_method(input_parse, write, query, output_parse):
+def global_method(input_parser, write, query, output_parser):
     @inlineCallbacks
     def func(self, arg=None):
         if arg is not None:
-            yield self.write(write(input_parse(arg)))
+            yield self.write(write(input_parser(arg)))
         resp = yield self.query(query())
-        returnValue(output_parse(resp))
+        returnValue(output_parser(resp))
     return func
 
 
