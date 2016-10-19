@@ -102,7 +102,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
 
     TRIGGER_MODES = ["AUTO", "NORM"]
     trigger_mode_write = ':TRIG:MOD {}'.format
-    trigger_mode_query = ':TIRG:MOD?'.format
+    trigger_mode_query = ':TRIG:MOD?'.format
     trigger_mode_parse = str  # XXX is this correct?
 
 
