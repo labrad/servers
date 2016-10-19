@@ -131,7 +131,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
         Returns:
             (bool): State of the channel.
         """
-        raise NotImplementedError
+        raise NotImplementedError()
 
     @inlineCallbacks
     def coupling(self, channel, coupling=None):
@@ -144,7 +144,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
                 the current coupling is queried and returned. Otherwise the
                 coupling is set and then queried and the result is returned.
         """
-        raise NotImplementedError
+        raise NotImplementedError()
 
     @inlineCallbacks
     def invert(self, channel, invert):
@@ -158,7 +158,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
         Returns:
             (bool): Whether or not the channel is iverted.
         """
-        raise NotImplementedError
+        raise NotImplementedError()
 
     @inlineCallbacks
     def termination(self, channel, impedance=None):
@@ -173,7 +173,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
         Returns:
             The termination impedance of the channel.
         """
-        raise NotImplementedError
+        raise NotImplementedError()
 
     # VERTICAL 
 
@@ -190,7 +190,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
         Returns:
             Vertical scale in Voltage units.
         """
-        raise NotImplementedError
+        raise NotImplementedError()
 
     @inlineCallbacks
     def vert_position(self, channel, position=None):
@@ -204,7 +204,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
         Returns:
             (float): The vertical position in units of divisions.
         """
-        raise NotImplementedError
+        raise NotImplementedError()
 
     # HORIZONTAL
 
@@ -221,7 +221,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
         Returns:
             Horizontal scale in dimensions of time.
         """
-        raise NotImplementedError
+        raise NotImplementedError()
 
     @inlineCallbacks
     def horiz_position(self, position):
@@ -233,7 +233,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
         Returns:
             The resulting position.
         """
-        raise NotImplementedError
+        raise NotImplementedError()
 
     # TRIGGER
 
@@ -289,5 +289,5 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
     # ACQUISITION
 
     def get_trace(self, channel):
-        raise NotImplementedError
+        raise NotImplementedError()
 
