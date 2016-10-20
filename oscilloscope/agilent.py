@@ -101,7 +101,7 @@ class AgilentDSOX4104AWrapper(wrappers.OscilloscopeWrapper):
             lambda x: x['V'],
             ':TRIG:EDGE:LEV {}'.format,
             ':TRIG:EDGE:LEV?'.format,
-            lambda x: float(x) * U.Value(1, 'V')
+            lambda x: float(x) * U.Value(1, 'V'))
 
     @inlineCallbacks
     def get_trace(self, channel):
