@@ -64,6 +64,7 @@ timeout = 20
 
 
 KNOWN_DEVICE_TYPES = ('GPIB', 'TCPIP', 'USB')
+CONFIG_PATH = ['', 'Servers', 'GPIB Bus']
 
 
 class GPIBBusServer(LabradServer):
@@ -98,6 +99,25 @@ class GPIBBusServer(LabradServer):
             self.refresher.stop()
             yield self.refresherDone
 
+
+    @inlineCallbacks
+    def getRegistryDevices(self):
+        """Get a list of known devices from the registry.
+
+        This is used when a given device won't show up
+        in the VISA resource manager.
+
+        This returns the contents of the registry key named %NODENAME
+        in the registry path ['', 'Servers', 'GPIB Bus']
+        """
+        keyname = os.environ.get('LABRADNODE', 'default')
+        p = self.client.registery.packet()
+        p.cd(CONFIG_PATH, True)
+        p.get(keyname, True, [])
+        resp = yield p.send()
+        return resp['get']
+    
+    @inlineCallbacks
     def refreshDevices(self):
         """Refresh the list of known devices on this bus.
 
@@ -105,6 +125,7 @@ class GPIBBusServer(LabradServer):
         """
         try:
             rm = visa.ResourceManager()
+            registry_devices = yield self.getRegistryDevices()
             addresses = [str(x) for x in rm.list_resources()]
             additions = set(addresses) - set(self.devices.keys())
             deletions = set(self.devices.keys()) - set(addresses)
