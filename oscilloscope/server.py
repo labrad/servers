@@ -69,8 +69,8 @@ class OscilloscopeServer(GPIBManagedServer):
 
         Args:
             channel (int): Which channel to set coupling.
-            coup (str): Coupling (usually 'AC' or 'DC'). If None (the default)
-                just query the coupling without setting it.
+            coup (str): Coupling, 'AC' or 'DC'. If None (the default) just query
+                the coupling without setting it.
 
         Returns:
             string indicating the channel's coupling.
@@ -97,8 +97,7 @@ class OscilloscopeServer(GPIBManagedServer):
 
         Args:
             channel (int): Which channel to set termination.
-            term (int): Termination in Ohms. Either 50 or 1,000,000 on every
-                scope known to mankind.
+            term (int): Termination in Ohms. Either 50 or 1,000,000.
         """
         return self.selectedDevice(c).termination(channel, term)
 
@@ -106,6 +105,16 @@ class OscilloscopeServer(GPIBManagedServer):
 
     @setting(20, channel='i', scale='v[V]', returns='v[V]')
     def scale(self, c, channel, scale=None):
+        """Get or set the vertical scale.
+
+        Args:
+            channel (int): The channel to get or set.
+            scale (Value[V]): The vertical scale, i.e. voltage per division. If
+                None (the default), we just query.
+
+        Returns:
+            Value[V]: The vertical scale.
+        """
         return self.selectDevice(c).vert_scale(channel, scale)
 
     @setting(21, channel='i', position='v[]', returns='v[]')

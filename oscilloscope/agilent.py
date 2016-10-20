@@ -84,30 +84,24 @@ class AgilentDSOX4104AWrapper(wrappers.OscilloscopeWrapper):
         
     # TRIGGER
 
-    TRIGGER_SOURCES = ['EXT', 'LINE', 'CHAN1', 'CHAN2', 'CHAN3', 'CHAN4']
-    trigger_source_write = ':TRIG:EDGE:SOUR {}'.format
-    trigger_source_query = ':TRIG:EDGE:SOUR?'.format
-    @staticmethod
-    def trigger_source_parse(x):
-        return x
+    trigger_source = wrappers.global_method(
+            wrappers.filter_function(
+                'EXT', 'LINE', 'CHAN1', 'CHAN2', 'CHAN3', 'CHAN4'),
+            ':TRIG:EDGE:SOUR {}'.format,
+            ':TRIG:EDGE:SOUR?'.format,
+            lambda x: x)
 
-    TRIGGER_SLOPES = ['POS', 'NEG']
-    trigger_slope_write = ':TRIG:EDGE:SLOP {}'.format
-    trigger_slope_query = ':TRIG:EDGE:SLOP?'.format
-    @staticmethod
-    def trigger_slope_parse(x):
-        return x
+    trigger_slope = wrappers.global_method(
+            wrappers.filter_function('POS', 'NEG'),
+            ':TRIG:EDGE:SLOP {}'.format,
+            ':TRIG:EDGE:SLOP?'.format,
+            lambda x: x)
 
-    TRIGGER_LEVEL_UNIT = U.Unit('V')
-    @classmethod
-    def trigger_level_write(cls, level):
-        return ':TRIG:EDGE:LEV {}'.format(level[cls.TRIGGER_LEVEL_UNIT])
-    @staticmethod
-    def trigger_level_query():
-        return ':TRIG:EDGE:LEV?'
-    @classmethod
-    def trigger_level_parse(cls, level):
-        return float(level) * cls.TRIGGER_LEVEL_UNIT
+    trigger_level = wrappers.global_method(
+            lambda x: x['V'],
+            ':TRIG:EDGE:LEV {}'.format,
+            ':TRIG:EDGE:LEV?'.format,
+            lambda x: float(x) * U.Value(1, 'V')
 
     @inlineCallbacks
     def get_trace(self, channel):
