@@ -126,7 +126,7 @@ class GPIBBusServer(LabradServer):
         try:
             rm = visa.ResourceManager()
             registry_devices = yield self.getRegistryDevices()
-            addresses = [str(x) for x in rm.list_resources()]
+            addresses = [str(x) for x in rm.list_resources()] + registry_devices
             additions = set(addresses) - set(self.devices.keys())
             deletions = set(self.devices.keys()) - set(addresses)
             for addr in additions:
