@@ -48,7 +48,9 @@ __QUERY__ = """\
 
 class SpectrumAnalyzer(GPIBManagedServer):
     name = 'Spectrum Analyzer Server'
-    deviceName = ['Hewlett-Packard E4407B', 'Agilent Technologies N9010A']
+    deviceName = ['Hewlett-Packard E4407B',
+                  'Agilent Technologies N9010A',
+                  'Agilent Technologies N9020A']
     deviceWrapper = GPIBDeviceWrapper
 
     @setting(10, 'Get Trace',
