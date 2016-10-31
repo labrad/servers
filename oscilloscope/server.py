@@ -1,7 +1,7 @@
 """
 ### BEGIN NODE INFO
 [info]
-name = Oscilloscope
+name = Oscilloscope Server
 version = 0.1
 description = Talks to oscilloscopes
 
