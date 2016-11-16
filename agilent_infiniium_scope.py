@@ -38,12 +38,15 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 import labrad.units as U
 import struct
 import numpy as np
+import time
 
 COUPLINGS = ['AC', 'DC', 'GND']
 TRIG_CHANNELS = ['AUX', 'CH1', 'CH2', 'CH3', 'CH4', 'LINE']
 VERT_DIVISIONS = 8.0
 HORZ_DIVISIONS = 10.0
 SCALES = []
+MAX_MISSED_TRIGGERS = 20
+QUERY_PERIOD = 0.2
 PREAMBLE_KEYS = [
     ('byteFormat', True),
     ('dataType', True),
@@ -88,16 +91,16 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         yield dev.query('*CLS;*OPC?')
 
-    @setting(112, channel='i', scale='v', returns=['v'])
+    @setting(112, channel='i', scale='v[V]', returns=['v[V]'])
     def scale(self, c, channel, scale=None):
         """Get or set the vertical scale of a channel in voltage per division.
         """
         _check_channel(channel)
         dev = self.selectedDevice(c)
         if scale is not None:
-            yield dev.write('CHAN{}:SCAL {:E}'.format(channel, scale))
+            yield dev.write('CHAN{}:SCAL {:E}'.format(channel, scale['V']))
         resp = yield dev.query('CHAN{}:SCAL?'.format(channel))
-        scale = float(resp)
+        scale = float(resp) * U.V
         returnValue(scale)
 
     @setting(114, channel='i', state=['s', 'i'], returns='s')
@@ -120,18 +123,18 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         resp = yield dev.query('CHAN{}:DISP?'.format(channel))
         returnValue(resp)
 
-    @setting(117, channel='i', position='v', returns=['v'])
+    @setting(117, channel='i', position='v[V]', returns=['v[V]'])
     def position(self, c, channel, position=None):
         """Get or set the voltage at the center of the screen
         """
         _check_channel(channel)
         dev = self.selectedDevice(c)
         if position is not None:
-            yield dev.write('CHAN{}:OFFS {}'.format(channel, position))
+            yield dev.write('CHAN{}:OFFS {}'.format(channel, position['V']))
         resp = yield dev.query('CHAN{}:OFFS?'.format(channel))
-        position = float(resp)
+        position = float(resp) * U.V
         returnValue(position)
-        
+
     @setting(118, mode=['s', 'i', 'b'], returns=['s'])
     def averagemode(self, c, mode=None):
         """Get or set acquisition mode
@@ -145,8 +148,8 @@ class AgilentDSO91304AServer(GPIBManagedServer):
                 mode = int(mode)
             yield dev.write('ACQ:AVER {}'.format(mode))
         resp = yield dev.query('ACQ:AVER?')
-        returnValue(resp) 
-        
+        returnValue(resp)
+
     @setting(119, navg='i', returns=['i'])
     def numavg(self, c, navg=None):
         """Get or set number of averages
@@ -158,8 +161,34 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         navg_out = int(resp)
         returnValue(navg_out)
 
-    @setting(131, channel='i', level='v', returns='v{level}')
-    def trigger_at(self, c, channel, level=None):
+
+    @setting(130, channel=['s', 'i'], returns='v{ch}')
+    def trigger_channel(self, c, channel=None):
+        """Get or set the trigger source edge mode triggering.
+
+        Channel must be one of 0 (AUX), 1, 2, 3, 4, or 5 (LINE).
+        """
+        dev = self.selectedDevice(c)
+        if channel is not None:
+            _check_channel(channel, accept_channels=[0, 1, 2, 3, 4, 5])
+            if channel == 0:
+                channel = 'AUX'
+            elif channel == 5:
+                channel = 'LINE'
+            elif isinstance(channel, int):
+                channel = 'CHAN{}'.format(channel)
+            yield dev.write(':TRIG:EDGE:SOUR {}'.format(channel))
+        resp = yield dev.query(':TRIG:EDGE:SOUR?')
+        if resp == 'AUX':
+            ch = 0
+        elif resp == 'LINE':
+            ch = 5
+        else:
+            ch = np.int(resp[-1])
+        returnValue(ch)
+
+    @setting(131, channel='i', level='v[V]', returns='v[V] {level}')
+    def trigger_at(self, c, channel, level=0 * U.V):
         """Get or set the trigger source and voltage for edge mode triggering.
 
         Channel must be one of 0 (AUX), 1, 2, 3, 4, or 5 (LINE).
@@ -173,16 +202,19 @@ class AgilentDSO91304AServer(GPIBManagedServer):
             channel = 'LINE'
         elif isinstance(channel, int):
             channel = 'CHAN{}'.format(channel)
-        yield dev.write('TRIG:EDGE:SOUR {}'.format(channel))
+        yield dev.write(':TRIG:EDGE:SOUR {}'.format(channel))
         if channel == 'LINE':
             # Cannot set trigger level when triggering off line input.
             # See http://www.keysight.com/upload/cmc_upload/All/9000_series_prog_ref.pdf#page=914
-            level = 0.0
+            level = 0.0 * U.V
         else:
             # Set trigger level.
-            yield dev.write('TRIG:LEV {}, {}'.format(channel, level))
-            resp = yield dev.query('TRIG:LEV? {}'.format(channel))
-            level = float(resp)
+            print 'channel: {}'.format(channel)
+            yield dev.write(':TRIG:LEV {}, {}'.format(channel, level['V']))
+            resp = yield dev.query(':TRIG:LEV? {}'.format(channel))
+            level = float(resp) * U.V
+        resp2 = yield dev.query(':TRIG:EDGE:SOUR?')
+        print 'Trigger on {} at {}'.format(resp2, level)
         returnValue(level)
 
     @setting(132, slope='s', returns=['s'])
@@ -217,8 +249,8 @@ class AgilentDSO91304AServer(GPIBManagedServer):
             if slope not in ['POS', 'NEG', 'EITH']:
                 raise Exception('Slope must be "POS" or "NEG" or "EITH". '
                                 'Got {}'.format(slope))
-            yield dev.write('TRIG:EDGE:SLOP {}'.format(slope))
-        resp = yield dev.query('TRIG:EDGE:SLOP?')
+            yield dev.write(':TRIG:EDGE:SLOP {}'.format(slope))
+        resp = yield dev.query(':TRIG:EDGE:SLOP?')
         returnValue(resp)
 
     @setting(134, mode='s', returns=['s'])
@@ -235,6 +267,22 @@ class AgilentDSO91304AServer(GPIBManagedServer):
                                 'Got {}'.format(mode))
             yield dev.write('TRIG:SWE {}'.format(mode))
         resp = yield dev.query('TRIG:SWE?')
+        returnValue(resp)
+
+    @setting(135, filter='s', returns=['s'])
+    def response_filter(self, c, filter=None):
+        """Change trigger mode. 'FLAT' is default, 'GAUS' for pulse.
+
+        """
+        dev = self.selectedDevice(c)
+        if filter is not None:
+            filter = filter.upper()
+            filter_types = ['GAUS', 'FLAT', 'GAUSs']
+            if filter not in filter_types:
+                raise Exception('Slope must be valid type ({}), '
+                                'not {}'.format(filter_types, filter))
+            yield dev.write(':ACQ:RESP {}'.format(filter))
+        resp = yield dev.query(':ACQ:RESP?')
         returnValue(resp)
 
     @setting(150, side='s', returns=['s'])
@@ -276,7 +324,171 @@ class AgilentDSO91304AServer(GPIBManagedServer):
         resp = yield dev.query('TIM:SCAL?')
         scale = float(resp)
         returnValue(scale)
-    
+
+    @setting(160, rate='v[Hz]', returns=['v[Hz]'])
+    def sample_rate(self, c, rate=None):
+        """Get or set the sample rate
+        """
+        dev = self.selectedDevice(c)
+        if rate is not None:
+            rate = rate['Hz']
+            yield dev.write(':ACQ:SRAT:ANAL {}'.format(rate))
+        resp = yield dev.query(':ACQ:SRAT:ANAL?')
+        rate = float(resp) * U.Hz
+        returnValue(rate)
+
+    @setting(161, mode=['s', 'i', 'b'], returns=['s'])
+    def external_time_ref(self, c, mode=None):
+        """Get or set the external 10 MHz reference clock
+
+        1 for external, 0 for internal reference clock.
+        """
+        dev = self.selectedDevice(c)
+        if mode is not None:
+            if isinstance(mode, str):
+                mode = mode.upper()
+                mode = {'ON': 1, 'OFF': 0}[mode]
+            elif isinstance(mode, bool):
+                mode = int(mode)
+            yield dev.write(':TIM:REFC {}'.format(mode))
+        resp = yield dev.query('TIM:REFC?')
+        returnValue(resp)
+
+    @setting(162, mode=['s', 'i', 'b'], returns=['s'])
+    def waveform_interpolation(self, c, mode=None):
+        """Get or set waveform interpolation (on/off).
+
+        Off is recommended
+        """
+        dev = self.selectedDevice(c)
+        if mode is not None:
+            if isinstance(mode, str):
+                mode = mode.upper()
+                mode = {'ON': 1, 'OFF': 0}[mode]
+            elif isinstance(mode, bool):
+                mode = int(mode)
+            yield dev.write(':ACQ:INT {}'.format(mode))
+        resp = yield dev.query('ACQ:INT?')
+        returnValue(resp)
+
+    @setting(163, mode=['s', 'i', 'b'], returns=['s'])
+    def waveform_streaming(self, c, mode=None):
+        """Get or set waveform streaming (on/off).
+
+        Off limits data transfers to (1e9 - 1) bytes.  Note:  This setting
+        changes the waveform data parsing format.  Off definitely works as-is;
+        On is not yet supported.
+        """
+        dev = self.selectedDevice(c)
+        if mode is not None:
+            if isinstance(mode, str):
+                mode = mode.upper()
+                mode = {'ON': 1, 'OFF': 0}[mode]
+            elif isinstance(mode, bool):
+                mode = int(mode)
+            yield dev.write(':ACQ:INT {}'.format(mode))
+        resp = yield dev.query('ACQ:INT?')
+        returnValue(resp)
+
+
+    @setting(164, returns=[])
+    def start_averaging(self, c):
+        """Restart the waveform count in average mode.
+
+        Clears buffers and restarts averages
+        """
+        dev = self.selectedDevice(c)
+        yield dev.query('*CLS;*OPC?')
+        yield dev.write(':SING')
+
+    @setting(165, returns=['b'])
+    def check_for_trigger(self, c):
+        """Query device until trigger is received or MAX_MISSED_TRIGGERS.
+
+        Queries the device to see if it has received a trigger.  Note, this
+        status byte only resets when clear_buffers() is called or you read the
+        status as True.  It is important to clear_buffers right before starting
+        the acquisition with :SING otherwise the status bytes may indicate a
+        received trigger and/or completed averaging with a stale status.
+        """
+        dev = self.selectedDevice(c)
+        triggered = False
+        count = 0
+        while not triggered:
+            if count > MAX_MISSED_TRIGGERS:
+                raise Exception('Error, trigger not received after {} attempts.'
+                                'Please check trigger signal and trigger'
+                                ' settings.'.format(MAX_MISSED_TRIGGERS))
+            else:
+                resp = yield dev.query(':TER?')
+                triggered = int(resp)
+                count += 1
+                time.sleep(QUERY_PERIOD)
+        returnValue(bool(triggered))
+
+    @setting(166, returns=['i'])
+    def wait_for_waveform_averages(self, c):
+        """Query device until trigger is received or MAX_MISSED_TRIGGERS.
+
+        Queries the device to see if it has received a trigger.  Note, this
+        status byte only resets when clear_buffers() is called or you read the
+        status as True.  It is important to clear_buffers right before starting
+        the acquisition with :SING otherwise the status bytes may indicate a
+        received trigger and/or completed averaging with a stale status.
+
+        Returns the waveform count.
+        """
+        dev = self.selectedDevice(c)
+        status = 0
+        count = 0
+        while status != 1:
+            resp1 = yield dev.query(':ADER?')
+            status = int(resp1)
+            resp2 = yield dev.query(':WAV:COUN?')
+            waveform_count = resp2
+            time.sleep(QUERY_PERIOD)
+            print 'Waveform count: {};' \
+                  ' Averaging complete: {} {}'.format(waveform_count, status,
+                                                      count)
+            count += 1
+        waveform_count = int(resp2)
+        dev.query(':STOP;*OPC?')
+        returnValue(waveform_count)
+
+    @setting(167, channel='i', probe='i', returns='v{probe}')
+    def probe(self, c, channel, probe=None):
+        """Get or set the channel probe.
+
+        This should be 1 unless scope probes are in use.  Expressed as a ratio.
+        This could be modified to support DECible in addition to RATio.
+        http://www.keysight.com/upload/cmc_upload/All/9000_series_prog_ref.pdf?&cc=US&lc=eng#page=217
+        """
+        _check_channel(channel, accept_channels=[1, 2, 3, 4])
+        dev = self.selectedDevice(c)
+        if probe is not None:
+            yield dev.write(':CHAN{}:PROB {}, RAT'.format(channel, probe))
+        resp = yield dev.query(':CHAN{}:PROB?'.format(channel))
+        probe = float(resp.split(',')[0])
+        returnValue(probe)
+
+    @setting(168, bw='v[Hz]', returns=['v[Hz]'])
+    def bandwidth(self, c, bw=None):
+        """Get or set the sample rate
+        """
+        dev = self.selectedDevice(c)
+        if bw is not None:
+            bw = bw['Hz']
+            yield dev.write(':ACQ:BAND {}'.format(bw))
+        resp = yield dev.query(':ACQ:BAND?')
+        rate = float(resp) * U.Hz
+        rate = rate['GHz'] * U.GHz
+        returnValue(rate)
+
+    @setting(169, returns=[])
+    def stop(self, c):
+        dev = self.selectedDevice(c)
+        yield dev.query(':STOP;*OPC?')
+
     # Data acquisition settings
     @setting(201, channel='i', start='i', stop='i',
              returns='*v[ns] {time axis} *v[mV] {scope trace}')
