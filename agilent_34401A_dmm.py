@@ -35,10 +35,11 @@ timeout = 20
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
+from labrad.units import V, mV, Ohm, A, mA
 
 class AgilentDMMServer(GPIBManagedServer):
     name = 'Agilent 34401A DMM'
-    deviceName = 'HEWLETT-PACKARD 34401A'
+    deviceName = ['HEWLETT-PACKARD 34401A', 'Agilent Technologies 34461A']
 
     @setting(10, AC='b{AC}', returns='v[V]')
     def voltage(self, c, AC=False):
@@ -46,7 +47,7 @@ class AgilentDMMServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         s = 'AC' if AC else 'DC'
         ans = yield dev.query('MEAS:VOLT:%s?' % s)
-        returnValue(float(ans))
+        returnValue(float(ans) * V)
     
     @setting(11, AC = 'b', returns='v[A]')
     def current(self, c, AC=False):
@@ -55,14 +56,14 @@ class AgilentDMMServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         s = 'AC' if AC else 'DC'
         ans = yield dev.query('MEAS:CURR:%s?' % s)
-        returnValue(float(ans))
+        returnValue(float(ans) * A)
         
     @setting(12, fourWire = 'b', returns='v[Ohm]')
     def resistance(self, c, fourWire = False):
         """ Measures resistance. Defaults to 2-wire measurement, unless fourWire = True. """
         dev = self.selectedDevice(c)
         ans = yield dev.query('MEAS:%s?' % ('FRES' if fourWire else 'RES'))
-        returnValue(float(ans))
+        returnValue(float(ans) * Ohm)
 
     @setting(13, vRange='v[V]', resolution ='v[V]')
     def configure_voltage(self, c, vRange = 10, resolution = 0.0001):
@@ -76,7 +77,7 @@ class AgilentDMMServer(GPIBManagedServer):
         set to voltage mode with configure_voltage. """
         dev = self.selectedDevice(c)
         ans = yield dev.query("READ?")
-        returnValue(float(ans))
+        returnValue(float(ans) * V)
     
 __server__ = AgilentDMMServer()
 
