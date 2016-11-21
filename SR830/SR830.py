@@ -426,8 +426,8 @@ class SR830(GPIBManagedServer):
         resp = yield dev.query("LIAS? 2")
         returnValue(bool(int(resp)))
 
-    @setting(36, 'Shield Grounding', gnd='i', returns='i')
-    def input_shield_ground(self, c, gnd=None):
+    @setting(99, 'Input Ground', gnd='i', returns='i')
+    def input_ground(self, c, gnd=None):
         """Get or sets the input shield ground configuration.
 
         Args:
@@ -452,7 +452,7 @@ class SR830(GPIBManagedServer):
         """Get or sets the input coupling.
 
         Args:
-            coupling:  "AC" or "DC"
+            coupling:  0: AC or 1: DC
         Returns:
             (int):  The input coupling after setting (if requested).
         """
@@ -464,7 +464,7 @@ class SR830(GPIBManagedServer):
         if coupling is not None:
             if isinstance(coupling, str):
                 coupling = coupling.upper()
-                if coupling not in coupling_dict.keys() or coupling not in [0,1]:
+                if (coupling not in coupling_dict.keys()) and (coupling not in [0,1]):
                     raise Exception('Error: Requested {} inpout coupling. Please'
                                     ' select from {},'.format(coupling,
                                                               coupling_dict))
