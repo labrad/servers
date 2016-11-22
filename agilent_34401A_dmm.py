@@ -35,7 +35,20 @@ timeout = 20
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from twisted.internet.defer import inlineCallbacks, returnValue
-from labrad.units import V, mV, Ohm, A, mA
+from labrad.units import V, mV, Ohm, A, mA, Hz
+import time
+
+AC_COUPLING = {
+    True:'AC',
+    False:'DC'
+}
+
+AC_SETTLING_TIME = {
+    3:1.66,
+    20:0.25,
+    200:0.025
+}
+
 
 class AgilentDMMServer(GPIBManagedServer):
     name = 'Agilent 34401A DMM'
@@ -78,6 +91,50 @@ class AgilentDMMServer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         ans = yield dev.query("READ?")
         returnValue(float(ans) * V)
+
+
+    @setting(15, AC = 'b', ac_highpass='v[Hz]', cRange='v[A]',
+             resolution ='v[V]')
+    def configure_current(self, c, AC=False, ac_highpass=3*Hz,
+                          cRange='AUTO', resolution=0.0001):
+        """ Sets the DMM to current mode, with given range and resolution. """
+
+        if cRange != 'AUTO':
+            cRange = cRange['A']
+
+        dev = self.selectedDevice(c)
+
+        dev.write(':CONFigure:CURRent:{} {}'.format(AC_COUPLING[AC], cRange))
+        if AC:
+            dev.write(':CURR:AC:BAND {}'.format(ac_highpass['Hz']))
+
+    @setting(16, returns='v[A]')
+    def read_current(self, c):
+        """ Does a 'READ' instead of 'MEAS'. Device must previously have been
+        set to current mode with configure_current. """
+        dev = self.selectedDevice(c)
+        meas_time = yield dev.query(':CURR:AC:BAND?')
+
+        yield dev.write(':INITiate')
+        time.sleep(AC_SETTLING_TIME[int(float(meas_time))])
+        ans = yield dev.query("FETCh?")
+        returnValue(float(ans) * A)
+
+    @setting(17, highpass_cutoff='v[Hz]', returns='v[Hz]')
+    def ac_highpass(self, c, highpass_cutoff=None):
+        """Get or set the highpass cutoff for AC measurements.
+
+        Args:
+            highpass_cutoff (v[Hz]):  Highpass cutoff frequency.  Note, this
+                value will be coerced down to to the nearest value
+                 [3, 20, 200] * Hz.
+        """
+        dev = self.selectedDevice(c)
+        if highpass_cutoff is not None:
+            yield dev.write(':SENSe:CURRent:AC:BANDwidth {}'
+                            ''.format(highpass_cutoff['Hz']))
+        ans = yield dev.query(':SENSe:CURRent:AC:BANDwidth?')
+        returnValue(float(ans) * Hz)
     
 __server__ = AgilentDMMServer()
 
