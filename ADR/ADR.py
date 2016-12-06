@@ -533,7 +533,6 @@ class ADRWrapper(DeviceWrapper):
             # high temp (2 to 20 K)
             # noinspection PyUnusedLocal
             r, p = ruox_resistance['Ohm'], self.state('ruoxCoefsHigh')
-            temp = eval(self.state('highTempRuoxCurve')) * K
             temp = ls_temps[1]
         else:
             # low temp (0.05 to 2 K)
