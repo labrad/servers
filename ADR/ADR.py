@@ -529,18 +529,19 @@ class ADRWrapper(DeviceWrapper):
         # check for over temperature
         if ls_temps[1] > self.state('ruoxTempCutoff'):
             return ls_temps[1], ruox_resistance
-        if self.state('useRuoxInterpolation'):
-            temp = self.state('ruoxInterpolation')(ruox_resistance['Ohm'])[()] * K
         elif ruox_resistance < self.state('resistanceCutoff'):
             # high temp (2 to 20 K)
             # noinspection PyUnusedLocal
             r, p = ruox_resistance['Ohm'], self.state('ruoxCoefsHigh')
-            temp = eval(self.state('highTempRuoxCurve')) * K
+            temp = ls_temps[1]
         else:
             # low temp (0.05 to 2 K)
             # noinspection PyUnusedLocal
             r, p = ruox_resistance['Ohm'], self.state('ruoxCoefsLow')
-            temp = eval(self.state('lowTempRuoxCurve')) * K
+            if self.state('useRuoxInterpolation'):
+                temp = self.state('ruoxInterpolation')(r)[()] * K
+            else:
+                temp = eval(self.state('lowTempRuoxCurve')) * K
         return temp, ruox_resistance
 
     def at_base(self):
