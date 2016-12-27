@@ -18,10 +18,12 @@
 [info]
 name = Telecomm Server
 version = 1.1
-description = 
+description =
+
 [startup]
 cmdline = %PYTHON% %FILE%
 timeout = 20
+
 [shutdown]
 message = 987654321
 timeout = 20
@@ -66,9 +68,9 @@ DOMAIN_KEY = 'domain'
 SERVER_KEY = 'smtpServer'
 PASSWORD_KEY = 'password'
 
-
 def textMessage(recipients, subject, msg, domain, server, username='LabRAD', password=None, attempts=2):
     """Send a text message to one or more recipients
+
     INPUTS:
     recipients - str or [str,str...]: List of names of labmembers
     to whom you want to send the message. These names must be in the
@@ -83,6 +85,7 @@ def textMessage(recipients, subject, msg, domain, server, username='LabRAD', pas
 
 def email(toAddrs, subject, msg, domain, server, username='LabRAD', password=None, attempts=2, noisy=False):
     """Send an email to one or more recipients
+
     INPUTS:
     toAddrs - str or [str...]: target address or list of target addresses
     subject - str: Subject of the message
