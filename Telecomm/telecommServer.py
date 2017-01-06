@@ -150,7 +150,7 @@ class TelecommServer(LabradServer):
         reg = cxn.registry
         p = reg.packet()
         p.cd(REGISTRY_PATH)
-        p.dir(key='regcontent')
+        p.dir(key='keys')
         p.get(SMS_KEY, key='userlist')
         p.get(DOMAIN_KEY, key='domain')
         p.get(SERVER_KEY, key='server')
@@ -158,8 +158,8 @@ class TelecommServer(LabradServer):
         self.smsUsers=dict(resp['userlist'])
         self.domain = resp['domain']
         self.smtpServer = resp['server']
-        regContent = resp['regcontent'][1]
-        if 'password' in regContent:
+        keys = resp['keys'][1]
+        if 'password' in keys:
             p.get(PASSWORD_KEY, key='password')
             resp = yield p.send()
             self.password = resp['password']
