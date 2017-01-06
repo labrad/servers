@@ -150,7 +150,7 @@ class TelecommServer(LabradServer):
         reg = cxn.registry
         p = reg.packet()
         p.cd(REGISTRY_PATH)
-        p.dir(key = 'regcontent')
+        p.dir(key='regcontent')
         p.get(SMS_KEY, key='userlist')
         p.get(DOMAIN_KEY, key='domain')
         p.get(SERVER_KEY, key='server')
