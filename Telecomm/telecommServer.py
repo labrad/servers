@@ -178,7 +178,8 @@ class TelecommServer(LabradServer):
         if not isinstance(recipients,list):
             recipients = [recipients]
         recipients = [self.smsUsers[name.upper()] for name in recipients if name.upper() in self.smsUsers]
-        success, failures = textMessage(recipients, subject, msg, self.domain, self.smtpServer, username, self.password)
+        success, failures = textMessage(recipients, subject, msg, self.domain, self.smtpServer, 
+                                        username, self.password)
         return (success, failures)
 
 
