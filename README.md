@@ -12,5 +12,5 @@ data_vault.py               Store numeric data from experiments, supported by th
 data_vault_multihead.py     Data vault implementation that can connect to multiple LabRAD managers
 
 Some of the tools here require PyQt.
-To install PyQt into a virtualenv in Linux, see [these instructions](https://docs.google.com/document/d/1f_rZinhOOSVE_wjScR3jwJagt6MIqkIfthttmF7RWtk).
-If you don't have access, please simply request.
+To install PyQt into a virtualenv in Linux, see [these instructions](https://docs.google.com/document/d/1PR0Xm6NqutMZs00Dt8U4CWlamVYgWxH52_8r-8apnVE/).
+
