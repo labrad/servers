@@ -5,7 +5,7 @@ from twisted.internet.defer import inlineCallbacks
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbar
+from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 
 UPDATE_PERIOD = 1.0          # (in seconds)
