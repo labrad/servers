@@ -19,7 +19,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Agilent 34401A DMM
-version = 1.3
+version = 1.4
 description = 
 
 [startup]
