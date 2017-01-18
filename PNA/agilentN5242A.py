@@ -274,7 +274,6 @@ class AgilentPNAServer(GPIBManagedServer):
         if sweeptime > 1:
             sweeptime *= self.sweepFactor(c)
             print "sweeptime = ", sweeptime
-            # needs factor of 2 since it runs both forward and backward
             yield util.wakeupCall(sweeptime)
 
         if log:
