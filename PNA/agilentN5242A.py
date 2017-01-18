@@ -290,7 +290,7 @@ class AgilentPNAServer(GPIBManagedServer):
 
     @setting(102, returns='*v[Hz]*c')
     def get_trace(self, c, trace='S21'):
-        """Get whatever trace is on the screen.
+        """Get a trace.
 
         Args:
             trace (str): S21, S11, etc.
