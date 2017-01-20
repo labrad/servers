@@ -40,6 +40,8 @@ import time
 import numpy
 
 import labrad.units as units
+Hz = units.Hz
+
 
 # the names of the measured parameters
 MEAS_PARAM = ['S11', 'S12', 'S21', 'S22']
@@ -272,7 +274,7 @@ class AgilentPNAServer(GPIBManagedServer):
         if sweeptime > 1:
             sweeptime *= self.sweepFactor(c)
             print "sweeptime = ", sweeptime
-            yield util.wakeupCall(sweeptime)  #needs factor of 2 since it runs both forward and backward 
+            yield util.wakeupCall(sweeptime)
 
         if log:
             # hack: should use numpy.logspace, but it seems to be broken
@@ -285,8 +287,27 @@ class AgilentPNAServer(GPIBManagedServer):
         # wait for sweep to finish
         sparams = yield self.getSweepData(dev, c['meas'])
         returnValue((freq*units.Hz, sparams))
-        
-        
+
+    @setting(102, returns='*v[Hz]*c')
+    def get_trace(self, c, trace='S21'):
+        """Get a trace.
+
+        Args:
+            trace (str): S21, S11, etc.
+
+        Returns:
+            (tuple):
+                (ValueArray[Hz]): Frequencies.
+                (ndarray(complex)): S parameters.
+        """
+        dev = self.selectedDevice(c)
+        resp = yield dev.query('SENS:FREQ:STAR?; STOP?')
+        f_start_Hz, f_stop_Hz = (float(f) for f in resp.split(';'))
+        n_points = yield dev.query('SENS:SWE:POIN?')
+        freq = numpy.linspace(f_start_Hz, f_stop_Hz, n_points) * Hz
+        s_params = yield self.getData(dev, trace)
+        returnValue((freq, s_params))
+
     @setting(124, log='b')
     def freq_sweep_phase(self, c, log=False):
         """Initiate a frequency sweep.
@@ -304,7 +325,8 @@ class AgilentPNAServer(GPIBManagedServer):
         sweeptime, npoints = yield self.startSweep(dev, sweepType)
         if sweeptime > 1:
             sweeptime *= self.sweepFactor(c)
-            yield util.wakeupCall(2*sweeptime)  #needs factor of 2 since it runs both forward and backward 
+            # needs factor of 2 since it runs both forward and backward
+            yield util.wakeupCall(2*sweeptime)
 
         if log:
             ## hack: should use numpy.logspace, but it seems to be broken
