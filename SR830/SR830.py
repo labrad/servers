@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = SR830
-version = 2.8.0
+version = 2.9.0
 description = 
 
 [startup]
@@ -29,10 +29,8 @@ message = 987654321
 timeout = 20
 ### END NODE INFO
 """
-from labrad.units import Unit
-V, mV, us, ns, GHz, MHz, Hz, dBm, dB, K, deg = [Unit(s) for s in (
-    'V', 'mV', 'us', 'ns', 'GHz', 'MHz', 'Hz', 'dBm', 'dB', 'K', 'deg')]
-from labrad import types as T, gpib, units
+from labrad.units import V, mV, us, ns, GHz, MHz, Hz, K, deg
+from labrad import units
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -61,6 +59,14 @@ def getSensitivity(i):
     else:
         return 10 * 10**(-9 + i/3)
 
+MODE_DICT = {
+    'A': 0,
+    'A-B': 1,
+    '1M': 2,
+    '100M': 3
+}
+
+
 class SR830(GPIBManagedServer):
     name = 'SR830'
     deviceName = 'Stanford_Research_Systems SR830'
@@ -80,6 +86,21 @@ class SR830(GPIBManagedServer):
             returnValue(units.V)
         else:
             returnValue(units.A)
+
+    @setting(11, 'Input Mode', mode='s', returns='i')
+    def input_mode(self, c, mode=None):
+        """returns the input mode. 0=A, 1=A-B, 2=I(10**6), 3=I(10**8)"""
+        dev = self.selectedDevice(c)
+        if mode is not None:
+            if mode.upper() in MODE_DICT.keys():
+                mode = MODE_DICT[mode.upper()]
+            if mode not in [0, 1, 2, 3]:
+                raise Exception('Error, mode must be in [0, 1, 2, 3, A, A-B,'
+                                ' 1M, 100M], requested: {}'.format(mode))
+
+            yield dev.write('ISRC {}'.format(mode))
+        mode = yield dev.query('ISRC?')
+        returnValue(int(mode))
 
     @setting(12, 'Phase',
              ph=['', 'v[deg]'],
@@ -158,7 +179,8 @@ class SR830(GPIBManagedServer):
     def harmonic(self, c, h=None):
         """Set or get the harmonic.  
         
-        Harmonic can be set as high as 19999 but is capped at a frequency of 102kHz.
+        Harmonic can be set as high as 19999 but is capped at a frequency of
+            102kHz.
 
         Args:
             h (int): The harmonic to set.  Integer from 1 to 19999, but frequency
@@ -179,7 +201,8 @@ class SR830(GPIBManagedServer):
 
         Args:
             amp (Value[V]): RMS excitation amplitude
-                Accepts values between .004 and 5.0 Vrms.
+                Accepts values between .004 and 5.0 Vrms.  This will be
+                coerced to the nearest 0.002 Vrms.
 
         Returns:
             (Value[V]): The RMS excitation amplitude.
@@ -401,8 +424,124 @@ class SR830(GPIBManagedServer):
         resp = yield dev.query("LIAS? 2")
         returnValue(bool(int(resp)))
 
+    @setting(99, 'Input Ground', gnd='i', returns='i')
+    def input_ground(self, c, gnd=None):
+        """Get or sets the input shield ground configuration.
+
+        Args:
+            gnd (int):  0: float; 1: ground
+        Returns:
+            (int):  The input shield ground status after setting (if requested).
+        """
+        dev = self.selectedDevice(c)
+        if gnd is not None:
+            gnd = int(gnd)
+            if gnd not in [0, 1]:
+                raise Exception('Error, requested input shield ground {}. '
+                                'Please select "0" for float or "1" for ground.'
+                                ''.format(gnd))
+            yield dev.write("IGND {}".format(gnd))
+        resp = yield dev.query("IGND?")
+        returnValue(int(resp))
+
+
+    @setting(37, 'Input Coupling', coupling='s', returns='i')
+    def input_coupling(self, c, coupling=None):
+        """Get or sets the input coupling.
+
+        Args:
+            coupling:  0: AC or 1: DC
+        Returns:
+            (int):  The input coupling after setting (if requested).
+        """
+        coupling_dict = {
+            'AC': 0,
+            'DC': 1
+        }
+        dev = self.selectedDevice(c)
+        if coupling is not None:
+            if isinstance(coupling, str):
+                coupling = coupling.upper()
+                if coupling not in (coupling_dict.keys() + [0, 1]):
+                    raise Exception('Error: Requested {} inpout coupling. Please'
+                                    ' select from {},'.format(coupling,
+                                                              coupling_dict))
+                coupling = coupling_dict[coupling]
+            yield dev.write("ICPL {}".format(coupling))
+        resp = yield dev.query("ICPL?")
+        returnValue(int(resp))
+
+    @setting(38, 'Notch Filter', mode='i', returns='i')
+    def notch_filter(self, c, mode=None):
+        """Get or sets the input notch filter: [none, line, line 2x].
+
+        Args:
+            mode:  0: none, 1: line, 2: 2x: line
+        Returns:
+            (int):  The input notch filter after setting (if requested).
+        """
+        dev = self.selectedDevice(c)
+        if mode is not None:
+            mode = int(mode)
+            if mode not in [0,1,2]:
+                raise Exception('Error: Requested {}.  Please choose either:'
+                                '0: No filter; 1: Line; or 2: 2x Line.'
+                                ''.format(mode))
+            yield dev.write("ILIN {}".format(mode))
+        resp = yield dev.query("ILIN?")
+        returnValue(int(resp))
+
+
+    @setting(39, 'Reserve Mode', mode='i', returns='i')
+    def reserve_mode(self, c, mode=None):
+        """Get or sets the reserve mode.
+
+        Args:
+            mode:  0: High Reserve, 1: Normal, 2: Low Noise
+        Returns:
+            (int):  The reserve mode after setting (if requested).
+        """
+        dev = self.selectedDevice(c)
+        if mode is not None:
+            mode = int(mode)
+            if mode not in [0, 1, 2]:
+                raise Exception('Error: Requested {}.  Please choose either:'
+                                '0: high reserve; 1: normal; 2: low noise.'
+                                ''.format(mode))
+            yield dev.write("RMOD {}".format(mode))
+        resp = yield dev.query("RMOD?")
+        returnValue(int(resp))
+
+
+    @setting(40, 'Sync Filter', mode='i', returns = 'i')
+    def sync_filter(self, c, mode=None):
+        """Get or sets the sync filter status.
+
+        Args:
+            mode:  0: off, 1: on; active only if detection frequency
+                (= reference * harmonic) is less than 200 Hz.
+        Returns:
+            (int):  The sync filter status after setting (if requested).
+        """
+        dev = self.selectedDevice(c)
+        if mode is not None:
+            mode = int(mode)
+            if mode not in [0, 1]:
+                raise Exception('Error: Requested {}. 0: off or 1: '
+                                'on'.format(mode))
+            yield dev.write("SYNC {}".format(mode))
+        resp = yield dev.query("SYNC?")
+        returnValue(int(resp))
+
 __server__ = SR830()
 
 if __name__ == '__main__':
     from labrad import util
     util.runServer(__server__)
+
+
+"""Not implemented commands:
+
+RSPL (?) {i}: set or query reference trigger (external only)
+
+"""
