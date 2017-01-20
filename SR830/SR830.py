@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = SR830
-version = 2.8.0
+version = 2.9.0
 description = 
 
 [startup]
@@ -29,10 +29,8 @@ message = 987654321
 timeout = 20
 ### END NODE INFO
 """
-from labrad.units import Unit
-V, mV, us, ns, GHz, MHz, Hz, dBm, dB, K, deg = [Unit(s) for s in (
-    'V', 'mV', 'us', 'ns', 'GHz', 'MHz', 'Hz', 'dBm', 'dB', 'K', 'deg')]
-from labrad import types as T, gpib, units
+from labrad.units import V, mV, us, ns, GHz, MHz, Hz, K, deg
+from labrad import units
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -62,10 +60,10 @@ def getSensitivity(i):
         return 10 * 10**(-9 + i/3)
 
 MODE_DICT = {
-    'A':0,
-    'A-B':1,
-    '1M':2,
-    '100M':3
+    'A': 0,
+    'A-B': 1,
+    '1M': 2,
+    '100M': 3
 }
 
 
@@ -457,14 +455,14 @@ class SR830(GPIBManagedServer):
             (int):  The input coupling after setting (if requested).
         """
         coupling_dict = {
-            'AC':0,
-            'DC':1
+            'AC': 0,
+            'DC': 1
         }
         dev = self.selectedDevice(c)
         if coupling is not None:
             if isinstance(coupling, str):
                 coupling = coupling.upper()
-                if (coupling not in coupling_dict.keys()) and (coupling not in [0,1]):
+                if coupling not in (coupling_dict.keys() + [0, 1]):
                     raise Exception('Error: Requested {} inpout coupling. Please'
                                     ' select from {},'.format(coupling,
                                                               coupling_dict))
@@ -506,7 +504,7 @@ class SR830(GPIBManagedServer):
         dev = self.selectedDevice(c)
         if mode is not None:
             mode = int(mode)
-            if mode not in [0,1,2]:
+            if mode not in [0, 1, 2]:
                 raise Exception('Error: Requested {}.  Please choose either:'
                                 '0: high reserve; 1: normal; 2: low noise.'
                                 ''.format(mode))
