@@ -17,7 +17,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Agilent Switch
-version = 0.1
+version = 0.2
 description = Agilent 34980A Matrix Switch
 
 [startup]
@@ -44,20 +44,41 @@ timeout = 20
 
 from labrad.server import setting
 from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
+import numpy as np
 from twisted.internet.defer import inlineCallbacks, returnValue
 
-def convertPoint(row, col):
-    ''' go from logical row/col to physical card/row/col. '''
-    if row < 1 or row > 8 or col < 1 or col > 32:
-        raise ValueError("Row must be 1-8, col must be 1-32.")
-    # which card are we on?
-    card = 1
-    if row > 4:
-        card = 2
-        row -= 4
-    if col > 16:
-        row += 4
-        col -= 16
+def convertPoint(row, col, config='4x64'):
+    ''' go from logical row/col to physical card/row/col.
+
+    This function takes a high level matrix address and determines
+    the correct row and column on the physical card.
+
+    Args:
+        config (str):  This specifies the physical connections of
+            the matrix switch or switches.  Default is 8 by 32,
+            but 4 by 64 is also supported.
+    '''
+    if config == '4x64':
+        if row < 1 or row > 4 or col < 1 or col > 64:
+            raise ValueError("Row must be 1-4, col must be 1-64.")
+        # which card are we on?
+        card = 1
+        if col > 32:
+            card = 2
+            col -= 32
+        if col > 16:
+            row += 4
+            col -= 16
+    else:
+        if row < 1 or row > 8 or col < 1 or col > 32:
+            raise ValueError("Row must be 1-8, col must be 1-32.")
+        # which card are we on?
+        if row > 4:
+            card = 2
+            row -= 4
+        if col > 16:
+            row += 4
+            col -= 16
     return "%i%i%02i" % (card, row, col)
 
 
@@ -72,20 +93,71 @@ class AgilentSwitchServer(GPIBManagedServer):
     deviceName = 'Agilent Technologies 34980A'
     deviceWrapper = AgilentSwitchWrapper
     
-    @setting(10, 'Connect', row='i', col='i', close='b')
-    def connect(self, c, row, col, close=True):
-        ''' Connect a given row to column. Disconnect if close=False. '''
+    @setting(10, 'Connect', row='i', col='i', close='b', config='s')
+    def connect(self, c, row, col, close=True, config='4x64'):
+        ''' Connect a given row to column. Disconnect if close=False.
+
+        Connect or disconnect a connection point specified by row and
+        column.
+        Args:
+            row (int): Row specifying the desired connection point.
+            col (int): Column specifying the desired connection point.
+            close (bool):  True: close connection point
+                           False:  open connection points
+            config (str):  Matrix switch configuration: '4x64' supported
+                and '8x32' is the default.
+        '''
         dev = self.selectedDevice(c)
-        if close:
-            dev.write("ROUT:CLOS (@%s)" % convertPoint(row, col))
-        else:
-            dev.write("ROUT:OPEN (@%s)" % convertPoint(row, col))
-            
+        count = 0
+        success = False
+        while not success and count < 10:
+            if close:
+                dev.write("ROUT:CLOS (@%s)" % convertPoint(row, col, config))
+                resp = yield dev.query("ROUT:CLOS? (@{})".format(convertPoint(row, col,
+                                                                              config)))
+            else:
+                dev.write("ROUT:OPEN (@%s)" % convertPoint(row, col, config))
+                resp = yield dev.query("ROUT:OPEN? (@{})".format(convertPoint(row, col,
+                                                                              config)))
+            # print resp, bool(int(resp))
+            resp = bool(int(resp))
+
+            success = resp
+            if not resp:
+                print 'ERROR! Attempt {}: Route not connected/open as ' \
+                      'requested! row: {}; col{}; close: {}, ' \
+                      'config: {}'.format(count, row, col, close, config)
+            count += 1
+
+        if count > 10:
+            raise Exception('ERROR!  10 failed attempts to close({}) row ({}) '
+                            'and col ({})'.format(close, row, col))
+
+
     @setting(11, 'Open All')
     def open_all(self, c):
         ''' Open all channels. '''
         self.selectedDevice(c).write("ROUT:OPEN:ALL ALL")
-        
+
+    @setting(12, 'Close Analog Bus', close='b')
+    def close_analog_bus(self, c, close=True):
+        """This function closes the analog bus to connect rows between slots 1&2
+
+        This allows for two 34932A modules to operate in a 4x64 mode.  The
+        analog bus connects the rows between modules.  In this case it is
+        coded to connect or disconnect the four rows in both module
+        1 and 2 to the analog bus.
+        Args:
+            close (bool):  True: connect; False: disconnect
+        """
+        dev = self.selectedDevice(c)
+        if close:
+            dev.write("ROUT:CLOS (@1921, 1922, 1923, 1924)")
+            dev.write("ROUT:CLOS (@2921, 2922, 2923, 2924)")
+        else:
+            dev.write("ROUT:OPEN (@1921, 1922, 1923, 1924)")
+            dev.write("ROUT:OPEN (@2921, 2922, 2923, 2924)")
+
     @setting(20, 'Define State', id='i', connections='*(ii)')
     def define_state(self, c, id, connections):
         ''' Define a state. id is the index of the state.
@@ -110,6 +182,65 @@ class AgilentSwitchServer(GPIBManagedServer):
         state = dev.states[id]
         dev.write("ROUT:CLOS:EXCL (@%s)" % ','.join([convertPoint(r, c) for r, c in state]))
         return state
+
+    @setting(24, 'Check Relay Count', returns='**i')
+    def check_relay_count(self, c, config='4x64'):
+        '''Check the relay count for all connection points.
+
+        Returns a 2D array of integers, rows and columns correspond to index 1
+        and 2 respectively in the matrix.  This shows the relay connection count
+        for each connection point.  For this module under a 10V load, it expects
+        at least 1M cycles, but if a faulty relay is suspected, high relay counts
+        are suspect.
+        Args:
+            config (str):  config (str):  Matrix switch configuration: '4x64' supported
+                and '8x32' is the default.
+        '''
+        dev = self.selectedDevice(c)
+        if config == '4x64':
+            rows = [1, 2, 3, 4]
+            cols = np.linspace(1, 64, 64)
+        else:
+            raise Exception('Error!  This function only implemented for 4x64 '
+                            'matrix configuration. Requested {}'.format(config))
+        counts = []
+        for row in rows:
+            column_counts = []
+            for col in cols:
+                resp = yield dev.query(':DIAG:REL:CYCL? (@%s)' % convertPoint(row, col, config))
+                column_counts.append(int(resp))
+            counts.append(column_counts)
+        yield counts
+        returnValue(counts)
+
+    @setting(25, 'Find Closed Relays', returns='**i')
+    def find_closed_relays(self, c, config='4x64'):
+        """This function returns a list of currently close connection points.
+
+        Just a useful debugging tool.  Note: this only queries the software
+        state of the relays i.e. it would not 'catch' a bad or sticky relay
+        that was failing to actuate.
+        Args:
+            config (str): config (str):  Matrix switch configuration, only
+                '4x64' is supported as-is, others can be implemeted.
+        """
+        dev = self.selectedDevice(c)
+        if config == '4x64':
+            rows = [1, 2, 3, 4]
+            cols = np.linspace(1, 64, 64)
+        else:
+            raise Exception('Error!  This function only implemented for 4x64 '
+                            'matrix configuration. Requested {}'.format(config))
+        closed = []
+        for row in rows:
+            for col in cols:
+                col = int(col)
+                resp = yield dev.query(':ROUT:CLOS? (@{})'
+                                       ''.format(convertPoint(row, col, config)))
+                if bool(int(resp)):
+                    closed.append([row, col])
+        yield closed
+        returnValue(closed)
 
 __server__ = AgilentSwitchServer()
 
