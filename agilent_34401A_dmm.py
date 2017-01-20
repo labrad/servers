@@ -39,14 +39,14 @@ from labrad.units import V, mV, Ohm, A, mA, Hz
 import time
 
 AC_COUPLING = {
-    True:'AC',
-    False:'DC'
+    True: 'AC',
+    False: 'DC'
 }
 
 AC_SETTLING_TIME = {
-    3:1.66,
-    20:0.25,
-    200:0.025
+    3: 1.66,
+    20: 0.25,
+    200: 0.025
 }
 
 
@@ -62,7 +62,7 @@ class AgilentDMMServer(GPIBManagedServer):
         ans = yield dev.query('MEAS:VOLT:%s?' % s)
         returnValue(float(ans) * V)
     
-    @setting(11, AC = 'b', returns='v[A]')
+    @setting(11, AC='b', returns='v[A]')
     def current(self, c, AC=False):
         """ Measures current. Defaults to DC current, unless AC = True.
         """
@@ -71,15 +71,15 @@ class AgilentDMMServer(GPIBManagedServer):
         ans = yield dev.query('MEAS:CURR:%s?' % s)
         returnValue(float(ans) * A)
         
-    @setting(12, fourWire = 'b', returns='v[Ohm]')
-    def resistance(self, c, fourWire = False):
+    @setting(12, fourWire='b', returns='v[Ohm]')
+    def resistance(self, c, fourWire=False):
         """ Measures resistance. Defaults to 2-wire measurement, unless fourWire = True. """
         dev = self.selectedDevice(c)
         ans = yield dev.query('MEAS:%s?' % ('FRES' if fourWire else 'RES'))
         returnValue(float(ans) * Ohm)
 
-    @setting(13, vRange='v[V]', resolution ='v[V]')
-    def configure_voltage(self, c, vRange = 10, resolution = 0.0001):
+    @setting(13, vRange='v[V]', resolution='v[V]')
+    def configure_voltage(self, c, vRange=10, resolution=0.0001):
         """ Sets the DMM to voltage mode, with given range and resolution. """
         dev = self.selectedDevice(c)
         dev.write("CONF:VOLT:DC %s, %s" % (vRange, resolution))
@@ -92,12 +92,18 @@ class AgilentDMMServer(GPIBManagedServer):
         ans = yield dev.query("READ?")
         returnValue(float(ans) * V)
 
-
-    @setting(15, AC = 'b', ac_highpass='v[Hz]', cRange='v[A]',
-             resolution ='v[V]')
+    @setting(15, AC='b', ac_highpass='v[Hz]', cRange='v[A]')
     def configure_current(self, c, AC=False, ac_highpass=3*Hz,
-                          cRange='AUTO', resolution=0.0001):
-        """ Sets the DMM to current mode, with given range and resolution. """
+                          cRange='AUTO'):
+        """ Sets the DMM to current mode, with given range and freq cutoff.
+
+        Args:
+            AC (bool):  True: AC; False: DC
+            ac_highpass (Value[Hz]):  High pass cut off frequency, 3 Hz,
+                20 Hz or 200 Hz are the options.
+            cRange (Value[A])):  Current range for the DMM. It will round up
+                to the next highest range.
+        """
 
         if cRange != 'AUTO':
             cRange = cRange['A']
