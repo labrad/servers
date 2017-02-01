@@ -20,7 +20,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Spectrum Analyzer Server
-version = 2.1
+version = 2.2
 description = 
 
 [startup]
@@ -68,7 +68,8 @@ class SpectrumAnalyzer(GPIBManagedServer):
         maxRetries = 10
         for i in range(maxRetries):
             try:
-                resp = yield dev.query(__QUERY__ % trace)
+                yield dev.write(__QUERY__ % trace)
+                resp = yield dev.read_raw()
                 vals = _parseBinaryData(resp)
                 break
             except Exception:
@@ -287,7 +288,7 @@ def _parseBinaryData(data):
     """Parse binary trace data."""
     h = int(data[1]) #length of header
     d = int(data[2:2+h]) #header, tells us how many bytes of data
-    s = data[2+h:]
+    s = data[2+h:2+h+d]
     if len(s) != d:
         raise errors.HandlerError('Could not decode binary response.')
     n = d/4 # 4 bytes per data point
