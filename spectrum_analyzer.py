@@ -20,7 +20,7 @@
 ### BEGIN NODE INFO
 [info]
 name = Spectrum Analyzer Server
-version = 2.2
+version = 2.3
 description = 
 
 [startup]
@@ -39,7 +39,7 @@ from labrad.gpib import GPIBManagedServer, GPIBDeviceWrapper
 from struct import unpack
 from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad import util
-from labrad.units import MHz
+from labrad.units import MHz, kHz, dBm
 
 __QUERY__ = """\
 :FORM INT,32
@@ -178,6 +178,20 @@ class SpectrumAnalyzer(GPIBManagedServer):
         dev = self.selectedDevice(c)
         dev.write(':BAND:VID %gkHz' % f['kHz'])
 
+    @setting(525, 'Get Resolution Bandwidth', returns='v[MHz]')
+    def get_resolutionbandwidth(self, c):
+        """Query the resolution bandwidth"""
+        dev = self.selectedDevice(c)
+        result = yield dev.query(":BAND:RES?")
+        returnValue(float(result) * 1e-6 * MHz)
+
+    @setting(526, 'Get Video Bandwidth', returns='v[kHz]')
+    def get_videobandwidth(self, c):
+        """Query the video bandwidth"""
+        dev = self.selectedDevice(c)
+        result = yield dev.query(":BAND:VID?")
+        returnValue(float(result) * 1e-3 * kHz)
+
     @setting(600, 'Y Scale',setting='s', returns='')
     def set_yscale(self,c,setting):
         """This sets the Y scale to either LINear or LOGarithmic"""
@@ -207,6 +221,12 @@ class SpectrumAnalyzer(GPIBManagedServer):
             raise Exception('allowed settings are: %s' % allowed)
         dev = self.selectedDevice(c)
         dev.write(':DET %s' % setting)
+
+    @setting(605, "Get Reference Level", returns='v[dBm]')
+    def get_referencelevel(self, c):
+        dev = self.selectedDevice(c)
+        result = yield dev.query('DISP:WIND:TRAC:Y:RLEV?')
+        returnValue(float(result) * dBm)
 
     @setting(700, 'Trigger Source', setting='s', returns='')
     def set_trigsource(self, c, setting='IMM'):
