@@ -56,7 +56,8 @@ class TestWindow(QtGui.QMainWindow):
         # initialize misc
         self.cxn = None
         self.adr_server = None
-        cxn_def = labrad.wrappers.connectAsync(name=labrad.util.getNodeName() + ' ADR GUI')
+        cxn_def = labrad.wrappers.connectAsync(
+            name=labrad.util.getNodeName() + ' ADR GUI', tls_mode='off')
         cxn_def.addCallback(self.set_cxn)
         self.waitingOnLabRAD = True
 
