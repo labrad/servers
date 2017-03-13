@@ -71,5 +71,12 @@ def test_table():
     assert np.array_equal(data[32:40], end.as_bytes())
 
 
+def test_check_last_op_end():
+    idle_a = jump_table.JumpEntry(64, 0, jump_table.IDLE(10))
+    idle_b = jump_table.JumpEntry(128, 0, jump_table.IDLE(10))
+    with pytest.raises(ValueError):
+        jump_table.JumpTable(0, [idle_a, idle_b], [0, 0, 0, 0])
+
+
 if __name__ == '__main__':
     pytest.main(['-v', __file__])
