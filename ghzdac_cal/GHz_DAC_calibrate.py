@@ -153,7 +153,7 @@ def iq_corrector(fpga_name):
     :return ghzdac.correction.IQcorrection: IQ correction object
     """
     with labrad.connect() as cxn:
-        return ghzdac.IQcorrector(fpga_name, cxn, pulsecor=False)
+        return ghzdac.iq_corrector(fpga_name, cxn, pulse_correction=False)
 
 
 def sideband_scan_carrier(fpga_name, scan_params, corrector, use_switch=True):

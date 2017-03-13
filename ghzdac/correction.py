@@ -64,7 +64,7 @@ import numpy as np
 #
 # Removed a tab
 
-def cosinefilter(n, width=0.4):
+def cosine_filter(n, width=0.4):
     """cosinefilter(n,width) cosine lowpass filter
     n samples from 0 to 1 GHz
     1 from 0 GHz to width GHz
@@ -93,16 +93,16 @@ def gaussfilter(n, width=0.13):
     gauss -= x
     gauss /= (1.0 - x)
     return gauss
-    
-    
+
+
 def flatfilter(n, width=0):
     nr = n/2 + 1
     return 1.0
     #return np.ones(nr)
 
-    
+
 savedfftlens = np.zeros(8193,dtype=int)
-    
+
 
 def fastfftlen(n):
     """
@@ -129,7 +129,7 @@ def fastfftlen(n):
         return nfft
     else:
         return _fastfftlen(n)
-    
+
 def moving_average(x,m):
     """Moving average on x, with length m. Expects a numpy array for x. Elements are given by
     y[i] = Sum_{k=0..m-1}   y[l] / m
@@ -266,7 +266,7 @@ def findRelevant(starts, ends):
 
 class IQcorrection:
 
-    def __init__(self, board, lowpass=cosinefilter, bandwidth=0.4,
+    def __init__(self, board, lowpass=cosine_filter, bandwidth=0.4,
                  exceedCalLimits=0.001):
 
         """
@@ -823,7 +823,7 @@ class IQcorrection:
         return self.recalibrationRoutine(self.board, carrierMin, carrierMax,
                                          zeroCarrierStep, sidebandCarrierStep,
                                          sidebandMax, sidebandStep, self)
- 
+
 
 
 #############################################

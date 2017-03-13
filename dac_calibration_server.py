@@ -41,18 +41,17 @@ timeout = 5
 # 2013 Dec R. Barends
 # - loads values from registry
 # - added support for setting the border values - necessary for dualblock
-# - added support for disabling deconvolution on all IQ boards and/or all Z boards
+# - added support for disabling deconvolution on all IQ boards and/or all Z
+#  boards
 
 
 from twisted.internet.defer import DeferredLock, inlineCallbacks, returnValue
 from twisted.internet.threads import deferToThread
 
-
-import labrad
 from labrad.types import Error
 from labrad.server import LabradServer, setting
 
-from ghzdac import IQcorrector, DACcorrector, keys
+from ghzdac import iq_corrector, DAC_corrector, keys
 from ghzdac.correction import fastfftlen
 
 
@@ -79,6 +78,14 @@ class DACrequiresRealError(Error):
 
 
 class CalibrationServer(LabradServer):
+    """What am I?
+
+    Attributes:
+        a (type): description
+        b (type): description
+
+    Whatever else you want to say
+    """
     name = 'DAC Calibration'
 
     @inlineCallbacks
@@ -120,7 +127,10 @@ class CalibrationServer(LabradServer):
 
     @inlineCallbacks
     def call_sync(self, *args, **kw):
-        """Call synchronous code in a separate thread outside the twisted event loop."""
+        """
+        Call synchronous code in a separate thread outside the
+        twisted event loop.
+        """
         if not hasattr(self, '_sync_lock'):
             self._sync_lock = DeferredLock()
         yield self._sync_lock.acquire()
@@ -138,10 +148,10 @@ class CalibrationServer(LabradServer):
         board = c['Board']
 
         if board not in self.IQcalsets:
-            calset = yield self.call_sync(IQcorrector, board,
-                                                       None,
-                                                       errorClass=CalibrationNotFoundError,
-                                                       bandwidth=self.serverSettings['bandwidthIQ'])
+            calset = yield self.call_sync(iq_corrector, board,
+                                          None,
+                                          errorClass=CalibrationNotFoundError,
+                                          bandwidth=self.serverSettings['bandwidthIQ'])
             self.IQcalsets[board] = calset
         returnValue(self.IQcalsets[board])
 
@@ -159,12 +169,12 @@ class CalibrationServer(LabradServer):
         if board not in self.DACcalsets:
             self.DACcalsets[board] = {}
         if dac not in self.DACcalsets[board]:
-            calset = yield self.call_sync(DACcorrector, board,
-                                                        dac,
-                                                        None,
-                                                        errorClass=CalibrationNotFoundError,
-                                                        bandwidth=self.serverSettings['bandwidthZ'],
-                                                        maxfreqZ=self.serverSettings['maxfreqZ'])
+            calset = yield self.call_sync(DAC_corrector, board,
+                                          dac,
+                                          None,
+                                          errorClass=CalibrationNotFoundError,
+                                          bandwidth=self.serverSettings['bandwidthZ'],
+                                          maxfreqZ=self.serverSettings['maxfreqZ'])
             self.DACcalsets[board][dac] = calset
         returnValue(self.DACcalsets[board][dac])
 
@@ -214,7 +224,8 @@ class CalibrationServer(LabradServer):
     def get_deconvZ(self, c):
         return c['deconvZ']
 
-    @setting(20, 'DAC', dac=['w: DAC channel 0 or 1', 's: DAC channel'], returns=['w'])
+    @setting(20, 'DAC', dac=['w: DAC channel 0 or 1', 's: DAC channel'],
+             returns=['w'])
     def dac(self, c, dac):
         """Set the DAC for which to correct the data.
 
@@ -235,11 +246,8 @@ class CalibrationServer(LabradServer):
         c['DAC'] = dac
         return dac
 
-    @setting(30,
-        'Correct IQ',
-        data=['*(v, v): I/Q data', '*c: I/Q data'],
-        zero_ends='b',
-        returns=['(*i, *i): Dual channel DAC values'])
+    @setting(30, 'Correct IQ', data=['*(v, v): I/Q data', '*c: I/Q data'],
+             zero_ends='b', returns=['(*i, *i): Dual channel DAC values'])
     def correct_iq(self, c, data, zero_ends=False):
         """Correct IQ data specified in the time domain.
 
@@ -271,11 +279,8 @@ class CalibrationServer(LabradServer):
             print 'No deconv on board ' + c['Board'] 
         returnValue(corrected)
 
-    @setting(31,
-        'Correct IQ FT',
-        data=['*(v, v): I/Q data', '*c: I/Q data'],
-        zero_ends='b',
-        returns=['(*i, *i): Dual channel DAC values'])
+    @setting(31, 'Correct IQ FT', data=['*(v, v): I/Q data', '*c: I/Q data'],
+             zero_ends='b', returns=['(*i, *i): Dual channel DAC values'])
     def correct_iq_ft(self, c, data, zero_ends=False):
         """Correct IQ data specified in the frequency domain.
 
@@ -310,12 +315,9 @@ class CalibrationServer(LabradServer):
             print 'No deconv on board ' + c['Board']
         returnValue(corrected)
 
-    @setting(32,
-        'Correct Analog',
-        data=['*v: Single channel data'],
-        average_ends='b',
-        dither='b',
-        returns=['*i: Single channel DAC values'])
+    @setting(32, 'Correct Analog', data=['*v: Single channel data'],
+             average_ends='b', dither='b',
+             returns=['*i: Single channel DAC values'])
     def correct_analog(self, c, data, average_ends=False, dither=False):
         """Correct single channel data specified in the time domain.
 
@@ -347,12 +349,9 @@ class CalibrationServer(LabradServer):
             print 'No deconv on board ' + c['Board']
         returnValue(corrected)
 
-    @setting(33,
-        'Correct Analog FT',
-        data=['*c: Single channel data'],
-        average_ends='b',
-        dither='b',
-        returns=['*i: Single channel DAC values'])
+    @setting(33, 'Correct Analog FT', data=['*c: Single channel data'],
+             average_ends='b', dither='b',
+             returns=['*i: Single channel DAC values'])
     def correct_analog_ft(self, c, data, average_ends=False, dither=False):
         """Correct single channel data specified in the frequency domain.
 
@@ -390,7 +389,8 @@ class CalibrationServer(LabradServer):
             print 'No deconv on board ' + c['Board']
         returnValue(corrected)
 
-    @setting(40, 'Set Settling', rates=['*v[GHz]: settling rates'], amplitudes=['*v: settling amplitudes'])
+    @setting(40, 'Set Settling', rates=['*v[GHz]: settling rates'],
+             amplitudes=['*v: settling amplitudes'])
     def setsettling(self, c, rates, amplitudes):
         """
         If a calibration can be characterized by time constants, i.e.
@@ -403,7 +403,8 @@ class CalibrationServer(LabradServer):
         """
         c['Settling'] = (rates, amplitudes)
 
-    @setting(41, 'Set Reflection', rates=['*v[GHz]: reflection rates'], amplitudes=['*v: reflection amplitudes'])
+    @setting(41, 'Set Reflection', rates=['*v[GHz]: reflection rates'],
+             amplitudes=['*v: reflection amplitudes'])
     def setreflection(self, c, rates, amplitudes):
         """ Correct for reflections in the line.
         Impulse response of a line reflection is H = (1-amplitude) / (1-amplitude * exp( -2i*pi*f/rate) )
@@ -423,7 +424,11 @@ class CalibrationServer(LabradServer):
 
     @setting(50, 'Fast FFT Len', n='w')
     def fast_fft_len(self, c, n):
-        """Given a sequence length n, get a new length nfft >= n which is efficient for calculating fft."""
+        """
+        Given a sequence length n, get a new length nfft >= n which is
+        efficient for calculating fft.
+        """
+
         return fastfftlen(n)
 
 
