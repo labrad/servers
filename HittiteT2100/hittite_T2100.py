@@ -65,9 +65,9 @@ class HittiteWrapper(GPIBDeviceWrapper):
         
     @inlineCallbacks
     def setFrequency(self, f):
-        f = f['Hz']
+        f = int(f['Hz'])
         if self.frequency != f:
-            yield self.write('SOUR:FREQ:FIX %f' % f)
+            yield self.write('SOUR:FREQ:FIX %d' % f)
             self.frequency = f
     
     @inlineCallbacks
