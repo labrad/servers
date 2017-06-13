@@ -71,11 +71,11 @@ class AgilentDMMServer(GPIBManagedServer):
         ans = yield dev.query('MEAS:CURR:%s?' % s)
         returnValue(float(ans) * A)
         
-    @setting(12, fourWire = 'b', returns='v[Ohm]')
-    def resistance(self, c, fourWire = False):
+    @setting(12, fourWire='b', r_range='i', returns='v[Ohm]')
+    def resistance(self, c, fourWire=False, r_range='AUTO'):
         """ Measures resistance. Defaults to 2-wire measurement, unless fourWire = True. """
         dev = self.selectedDevice(c)
-        ans = yield dev.query('MEAS:%s?' % ('FRES' if fourWire else 'RES'))
+        ans = yield dev.query('MEAS:{}? {}'.format('FRES' if fourWire else 'RES', r_range))
         returnValue(float(ans) * Ohm)
 
     @setting(13, vRange='v[V]', resolution ='v[V]')
@@ -114,10 +114,9 @@ class AgilentDMMServer(GPIBManagedServer):
         set to current mode with configure_current. """
         dev = self.selectedDevice(c)
         meas_time = yield dev.query(':CURR:AC:BAND?')
-
         yield dev.write(':INITiate')
-        time.sleep(AC_SETTLING_TIME[int(float(meas_time))])
-        ans = yield dev.query("FETCh?")
+        time.sleep(AC_SETTLING_TIME[int(float(meas_time))]+0.5)
+        ans = yield dev.query(":FETCh?")
         returnValue(float(ans) * A)
 
     @setting(17, highpass_cutoff='v[Hz]', returns='v[Hz]')
