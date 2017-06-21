@@ -1,9 +1,3 @@
-"""
-Wrappers for Agilent oscilloscopes.
-
-"""
-
-
 from __future__ import absolute_import
 
 import struct
