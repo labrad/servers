@@ -22,7 +22,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 
 from labrad.gpib import GPIBManagedServer
 from labrad.server import setting
-import oscilloscope.agilent as agilent
+from oscilloscope.agilent.DSOX4104A import DSOX4104AWrapper
 
 
 class OscilloscopeServer(GPIBManagedServer):
@@ -31,7 +31,7 @@ class OscilloscopeServer(GPIBManagedServer):
     name = 'Oscilloscope Server'
 
     deviceWrappers = {
-            'AGILENT TECHNOLOGIES DSO-X 4104A': agilent.AgilentDSOX4104AWrapper}
+            'AGILENT TECHNOLOGIES DSO-X 4104A': DSOX4104AWrapper}
 
     # SYSTEM
 
