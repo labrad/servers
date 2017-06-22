@@ -30,6 +30,35 @@ TRIGGER_MODES = [
         'SBUS4',
 ]
 
+PREAMBLE_KEYS = [
+        'byte_format',
+        'data_type',
+        'num_points',
+        'count',
+        'x_step',
+        'x_origin',
+        'x_reference',
+        'y_step',
+        'y_origin',
+        'y_reference',
+        'coupling',
+        'x_display_range',
+        'x_display_origin',
+        'y_display_range',
+        'y_display_origin',
+        'date',
+        'time',
+        'frame_model',
+        'acquisition_mode',
+        'completion',
+        'x_units',
+        'y_units',
+        'max_bandwidth_limit',
+        'min_bandwidth_limit',
+]
+# The preamble comes back from the scope as a comma separated string.
+# The order of the keys here matches the order of the values in the comma
+# separated string.
 
 def not_implemented_channel_method(self, ch, arg):
     raise NotImplementedError
@@ -43,6 +72,7 @@ class DSO91304A(wrappers.OscilloscopeWrapper):
     viewed along side the parent class in order to understand what's going on.
 
     See programmer manual at:
+        http://www.keysight.com/upload/cmc_upload/All/Infiniium_prog_guide.pdf
     """
 
     # CHANNEL
@@ -94,7 +124,7 @@ class DSO91304A(wrappers.OscilloscopeWrapper):
 
     horiz_scale = wrappers.global_method(
             lambda x: x['s'],
-            ':TIM:SCAL {}'.format,
+            ':TIM:SCAL {:E}'.format,
             ':TIM:SCAL?'.format,
             lambda x: float(x) * U.Value(1, 's'))
 
@@ -106,7 +136,7 @@ class DSO91304A(wrappers.OscilloscopeWrapper):
             yield self.write(':TIM:POS {}'.format(-pos['s']))
         resp = yield self.query(':TIM:POS?')
         returnValue(-float(resp) * U.Unit('s') / horiz_scale)
-        
+
     # TRIGGER
 
     trigger_source = wrappers.global_method(
@@ -159,12 +189,19 @@ class DSO91304A(wrappers.OscilloscopeWrapper):
             (ValueArray[V]): Voltage axis.
         """
         word_length = 2
+
+        channel_on = yield self.channel_on()
+        if not channel_on:
+            raise RuntimeError('Cannot get trace from channel {} because it '
+                               'is not on'.format(channel))
+
         yield self.write(':WAV:SOUR CHAN{}'.format(channel))
         yield self.write(':WAV:MSBF')
-        yield self.write(':SING')
+        yield self.write(':WAV:FORM WORD')
+
         preamble_raw = yield self.query(':WAV:PRE?')
         preamble = parse_preamble(preamble_raw)
-        yield self.write(':WAV:FORM WORD')
+
         yield self.write(':WAV:DATA?')
         wave_bin = yield self.read_raw()
         wave_raw = parse_binary_waveform(wave_bin, word_length=word_length)
@@ -182,7 +219,7 @@ class DSO91304A(wrappers.OscilloscopeWrapper):
                 x_origin + (num_points-1) * x_incriment,
                 num_points)
         returnValue((time_s * U.Unit('s'), wave_volts * U.Unit('V')))
- 
+
 
 def parse_preamble(preamble):
     """Parse the waveform preamble.
@@ -193,21 +230,11 @@ def parse_preamble(preamble):
     Returns:
         (dict): Mapping field names to their values.
     """
+    results = {}
     fields = preamble.split(',')
-    num_points = int(fields[2])
-    x_incriment = float(fields[4])
-    x_origin = float(fields[5])
-    x_reference = int(fields[6])
-    y_incriment = float(fields[7])
-    y_origin = float(fields[8])
-    y_reference = int(fields[9])
-    return {'num_points': num_points,
-            'x_incriment': x_incriment,
-            'x_origin': x_origin,
-            'x_reference': x_reference,
-            'y_incriment': y_incriment,
-            'y_origin': y_origin,
-            'y_reference': y_reference}
+    for key, val in zip(PREAMBLE_KEYS, fields):
+        results[key] = val
+    return results
 
 
 def parse_binary_waveform(data, word_length):
@@ -235,4 +262,3 @@ def parse_binary_waveform(data, word_length):
     num_words, r = divmod(wave_len, word_length)
     words = struct.unpack('>' + format_char * num_words, wave_data)
     return np.array(words)
-
