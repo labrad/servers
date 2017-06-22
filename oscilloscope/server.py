@@ -199,9 +199,42 @@ class OscilloscopeServer(GPIBManagedServer):
         """
         return self.selectedDevice(c).trigger_level(level)
 
+    @setting(74, mode='s', returns='s')
+    def trigger_mode(self, c, mode=None):
+        """Set or query the trigger mode.
+
+        Args:
+            mode (str): The trigger mode to set. If None, we just query.
+
+        Returns (str): The trigger mode.
+        """
+        return self.selectedDevice(c).trigger_mode(mode)
+
     # ACQUISITION
 
-    @setting(60, channel='i', returns='*v[s]*v[V]')
+    @setting(60, average_on='b', returns='b')
+    def average_on_off(self, c, average_on):
+        """Turn averaging on or off.
+
+        Args:
+            average_on (bool): If True, turn averaging on.
+
+        Returns (bool): Whether averaging is one or off.
+        """
+        return self.selectedDevice(c).average_on_off(average_on)
+
+    @setting(61, average_number='i', returns='i')
+    def average_number(self, c, averages):
+        """Set number of averages.
+
+        Args:
+            averages (int): Number of averages.
+
+        Returns (int): Number of averages.
+        """
+        return self.selectedDevice(c).average_number(averages)
+
+    @setting(68, channel='i', returns='*v[s]*v[V]')
     def get_trace(self, c, channel):
         """Get a trace for a single channel.
 
