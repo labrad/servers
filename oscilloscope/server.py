@@ -23,6 +23,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad.gpib import GPIBManagedServer
 from labrad.server import setting
 from oscilloscope.agilent.DSOX4104A import DSOX4104AWrapper
+from oscilloscope.agilent.DSO91304A import DSO91304AWrapper
 
 
 class OscilloscopeServer(GPIBManagedServer):
@@ -31,7 +32,9 @@ class OscilloscopeServer(GPIBManagedServer):
     name = 'Oscilloscope Server'
 
     deviceWrappers = {
-            'AGILENT TECHNOLOGIES DSO-X 4104A': DSOX4104AWrapper}
+            'AGILENT TECHNOLOGIES DSO-X 4104A': DSOX4104AWrapper,
+            'KEYSIGHT TECHNOLOGIES DSO90804A': DSO91304AWrapper,
+    }
 
     # SYSTEM
 
@@ -133,6 +136,7 @@ class OscilloscopeServer(GPIBManagedServer):
 
     # HORIZONTAL
 
+    # YOU ARE HERE
     @setting(30, scale='v[s]', returns='v[s]')
     def horiz_scale(self, c, scale=None):
         """Set or query the horizontal scale.
@@ -223,7 +227,7 @@ class OscilloscopeServer(GPIBManagedServer):
         """
         return self.selectedDevice(c).average_on_off(average_on)
 
-    @setting(61, average_number='i', returns='i')
+    @setting(61, averages='i', returns='i')
     def average_number(self, c, averages):
         """Set number of averages.
 

@@ -60,11 +60,13 @@ PREAMBLE_KEYS = [
 # The order of the keys here matches the order of the values in the comma
 # separated string.
 
-def not_implemented_channel_method(self, ch, arg):
-    raise NotImplementedError
+def not_implemented_channel_method(message):
+    def func(self, ch, arg):
+        raise NotImplementedError(message)
+    return func
 
 
-class DSO91304A(wrappers.OscilloscopeWrapper):
+class DSO91304AWrapper(wrappers.OscilloscopeWrapper):
     """Wrapper for the Agilent DSO91304A.
 
     We mostly override VISA string functions from the parent class, but in some
@@ -83,16 +85,11 @@ class DSO91304A(wrappers.OscilloscopeWrapper):
             ':CHAN{:d}:DISP?'.format,
             lambda x: {'1': True, '0': False}[x])
 
-    coupling = not_implemented_channel_method
-    """
-    coupling = wrappers.channel_method(
-            lambda x: x,
-            ':CHAN{:d}:COUP {}'.format,
-            ':CHAN{:d}:COUP?'.format,
-            lambda x: x)
-    """
+    coupling = not_implemented_channel_method(
+        "Coupling not configurable on this device, DC only.")
 
-    invert = not_implemented_channel_method
+    invert = not_implemented_channel_method(
+        "invert doesn't work for some reason")
     """
     invert = wrappers.channel_method(
             lambda x: {True: '1', False: '0'}[x],
@@ -101,11 +98,12 @@ class DSO91304A(wrappers.OscilloscopeWrapper):
             lambda x: {'1': True, '0': False}[x])
     """
 
-    termination = wrappers.channel_method(
-            lambda x: {50:'FIFT'}[x],
-            ':CHAN{:d}:IMP {}'.format,
-            ':CHAN{:d}:IMP?'.format,
-            lambda x: {'FIFT': 50}[x])
+    def termination(self, ch, arg):
+        if arg == 50 or arg is None:
+            return 50
+        else:
+            raise ValueError("Termination can only be 50, not {}".format(
+                    arg))
 
     vert_scale = wrappers.channel_method(
             lambda x: format(x['V'], 'E'),
