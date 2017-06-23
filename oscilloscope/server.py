@@ -136,7 +136,6 @@ class OscilloscopeServer(GPIBManagedServer):
 
     # HORIZONTAL
 
-    # YOU ARE HERE
     @setting(30, scale='v[s]', returns='v[s]')
     def horiz_scale(self, c, scale=None):
         """Set or query the horizontal scale.
@@ -217,7 +216,7 @@ class OscilloscopeServer(GPIBManagedServer):
     # ACQUISITION
 
     @setting(60, average_on='b', returns='b')
-    def average_on_off(self, c, average_on):
+    def average_on_off(self, c, average_on=None):
         """Turn averaging on or off.
 
         Args:
@@ -228,7 +227,7 @@ class OscilloscopeServer(GPIBManagedServer):
         return self.selectedDevice(c).average_on_off(average_on)
 
     @setting(61, averages='i', returns='i')
-    def average_number(self, c, averages):
+    def average_number(self, c, averages=None):
         """Set number of averages.
 
         Args:
@@ -238,6 +237,11 @@ class OscilloscopeServer(GPIBManagedServer):
         """
         return self.selectedDevice(c).average_number(averages)
 
+    '''
+    @setting(68, returns='*v[]')
+    def get_trace(self, c):
+        return self.selectedDevice(c).get_trace(1)
+    '''
     @setting(68, channel='i', returns='*v[s]*v[V]')
     def get_trace(self, c, channel):
         """Get a trace for a single channel.

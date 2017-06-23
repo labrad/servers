@@ -30,31 +30,40 @@ TRIGGER_MODES = [
         'SBUS4',
 ]
 
+def _id(x):
+    return x
+
+PREAMBLE_UNITS = {1: U.V, 2: U.s, 4: U.A, 5: U.Unit('dB')}
+
 PREAMBLE_KEYS = [
-        'byte_format',
-        'data_type',
-        'num_points',
-        'count',
-        'x_step',
-        'x_origin',
-        'x_reference',
-        'y_step',
-        'y_origin',
-        'y_reference',
-        'coupling',
-        'x_display_range',
-        'x_display_origin',
-        'y_display_range',
-        'y_display_origin',
-        'date',
-        'time',
-        'frame_model',
-        'acquisition_mode',
-        'completion',
-        'x_units',
-        'y_units',
-        'max_bandwidth_limit',
-        'min_bandwidth_limit',
+        ('byte_format', int),
+        ('data_type', int),
+        ('num_points', int),
+        ('count', int),
+        ('x_step', lambda x: float(x) * U.s),
+        ('x_origin', lambda x: float(x) * U.s),
+        ('x_reference', float),
+        ('y_step', lambda x: float(x) * U.V),
+        ('y_origin', lambda x: float(x) * U.V),
+        ('y_reference', lambda x: float(x) * U.V),
+        ('coupling', lambda x: {
+            0:'AC',
+            1:'DC',
+            2:'DCFIFTY',
+            3:'LFREJECT'}[int(x)]),
+        ('x_display_range', lambda x: float(x) * U.s),
+        ('x_display_origin', lambda x: float(x) * U.s),
+        ('y_display_range', lambda x: float(x) * U.V),
+        ('y_display_origin', lambda x: float(x) * U.V),
+        ('date', _id),  # Convert to a real date
+        ('time', _id),  # Convert to a real time
+        ('frame_model', _id),
+        ('acquisition_mode', int),  # Convert to string?
+        ('completion', int),
+        ('x_units', lambda x: PREAMBLE_UNITS[int(x)]),
+        ('y_units', lambda x: PREAMBLE_UNITS[int(x)]),
+        ('max_bandwidth_limit', lambda x: float(x) * U.Hz),
+        ('min_bandwidth_limit', lambda x: float(x) * U.Hz),
 ]
 # The preamble comes back from the scope as a comma separated string.
 # The order of the keys here matches the order of the values in the comma
@@ -150,11 +159,20 @@ class DSO91304AWrapper(wrappers.OscilloscopeWrapper):
             ':TRIG:EDGE:SLOP?'.format,
             lambda x: x)
 
-    trigger_level = wrappers.global_method(
-            lambda x: x['V'],
-            ':TRIG:EDGE:LEV {}'.format,
-            ':TRIG:EDGE:LEV?'.format,
-            lambda x: float(x) * U.Value(1, 'V'))
+    @inlineCallbacks
+    def trigger_level(self, level):
+        """Set and/or query the trigger level.
+
+        This scope is a bit different from some others in that the trigger
+        level is set for a particular channel. To keep the interface simple,
+        we set/query the trigger level for whichever channel is presently
+        set as the trigger source.
+        """
+        source = yield self.trigger_source()
+        if level is not None:
+            self.write(':TRIG:LEV {}, {}'.format(source, level[U.V]))
+        level = yield self.query(':TRIG:LEV? {}'.format(source))
+        returnValue(float(level)*U.V)
 
     trigger_mode = wrappers.global_method(
             wrappers.filter_function(TRIGGER_MODES),
@@ -164,15 +182,15 @@ class DSO91304AWrapper(wrappers.OscilloscopeWrapper):
 
     # ACQUISITION
     average_on_off = wrappers.global_method(
-            lambda x: x,
+            lambda x: {True: 1, False: 0}[x],
             'ACQ:AVER {}'.format,
             'ACQ:AVER?'.format,
-            lambda x: bool(x))
+            lambda x: bool(int(x)))
 
     average_number = wrappers.global_method(
             lambda x: x,
-            'ACQ:COUN {}'.format,
-            'ACQ:COUN?'.format,
+            'ACQ:AVER:COUN {}'.format,
+            'ACQ:AVER:COUN?'.format,
             lambda x: int(x))
 
     @inlineCallbacks
@@ -182,19 +200,18 @@ class DSO91304AWrapper(wrappers.OscilloscopeWrapper):
         Args:
             channel (int): Which channel to get.
 
-        Returns:
-            (ValueArray[s]): Time axis.
+        Returns: (ValueArray[s]): Time axis.
             (ValueArray[V]): Voltage axis.
         """
         word_length = 2
 
-        channel_on = yield self.channel_on()
+        channel_on = yield self.channel_on(channel)
         if not channel_on:
             raise RuntimeError('Cannot get trace from channel {} because it '
                                'is not on'.format(channel))
 
         yield self.write(':WAV:SOUR CHAN{}'.format(channel))
-        yield self.write(':WAV:MSBF')
+        yield self.write(':WAV:BYT MSBF')
         yield self.write(':WAV:FORM WORD')
 
         preamble_raw = yield self.query(':WAV:PRE?')
@@ -204,34 +221,34 @@ class DSO91304AWrapper(wrappers.OscilloscopeWrapper):
         wave_bin = yield self.read_raw()
         wave_raw = parse_binary_waveform(wave_bin, word_length=word_length)
 
-        y_incriment = preamble['y_incriment']
+        y_incriment = preamble['y_step']
         y_origin = preamble['y_origin']
         y_reference = preamble['y_reference']
-        wave_volts = ((wave_raw - y_reference) * y_incriment) + y_origin
+        wave = ((wave_raw - y_reference[U.V]) * y_incriment) + y_origin
 
-        x_incriment = preamble['x_incriment']
+        x_incriment = preamble['x_step']
         x_origin = preamble['x_origin']
         num_points = preamble['num_points']
-        time_s = np.linspace(
-                x_origin,
-                x_origin + (num_points-1) * x_incriment,
-                num_points)
-        returnValue((time_s * U.Unit('s'), wave_volts * U.Unit('V')))
+        time = np.linspace(
+                x_origin[U.s],
+                x_origin[U.s] + ((num_points-1) * x_incriment[U.s]),
+                num_points) * U.s
+        returnValue((time, wave))
 
 
 def parse_preamble(preamble):
     """Parse the waveform preamble.
 
     Args:
-        preamble (str): ASCII encoded preamble.
+        preamble (str): ASCII-encoded, comma-separated preamble.
 
     Returns:
         (dict): Mapping field names to their values.
     """
     results = {}
     fields = preamble.split(',')
-    for key, val in zip(PREAMBLE_KEYS, fields):
-        results[key] = val
+    for (key, parser), val in zip(PREAMBLE_KEYS, fields):
+        results[key] = parser(val)
     return results
 
 
