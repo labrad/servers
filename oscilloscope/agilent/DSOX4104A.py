@@ -1,9 +1,3 @@
-"""
-Wrappers for Agilent oscilloscopes.
-
-"""
-
-
 from __future__ import absolute_import
 
 import struct
@@ -15,7 +9,7 @@ import labrad.units as U
 import oscilloscope.wrappers as wrappers
 
 
-class AgilentDSOX4104AWrapper(wrappers.OscilloscopeWrapper):
+class DSOX4104AWrapper(wrappers.OscilloscopeWrapper):
     """Wrapper for the Agilent DSO-X 4104A
 
     We mostly override VISA string functions from the parent class, but in some

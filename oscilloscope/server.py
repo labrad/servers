@@ -22,7 +22,8 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 
 from labrad.gpib import GPIBManagedServer
 from labrad.server import setting
-import oscilloscope.agilent as agilent
+from oscilloscope.agilent.DSOX4104A import DSOX4104AWrapper
+from oscilloscope.agilent.DSO91304A import DSO91304AWrapper
 
 
 class OscilloscopeServer(GPIBManagedServer):
@@ -31,7 +32,9 @@ class OscilloscopeServer(GPIBManagedServer):
     name = 'Oscilloscope Server'
 
     deviceWrappers = {
-            'AGILENT TECHNOLOGIES DSO-X 4104A': agilent.AgilentDSOX4104AWrapper}
+            'AGILENT TECHNOLOGIES DSO-X 4104A': DSOX4104AWrapper,
+            'KEYSIGHT TECHNOLOGIES DSO90804A': DSO91304AWrapper,
+    }
 
     # SYSTEM
 
@@ -199,9 +202,42 @@ class OscilloscopeServer(GPIBManagedServer):
         """
         return self.selectedDevice(c).trigger_level(level)
 
+    @setting(74, mode='s', returns='s')
+    def trigger_mode(self, c, mode=None):
+        """Set or query the trigger mode.
+
+        Args:
+            mode (str): The trigger mode to set. If None, we just query.
+
+        Returns (str): The trigger mode.
+        """
+        return self.selectedDevice(c).trigger_mode(mode)
+
     # ACQUISITION
 
-    @setting(60, channel='i', returns='*v[s]*v[V]')
+    @setting(60, average_on='b', returns='b')
+    def average_on_off(self, c, average_on=None):
+        """Turn averaging on or off.
+
+        Args:
+            average_on (bool): If True, turn averaging on.
+
+        Returns (bool): Whether averaging is one or off.
+        """
+        return self.selectedDevice(c).average_on_off(average_on)
+
+    @setting(61, averages='i', returns='i')
+    def average_number(self, c, averages=None):
+        """Set number of averages.
+
+        Args:
+            averages (int): Number of averages.
+
+        Returns (int): Number of averages.
+        """
+        return self.selectedDevice(c).average_number(averages)
+
+    @setting(68, channel='i', returns='*v[s]*v[V]')
     def get_trace(self, c, channel):
         """Get a trace for a single channel.
 
