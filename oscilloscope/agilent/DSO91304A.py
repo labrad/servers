@@ -262,7 +262,7 @@ def parse_binary_waveform(data, word_length):
     Returns:
         (ndarray): voltage trace values. The units depend on the scope.
     """
-    format_char = {1: 'B', 2: 'H'}[word_length]
+    format_char = {1: 'B', 2: 'h'}[word_length]
     if data[0] != '#':
         raise ValueError("Invalid data. Expected '#' "
                          "at start, but got {}".format(data[0]))
