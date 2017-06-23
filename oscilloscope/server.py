@@ -237,11 +237,6 @@ class OscilloscopeServer(GPIBManagedServer):
         """
         return self.selectedDevice(c).average_number(averages)
 
-    '''
-    @setting(68, returns='*v[]')
-    def get_trace(self, c):
-        return self.selectedDevice(c).get_trace(1)
-    '''
     @setting(68, channel='i', returns='*v[s]*v[V]')
     def get_trace(self, c, channel):
         """Get a trace for a single channel.
