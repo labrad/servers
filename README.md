@@ -2,6 +2,8 @@
 
 A collection of LabRAD servers.  Many of these are for specific pieces of hardware.  In many only 
 have the most basic functionality, or whatever the person who wrote them needed for their experiment.
+The Qubit Server and Direct Ethernet servers have been removed, see the readme in the QubitServer
+and DirectEthernet directories for more information.
 
 Some servers that may be of general interest:
 
