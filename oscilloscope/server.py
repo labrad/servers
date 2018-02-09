@@ -33,6 +33,7 @@ class OscilloscopeServer(GPIBManagedServer):
 
     deviceWrappers = {
             'AGILENT TECHNOLOGIES DSO-X 4104A': DSOX4104AWrapper,
+            'KEYSIGHT TECHNOLOGIES DSO-X 4104A': DSOX4104AWrapper,
             'KEYSIGHT TECHNOLOGIES DSO90804A': DSO91304AWrapper,
     }
 
