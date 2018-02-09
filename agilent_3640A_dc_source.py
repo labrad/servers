@@ -52,7 +52,8 @@ class AgilentDCWrapper(GPIBDeviceWrapper):
 class AgilentDCSource(GPIBManagedServer):
     """Controls the Agilent 3640A DC Power Supply."""
     name = 'Agilent 3640A DC Source'
-    deviceName = 'Agilent Technologies E3640A'
+    deviceName = ['Agilent Technologies E3640A',
+                  'Keysight Technologies E3640A']
     deviceWrapper = AgilentDCWrapper
 
     @setting(10, state='b', returns='b')

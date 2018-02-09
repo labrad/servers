@@ -52,7 +52,9 @@ AC_SETTLING_TIME = {
 
 class AgilentDMMServer(GPIBManagedServer):
     name = 'Agilent 34401A DMM'
-    deviceName = ['HEWLETT-PACKARD 34401A', 'Agilent Technologies 34461A']
+    deviceName = ['HEWLETT-PACKARD 34401A',
+                  'Agilent Technologies 34461A',
+                  'Keysight Technologies 34461A']
 
     @setting(10, AC='b{AC}', returns='v[V]')
     def voltage(self, c, AC=False):

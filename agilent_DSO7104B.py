@@ -55,7 +55,9 @@ class Agilent7104BWrapper(GPIBDeviceWrapper):
 class Agilent7104BServer(GPIBManagedServer):
     name = 'Agilent 7104B Oscilloscope'
     deviceName = ['AGILENT TECHNOLOGIES DSO7104B',
-                  'AGILENT TECHNOLOGIES DSO-X 4104A']
+                  'KEYSIGHT TECHNOLOGIES DSO7104B',
+                  'AGILENT TECHNOLOGIES DSO-X 4104A',
+                  'KEYSIGHT TECHNOLOGIES DSO-X 4104A']
     deviceWrapper = Agilent7104BWrapper
         
     @setting(11, returns=[])
