@@ -227,13 +227,10 @@ class ADC_Branch1(ADC):
         @inlineCallbacks
         def func():
             # build register packet
-            filterFunc=np.zeros(self.FILTER_LEN, dtype='<u1')
-            filterStretchLen=0
-            filterStretchAt=0
-            demods={}
-            regs = self.regRun(RUN_MODE_CALIBRATE, 1, filterFunc,
-                filterStretchLen, filterStretchAt, demods)
-    
+            filterFunc = np.zeros(self.FILTER_LEN, dtype='<u1')
+            regs = self.regRun(mode=RUN_MODE_CALIBRATE, reps=1, 
+                    filterFunc=filterFunc, filterStretchAt=0,
+                    filterStretchLen=0, demods={})
             # create packet for the ethernet server
             p = self.makePacket()
             p.write(regs.tostring()) # send registry packet
@@ -305,9 +302,10 @@ class AdcRunner_Build1(AdcRunner):
         
         filterFunc, filterStretchLen, filterStretchAt = self.filter
         startDelay = self.startDelay + delay
-        regs = self.dev.regRun(self.mode, self.reps, filterFunc,
-                               filterStretchLen, filterStretchAt,
-                               self.channels, startDelay)
+        regs = self.dev.regRun(mode=self.mode, reps=self.reps,
+                filterFunc=filterFunc, filterStretchAt=filterStretchAt,
+                filterStretchLen=filterStretchLen, demods=self.channels,
+                startDelay=startDelay)
         return regs
     
     def collectPacket(self, seqTime, ctx):
@@ -441,9 +439,10 @@ class ADC_Build1(ADC_Branch1):
         @inlineCallbacks
         def func():
             # build registry packet
-            regs = self.regRun(self, self.RUN_MODE_AVERAGE_AUTO, 1, filterFunc,
-                filterStretchLen, filterStretchAt, demods)
-            
+            regs = self.regRun(mode=self.RUN_MODE_AVERAGE_AUTO, 
+                    reps=1, filterFunc=filterFunc,
+                    filterStretchAt=filterStretchAt,
+                    filterStretchLen=filterStretchLen, demods=demods)
             p = self.makePacket()
             p.write(regs.tostring())
             p.timeout(T.Value(10, 's'))
@@ -460,9 +459,10 @@ class ADC_Build1(ADC_Branch1):
         @inlineCallbacks
         def func():
             # build register packet
-            regs = self.regRun(self.RUN_MODE_DEMOD_AUTO, 1, filterFunc,
-                filterStretchLen, filterStretchAt, demods)
-    
+            regs = self.regRun(mode=self.RUN_MODE_DEMOD_AUTO, reps=1,
+                    filterFunc=filterFunc, 
+                    filterStretchAt=filterStretchAt,
+                    filterStretchLen=filterStretchLen, demods=demods)
             # create packet for the ethernet server
             p = self.makePacket()
             self.makeFilter(filterFunc, p) # upload filter function
@@ -650,7 +650,8 @@ class AdcRunner_Build7(AdcRunner_Build2):
         This is cheesey and ought to be fixed.
         """
         startDelay = self.startDelay + delay
-        regs = self.dev.regRun(self.mode, self.info, self.reps, startDelay=startDelay)
+        regs = self.dev.regRun(mode=self.mode, info=self.info,
+                reps=self.reps, startDelay=startDelay)
         # print("ADC run packet: %s" % (regs,))
         return regs    
     
@@ -955,8 +956,8 @@ class ADC_Build7(ADC_Branch2):
         @inlineCallbacks
         def func():
             # build registry packet
-            regs = self.regRun(self.RUN_MODE_REGISTER_READBACK, 0) # 0 reps?
-            
+            regs = self.regRun(mode=self.RUN_MODE_REGISTER_READBACK,
+                    info={}, reps=0)
             p = self.makePacket("registerReadback")
             p.write(regs.tostring())
             p.timeout(T.Value(10, 's'))
@@ -973,7 +974,8 @@ class ADC_Build7(ADC_Branch2):
         @inlineCallbacks
         def func():
             # build registry packet
-            regs = self.regRun(self.RUN_MODE_AVERAGE_AUTO, {}, 1)
+            regs = self.regRun(mode=self.RUN_MODE_AVERAGE_AUTO, info={},
+                    reps=1)
             p = self.makePacket("runAverage")
             p.write(regs.tostring())
             p.timeout(T.Value(10, 's'))
@@ -1000,8 +1002,8 @@ class ADC_Build7(ADC_Branch2):
         @inlineCallbacks
         def func():
             # build register packet
-            regs = self.regRun(self.RUN_MODE_DEMOD_AUTO, info, 1)
-    
+            regs = self.regRun(mode=self.RUN_MODE_DEMOD_AUTO, info=info,
+                    reps=1)
             # create packet for the ethernet server
             p = self.makePacket("runDemod packet")
             self.makeTriggerTable(triggerTable,p)
@@ -1052,7 +1054,8 @@ class ADC_Build7(ADC_Branch2):
         a = np.fromstring(resp, dtype='<u1')
         return {
             'build': a[0],
-            'noPllLatch': a[1]&1 == 1,
+            'noPllLatch': bool(a[1] & 1),
+            'dClkBits': (a[1] >> 1) & 0b1111,
             'executionCounter': int(a[2]) + int(a[3] << 8),
             'nPackets': a[4],
             'badPackets': a[5]
