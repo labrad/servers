@@ -758,6 +758,10 @@ class BoardGroup(object):
             # sequence.
             results = yield readAll  # wait for read to complete
 
+            # List the DACs that support the data readback.
+            timingDataDACs = [runner.dev.devName for runner in runners
+                    if isinstance(runner, dac.DacRunner_Build8)]
+            
             if getTimingData:
                 answers = []
                 # Cache of already-parsed data from a particular board.
@@ -770,7 +774,14 @@ class BoardGroup(object):
                         boardName, channel = dataChannelName.split('::')
                         channel = int(channel)
                     elif 'DAC' in dataChannelName:
-                        raise RuntimeError('DAC data readback not supported')
+                        # Ensure that dataChannelName is among the DACs
+                        # that support the data readback.
+                        if dataChannelName in timingDataDACs:
+                            boardName = dataChannelName
+                            channel = None
+                        else:
+                            raise RuntimeError('DAC data readback ' +
+                                ' supported only for DAC build 8')
                     elif 'ADC' in dataChannelName:
                         # ADC average mode
                         boardName = dataChannelName
@@ -791,6 +802,10 @@ class BoardGroup(object):
                                   results[idx]['read']]
                         # Array of all timing results (DAC)
                         extracted = runner.extract(result)
+                        # Wrap the DAC timing results in a tuple for
+                        # the data format consistency.
+                        if isinstance(runner, dac.DacRunner_Build8):
+                            extracted = (extracted,)
                         extractedData[boardName] = extracted
                     # Add extracted data to list of data to be returned
                     if channel != None:
@@ -1390,7 +1405,7 @@ class FPGAServer(DeviceServer):
              getTimingData='b',
              setupPkts='?{(((ww), s, ((s?)(s?)(s?)...))...)}',
              setupState='*s',
-             returns=['*4i', '*3i', ''])
+             returns=['*4i', '*3i', '*i', ''])
     def run_sequence(self, c, reps=30, getTimingData=True, setupPkts=[],
                      setupState=[]):
         """Executes a sequence on one or more boards.
@@ -1424,7 +1439,9 @@ class FPGAServer(DeviceServer):
                 (demod channel, stat, retrigger, I/Q).
             retrigger indexes multiple triggers in a sequence.
 
-            If only DACs present, we return no data.
+            If only DACs present, we return no data unless the build
+            number for at least some of the DAC boards is 8.
+            In the later case, the data is returned as *i.
 
             ADC boards must be either all in average mode or all in demodulate
             mode.
