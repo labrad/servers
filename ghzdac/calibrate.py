@@ -20,6 +20,7 @@
 
 import time
 import numpy as np
+import pyvisa
 import labrad
 from labrad.types import Value
 import keys
@@ -672,7 +673,15 @@ def sidebandScanCarrier(cxn, scanparams, boardname, corrector, use_switch=True):
         datapoint = [freq]
         for sidebandfreq in sidebandfreqs:
             print '    sideband frequency: %g GHz' % sidebandfreq
-            comp = sideband(uwaveSource, spec, fpga, corrector, freq, sidebandfreq)
+            success = False
+            while not success:
+                try:
+                    comp = sideband(uwaveSource, spec, fpga, corrector, freq, sidebandfreq)
+                    success = True
+                except pyvisa.errors.VisaIOError as e:
+                    print e
+                    print 'PyVISA Error Handled. Trying again.'
+                    pass
             datapoint += [np.real(comp), np.imag(comp)]
         ds.add(datapoint)
         freq += scanparams['sidebandCarrierStep']
